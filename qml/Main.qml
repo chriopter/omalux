@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtCore
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
@@ -13,6 +14,8 @@ ApplicationWindow {
     height: 820
     minimumWidth: 800
     minimumHeight: 560
+    // Headless mode uses Qt's offscreen platform but still needs an exposed
+    // scene graph for ShaderEffect and grabToImage.
     visible: true
     title: backend.fileName.length > 0 ? backend.fileName + " — Grainroom" : "Grainroom"
     color: pageColor
@@ -25,6 +28,7 @@ ApplicationWindow {
     readonly property color lineColor: "#363636"
     readonly property color accentColor: "#5584aa"
     readonly property string monoFont: "iA Writer Mono S"
+    readonly property real sidebarWidth: 316
 
     property real zoom: 1.0
     property int selectedPanel: 1
@@ -32,6 +36,129 @@ ApplicationWindow {
     property bool grainAdvancedExpanded: false
     property bool grainEnabled: true
     property bool shortcutsVisible: false
+    property bool exportMenuVisible: false
+    property string pendingExportFormat: ""
+    property int exportQuality: 90
+    property bool photoFullscreen: false
+    property int visibilityBeforePhotoFullscreen: Window.Windowed
+    readonly property var commandLineArguments: Qt.application.arguments
+    readonly property bool cliHeadless:
+        commandLineArguments.indexOf("--headless") >= 0
+    readonly property string cliInput: argumentValue("--input", "")
+    readonly property string cliOutput: argumentValue("--output", "")
+    readonly property string cliRequestedFormat:
+        argumentValue("--format", inferredCliFormat(cliOutput)).toUpperCase()
+    property bool cliExportStarted: false
+
+    function argumentValue(name, fallback) {
+        var position = commandLineArguments.indexOf(name)
+        return position >= 0 && position + 1 < commandLineArguments.length
+            ? commandLineArguments[position + 1] : fallback
+    }
+
+    function numericArgument(name, fallback) {
+        var value = Number(argumentValue(name, fallback.toString()))
+        return isFinite(value) ? value : fallback
+    }
+
+    function inferredCliFormat(path) {
+        var suffix = path.substring(path.lastIndexOf(".") + 1).toUpperCase()
+        if (suffix === "JPG" || suffix === "JPEG")
+            return "JPEG"
+        if (suffix === "HEIC" || suffix === "HEIF")
+            return "HEIC"
+        return "ORIGINAL"
+    }
+
+    function localFileUrl(path) {
+        return encodeURI("file://" + path)
+    }
+
+    function normalizedCliFormat() {
+        if (cliRequestedFormat === "JPG")
+            return "JPEG"
+        if (cliRequestedFormat === "HEIF")
+            return "HEIC"
+        return cliRequestedFormat
+    }
+
+    function failCli(message) {
+        console.error("grainroom: " + message)
+        Qt.callLater(function() { Qt.exit(1) })
+    }
+
+    function startCli() {
+        if (cliInput.length === 0) {
+            if (cliHeadless)
+                failCli("--headless requires --input")
+            return
+        }
+        if (cliHeadless && cliOutput.length === 0) {
+            failCli("--headless requires --output")
+            return
+        }
+        var format = normalizedCliFormat()
+        if (["ORIGINAL", "JPEG", "HEIC"].indexOf(format) < 0) {
+            failCli("unsupported --format: " + cliRequestedFormat)
+            return
+        }
+
+        exportQuality = Math.max(1, Math.min(100,
+            Math.round(numericArgument("--quality", 90))))
+        grainControl.value = Math.max(0, Math.min(100,
+            numericArgument("--grain", 24)))
+        grainSizeControl.value = Math.max(20, Math.min(6400,
+            numericArgument("--grain-size", 4000)))
+        midtonesControl.value = Math.max(0, Math.min(100,
+            numericArgument("--midtones", 100)))
+
+        console.log("grainroom: opening " + cliInput)
+        backend.openPhoto(localFileUrl(cliInput))
+    }
+
+    function continueCliExport() {
+        if (cliOutput.length === 0 || cliExportStarted
+                || sourceImage.status !== Image.Ready)
+            return
+        cliExportStarted = true
+        var format = normalizedCliFormat()
+        var destination = localFileUrl(cliOutput)
+        console.log("grainroom: exporting " + format + " at "
+                    + exportQuality + "% to " + cliOutput)
+        if (format === "ORIGINAL")
+            backend.saveOriginal(destination)
+        else
+            exportRendered(format, destination)
+    }
+
+    Component.onCompleted: startCli()
+
+    function enterPhotoFullscreen() {
+        if (sourceImage.status !== Image.Ready || photoFullscreen)
+            return
+        visibilityBeforePhotoFullscreen = window.visibility
+        zoom = 1.0
+        photoFlick.contentX = 0
+        photoFlick.contentY = 0
+        photoFullscreen = true
+        window.showFullScreen()
+    }
+
+    function exitPhotoFullscreen() {
+        if (!photoFullscreen)
+            return
+        photoFullscreen = false
+        if (visibilityBeforePhotoFullscreen === Window.Maximized)
+            window.showMaximized()
+        else if (visibilityBeforePhotoFullscreen === Window.FullScreen)
+            window.showFullScreen()
+        else
+            window.showNormal()
+        zoom = 1.0
+        photoFlick.contentX = 0
+        photoFlick.contentY = 0
+        keyboardLayer.forceActiveFocus()
+    }
 
     function setZoomAt(value, focalX, focalY) {
         var nextZoom = Math.max(0.25, Math.min(8.0, value))
@@ -80,25 +207,43 @@ ApplicationWindow {
     }
 
     function parameterAt(index) {
-        if (index === 0)
-            return grainControl
-        if (index === 1)
-            return grainSizeControl
-        return midtonesControl
+        switch (index) {
+        case 0: return grainControl
+        case 1: return grainSizeControl
+        case 2: return midtonesControl
+        case 3: return exposureControl
+        case 4: return contrastControl
+        case 5: return highlightsControl
+        case 6: return shadowsControl
+        default: return vignetteControl
+        }
     }
 
     function selectParameter(index) {
-        if (index > 0)
+        if (index === 1 || index === 2)
             grainAdvancedExpanded = true
-        selectedParameter = (index + 3) % 3
+        selectedParameter = (index + 8) % 8
+        Qt.callLater(function() {
+            var control = parameterAt(selectedParameter)
+            var flickable = grainScroll.flickable
+            var point = control.mapToItem(flickable, 0, 0)
+            if (point.y < 0)
+                flickable.contentY = Math.max(
+                    0, flickable.contentY + point.y - 4)
+            else if (point.y + control.height > grainScroll.availableHeight)
+                flickable.contentY += point.y + control.height
+                    - grainScroll.availableHeight + 4
+        })
     }
 
     function moveParameter(direction) {
-        if (!grainAdvancedExpanded) {
-            selectedParameter = 0
-            return
-        }
-        selectParameter(selectedParameter + direction)
+        var order = grainAdvancedExpanded
+            ? [0, 1, 2, 3, 4, 5, 6, 7]
+            : [0, 3, 4, 5, 6, 7]
+        var position = order.indexOf(selectedParameter)
+        if (position < 0)
+            position = 0
+        selectParameter(order[(position + direction + order.length) % order.length])
     }
 
     function adjustParameter(direction, coarse) {
@@ -121,6 +266,96 @@ ApplicationWindow {
 
     function movePanel(direction) {
         selectPanel(selectedPanel + direction)
+    }
+
+    function exportBaseName() {
+        var name = backend.fileName.length > 0 ? backend.fileName : "photograph"
+        var dot = name.lastIndexOf(".")
+        return dot > 0 ? name.substring(0, dot) : name
+    }
+
+    function exportResolution() {
+        var width = Math.round(sourceImage.sourceSize.width)
+        var height = Math.round(sourceImage.sourceSize.height)
+        return width > 0 && height > 0 ? width + " × " + height : "—"
+    }
+
+    function humanFileSize(bytes) {
+        if (bytes < 1024)
+            return Math.round(bytes) + " B"
+        if (bytes < 1024 * 1024)
+            return (bytes / 1024).toFixed(1) + " KB"
+        return (bytes / (1024 * 1024)).toFixed(1) + " MB"
+    }
+
+    function estimatedExportSize(format) {
+        if (format === "ORIGINAL")
+            return backend.originalFileSize
+        var pixels = sourceImage.sourceSize.width * sourceImage.sourceSize.height
+        if (pixels < 1)
+            return "—"
+        var qualityScale = 0.35 + Math.pow(exportQuality / 100, 2) * 0.8
+        var bytesPerPixel = format === "JPEG" ? 0.42 : 0.24
+        var grainPenalty = 1 + grainControl.value / 100 * 0.35
+        return "~" + humanFileSize(
+            pixels * bytesPerPixel * qualityScale * grainPenalty)
+    }
+
+    function exportDetails(format) {
+        return exportResolution() + "  ·  " + estimatedExportSize(format)
+    }
+
+    function chooseExportFormat(format) {
+        exportMenuVisible = false
+        pendingExportFormat = format
+
+        if (format === "ORIGINAL") {
+            var originalSuffix = backend.originalFormat.toLowerCase()
+            exportDialog.title = "Save original " + backend.originalFormat
+            exportDialog.defaultSuffix = originalSuffix
+            exportDialog.nameFilters = [backend.originalFormat + " (*." + originalSuffix + ")"]
+            exportDialog.selectedFile = exportDialog.currentFolder + "/"
+                    + exportBaseName() + "-copy." + originalSuffix
+        } else if (format === "JPEG") {
+            exportDialog.title = "Export JPEG"
+            exportDialog.defaultSuffix = "jpg"
+            exportDialog.nameFilters = ["JPEG image (*.jpg *.jpeg)"]
+            exportDialog.selectedFile = exportDialog.currentFolder + "/"
+                    + exportBaseName() + "-grainroom.jpg"
+        } else {
+            exportDialog.title = "Export HEIC"
+            exportDialog.defaultSuffix = "heic"
+            exportDialog.nameFilters = ["HEIC image (*.heic)"]
+            exportDialog.selectedFile = exportDialog.currentFolder + "/"
+                    + exportBaseName() + "-grainroom.heic"
+        }
+        exportDialog.open()
+    }
+
+    function exportRendered(format, destination) {
+        var width = Math.round(sourceImage.sourceSize.width)
+        var height = Math.round(sourceImage.sourceSize.height)
+        if (width < 1 || height < 1) {
+            backend.reportExportError("Could not export: photograph is not ready")
+            return
+        }
+
+        var temporaryPng = "/tmp/grainroom-export-" + Date.now() + ".png"
+        var devicePixelRatio = Math.max(1, grainEffect.Screen.devicePixelRatio)
+        var grabWidth = Math.max(1, Math.round(width / devicePixelRatio))
+        var grabHeight = Math.max(1, Math.round(height / devicePixelRatio))
+        var started = grainEffect.grabToImage(function(result) {
+            if (!result.saveToFile(temporaryPng)) {
+                backend.reportExportError("Could not render export image")
+                return
+            }
+            backend.exportRendered(
+                temporaryPng, destination, format, window.exportQuality,
+                width, height)
+        }, Qt.size(grabWidth, grabHeight))
+
+        if (!started)
+            backend.reportExportError("Could not start export render")
     }
 
     component TuiButton: Button {
@@ -167,31 +402,31 @@ ApplicationWindow {
         required property string label
         property bool selected: false
 
-        implicitWidth: 42
-        implicitHeight: 48
+        implicitWidth: 76
+        implicitHeight: 34
         activeFocusOnTab: false
 
-        contentItem: Column {
+        contentItem: Row {
             anchors.centerIn: parent
-            spacing: 1
+            spacing: 6
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: tabButton.symbol
-                color: tabButton.selected ? window.pageColor : window.inkColor
+                color: tabButton.selected ? window.accentColor : window.mutedColor
                 font.family: window.monoFont
-                font.pixelSize: 14
+                font.pixelSize: 13
                 horizontalAlignment: Text.AlignHCenter
             }
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: tabButton.label.toUpperCase()
-                color: tabButton.selected ? window.pageColor : window.mutedColor
+                color: tabButton.selected ? window.inkColor : window.mutedColor
                 font.family: window.monoFont
-                font.pixelSize: 7
+                font.pixelSize: 9
                 font.bold: true
-                font.letterSpacing: 0.4
+                font.letterSpacing: 0.2
                 horizontalAlignment: Text.AlignHCenter
             }
         }
@@ -199,13 +434,18 @@ ApplicationWindow {
         background: Rectangle {
             radius: 0
             color: tabButton.selected
-                ? window.inkColor
-                : tabButton.down ? "#303030"
-                    : tabButton.hovered ? window.raisedColor : "transparent"
-            border.width: 1
-            border.color: tabButton.selected
-                ? window.inkColor
-                : tabButton.hovered ? window.mutedColor : window.lineColor
+                ? Qt.rgba(0.33, 0.52, 0.67, 0.12)
+                : tabButton.down ? "#252525"
+                    : tabButton.hovered ? window.surfaceColor : "transparent"
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 2
+                color: window.accentColor
+                visible: tabButton.selected
+            }
         }
     }
 
@@ -219,8 +459,11 @@ ApplicationWindow {
         property real stepSize: 1
         property real coarseStep: stepSize * 10
         property string suffix: ""
+        property bool expandable: false
+        property bool expanded: false
         property alias value: slider.value
         readonly property bool selected: window.selectedParameter === parameterIndex
+        signal expansionRequested()
 
         implicitHeight: 58
         Accessible.role: Accessible.Slider
@@ -236,17 +479,6 @@ ApplicationWindow {
             slider.value = initialValue
         }
 
-        Text {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: "›"
-            color: window.accentColor
-            font.family: window.monoFont
-            font.pixelSize: 13
-            font.bold: true
-            visible: parameter.selected
-        }
-
         ColumnLayout {
             anchors.fill: parent
             anchors.leftMargin: 12
@@ -260,17 +492,45 @@ ApplicationWindow {
 
                 Text {
                     text: parameter.label.toUpperCase()
-                    color: window.inkColor
+                    color: parameter.selected ? window.accentColor : window.inkColor
                     font.family: window.monoFont
                     font.pixelSize: 11
                     font.bold: true
+                }
+
+                Button {
+                    visible: parameter.expandable
+                    implicitWidth: 20
+                    implicitHeight: 18
+                    leftPadding: 0
+                    rightPadding: 0
+                    topPadding: 0
+                    bottomPadding: 0
+                    activeFocusOnTab: false
+                    onClicked: parameter.expansionRequested()
+                    Accessible.name: parameter.expanded
+                        ? "Hide " + parameter.label + " subparameters"
+                        : "Show " + parameter.label + " subparameters"
+
+                    contentItem: Text {
+                        text: parameter.expanded ? "⌄" : "›"
+                        color: window.accentColor
+                        font.family: window.monoFont
+                        font.pixelSize: 12
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Item { }
+
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Text {
                     text: Math.round(parameter.value) + parameter.suffix
-                    color: window.inkColor
+                    color: parameter.selected ? window.accentColor : window.inkColor
                     font.family: window.monoFont
                     font.pixelSize: 11
                     font.bold: true
@@ -301,7 +561,7 @@ ApplicationWindow {
                     Rectangle {
                         width: slider.visualPosition * parent.width
                         height: parent.height
-                        color: window.mutedColor
+                        color: parameter.selected ? window.accentColor : window.mutedColor
                     }
                 }
 
@@ -311,7 +571,7 @@ ApplicationWindow {
                     width: 8
                     height: 8
                     radius: 0
-                    color: window.mutedColor
+                    color: parameter.selected ? window.accentColor : window.mutedColor
                 }
             }
         }
@@ -324,15 +584,30 @@ ApplicationWindow {
 
     component MockParameterControl: Item {
         id: mockParameter
+        required property int parameterIndex
         required property string label
         property real from: 0
         property real to: 100
         property real initialValue: 50
+        property real stepSize: 1
+        property real coarseStep: stepSize * 10
         property string suffix: ""
+        property alias value: mockSlider.value
+        readonly property bool selected: window.selectedParameter === parameterIndex
 
         implicitHeight: 58
         Accessible.role: Accessible.Slider
-        Accessible.name: label + " mock control"
+        Accessible.name: label
+
+        function nudge(direction, coarse) {
+            var amount = coarse ? coarseStep : stepSize
+            mockSlider.value = Math.max(
+                from, Math.min(to, mockSlider.value + direction * amount))
+        }
+
+        function resetValue() {
+            mockSlider.value = initialValue
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -347,24 +622,19 @@ ApplicationWindow {
 
                 Text {
                     text: mockParameter.label.toUpperCase()
-                    color: window.mutedColor
+                    color: mockParameter.selected
+                        ? window.accentColor : window.mutedColor
                     font.family: window.monoFont
                     font.pixelSize: 11
                     font.bold: true
-                }
-
-                Text {
-                    text: "MOCK"
-                    color: window.accentColor
-                    font.family: window.monoFont
-                    font.pixelSize: 8
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Text {
                     text: Math.round(mockSlider.value) + mockParameter.suffix
-                    color: window.inkColor
+                    color: mockParameter.selected
+                        ? window.accentColor : window.inkColor
                     font.family: window.monoFont
                     font.pixelSize: 11
                 }
@@ -377,8 +647,12 @@ ApplicationWindow {
                 from: mockParameter.from
                 to: mockParameter.to
                 value: mockParameter.initialValue
+                stepSize: mockParameter.stepSize
+                snapMode: Slider.SnapAlways
                 enabled: sourceImage.status === Image.Ready
                 activeFocusOnTab: false
+                onPressedChanged: if (pressed)
+                    window.selectParameter(mockParameter.parameterIndex)
 
                 background: Rectangle {
                     x: mockSlider.leftPadding
@@ -390,7 +664,8 @@ ApplicationWindow {
                     Rectangle {
                         width: mockSlider.visualPosition * parent.width
                         height: parent.height
-                        color: window.mutedColor
+                        color: mockParameter.selected
+                            ? window.accentColor : window.mutedColor
                     }
                 }
 
@@ -401,9 +676,15 @@ ApplicationWindow {
                     width: 8
                     height: 8
                     radius: 0
-                    color: window.mutedColor
+                    color: mockParameter.selected
+                        ? window.accentColor : window.mutedColor
                 }
             }
+        }
+
+        HoverHandler {
+            onHoveredChanged: if (hovered)
+                window.selectParameter(mockParameter.parameterIndex)
         }
     }
 
@@ -422,9 +703,28 @@ ApplicationWindow {
         onAccepted: backend.openPhoto(selectedFile)
     }
 
+    FileDialog {
+        id: exportDialog
+        fileMode: FileDialog.SaveFile
+        acceptLabel: "Save"
+        currentFolder: StandardPaths.standardLocations(StandardPaths.PicturesLocation)[0]
+        onAccepted: {
+            if (window.pendingExportFormat === "ORIGINAL")
+                backend.saveOriginal(selectedFile)
+            else
+                window.exportRendered(window.pendingExportFormat, selectedFile)
+        }
+    }
+
     Shortcut {
-        sequence: StandardKey.Open
+        sequences: [StandardKey.Open]
         onActivated: openDialog.open()
+    }
+
+    Shortcut {
+        sequences: [StandardKey.Save]
+        enabled: sourceImage.status === Image.Ready
+        onActivated: window.exportMenuVisible = true
     }
 
     Shortcut {
@@ -453,6 +753,29 @@ ApplicationWindow {
     Connections {
         target: backend
         function onPreviewUrlChanged() { window.fitPhoto() }
+        function onStatusChanged() {
+            if (window.cliInput.length === 0)
+                return
+            var status = backend.status
+            console.log("grainroom: " + status)
+            if (window.cliExportStarted && status.indexOf("Saved ") === 0) {
+                console.log("grainroom: export complete")
+                Qt.exit(0)
+            } else if (status.indexOf("Could not") === 0
+                       || status.indexOf("Unsupported") === 0
+                       || status.indexOf("Only local") === 0
+                       || status.indexOf("Open a photograph") === 0
+                       || status.indexOf("does not exist") >= 0) {
+                window.failCli(status)
+            }
+        }
+    }
+
+    Timer {
+        interval: 180000
+        running: window.cliHeadless
+        repeat: false
+        onTriggered: window.failCli("headless operation timed out")
     }
 
     Item {
@@ -464,6 +787,39 @@ ApplicationWindow {
         Component.onCompleted: forceActiveFocus()
 
         Keys.onPressed: function(event) {
+            if (window.photoFullscreen) {
+                window.exitPhotoFullscreen()
+                event.accepted = true
+                return
+            }
+
+            if (window.exportMenuVisible) {
+                if (event.key === Qt.Key_Escape) {
+                    window.exportMenuVisible = false
+                    event.accepted = true
+                } else if (event.key === Qt.Key_1) {
+                    window.chooseExportFormat("ORIGINAL")
+                    event.accepted = true
+                } else if (event.key === Qt.Key_2) {
+                    window.chooseExportFormat("JPEG")
+                    event.accepted = true
+                } else if (event.key === Qt.Key_3) {
+                    window.chooseExportFormat("HEIC")
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Left) {
+                    window.exportQuality = Math.max(
+                        1, window.exportQuality
+                           - ((event.modifiers & Qt.ShiftModifier) ? 5 : 1))
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Right) {
+                    window.exportQuality = Math.min(
+                        100, window.exportQuality
+                             + ((event.modifiers & Qt.ShiftModifier) ? 5 : 1))
+                    event.accepted = true
+                }
+                return
+            }
+
             if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
                 return
 
@@ -520,6 +876,8 @@ ApplicationWindow {
                 openDialog.open()
             } else if (keyText === "0") {
                 window.fitPhoto()
+            } else if (keyText === "f") {
+                window.enterPhotoFullscreen()
             } else if (keyText === "+" || keyText === "=") {
                 window.zoomIn()
             } else if (keyText === "-") {
@@ -538,7 +896,8 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 48
+                Layout.preferredHeight: window.photoFullscreen ? 0 : 48
+                visible: !window.photoFullscreen
                 color: window.pageColor
 
                 Rectangle {
@@ -550,68 +909,10 @@ ApplicationWindow {
                 }
 
                 Row {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 16
+                    id: headerActions
+                    anchors.horizontalCenter: parent.horizontalCenter
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 9
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "GRAINROOM"
-                        color: window.inkColor
-                        font.family: window.monoFont
-                        font.pixelSize: 13
-                        font.bold: true
-                        font.letterSpacing: 1.5
-                    }
-
-                    Rectangle {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 1
-                        height: 20
-                        color: window.lineColor
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: window.width >= 1050 ? 150 : 70
-                        text: backend.fileName.length > 0 ? backend.fileName : "NO IMAGE"
-                        color: window.mutedColor
-                        elide: Text.ElideMiddle
-                        font.family: window.monoFont
-                        font.pixelSize: 11
-                    }
-
-                }
-
-                Row {
-                    id: centralControls
-                    anchors.centerIn: parent
-                    spacing: 9
-
-                    TuiButton {
-                        text: "−"
-                        enabled: sourceImage.status === Image.Ready && window.zoom > 0.25
-                        onClicked: window.zoomOut()
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Zoom out · − / Ctrl−"
-                    }
-
-                    TuiButton {
-                        text: Math.round(window.zoom * 100) + "%"
-                        enabled: sourceImage.status === Image.Ready
-                        onClicked: window.fitPhoto()
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Fit photograph · 0 / Ctrl+0"
-                    }
-
-                    TuiButton {
-                        text: "+"
-                        enabled: sourceImage.status === Image.Ready && window.zoom < 8.0
-                        onClicked: window.zoomIn()
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Zoom in · + / Ctrl+"
-                    }
 
                     TuiButton {
                         text: "[O] OPEN"
@@ -620,38 +921,76 @@ ApplicationWindow {
                     }
 
                     TuiButton {
-                        text: "?"
-                        onClicked: window.shortcutsVisible = true
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Keyboard reference · ? / F1"
+                        text: "[S] SAVE"
+                        enabled: sourceImage.status === Image.Ready
+                        onClicked: window.exportMenuVisible = true
+                    }
+
+                    Row {
+                        height: 30
+                        spacing: 8
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "ZOOM"
+                            color: window.mutedColor
+                            font.family: window.monoFont
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+
+                        Slider {
+                            id: zoomSlider
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 118
+                            height: 20
+                            from: -2
+                            to: 3
+                            value: Math.log(window.zoom) / Math.log(2)
+                            stepSize: 0.05
+                            enabled: sourceImage.status === Image.Ready
+                            activeFocusOnTab: false
+                            onMoved: window.setZoom(Math.pow(2, value))
+
+                            background: Rectangle {
+                                x: zoomSlider.leftPadding
+                                y: zoomSlider.topPadding
+                                   + zoomSlider.availableHeight / 2 - height / 2
+                                width: zoomSlider.availableWidth
+                                height: 2
+                                color: window.lineColor
+
+                                Rectangle {
+                                    width: zoomSlider.visualPosition * parent.width
+                                    height: parent.height
+                                    color: window.mutedColor
+                                }
+                            }
+
+                            handle: Rectangle {
+                                x: zoomSlider.leftPadding
+                                   + zoomSlider.visualPosition
+                                   * (zoomSlider.availableWidth - width)
+                                y: zoomSlider.topPadding
+                                   + zoomSlider.availableHeight / 2 - height / 2
+                                width: 8
+                                height: 8
+                                color: window.mutedColor
+                            }
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 38
+                            text: Math.round(window.zoom * 100) + "%"
+                            color: window.inkColor
+                            font.family: window.monoFont
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignRight
+                        }
                     }
                 }
 
-                Row {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
-
-                    BusyIndicator {
-                        anchors.verticalCenter: parent.verticalCenter
-                        running: backend.loading
-                        visible: running
-                        width: visible ? 22 : 0
-                        height: 22
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: window.width >= 1050 ? 150 : 105
-                        text: backend.status.toUpperCase()
-                        color: window.mutedColor
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignRight
-                        font.family: window.monoFont
-                        font.pixelSize: 10
-                    }
-                }
             }
 
             RowLayout {
@@ -702,7 +1041,7 @@ ApplicationWindow {
                     Flickable {
                         id: photoFlick
                         anchors.fill: parent
-                        anchors.margins: 20
+                        anchors.margins: window.photoFullscreen ? 0 : 20
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         contentWidth: Math.max(width, photoSurface.width)
@@ -729,6 +1068,13 @@ ApplicationWindow {
                                 asynchronous: true
                                 cache: false
                                 visible: false
+                                onStatusChanged: {
+                                    if (status === Image.Ready)
+                                        window.continueCliExport()
+                                    else if (status === Image.Error
+                                             && window.cliInput.length > 0)
+                                        window.failCli("Qt could not load the developed image")
+                                }
                             }
 
                             ShaderEffect {
@@ -756,6 +1102,7 @@ ApplicationWindow {
                                 border.width: 1
                                 border.color: window.lineColor
                                 visible: sourceImage.status === Image.Ready
+                                    && !window.photoFullscreen
                             }
                         }
 
@@ -803,8 +1150,10 @@ ApplicationWindow {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: 316
+                    Layout.preferredWidth: window.photoFullscreen
+                        ? 0 : window.sidebarWidth
                     Layout.fillHeight: true
+                    visible: !window.photoFullscreen
                     color: window.pageColor
 
                     Rectangle {
@@ -819,44 +1168,60 @@ ApplicationWindow {
                         anchors.margins: 12
                         spacing: 12
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 6
+                            Layout.preferredHeight: 34
+                            color: "transparent"
+                            border.width: 1
+                            border.color: window.lineColor
 
-                            ToolTabButton {
-                                Layout.preferredWidth: 42
-                                symbol: "⌗"
-                                label: "Crop"
-                                selected: window.selectedPanel === 0
-                                onClicked: window.selectPanel(0)
-                                Accessible.name: "Crop · 1"
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Crop · 1"
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 1
+                                spacing: 0
+
+                                ToolTabButton {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    symbol: "⌗"
+                                    label: "Crop"
+                                    selected: window.selectedPanel === 0
+                                    onClicked: window.selectPanel(0)
+                                    Accessible.name: "Crop · 1"
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 1
+                                    Layout.fillHeight: true
+                                    color: window.lineColor
+                                }
+
+                                ToolTabButton {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    symbol: "▒"
+                                    label: "Shader"
+                                    selected: window.selectedPanel === 1
+                                    onClicked: window.selectPanel(1)
+                                    Accessible.name: "Grain shader · 2"
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 1
+                                    Layout.fillHeight: true
+                                    color: window.lineColor
+                                }
+
+                                ToolTabButton {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    symbol: "ⓘ"
+                                    label: "Meta"
+                                    selected: window.selectedPanel === 2
+                                    onClicked: window.selectPanel(2)
+                                    Accessible.name: "Metadata · 3"
+                                }
                             }
-
-                            ToolTabButton {
-                                Layout.preferredWidth: 42
-                                symbol: "▒"
-                                label: "Shader"
-                                selected: window.selectedPanel === 1
-                                onClicked: window.selectPanel(1)
-                                Accessible.name: "Grain shader · 2"
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Grain shader · 2"
-                            }
-
-                            ToolTabButton {
-                                Layout.preferredWidth: 42
-                                symbol: "ⓘ"
-                                label: "Meta"
-                                selected: window.selectedPanel === 2
-                                onClicked: window.selectPanel(2)
-                                Accessible.name: "Metadata · 3"
-                                ToolTip.visible: hovered
-                                ToolTip.text: "Metadata · 3"
-                            }
-
-                            Item { Layout.fillWidth: true }
                         }
 
                         Rectangle {
@@ -933,39 +1298,10 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     spacing: 10
 
-                                    RowLayout {
-                                        Layout.fillWidth: true
-
-                                        Text {
-                                            text: "02 / GRAIN SHADER"
-                                            color: window.inkColor
-                                            font.family: window.monoFont
-                                            font.pixelSize: 13
-                                            font.bold: true
-                                            font.letterSpacing: 1
-                                        }
-
-                                        Item { Layout.fillWidth: true }
-
-                                        Text {
-                                            text: window.grainEnabled ? "● LIVE" : "○ BYPASS"
-                                            color: window.grainEnabled
-                                                ? window.accentColor : window.mutedColor
-                                            font.family: window.monoFont
-                                            font.pixelSize: 10
-                                        }
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: "MAIN CONTROL  ·  [A] ADVANCED"
-                                        color: window.mutedColor
-                                        font.family: window.monoFont
-                                        font.pixelSize: 10
-                                    }
-
                                     ScrollView {
                                         id: grainScroll
+                                        readonly property Flickable flickable:
+                                            contentItem as Flickable
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         clip: true
@@ -987,92 +1323,56 @@ ApplicationWindow {
                                                 initialValue: 24
                                                 stepSize: 1
                                                 coarseStep: 10
-                                            }
-
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 8
-
-                                                TuiButton {
-                                                    Layout.preferredWidth: 34
-                                                    text: window.grainAdvancedExpanded ? "⌄" : "›"
-                                                    onClicked: window.toggleGrainAdvanced()
-                                                    Accessible.name: window.grainAdvancedExpanded
-                                                        ? "Hide grain subparameters"
-                                                        : "Show grain subparameters"
-                                                    ToolTip.visible: hovered
-                                                    ToolTip.text: Accessible.name
-                                                }
-
-                                                Text {
-                                                    text: "SIZE / MIDTONES"
-                                                    color: window.grainAdvancedExpanded
-                                                        ? window.inkColor : window.mutedColor
-                                                    font.family: window.monoFont
-                                                    font.pixelSize: 10
-                                                    font.bold: window.grainAdvancedExpanded
-                                                }
-
-                                                Item { Layout.fillWidth: true }
-
-                                                Text {
-                                                    text: "2 SUBPARAMETERS"
-                                                    color: window.mutedColor
-                                                    font.family: window.monoFont
-                                                    font.pixelSize: 8
-                                                }
-                                            }
-
-                                            ColumnLayout {
-                                                Layout.fillWidth: true
-                                                Layout.leftMargin: 14
-                                                spacing: 8
-                                                visible: window.grainAdvancedExpanded
-
-                                                ParameterControl {
-                                                    id: grainSizeControl
-                                                    Layout.fillWidth: true
-                                                    parameterIndex: 1
-                                                    label: "Size"
-                                                    from: 20
-                                                    to: 6400
-                                                    initialValue: 1600
-                                                    stepSize: 100
-                                                    coarseStep: 500
-                                                    suffix: " ISO"
-                                                }
-
-                                                ParameterControl {
-                                                    id: midtonesControl
-                                                    Layout.fillWidth: true
-                                                    parameterIndex: 2
-                                                    label: "Midtones"
-                                                    from: 0
-                                                    to: 100
-                                                    initialValue: 100
-                                                    stepSize: 1
-                                                    coarseStep: 10
-                                                }
+                                                expandable: true
+                                                expanded: window.grainAdvancedExpanded
+                                                onExpansionRequested: window.toggleGrainAdvanced()
                                             }
 
                                             Rectangle {
                                                 Layout.fillWidth: true
-                                                Layout.topMargin: 6
-                                                Layout.preferredHeight: 1
-                                                color: window.lineColor
-                                            }
+                                                implicitHeight: grainSubparameters.implicitHeight + 16
+                                                visible: window.grainAdvancedExpanded
+                                                color: "transparent"
+                                                border.width: 1
+                                                border.color: window.lineColor
 
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: "FUTURE CONTROLS / UI MOCK"
-                                                color: window.accentColor
-                                                font.family: window.monoFont
-                                                font.pixelSize: 9
-                                                font.bold: true
+                                                ColumnLayout {
+                                                    id: grainSubparameters
+                                                    anchors.fill: parent
+                                                    anchors.margins: 8
+                                                    spacing: 6
+
+                                                    ParameterControl {
+                                                        id: grainSizeControl
+                                                        Layout.fillWidth: true
+                                                        parameterIndex: 1
+                                                        label: "Size"
+                                                        from: 20
+                                                        to: 6400
+                                                        initialValue: 4000
+                                                        stepSize: 100
+                                                        coarseStep: 500
+                                                        suffix: " ISO"
+                                                    }
+
+                                                    ParameterControl {
+                                                        id: midtonesControl
+                                                        Layout.fillWidth: true
+                                                        parameterIndex: 2
+                                                        label: "Midtones"
+                                                        from: 0
+                                                        to: 100
+                                                        initialValue: 100
+                                                        stepSize: 1
+                                                        coarseStep: 10
+                                                    }
+                                                }
                                             }
 
                                             MockParameterControl {
+                                                id: exposureControl
                                                 Layout.fillWidth: true
+                                                parameterIndex: 3
                                                 label: "Exposure"
                                                 from: -100
                                                 to: 100
@@ -1080,25 +1380,33 @@ ApplicationWindow {
                                             }
 
                                             MockParameterControl {
+                                                id: contrastControl
                                                 Layout.fillWidth: true
+                                                parameterIndex: 4
                                                 label: "Contrast"
                                                 initialValue: 50
                                             }
 
                                             MockParameterControl {
+                                                id: highlightsControl
                                                 Layout.fillWidth: true
+                                                parameterIndex: 5
                                                 label: "Highlights"
                                                 initialValue: 62
                                             }
 
                                             MockParameterControl {
+                                                id: shadowsControl
                                                 Layout.fillWidth: true
+                                                parameterIndex: 6
                                                 label: "Shadows"
                                                 initialValue: 38
                                             }
 
                                             MockParameterControl {
+                                                id: vignetteControl
                                                 Layout.fillWidth: true
+                                                parameterIndex: 7
                                                 label: "Vignette"
                                                 initialValue: 18
                                             }
@@ -1180,7 +1488,8 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 28
+                Layout.preferredHeight: window.photoFullscreen ? 0 : 28
+                visible: !window.photoFullscreen
                 color: window.surfaceColor
 
                 Rectangle {
@@ -1212,6 +1521,13 @@ ApplicationWindow {
                     }
 
                     Text {
+                        text: "[S] SAVE"
+                        color: window.inkColor
+                        font.family: window.monoFont
+                        font.pixelSize: 10
+                    }
+
+                    Text {
                         text: "[B] " + (window.grainEnabled ? "BYPASS" : "ENABLE")
                         color: window.inkColor
                         font.family: window.monoFont
@@ -1226,7 +1542,7 @@ ApplicationWindow {
                     }
 
                     Text {
-                        text: "[0] FIT"
+                        text: "[0] FIT  [F] FULL"
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 10
@@ -1236,7 +1552,7 @@ ApplicationWindow {
 
                     Text {
                         visible: window.selectedPanel === 1 && window.width >= 1050
-                        text: "[H/L] ADJUST  [⇧] FAST  [R] RESET"
+                        text: "[↑/↓] SELECT  [←/→] ADJUST  [⇧] FAST  [R] RESET"
                         color: window.mutedColor
                         font.family: window.monoFont
                         font.pixelSize: 10
@@ -1249,6 +1565,165 @@ ApplicationWindow {
                         font.pixelSize: 10
                         font.bold: true
                     }
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            visible: window.exportMenuVisible
+            z: 110
+            color: Qt.rgba(0, 0, 0, 0.76)
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: window.exportMenuVisible = false
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.min(430, parent.width - 48)
+                height: 360
+                color: window.pageColor
+                border.width: 1
+                border.color: window.accentColor
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Text {
+                            text: "SAVE / FORMAT"
+                            color: window.inkColor
+                            font.family: window.monoFont
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            text: "ESC"
+                            color: window.accentColor
+                            font.family: window.monoFont
+                            font.pixelSize: 10
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "ORIGINAL COPIES THE SOURCE. JPEG AND HEIC INCLUDE THE CURRENT GRAIN."
+                        color: window.mutedColor
+                        wrapMode: Text.WordWrap
+                        font.family: window.monoFont
+                        font.pixelSize: 9
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: window.lineColor
+                    }
+
+                    TuiButton {
+                        Layout.fillWidth: true
+                        text: "[1] ORIGINAL · " + backend.originalFormat
+                            + "     " + window.exportDetails("ORIGINAL")
+                        onClicked: window.chooseExportFormat("ORIGINAL")
+                    }
+
+                    TuiButton {
+                        Layout.fillWidth: true
+                        text: "[2] JPEG · .JPG     " + window.exportDetails("JPEG")
+                        onClicked: window.chooseExportFormat("JPEG")
+                    }
+
+                    TuiButton {
+                        Layout.fillWidth: true
+                        text: "[3] HEIC · .HEIC     " + window.exportDetails("HEIC")
+                        onClicked: window.chooseExportFormat("HEIC")
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: window.lineColor
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Text {
+                            text: "QUALITY  ·  JPEG / HEIC"
+                            color: window.mutedColor
+                            font.family: window.monoFont
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            text: window.exportQuality + "%"
+                            color: window.accentColor
+                            font.family: window.monoFont
+                            font.pixelSize: 11
+                            font.bold: true
+                        }
+                    }
+
+                    Slider {
+                        id: exportQualitySlider
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 20
+                        from: 1
+                        to: 100
+                        value: window.exportQuality
+                        stepSize: 1
+                        snapMode: Slider.SnapAlways
+                        activeFocusOnTab: false
+                        onMoved: window.exportQuality = Math.round(value)
+
+                        background: Rectangle {
+                            x: exportQualitySlider.leftPadding
+                            y: exportQualitySlider.topPadding
+                               + exportQualitySlider.availableHeight / 2 - height / 2
+                            width: exportQualitySlider.availableWidth
+                            height: 2
+                            color: window.lineColor
+
+                            Rectangle {
+                                width: exportQualitySlider.visualPosition * parent.width
+                                height: parent.height
+                                color: window.accentColor
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: exportQualitySlider.leftPadding
+                               + exportQualitySlider.visualPosition
+                               * (exportQualitySlider.availableWidth - width)
+                            y: exportQualitySlider.topPadding
+                               + exportQualitySlider.availableHeight / 2 - height / 2
+                            width: 8
+                            height: 8
+                            color: window.accentColor
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "←/→ ADJUST  ·  SHIFT FAST  ·  SIZES ARE ESTIMATES"
+                        color: window.mutedColor
+                        font.family: window.monoFont
+                        font.pixelSize: 9
+                    }
+
+                    Item { Layout.fillHeight: true }
                 }
             }
         }
@@ -1305,7 +1780,7 @@ ApplicationWindow {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "1 / 2 / 3   CROP / GRAIN / METADATA\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT GRAIN PARAMETER\n↓ / ↑       SELECT GRAIN PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\nB           TOGGLE GRAIN BYPASS\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
+                        text: "1 / 2 / 3   CROP / GRAIN / METADATA\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT GRAIN PARAMETER\n↓ / ↑       SELECT GRAIN PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\nB           TOGGLE GRAIN BYPASS\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 12

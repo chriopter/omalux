@@ -13,6 +13,8 @@ pub mod qobject {
         #[qml_element]
         #[qproperty(QUrl, preview_url, cxx_name = "previewUrl")]
         #[qproperty(QString, file_name, cxx_name = "fileName")]
+        #[qproperty(QString, original_format, cxx_name = "originalFormat")]
+        #[qproperty(QString, original_file_size, cxx_name = "originalFileSize")]
         #[qproperty(QString, metadata_text, cxx_name = "metadataText")]
         #[qproperty(QString, status)]
         #[qproperty(bool, loading)]
@@ -21,6 +23,26 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "openPhoto"]
         fn open_photo(self: Pin<&mut Self>, url: &QUrl);
+
+        #[qinvokable]
+        #[cxx_name = "saveOriginal"]
+        fn save_original(self: Pin<&mut Self>, destination: &QUrl);
+
+        #[qinvokable]
+        #[cxx_name = "exportRendered"]
+        fn export_rendered(
+            self: Pin<&mut Self>,
+            temporary_png: &QString,
+            destination: &QUrl,
+            format: &QString,
+            quality: i32,
+            width: i32,
+            height: i32,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "reportExportError"]
+        fn report_export_error(self: Pin<&mut Self>, message: &QString);
     }
 
     impl cxx_qt::Threading for PhotoBackend {}
@@ -36,11 +58,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub struct PhotoBackendRust {
     preview_url: QUrl,
     file_name: QString,
+    original_format: QString,
+    original_file_size: QString,
     metadata_text: QString,
     status: QString,
     loading: bool,
     generation: AtomicU64,
     generated_preview: Option<PathBuf>,
+    source_path: Option<PathBuf>,
 }
 
 impl Default for PhotoBackendRust {
@@ -48,11 +73,14 @@ impl Default for PhotoBackendRust {
         Self {
             preview_url: QUrl::default(),
             file_name: QString::default(),
+            original_format: QString::from("—"),
+            original_file_size: QString::from("—"),
             metadata_text: QString::from("NO PHOTOGRAPH LOADED"),
             status: QString::from("Open a JPEG or RAW photograph"),
             loading: false,
             generation: AtomicU64::new(0),
             generated_preview: None,
+            source_path: None,
         }
     }
 }
@@ -86,8 +114,21 @@ impl qobject::PhotoBackend {
             .unwrap_or("Photograph")
             .to_owned();
         self.as_mut().set_file_name(QString::from(&file_name));
+        let original_format = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("FILE")
+            .to_ascii_uppercase();
+        self.as_mut()
+            .set_original_format(QString::from(&original_format));
+        let original_file_size = std::fs::metadata(&path)
+            .map(|metadata| human_file_size(metadata.len()))
+            .unwrap_or_else(|_| "—".to_owned());
+        self.as_mut()
+            .set_original_file_size(QString::from(&original_file_size));
         self.as_mut()
             .set_metadata_text(QString::from(&read_metadata(&path)));
+        self.as_mut().rust_mut().source_path = Some(path.clone());
 
         let generation = self.rust().generation.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -140,6 +181,121 @@ impl qobject::PhotoBackend {
                 }
             });
         });
+    }
+
+    pub fn save_original(mut self: Pin<&mut Self>, destination: &QUrl) {
+        let Some(source) = self.rust().source_path.clone() else {
+            self.as_mut()
+                .set_status(QString::from("Open a photograph before saving"));
+            return;
+        };
+        let Some(destination) = local_destination(destination) else {
+            self.as_mut().set_status(QString::from(
+                "Only local export destinations are supported",
+            ));
+            return;
+        };
+
+        match std::fs::copy(&source, &destination) {
+            Ok(_) => self.as_mut().set_status(QString::from(&format!(
+                "Saved original · {}",
+                display_file_name(&destination)
+            ))),
+            Err(error) => self
+                .as_mut()
+                .set_status(QString::from(&format!("Could not save original: {error}"))),
+        }
+    }
+
+    pub fn export_rendered(
+        mut self: Pin<&mut Self>,
+        temporary_png: &QString,
+        destination: &QUrl,
+        format: &QString,
+        quality: i32,
+        width: i32,
+        height: i32,
+    ) {
+        let temporary_png = PathBuf::from(temporary_png.to_string());
+        let Some(destination) = local_destination(destination) else {
+            let _ = std::fs::remove_file(&temporary_png);
+            self.as_mut().set_status(QString::from(
+                "Only local export destinations are supported",
+            ));
+            return;
+        };
+        let format = format.to_string().to_ascii_uppercase();
+        if !matches!(format.as_str(), "JPEG" | "HEIC") {
+            let _ = std::fs::remove_file(&temporary_png);
+            self.as_mut()
+                .set_status(QString::from("Unsupported export format"));
+            return;
+        }
+
+        self.as_mut()
+            .set_status(QString::from(&format!("Encoding {format}…")));
+        let quality = quality.clamp(1, 100);
+        let result = encode_rendered_export(
+            &temporary_png,
+            &destination,
+            &format,
+            quality,
+            width,
+            height,
+        );
+        let _ = std::fs::remove_file(&temporary_png);
+
+        match result {
+            Ok(()) => self.as_mut().set_status(QString::from(&format!(
+                "Saved {format} · {}",
+                display_file_name(&destination)
+            ))),
+            Err(message) => self.as_mut().set_status(QString::from(&message)),
+        }
+    }
+
+    pub fn report_export_error(mut self: Pin<&mut Self>, message: &QString) {
+        self.as_mut().set_status(message.clone());
+    }
+}
+
+fn local_destination(url: &QUrl) -> Option<PathBuf> {
+    url.to_local_file()
+        .map(|path| PathBuf::from(path.to_string()))
+}
+
+fn display_file_name(path: &Path) -> &str {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("photograph")
+}
+
+fn encode_rendered_export(
+    temporary_png: &Path,
+    destination: &Path,
+    format: &str,
+    quality: i32,
+    width: i32,
+    height: i32,
+) -> Result<(), String> {
+    if width < 1 || height < 1 {
+        return Err("Could not encode export: invalid image dimensions".to_owned());
+    }
+    let dimensions = format!("{width}x{height}!");
+    let output = Command::new("magick")
+        .arg(temporary_png)
+        .args(["-background", "black", "-alpha", "remove", "-alpha", "off"])
+        .args(["-resize", &dimensions])
+        .args(["-quality", &quality.to_string()])
+        .arg(destination)
+        .output()
+        .map_err(|error| format!("Could not start image encoder: {error}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let details = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Could not encode {format}: {}", details.trim()))
     }
 }
 
