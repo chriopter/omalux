@@ -93,7 +93,7 @@ fn exact_orthogonal_transform(
     if turns == 0 && !flip_horizontal && !flip_vertical {
         return Ok(source.clone());
     }
-    let (width, height) = if turns % 2 == 0 {
+    let (width, height) = if matches!(turns, 0 | 2) {
         (source.width(), source.height())
     } else {
         (source.height(), source.width())
