@@ -12,17 +12,17 @@ pub struct CropRect {
 
 impl CropRect {
     fn validate(&self) -> Result<(), SettingsError> {
-        validate_range("geometry.crop.x", self.x, 0.0, 1.0)?;
-        validate_range("geometry.crop.y", self.y, 0.0, 1.0)?;
-        validate_range("geometry.crop.width", self.width, f32::EPSILON, 1.0)?;
-        validate_range("geometry.crop.height", self.height, f32::EPSILON, 1.0)?;
-        if self.x + self.width > 1.0 + f32::EPSILON {
+        validate_half_open_origin("geometry.crop.x", self.x)?;
+        validate_half_open_origin("geometry.crop.y", self.y)?;
+        validate_positive_extent("geometry.crop.width", self.width)?;
+        validate_positive_extent("geometry.crop.height", self.height)?;
+        if f64::from(self.x) + f64::from(self.width) > 1.0 {
             return Err(SettingsError::new(
                 "geometry.crop.width",
                 "crop exceeds the right image edge",
             ));
         }
-        if self.y + self.height > 1.0 + f32::EPSILON {
+        if f64::from(self.y) + f64::from(self.height) > 1.0 {
             return Err(SettingsError::new(
                 "geometry.crop.height",
                 "crop exceeds the bottom image edge",
@@ -34,6 +34,26 @@ impl CropRect {
     fn is_full_image(&self) -> bool {
         self.x == 0.0 && self.y == 0.0 && self.width == 1.0 && self.height == 1.0
     }
+}
+
+fn validate_half_open_origin(path: &str, value: f32) -> Result<(), SettingsError> {
+    if !value.is_finite() || !(0.0..1.0).contains(&value) {
+        return Err(SettingsError::new(
+            path,
+            "must be finite and between 0 inclusive and 1 exclusive",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_positive_extent(path: &str, value: f32) -> Result<(), SettingsError> {
+    if !value.is_finite() || value <= 0.0 || value > 1.0 {
+        return Err(SettingsError::new(
+            path,
+            "must be finite, greater than 0, and at most 1",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

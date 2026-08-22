@@ -20,7 +20,7 @@ pub(super) fn develop_raw_preview(path: &Path, generation: u64) -> Result<PathBu
     ));
 
     let output = Command::new("dcraw_emu")
-        .args(["-w", "-h", "-o", "1", "-q", "0", "-Z", "-"])
+        .args(raw_preview_arguments())
         .arg(path)
         .output()
         .map_err(|error| format!("Could not start LibRaw: {error}"))?;
@@ -35,9 +35,15 @@ pub(super) fn develop_raw_preview(path: &Path, generation: u64) -> Result<PathBu
     Ok(output_path)
 }
 
+fn raw_preview_arguments() -> [&'static str; 8] {
+    // Intentionally omit `-t`: LibRaw applies camera orientation exactly once.
+    // The resulting PPM has no EXIF orientation for Qt to apply again.
+    ["-w", "-h", "-o", "1", "-q", "0", "-Z", "-"]
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_qt_image;
+    use super::{is_qt_image, raw_preview_arguments};
     use std::path::Path;
 
     #[test]
@@ -52,5 +58,12 @@ mod tests {
         assert!(!is_qt_image(Path::new("capture.dng")));
         assert!(!is_qt_image(Path::new("capture.nef")));
         assert!(!is_qt_image(Path::new("capture.cr3")));
+    }
+
+    #[test]
+    fn raw_preview_delegates_orientation_to_libraw_exactly_once() {
+        let arguments = raw_preview_arguments();
+        assert!(!arguments.contains(&"-t"));
+        assert!(!arguments.contains(&"-j"));
     }
 }

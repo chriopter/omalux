@@ -6,6 +6,7 @@
 
 mod color;
 mod image;
+mod orientation;
 pub mod parameters;
 pub mod pipeline;
 pub mod preset;

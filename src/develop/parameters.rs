@@ -205,11 +205,13 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         ParameterDefinition::toggle("geometry.flip_vertical", "Flip vertical", Geometry),
         ParameterDefinition::presence("geometry.crop.enabled", "Crop enabled", Geometry),
     ];
+    let largest_origin = f32::from_bits(1.0_f32.to_bits() - 1);
+    let smallest_extent = f32::from_bits(1);
     for (name, range, neutral) in [
-        ("x", (0.0, 1.0), 0.0),
-        ("y", (0.0, 1.0), 0.0),
-        ("width", (f32::EPSILON, 1.0), 1.0),
-        ("height", (f32::EPSILON, 1.0), 1.0),
+        ("x", (0.0, largest_origin), 0.0),
+        ("y", (0.0, largest_origin), 0.0),
+        ("width", (smallest_extent, 1.0), 1.0),
+        ("height", (smallest_extent, 1.0), 1.0),
     ] {
         definitions.push(ParameterDefinition::scalar(
             format!("geometry.crop.{name}"),

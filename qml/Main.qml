@@ -763,6 +763,7 @@ ApplicationWindow {
                                 id: sourceImage
                                 anchors.fill: parent
                                 source: backend.previewUrl
+                                autoTransform: true
                                 asynchronous: true
                                 cache: false
                                 visible: false

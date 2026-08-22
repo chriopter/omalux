@@ -6,6 +6,7 @@
 
 use crate::develop::{
     CpuImage, PipelineError, RgbaPixel,
+    orientation::apply_orthogonal_transform,
     settings::{CropRect, GeometrySettings},
 };
 
@@ -23,7 +24,7 @@ pub(super) fn apply(
         return Ok(());
     }
 
-    let mut rendered = exact_orthogonal_transform(
+    let mut rendered = apply_orthogonal_transform(
         image,
         settings.quarter_turns_clockwise,
         settings.flip_horizontal,
@@ -49,91 +50,15 @@ pub(super) fn apply(
     Ok(())
 }
 
-/// EXIF orientation is runtime input, deliberately separate from persisted
-/// develop settings. Import code may call the same exact orthogonal mapping
-/// before constructing a develop document.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum ExifOrientation {
-    Normal = 1,
-    MirrorHorizontal = 2,
-    Rotate180 = 3,
-    MirrorVertical = 4,
-    Transpose = 5,
-    Rotate90Clockwise = 6,
-    Transverse = 7,
-    Rotate270Clockwise = 8,
-}
-
-#[allow(dead_code)]
-pub(crate) fn apply_exif_orientation(
-    image: &CpuImage,
-    orientation: ExifOrientation,
-) -> Result<CpuImage, PipelineError> {
-    let (turns, flip_horizontal, flip_vertical) = match orientation {
-        ExifOrientation::Normal => (0, false, false),
-        ExifOrientation::MirrorHorizontal => (0, true, false),
-        ExifOrientation::Rotate180 => (2, false, false),
-        ExifOrientation::MirrorVertical => (0, false, true),
-        ExifOrientation::Transpose => (1, true, false),
-        ExifOrientation::Rotate90Clockwise => (1, false, false),
-        ExifOrientation::Transverse => (1, false, true),
-        ExifOrientation::Rotate270Clockwise => (3, false, false),
-    };
-    exact_orthogonal_transform(image, turns, flip_horizontal, flip_vertical)
-}
-
-fn exact_orthogonal_transform(
-    source: &CpuImage,
-    quarter_turns_clockwise: u8,
-    flip_horizontal: bool,
-    flip_vertical: bool,
-) -> Result<CpuImage, PipelineError> {
-    let turns = quarter_turns_clockwise % 4;
-    if turns == 0 && !flip_horizontal && !flip_vertical {
-        return Ok(source.clone());
-    }
-    let (width, height) = if matches!(turns, 0 | 2) {
-        (source.width(), source.height())
-    } else {
-        (source.height(), source.width())
-    };
-    let mut pixels = Vec::with_capacity(pixel_count(width, height));
-    for output_y in 0..height {
-        for output_x in 0..width {
-            let turned_x = if flip_horizontal {
-                width - 1 - output_x
-            } else {
-                output_x
-            };
-            let turned_y = if flip_vertical {
-                height - 1 - output_y
-            } else {
-                output_y
-            };
-            let (source_x, source_y) = match turns {
-                0 => (turned_x, turned_y),
-                1 => (turned_y, source.height() - 1 - turned_x),
-                2 => (
-                    source.width() - 1 - turned_x,
-                    source.height() - 1 - turned_y,
-                ),
-                3 => (source.width() - 1 - turned_y, turned_x),
-                _ => unreachable!(),
-            };
-            pixels.push(source.pixels()[index(source.width(), source_x, source_y)]);
-        }
-    }
-    CpuImage::new(width, height, pixels).map_err(PipelineError::InvalidImage)
-}
-
 fn normalized_crop(source: &CpuImage, crop: &CropRect) -> Result<CpuImage, PipelineError> {
     let width = source.width();
     let height = source.height();
     let left = normalized_edge(crop.x, width, false);
     let top = normalized_edge(crop.y, height, false);
-    let right = normalized_edge(crop.x + crop.width, width, true).max(left + 1);
-    let bottom = normalized_edge(crop.y + crop.height, height, true).max(top + 1);
+    let right_edge = (f64::from(crop.x) + f64::from(crop.width)) * f64::from(width);
+    let bottom_edge = (f64::from(crop.y) + f64::from(crop.height)) * f64::from(height);
+    let right = (right_edge.ceil() as u32).min(width).max(left + 1);
+    let bottom = (bottom_edge.ceil() as u32).min(height).max(top + 1);
     let output_width = right.min(width) - left;
     let output_height = bottom.min(height) - top;
     if left == 0 && top == 0 && output_width == width && output_height == height {
@@ -288,14 +213,15 @@ fn sample_lanczos3(source: &CpuImage, source_x: f64, source_y: f64) -> RgbaPixel
             premultiplied[3] += weight * alpha;
         }
     }
-    let alpha = premultiplied[3].clamp(0.0, 1.0);
-    if alpha <= f64::from(f32::EPSILON) {
+    let accumulated_alpha = premultiplied[3];
+    if !accumulated_alpha.is_finite() || accumulated_alpha <= 0.0 {
         return transparent();
     }
+    let alpha = accumulated_alpha.clamp(0.0, 1.0);
     RgbaPixel {
-        red: (premultiplied[0] / premultiplied[3]) as f32,
-        green: (premultiplied[1] / premultiplied[3]) as f32,
-        blue: (premultiplied[2] / premultiplied[3]) as f32,
+        red: (premultiplied[0] / accumulated_alpha) as f32,
+        green: (premultiplied[1] / accumulated_alpha) as f32,
+        blue: (premultiplied[2] / accumulated_alpha) as f32,
         alpha: alpha as f32,
     }
 }
@@ -344,7 +270,7 @@ mod tests {
 
     #[test]
     fn clockwise_quarter_turn_is_exact_and_swaps_dimensions() {
-        let output = exact_orthogonal_transform(&numbered(3, 2), 1, false, false).unwrap();
+        let output = apply_orthogonal_transform(&numbered(3, 2), 1, false, false).unwrap();
         assert_eq!((output.width(), output.height()), (2, 3));
         assert_eq!(
             output
@@ -354,41 +280,6 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![3.0, 0.0, 4.0, 1.0, 5.0, 2.0]
         );
-    }
-
-    #[test]
-    fn all_exif_orientations_match_the_normative_exact_mapping() {
-        let source = numbered(3, 2);
-        for (orientation, expected) in [
-            (ExifOrientation::Normal, vec![0., 1., 2., 3., 4., 5.]),
-            (
-                ExifOrientation::MirrorHorizontal,
-                vec![2., 1., 0., 5., 4., 3.],
-            ),
-            (ExifOrientation::Rotate180, vec![5., 4., 3., 2., 1., 0.]),
-            (
-                ExifOrientation::MirrorVertical,
-                vec![3., 4., 5., 0., 1., 2.],
-            ),
-            (ExifOrientation::Transpose, vec![0., 3., 1., 4., 2., 5.]),
-            (
-                ExifOrientation::Rotate90Clockwise,
-                vec![3., 0., 4., 1., 5., 2.],
-            ),
-            (ExifOrientation::Transverse, vec![5., 2., 4., 1., 3., 0.]),
-            (
-                ExifOrientation::Rotate270Clockwise,
-                vec![2., 5., 1., 4., 0., 3.],
-            ),
-        ] {
-            let output = apply_exif_orientation(&source, orientation).unwrap();
-            let values = output
-                .pixels()
-                .iter()
-                .map(RgbaPixel::red)
-                .collect::<Vec<_>>();
-            assert_eq!(values, expected, "{orientation:?}");
-        }
     }
 
     #[test]
@@ -415,6 +306,37 @@ mod tests {
         assert!((sampled.red() - 0.5).abs() < 1.0e-6);
         assert!((sampled.green() - 0.25).abs() < 1.0e-6);
         assert!((sampled.blue() - 4.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn every_positive_f32_alpha_survives_center_sampling() {
+        for alpha in [
+            1.0e-8,
+            f32::MIN_POSITIVE,
+            f32::from_bits(f32::MIN_POSITIVE.to_bits() - 1),
+            f32::from_bits(1),
+        ] {
+            let source =
+                CpuImage::new(1, 1, vec![RgbaPixel::new(-3.0, 0.25, 12.0, alpha).unwrap()])
+                    .unwrap();
+            let sampled = sample_lanczos3(&source, 0.5, 0.5);
+            assert_eq!(sampled.alpha().to_bits(), alpha.to_bits());
+            assert_eq!(sampled.red(), -3.0);
+            assert_eq!(sampled.green(), 0.25);
+            assert_eq!(sampled.blue(), 12.0);
+        }
+    }
+
+    #[test]
+    fn fully_transparent_border_has_no_hidden_rgb() {
+        let source = CpuImage::new(
+            1,
+            1,
+            vec![RgbaPixel::new(f32::MAX, -f32::MAX, 42.0, 0.0).unwrap()],
+        )
+        .unwrap();
+        assert_eq!(sample_lanczos3(&source, -0.25, 0.5), transparent());
+        assert_eq!(sample_lanczos3(&source, 4.0, 4.0), transparent());
     }
 
     #[test]
