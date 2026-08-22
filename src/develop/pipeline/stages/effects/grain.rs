@@ -239,7 +239,7 @@ fn film_noise_at_pixel(
             scale,
             phases[octave],
         );
-        total += simplex_noise(point) * AMPLITUDES[octave];
+        total += simplex_noise_large(point) * AMPLITUDES[octave];
     }
     total
 }
@@ -251,14 +251,13 @@ fn octave_point(
     frequency: f32,
     scale: f32,
     phase: [f32; 2],
-) -> [f32; 2] {
+) -> [f64; 2] {
     let divisor = short_edge as f64;
     let frequency_scale = f64::from(frequency) / f64::from(scale);
-    let x = ((global_x as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[0]))
-        .rem_euclid(f64::from(SIMPLEX_PERIOD));
-    let y = ((global_y as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[1]))
-        .rem_euclid(f64::from(SIMPLEX_PERIOD));
-    [x as f32, y as f32]
+    [
+        (global_x as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[0]),
+        (global_y as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[1]),
+    ]
 }
 
 fn octave_phases(seed: ResolvedGrainSeed) -> [[f32; 2]; 3] {
@@ -290,13 +289,43 @@ fn splitmix64(state: &mut u64) -> u64 {
 fn simplex_noise(point: [f32; 2]) -> f32 {
     const C_X: f32 = 0.211_324_87;
     const C_Y: f32 = 0.366_025_42;
-    const C_Z: f32 = -0.577_350_26;
-    const C_W: f32 = 0.024_390_243;
 
     let skew = point[0] * C_Y + point[1] * C_Y;
     let mut cell = [(point[0] + skew).floor(), (point[1] + skew).floor()];
     let unskew = cell[0] * C_X + cell[1] * C_X;
     let local0 = [point[0] - cell[0] + unskew, point[1] - cell[1] + unskew];
+    cell = [mod289(cell[0]), mod289(cell[1])];
+    simplex_noise_from_lattice(local0, cell)
+}
+
+// Large-coordinate entry point. Cartesian input is never wrapped: Simplex
+// noise is periodic in its skewed integer lattice, not independently in x/y.
+// The global coordinate and lattice decomposition stay in f64, and only the
+// integer lattice indices are reduced before entering the pinned f32 kernel.
+fn simplex_noise_large(point: [f64; 2]) -> f32 {
+    const C_X: f64 = 0.211_324_865_405_187;
+    const C_Y: f64 = 0.366_025_403_784_439;
+
+    let skew = point[0] * C_Y + point[1] * C_Y;
+    let cell_x = (point[0] + skew).floor() as i64;
+    let cell_y = (point[1] + skew).floor() as i64;
+    let unskew = cell_x as f64 * C_X + cell_y as f64 * C_X;
+    let local0 = [
+        (point[0] - cell_x as f64 + unskew) as f32,
+        (point[1] - cell_y as f64 + unskew) as f32,
+    ];
+    let cell = [
+        cell_x.rem_euclid(SIMPLEX_PERIOD as i64) as f32,
+        cell_y.rem_euclid(SIMPLEX_PERIOD as i64) as f32,
+    ];
+    simplex_noise_from_lattice(local0, cell)
+}
+
+fn simplex_noise_from_lattice(local0: [f32; 2], cell: [f32; 2]) -> f32 {
+    const C_X: f32 = 0.211_324_87;
+    const C_Z: f32 = -0.577_350_26;
+    const C_W: f32 = 0.024_390_243;
+
     let corner = if local0[0] > local0[1] {
         [1.0, 0.0]
     } else {
@@ -305,7 +334,6 @@ fn simplex_noise(point: [f32; 2]) -> f32 {
     let local1 = [local0[0] + C_X - corner[0], local0[1] + C_X - corner[1]];
     let local2 = [local0[0] + C_Z, local0[1] + C_Z];
 
-    cell = [mod289(cell[0]), mod289(cell[1])];
     let permutation = [
         permute(permute(cell[1]) + cell[0]),
         permute(permute(cell[1] + corner[1]) + cell[0] + corner[0]),
@@ -427,11 +455,29 @@ mod tests {
     }
 
     #[test]
+    fn f64_lattice_decomposition_preserves_normal_coordinate_kernel() {
+        for point in [
+            [0.0_f32, 0.0],
+            [0.125, -0.75],
+            [12.999_99, 13.000_01],
+            [-288.999_97, 288.999_97],
+            [123.456, -78.9],
+        ] {
+            let pinned = simplex_noise(point);
+            let decomposed = simplex_noise_large([f64::from(point[0]), f64::from(point[1])]);
+            assert!(
+                (pinned - decomposed).abs() <= 2.0e-5,
+                "{point:?}: pinned={pinned}, decomposed={decomposed}"
+            );
+        }
+    }
+
+    #[test]
     fn three_octave_noise_matches_golden() {
         let phases = octave_phases(ResolvedGrainSeed::fixed(42));
         assert_eq!(
             film_noise_at_pixel(0, 1, 2, iso_scale(4000.0), phases).to_bits(),
-            3_190_930_140
+            3_211_355_459
         );
     }
 
@@ -477,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn reduced_f64_coordinates_keep_adjacent_supported_pixels_distinct() {
+    fn f64_coordinates_keep_adjacent_supported_pixels_distinct_without_wrapping() {
         let scale = iso_scale(6400.0);
         let phases = octave_phases(ResolvedGrainSeed::fixed(u64::MAX));
         for octave in 0..3 {
@@ -505,11 +551,13 @@ mod tests {
                 scale,
                 phases[octave],
             );
-            assert_ne!(before[0].to_bits(), after_x[0].to_bits());
-            assert_ne!(before[1].to_bits(), after_y[1].to_bits());
+            assert_ne!(before[0], after_x[0]);
+            assert_ne!(before[1], after_y[1]);
+            assert_ne!(simplex_noise_large(before), simplex_noise_large(after_x));
+            assert_ne!(simplex_noise_large(before), simplex_noise_large(after_y));
 
-            // Extreme aspect ratio: the long-axis coordinate is reduced in
-            // f64 before conversion to f32 and still advances at the boundary.
+            // Extreme aspect ratio: the long-axis coordinate remains f64 and
+            // advances at the supported boundary without cartesian wrapping.
             let long_before = octave_point(
                 MAX_GRAIN_DIMENSION - 2,
                 0,
@@ -526,33 +574,54 @@ mod tests {
                 scale,
                 phases[octave],
             );
-            assert_ne!(long_before[0].to_bits(), long_after[0].to_bits());
+            assert_ne!(long_before[0], long_after[0]);
+            assert!(long_before[0] > SIMPLEX_PERIOD as f64);
+            assert_ne!(
+                simplex_noise_large(long_before),
+                simplex_noise_large(long_after)
+            );
+        }
+    }
+
+    #[test]
+    fn cartesian_289_offsets_are_not_falsely_assumed_periodic() {
+        for point in [[0.125, -0.75], [17.25, 41.5], [-1000.25, 2048.5]] {
+            let original = simplex_noise_large(point);
+            let shifted_x = simplex_noise_large([point[0] + 289.0, point[1]]);
+            let shifted_y = simplex_noise_large([point[0], point[1] + 289.0]);
+            assert_ne!(original.to_bits(), shifted_x.to_bits(), "{point:?}");
+            assert_ne!(original.to_bits(), shifted_y.to_bits(), "{point:?}");
+        }
+    }
+
+    #[test]
+    fn noise_is_continuous_across_former_cartesian_wraps_and_lattice_boundaries() {
+        const EPSILON: f64 = 0.000_01;
+        for fixed in [-731.25, -0.75, 0.125, 83.5] {
+            for boundary in [-578.0, -289.0, 0.0, 289.0, 578.0] {
+                let left = simplex_noise_large([boundary - EPSILON, fixed]);
+                let right = simplex_noise_large([boundary + EPSILON, fixed]);
+                assert!((left - right).abs() < 0.002, "x={boundary}, y={fixed}");
+                let below = simplex_noise_large([fixed, boundary - EPSILON]);
+                let above = simplex_noise_large([fixed, boundary + EPSILON]);
+                assert!((below - above).abs() < 0.002, "x={fixed}, y={boundary}");
+            }
         }
 
-        // Explicitly exercise phase values at zero, mid-period, and the f32
-        // value immediately below the period, rather than relying only on one
-        // resolved seed's phases.
-        for phase in [0.0, 144.5, f32::from_bits(289.0_f32.to_bits() - 1)] {
-            for coordinate in [0, MAX_GRAIN_DIMENSION / 2, MAX_GRAIN_DIMENSION - 2] {
-                let before = octave_point(
-                    coordinate,
-                    coordinate,
-                    MAX_GRAIN_DIMENSION,
-                    FREQUENCIES[0],
-                    scale,
-                    [phase; 2],
-                );
-                let after = octave_point(
-                    coordinate + 1,
-                    coordinate,
-                    MAX_GRAIN_DIMENSION,
-                    FREQUENCIES[0],
-                    scale,
-                    [phase; 2],
-                );
-                assert_ne!(before[0].to_bits(), after[0].to_bits());
-                assert!((0.0..SIMPLEX_PERIOD).contains(&before[0]));
-                assert!((0.0..SIMPLEX_PERIOD).contains(&after[0]));
+        // Cross exact boundaries of each skewed lattice coordinate at both
+        // ordinary and large cells. The two one-sided limits must meet.
+        const C_Y: f64 = 0.366_025_403_784_439;
+        for fixed in [-37.25, 0.125, 8192.75] {
+            for lattice_index in [-1_000_000_i64, -17, 0, 23, 1_000_000] {
+                let x_boundary = (lattice_index as f64 - fixed * C_Y) / (1.0 + C_Y);
+                let left = simplex_noise_large([x_boundary - EPSILON, fixed]);
+                let right = simplex_noise_large([x_boundary + EPSILON, fixed]);
+                assert!((left - right).abs() < 0.002);
+
+                let y_boundary = (lattice_index as f64 - fixed * C_Y) / (1.0 + C_Y);
+                let below = simplex_noise_large([fixed, y_boundary - EPSILON]);
+                let above = simplex_noise_large([fixed, y_boundary + EPSILON]);
+                assert!((below - above).abs() < 0.002);
             }
         }
     }
@@ -714,19 +783,19 @@ mod tests {
             (
                 0x5eed_u64,
                 [
-                    -0.032_204, 0.496_926, 0.065_854, 0.320_225, 0.613_921, 1.065_319,
+                    0.004_294, 0.497_019, 0.056_178, 0.317_087, 0.626_735, 1.054_418,
                 ],
             ),
             (
                 0xdead_beef_u64,
                 [
-                    0.018_328, 0.469_553, 0.057_974, 0.294_927, 0.647_099, 1.105_095,
+                    0.003_392, 0.468_533, 0.076_231, 0.320_804, 0.602_965, 1.295_413,
                 ],
             ),
             (
                 0x1234_5678_9abc_def0_u64,
                 [
-                    0.017_401, 0.482_231, 0.047_153, 0.322_179, 0.630_667, 1.233_990,
+                    -0.015_825, 0.487_551, 0.063_819, 0.338_568, 0.597_613, 1.189_199,
                 ],
             ),
         ];

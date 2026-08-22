@@ -48,9 +48,11 @@ the adapted grain-model files remain in place.
 - Grain extents are non-empty and limited to `2^20` pixels on either axis.
   Region construction uses checked area and end-coordinate arithmetic and
   rejects out-of-bounds regions and mismatched buffers in release builds. Each
-  normalized pixel center is computed in `f64`, reduced into the 289-cell
-  simplex period, and only then converted to `f32`. At the supported maximum
-  extent, adjacent coordinates remain distinct even at the coarsest octave.
+  normalized pixel center and skewed lattice decomposition are computed in
+  `f64`. Cartesian `x/y` are never wrapped: only the resulting integer lattice
+  indices are reduced modulo 289 before entering the pinned `f32` permutation
+  kernel. At the supported maximum extent, adjacent coordinates remain
+  distinct even at the coarsest octave and no axis-aligned period seam exists.
 - ISO maps to `(1 + ISO / 2665) / 800`. The three exact frequency/amplitude
   pairs are listed above. Amount maps from 0–100 to 0–1 before the upstream
   exposure-noise factor `0.15`.
@@ -82,8 +84,8 @@ attenuating procedural detail according to the on-screen source-pixel
 footprint, it still uses the older `+1.0` permutation polynomial while pinned
 Ashima commit `6abed1e…` and the normative CPU use `+10.0`. GPU migration must
 port the exact `mod289`, `permute`, skew/unskew, dot-product and accumulation
-operation order; provide the six SplitMix64-derived phases and global reduced
-pixel-center coordinates; and replace display-RGB luminance, scalar float seed,
-and final `[0,1]` clamp with this CPU contract. Independent GLSL reference
-vectors and multi-seed 2-D PSD gates must pass before that shader is called
-export-parity rendering.
+operation order; provide the six SplitMix64-derived phases and global f64
+pixel-center/lattice decomposition; and replace display-RGB luminance, scalar
+float seed, and final `[0,1]` clamp with this CPU contract. Independent GLSL
+reference vectors and multi-seed 2-D PSD gates must pass before that shader is
+called export-parity rendering.
