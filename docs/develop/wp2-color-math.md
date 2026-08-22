@@ -101,15 +101,9 @@ scales, or implementation; the OKLab model and all formulas above are local.
 darktable is licensed GPL-3.0-or-later. Its file is cited for conceptual and
 comparative provenance only; no darktable implementation is incorporated here.
 
-## Current module integration
+## Module integration
 
-Foundation F0 has no central shared-color module declaration. To avoid editing
-centrally owned module files in WP2, `color_mixer.rs` includes `color.rs` and
-`color_grading.rs` imports that same module through the mixer.
-
-Integration action: add `mod color;` once in `src/develop/mod.rs`, remove the
-`#[path = "../../color.rs"]` declaration from `color_mixer.rs`, and change both
-stage imports to `crate::develop::color`. Do not
-compile separate copies of `color.rs`: `ColorMathError` and all numerical
-helpers must remain one shared type and implementation. This is a structural
-cleanup only and must not change the numerical contract above.
+`src/develop/mod.rs` declares exactly one shared `color` module. The mixer and
+grading stages both import `crate::develop::color`; no path-based or duplicate
+compilation of the numerical helpers exists. Consequently `ColorMathError`,
+the conversion matrices, and the luminance solver have one implementation.

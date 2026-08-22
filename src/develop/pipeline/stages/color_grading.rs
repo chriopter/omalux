@@ -1,16 +1,14 @@
 use crate::develop::{
     CpuImage, DevelopStage, PipelineError,
+    color::{
+        ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
+        oklab_to_linear_rec2020_preserving_luminance,
+    },
     settings::{ColorGradeRange, ColorGradingSettings},
 };
 
 #[cfg(test)]
-use super::color_mixer::color::oklab_to_linear_rec2020;
-#[cfg(test)]
-use super::color_mixer::color::rec2020_luminance;
-use super::color_mixer::color::{
-    ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
-    oklab_to_linear_rec2020_preserving_luminance,
-};
+use crate::develop::color::{oklab_to_linear_rec2020, rec2020_luminance};
 
 const MAX_GRADE_CHROMA: f32 = 0.15;
 

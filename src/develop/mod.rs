@@ -4,6 +4,7 @@
 //! metadata, and pixel processing. QML is a client of this API rather than the
 //! owner of edit state.
 
+mod color;
 mod image;
 pub mod parameters;
 pub mod pipeline;

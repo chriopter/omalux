@@ -256,6 +256,45 @@ fn capability_preflight_is_complete_and_every_error_is_atomic() {
 }
 
 #[test]
+fn implemented_stages_preflight_and_process_non_neutral_settings() {
+    let mut cases = Vec::new();
+
+    let mut settings = DevelopSettings::default();
+    settings.basics.contrast = 10.0;
+    cases.push((DevelopStage::Basics, settings));
+
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.6 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    cases.push((DevelopStage::ToneCurves, settings));
+
+    let mut settings = DevelopSettings::default();
+    settings.color_mixer.orange.saturation = 10.0;
+    cases.push((DevelopStage::ColorMixer, settings));
+
+    let mut settings = DevelopSettings::default();
+    settings.color_grading.midtones.saturation = 10.0;
+    cases.push((DevelopStage::ColorGrading, settings));
+
+    let mut settings = DevelopSettings::default();
+    settings.effects.bloom = 10.0;
+    cases.push((DevelopStage::Effects, settings));
+
+    for (stage, settings) in cases {
+        assert_eq!(DevelopPipeline.preflight(&settings), Ok(()), "{stage:?}");
+        let mut image = valid_image();
+        assert_eq!(
+            DevelopPipeline.process(&mut image, &settings),
+            Ok(()),
+            "{stage:?}"
+        );
+    }
+}
+
+#[test]
 fn pixel_contract_accepts_unbounded_finite_rgb_and_rejects_invalid_values() {
     let pixel = RgbaPixel::new(-12.0, 0.18, 32.0, 0.25).unwrap();
     assert_eq!(pixel.red(), -12.0);
@@ -382,24 +421,8 @@ fn unsupported_settings_by_stage() -> Vec<(DevelopStage, DevelopSettings)> {
     cases.push((DevelopStage::Geometry, settings));
 
     let mut settings = DevelopSettings::default();
-    settings.basics.contrast = 1.0;
+    settings.basics.clarity = 1.0;
     cases.push((DevelopStage::Basics, settings));
-
-    let mut settings = DevelopSettings::default();
-    settings.tone_curves.master.points = vec![
-        CurvePoint { x: 0.0, y: 0.0 },
-        CurvePoint { x: 0.5, y: 0.6 },
-        CurvePoint { x: 1.0, y: 1.0 },
-    ];
-    cases.push((DevelopStage::ToneCurves, settings));
-
-    let mut settings = DevelopSettings::default();
-    settings.color_mixer.orange.saturation = 1.0;
-    cases.push((DevelopStage::ColorMixer, settings));
-
-    let mut settings = DevelopSettings::default();
-    settings.color_grading.midtones.saturation = 1.0;
-    cases.push((DevelopStage::ColorGrading, settings));
 
     let mut settings = DevelopSettings::default();
     let mut mask = radial_mask("active");
@@ -408,7 +431,7 @@ fn unsupported_settings_by_stage() -> Vec<(DevelopStage, DevelopSettings)> {
     cases.push((DevelopStage::RadialMasks, settings));
 
     let mut settings = DevelopSettings::default();
-    settings.effects.bloom = 1.0;
+    settings.effects.grain.amount = 1.0;
     cases.push((DevelopStage::Effects, settings));
 
     cases

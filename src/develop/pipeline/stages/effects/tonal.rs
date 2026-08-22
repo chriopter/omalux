@@ -1,4 +1,9 @@
 //! Global tonal and detail effects in the normative scene-linear working space.
+//!
+//! Fade, radial vignette, and thresholded luminance unsharp-mask formulas were
+//! independently specified for Grainroom from their general photographic and
+//! signal-processing definitions. No upstream or proprietary implementation,
+//! coefficients, LUT, preset, or camera profile was consulted or copied.
 
 use super::spatial::{Plane, finite_f32, gaussian_blur};
 use crate::develop::CpuImage;

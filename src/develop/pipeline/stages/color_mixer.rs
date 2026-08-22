@@ -1,17 +1,14 @@
 use crate::develop::{
     CpuImage, DevelopStage, PipelineError,
+    color::{
+        ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
+        oklab_to_linear_rec2020_preserving_luminance, oklab_to_oklch, oklch_to_oklab, wrap_radians,
+    },
     settings::{ColorBandAdjustment, ColorMixerSettings},
 };
 
-#[path = "../../color.rs"]
-pub(super) mod color;
-
 #[cfg(test)]
-use color::rec2020_luminance;
-use color::{
-    ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
-    oklab_to_linear_rec2020_preserving_luminance, oklab_to_oklch, oklch_to_oklab, wrap_radians,
-};
+use crate::develop::color::{oklab_to_linear_rec2020, rec2020_luminance};
 
 const BAND_COUNT: usize = 8;
 const DEFAULT_SMOOTHING: f32 = 50.0;
@@ -194,7 +191,7 @@ mod tests {
 
     #[test]
     fn red_band_has_normative_hue_chroma_and_luminance_semantics() {
-        let source = color::oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, 0.0]));
+        let source = oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, 0.0]));
         let mut settings = ColorMixerSettings::default();
         settings.red.hue_shift_degrees = 45.0;
         settings.red.saturation = 100.0;
