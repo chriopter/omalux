@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -29,6 +29,12 @@ impl ColorBandAdjustment {
 
     fn is_neutral(&self) -> bool {
         self == &Self::default()
+    }
+
+    fn canonicalize(&mut self) {
+        self.hue_shift_degrees = canonical_signed_degrees(self.hue_shift_degrees);
+        self.saturation = canonical_zero(self.saturation);
+        self.luminance = canonical_zero(self.luminance);
     }
 }
 
@@ -75,5 +81,20 @@ impl ColorMixerSettings {
         ]
         .into_iter()
         .all(ColorBandAdjustment::is_neutral)
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        for band in [
+            &mut self.red,
+            &mut self.orange,
+            &mut self.yellow,
+            &mut self.green,
+            &mut self.aqua,
+            &mut self.blue,
+            &mut self.purple,
+            &mut self.magenta,
+        ] {
+            band.canonicalize();
+        }
     }
 }

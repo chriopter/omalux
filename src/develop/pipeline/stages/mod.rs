@@ -8,6 +8,24 @@ mod tone_curves;
 
 use super::{CpuImage, DevelopSettings, DevelopStage, PipelineError};
 
+pub(super) fn ensure_supported(
+    stage: DevelopStage,
+    settings: &DevelopSettings,
+) -> Result<(), PipelineError> {
+    let supported = match stage {
+        DevelopStage::Geometry => geometry::supports(&settings.geometry),
+        DevelopStage::Basics => basics::supports(&settings.basics),
+        DevelopStage::ToneCurves => tone_curves::supports(&settings.tone_curves),
+        DevelopStage::ColorMixer => color_mixer::supports(&settings.color_mixer),
+        DevelopStage::ColorGrading => color_grading::supports(&settings.color_grading),
+        DevelopStage::RadialMasks => radial_masks::supports(&settings.radial_masks),
+        DevelopStage::Effects => effects::supports(&settings.effects),
+    };
+    supported
+        .then_some(())
+        .ok_or(PipelineError::StageNotImplemented(stage))
+}
+
 pub(super) fn apply(
     stage: DevelopStage,
     image: &mut CpuImage,

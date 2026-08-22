@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -56,6 +56,13 @@ impl ToneCurve {
     fn is_neutral(&self) -> bool {
         self.points.iter().all(|point| point.x == point.y)
     }
+
+    fn canonicalize(&mut self) {
+        for point in &mut self.points {
+            point.x = canonical_zero(point.x);
+            point.y = canonical_zero(point.y);
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -81,5 +88,12 @@ impl ToneCurvesSettings {
             && self.red.is_neutral()
             && self.green.is_neutral()
             && self.blue.is_neutral()
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        self.master.canonicalize();
+        self.red.canonicalize();
+        self.green.canonicalize();
+        self.blue.canonicalize();
     }
 }

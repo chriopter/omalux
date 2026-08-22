@@ -4,8 +4,11 @@ use std::collections::HashSet;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParameterUnit {
     Boolean,
+    Bytes,
+    ControlPoints,
     Degrees,
     FilmIso,
+    Items,
     Normalized,
     Percent,
     QuarterTurns,
@@ -13,9 +16,22 @@ pub enum ParameterUnit {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParameterKind {
+    Collection,
     Scalar,
     Toggle,
     Curve,
+    Identifier,
+    Presence,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NeutralRepresentation {
+    Scalar(f32),
+    Disabled,
+    IdentityCurve,
+    Absent,
+    EmptyCollection,
+    NotApplicable,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,6 +45,7 @@ pub struct ParameterDefinition {
     pub maximum: f32,
     pub neutral: f32,
     pub step: f32,
+    pub neutral_representation: NeutralRepresentation,
 }
 
 impl ParameterDefinition {
@@ -51,6 +68,7 @@ impl ParameterDefinition {
             maximum: range.1,
             neutral,
             step,
+            neutral_representation: NeutralRepresentation::Scalar(neutral),
         }
     }
 
@@ -65,6 +83,7 @@ impl ParameterDefinition {
             maximum: 1.0,
             neutral: 0.0,
             step: 1.0,
+            neutral_representation: NeutralRepresentation::Disabled,
         }
     }
 
@@ -74,11 +93,67 @@ impl ParameterDefinition {
             label: label.into(),
             stage: DevelopStage::ToneCurves,
             kind: ParameterKind::Curve,
-            unit: ParameterUnit::Normalized,
+            unit: ParameterUnit::ControlPoints,
             minimum: 0.0,
             maximum: 1.0,
             neutral: 0.0,
             step: 0.001,
+            neutral_representation: NeutralRepresentation::IdentityCurve,
+        }
+    }
+
+    fn presence(id: impl Into<String>, label: impl Into<String>, stage: DevelopStage) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            stage,
+            kind: ParameterKind::Presence,
+            unit: ParameterUnit::Boolean,
+            minimum: 0.0,
+            maximum: 1.0,
+            neutral: 0.0,
+            step: 1.0,
+            neutral_representation: NeutralRepresentation::Absent,
+        }
+    }
+
+    fn collection(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        stage: DevelopStage,
+        maximum_items: f32,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            stage,
+            kind: ParameterKind::Collection,
+            unit: ParameterUnit::Items,
+            minimum: 0.0,
+            maximum: maximum_items,
+            neutral: 0.0,
+            step: 1.0,
+            neutral_representation: NeutralRepresentation::EmptyCollection,
+        }
+    }
+
+    fn identifier(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        stage: DevelopStage,
+        maximum_bytes: f32,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            stage,
+            kind: ParameterKind::Identifier,
+            unit: ParameterUnit::Bytes,
+            minimum: 1.0,
+            maximum: maximum_bytes,
+            neutral: 1.0,
+            step: 1.0,
+            neutral_representation: NeutralRepresentation::NotApplicable,
         }
     }
 }
@@ -128,6 +203,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         ),
         ParameterDefinition::toggle("geometry.flip_horizontal", "Flip horizontal", Geometry),
         ParameterDefinition::toggle("geometry.flip_vertical", "Flip vertical", Geometry),
+        ParameterDefinition::presence("geometry.crop.enabled", "Crop enabled", Geometry),
     ];
     for (name, range, neutral) in [
         ("x", (0.0, 1.0), 0.0),
@@ -296,6 +372,19 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             1.0,
         ),
     ]);
+
+    definitions.push(ParameterDefinition::collection(
+        "radial_masks",
+        "Radial masks",
+        RadialMasks,
+        64.0,
+    ));
+    definitions.push(ParameterDefinition::identifier(
+        "radial_masks[].id",
+        "Mask id",
+        RadialMasks,
+        64.0,
+    ));
 
     for (name, unit, range, neutral, step) in [
         ("center_x", Normalized, (0.0, 1.0), 0.5, 0.001),

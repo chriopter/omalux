@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_unsigned_degrees, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -19,6 +19,12 @@ impl ColorGradeRange {
 
     fn is_neutral(&self) -> bool {
         self.saturation == 0.0 && self.luminance == 0.0
+    }
+
+    fn canonicalize(&mut self) {
+        self.hue_degrees = canonical_unsigned_degrees(self.hue_degrees);
+        self.saturation = canonical_zero(self.saturation);
+        self.luminance = canonical_zero(self.luminance);
     }
 }
 
@@ -43,9 +49,14 @@ impl ColorGradingSettings {
     }
 
     pub fn is_neutral(&self) -> bool {
-        self.shadows.is_neutral()
-            && self.midtones.is_neutral()
-            && self.highlights.is_neutral()
-            && self.balance == 0.0
+        self.shadows.is_neutral() && self.midtones.is_neutral() && self.highlights.is_neutral()
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        self.shadows.canonicalize();
+        self.midtones.canonicalize();
+        self.highlights.canonicalize();
+        self.blending = canonical_zero(self.blending);
+        self.balance = canonical_zero(self.balance);
     }
 }

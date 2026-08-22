@@ -49,6 +49,22 @@ impl DevelopSettings {
             && self.effects.is_neutral()
             && self.radial_masks.is_neutral()
     }
+
+    pub fn canonicalize(&mut self) {
+        self.geometry.canonicalize();
+        self.basics.canonicalize();
+        self.tone_curves.canonicalize();
+        self.color_mixer.canonicalize();
+        self.color_grading.canonicalize();
+        self.effects.canonicalize();
+        self.radial_masks.canonicalize();
+    }
+
+    pub fn canonicalized(&self) -> Self {
+        let mut settings = self.clone();
+        settings.canonicalize();
+        settings
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -98,4 +114,16 @@ pub(crate) fn validate_range(
         ));
     }
     Ok(())
+}
+
+pub(crate) fn canonical_zero(value: f32) -> f32 {
+    if value == 0.0 { 0.0 } else { value }
+}
+
+pub(crate) fn canonical_unsigned_degrees(value: f32) -> f32 {
+    canonical_zero(value.rem_euclid(360.0))
+}
+
+pub(crate) fn canonical_signed_degrees(value: f32) -> f32 {
+    canonical_zero((value + 180.0).rem_euclid(360.0) - 180.0)
 }

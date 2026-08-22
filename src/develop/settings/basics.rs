@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -39,5 +39,19 @@ impl BasicsSettings {
 
     pub fn is_neutral(&self) -> bool {
         self == &Self::default()
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        self.brightness = canonical_zero(self.brightness);
+        self.contrast = canonical_zero(self.contrast);
+        self.clarity = canonical_zero(self.clarity);
+        self.highlights = canonical_zero(self.highlights);
+        self.shadows = canonical_zero(self.shadows);
+        self.whites = canonical_zero(self.whites);
+        self.blacks = canonical_zero(self.blacks);
+        self.saturation = canonical_zero(self.saturation);
+        self.vibrance = canonical_zero(self.vibrance);
+        self.temperature = canonical_zero(self.temperature);
+        self.tint = canonical_zero(self.tint);
     }
 }

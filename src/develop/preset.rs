@@ -3,10 +3,18 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const PRESET_SCHEMA_VERSION: u32 = 1;
+pub const PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
+
+#[derive(Deserialize)]
+struct PresetEnvelope {
+    schema: String,
+    schema_version: u32,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PresetDocument {
+    pub schema: String,
     pub schema_version: u32,
     pub id: String,
     pub name: String,
@@ -16,6 +24,7 @@ pub struct PresetDocument {
 impl PresetDocument {
     pub fn new(id: impl Into<String>, name: impl Into<String>, settings: DevelopSettings) -> Self {
         Self {
+            schema: PRESET_SCHEMA_ID.to_owned(),
             schema_version: PRESET_SCHEMA_VERSION,
             id: id.into(),
             name: name.into(),
@@ -24,6 +33,9 @@ impl PresetDocument {
     }
 
     pub fn validate(&self) -> Result<(), PresetError> {
+        if self.schema != PRESET_SCHEMA_ID {
+            return Err(PresetError::UnsupportedSchema(self.schema.clone()));
+        }
         if self.schema_version != PRESET_SCHEMA_VERSION {
             return Err(PresetError::UnsupportedVersion(self.schema_version));
         }
@@ -47,6 +59,13 @@ impl PresetDocument {
     }
 
     pub fn from_json(json: &str) -> Result<Self, PresetError> {
+        let envelope: PresetEnvelope = serde_json::from_str(json).map_err(PresetError::Json)?;
+        if envelope.schema != PRESET_SCHEMA_ID {
+            return Err(PresetError::UnsupportedSchema(envelope.schema));
+        }
+        if envelope.schema_version != PRESET_SCHEMA_VERSION {
+            return Err(PresetError::UnsupportedVersion(envelope.schema_version));
+        }
         let document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
         document.validate()?;
         Ok(document)
@@ -56,13 +75,16 @@ impl PresetDocument {
     /// No setting is omitted, including neutral values.
     pub fn to_canonical_json(&self) -> Result<String, PresetError> {
         self.validate()?;
-        serde_json::to_string(self).map_err(PresetError::Json)
+        let mut canonical = self.clone();
+        canonical.settings.canonicalize();
+        serde_json::to_string(&canonical).map_err(PresetError::Json)
     }
 }
 
 #[derive(Debug)]
 pub enum PresetError {
     Json(serde_json::Error),
+    UnsupportedSchema(String),
     UnsupportedVersion(u32),
     InvalidIdentity(String),
     Settings(SettingsError),
@@ -72,6 +94,9 @@ impl fmt::Display for PresetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "invalid preset JSON: {error}"),
+            Self::UnsupportedSchema(schema) => {
+                write!(formatter, "unsupported preset schema {schema:?}")
+            }
             Self::UnsupportedVersion(version) => {
                 write!(formatter, "unsupported preset schema version {version}")
             }

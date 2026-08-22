@@ -11,10 +11,12 @@ pub mod preset;
 pub mod settings;
 mod stage;
 
-pub use image::{CpuImage, ImageError, RgbaPixel};
-pub use parameters::{ParameterDefinition, ParameterKind, ParameterUnit, parameter_registry};
+pub use image::{CpuImage, ImageError, PixelChannel, PixelError, RgbaPixel};
+pub use parameters::{
+    NeutralRepresentation, ParameterDefinition, ParameterKind, ParameterUnit, parameter_registry,
+};
 pub use pipeline::{DevelopPipeline, PipelineError};
-pub use preset::{PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
+pub use preset::{PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
 pub use settings::{
     BasicsSettings, ColorBandAdjustment, ColorGradeRange, ColorGradingSettings, ColorMixerSettings,
     CropRect, CurvePoint, DevelopSettings, EffectsSettings, GeometrySettings, GrainSettings,

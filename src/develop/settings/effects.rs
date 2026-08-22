@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -34,6 +34,12 @@ impl GrainSettings {
 
     fn is_neutral(&self) -> bool {
         self.amount == 0.0
+    }
+
+    fn canonicalize(&mut self) {
+        self.amount = canonical_zero(self.amount);
+        self.size_iso = canonical_zero(self.size_iso);
+        self.midtone_response = canonical_zero(self.midtone_response);
     }
 }
 
@@ -79,5 +85,14 @@ impl EffectsSettings {
             && self.vignette == 0.0
             && self.sharpness == 0.0
             && self.grain.is_neutral()
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        self.bloom = canonical_zero(self.bloom);
+        self.halation = canonical_zero(self.halation);
+        self.fade = canonical_zero(self.fade);
+        self.vignette = canonical_zero(self.vignette);
+        self.sharpness = canonical_zero(self.sharpness);
+        self.grain.canonicalize();
     }
 }

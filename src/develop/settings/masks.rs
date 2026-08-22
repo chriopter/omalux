@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -30,6 +30,15 @@ impl LocalAdjustments {
 
     fn is_neutral(&self) -> bool {
         self == &Self::default()
+    }
+
+    fn canonicalize(&mut self) {
+        self.brightness = canonical_zero(self.brightness);
+        self.contrast = canonical_zero(self.contrast);
+        self.saturation = canonical_zero(self.saturation);
+        self.temperature = canonical_zero(self.temperature);
+        self.tint = canonical_zero(self.tint);
+        self.sharpness = canonical_zero(self.sharpness);
     }
 }
 
@@ -87,6 +96,17 @@ impl RadialMask {
     fn is_neutral(&self) -> bool {
         !self.enabled || self.opacity == 0.0 || self.adjustments.is_neutral()
     }
+
+    fn canonicalize(&mut self) {
+        self.center_x = canonical_zero(self.center_x);
+        self.center_y = canonical_zero(self.center_y);
+        self.radius_x = canonical_zero(self.radius_x);
+        self.radius_y = canonical_zero(self.radius_y);
+        self.rotation_degrees = canonical_signed_degrees(self.rotation_degrees);
+        self.feather = canonical_zero(self.feather);
+        self.opacity = canonical_zero(self.opacity);
+        self.adjustments.canonicalize();
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -118,5 +138,11 @@ impl RadialMasksSettings {
 
     pub fn is_neutral(&self) -> bool {
         self.masks.iter().all(RadialMask::is_neutral)
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        for mask in &mut self.masks {
+            mask.canonicalize();
+        }
     }
 }

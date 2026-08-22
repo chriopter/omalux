@@ -1,4 +1,4 @@
-use super::{SettingsError, validate_range};
+use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -102,5 +102,17 @@ impl GeometrySettings {
             && self.perspective_vertical == 0.0
             && !self.flip_horizontal
             && !self.flip_vertical
+    }
+
+    pub(crate) fn canonicalize(&mut self) {
+        self.straighten_degrees = canonical_signed_degrees(self.straighten_degrees);
+        self.perspective_horizontal = canonical_zero(self.perspective_horizontal);
+        self.perspective_vertical = canonical_zero(self.perspective_vertical);
+        if let Some(crop) = &mut self.crop {
+            crop.x = canonical_zero(crop.x);
+            crop.y = canonical_zero(crop.y);
+            crop.width = canonical_zero(crop.width);
+            crop.height = canonical_zero(crop.height);
+        }
     }
 }

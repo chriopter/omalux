@@ -1,21 +1,64 @@
 use std::fmt;
 
+/// One straight-alpha pixel in Grainroom's normative CPU working space.
+///
+/// RGB is scene-linear Rec.2020 with a D65 white point. RGB values are finite
+/// but intentionally unbounded: negative scene values and values above 1.0
+/// are valid and must survive intermediate processing. Alpha is straight (not
+/// premultiplied), finite, and constrained to the inclusive range 0.0..=1.0.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RgbaPixel {
-    pub red: f32,
-    pub green: f32,
-    pub blue: f32,
-    pub alpha: f32,
+    pub(crate) red: f32,
+    pub(crate) green: f32,
+    pub(crate) blue: f32,
+    pub(crate) alpha: f32,
 }
 
 impl RgbaPixel {
-    pub const fn new(red: f32, green: f32, blue: f32, alpha: f32) -> Self {
-        Self {
+    pub fn new(red: f32, green: f32, blue: f32, alpha: f32) -> Result<Self, PixelError> {
+        let pixel = Self {
             red,
             green,
             blue,
             alpha,
+        };
+        pixel.validate()?;
+        Ok(pixel)
+    }
+
+    pub const fn red(&self) -> f32 {
+        self.red
+    }
+
+    pub const fn green(&self) -> f32 {
+        self.green
+    }
+
+    pub const fn blue(&self) -> f32 {
+        self.blue
+    }
+
+    pub const fn alpha(&self) -> f32 {
+        self.alpha
+    }
+
+    fn validate(&self) -> Result<(), PixelError> {
+        for (channel, value) in [
+            (PixelChannel::Red, self.red),
+            (PixelChannel::Green, self.green),
+            (PixelChannel::Blue, self.blue),
+        ] {
+            if !value.is_finite() {
+                return Err(PixelError::NonFinite(channel));
+            }
         }
+        if !self.alpha.is_finite() {
+            return Err(PixelError::NonFinite(PixelChannel::Alpha));
+        }
+        if !(0.0..=1.0).contains(&self.alpha) {
+            return Err(PixelError::AlphaOutOfRange);
+        }
+        Ok(())
     }
 }
 
@@ -28,21 +71,23 @@ pub struct CpuImage {
 
 impl CpuImage {
     pub fn new(width: u32, height: u32, pixels: Vec<RgbaPixel>) -> Result<Self, ImageError> {
-        let expected = width as usize * height as usize;
         if width == 0 || height == 0 {
             return Err(ImageError::EmptyDimensions);
         }
+        let expected = checked_pixel_count(width, height)?;
         if pixels.len() != expected {
             return Err(ImageError::PixelCount {
                 expected,
                 actual: pixels.len(),
             });
         }
-        Ok(Self {
+        let image = Self {
             width,
             height,
             pixels,
-        })
+        };
+        image.validate()?;
+        Ok(image)
     }
 
     pub const fn width(&self) -> u32 {
@@ -60,23 +105,95 @@ impl CpuImage {
     pub fn pixels_mut(&mut self) -> &mut [RgbaPixel] {
         &mut self.pixels
     }
+
+    /// Defensively verifies render buffers at pipeline boundaries. Stages may
+    /// use crate-private channel access for performance, so non-finite output
+    /// is rejected before it can be committed to a caller-visible image.
+    pub fn validate(&self) -> Result<(), ImageError> {
+        let expected = checked_pixel_count(self.width, self.height)?;
+        if self.pixels.len() != expected {
+            return Err(ImageError::PixelCount {
+                expected,
+                actual: self.pixels.len(),
+            });
+        }
+        for (index, pixel) in self.pixels.iter().enumerate() {
+            pixel
+                .validate()
+                .map_err(|source| ImageError::InvalidPixel { index, source })?;
+        }
+        Ok(())
+    }
 }
+
+fn checked_pixel_count(width: u32, height: u32) -> Result<usize, ImageError> {
+    let count = u64::from(width)
+        .checked_mul(u64::from(height))
+        .ok_or(ImageError::DimensionOverflow { width, height })?;
+    if count > isize::MAX as u64 {
+        return Err(ImageError::DimensionOverflow { width, height });
+    }
+    usize::try_from(count).map_err(|_| ImageError::DimensionOverflow { width, height })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PixelChannel {
+    Red,
+    Green,
+    Blue,
+    Alpha,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PixelError {
+    NonFinite(PixelChannel),
+    AlphaOutOfRange,
+}
+
+impl fmt::Display for PixelError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonFinite(channel) => write!(formatter, "{channel:?} channel must be finite"),
+            Self::AlphaOutOfRange => write!(formatter, "straight alpha must be between 0 and 1"),
+        }
+    }
+}
+
+impl std::error::Error for PixelError {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImageError {
     EmptyDimensions,
+    DimensionOverflow { width: u32, height: u32 },
     PixelCount { expected: usize, actual: usize },
+    InvalidPixel { index: usize, source: PixelError },
 }
 
 impl fmt::Display for ImageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyDimensions => write!(formatter, "image dimensions must be non-zero"),
+            Self::DimensionOverflow { width, height } => {
+                write!(
+                    formatter,
+                    "image dimensions {width}x{height} exceed addressable memory"
+                )
+            }
             Self::PixelCount { expected, actual } => {
                 write!(formatter, "expected {expected} pixels, received {actual}")
+            }
+            Self::InvalidPixel { index, source } => {
+                write!(formatter, "invalid pixel at index {index}: {source}")
             }
         }
     }
 }
 
-impl std::error::Error for ImageError {}
+impl std::error::Error for ImageError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidPixel { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
