@@ -63,6 +63,43 @@ fn master_curve_changes_luminance_without_changing_rgb_ratios() {
 }
 
 #[test]
+fn master_curve_lifts_exact_black_and_preserves_alpha() {
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master = lifted_curve();
+    let mut image = CpuImage::new(1, 1, vec![pixel([0.0; 3])]).unwrap();
+    DevelopPipeline.process(&mut image, &settings).unwrap();
+    let output = image.pixels()[0];
+    assert_rgb_close(
+        [
+            f64::from(output.red()),
+            f64::from(output.green()),
+            f64::from(output.blue()),
+        ],
+        0.2,
+        2.0e-7,
+    );
+    assert_eq!(output.alpha().to_bits(), 0.75_f32.to_bits());
+}
+
+#[test]
+fn master_curve_handles_chromatic_near_zero_luminance() {
+    let input = [1.0, -LUMA[0] / LUMA[1], 0.0];
+    let output = render(input, |settings| {
+        settings.tone_curves.master = lifted_curve()
+    });
+    assert_close(luma(output), 0.2, 3.0e-7);
+    assert!(output.into_iter().all(f64::is_finite));
+}
+
+#[test]
+fn master_curve_extrapolates_negative_luminance() {
+    let output = render([-0.25; 3], |settings| {
+        settings.tone_curves.master = lifted_curve()
+    });
+    assert_rgb_close(output, 0.0, 2.0e-7);
+}
+
+#[test]
 fn master_is_applied_before_individual_rgb_curves() {
     let square = ToneCurve {
         points: vec![
@@ -105,6 +142,49 @@ fn generated_curve_is_monotone() {
 }
 
 #[test]
+fn tightly_spaced_curve_nodes_are_evaluated_exactly() {
+    let low_x = 0.5_f32;
+    let high_x = f32::from_bits(low_x.to_bits() + 2);
+    let curve = ToneCurve {
+        points: vec![
+            CurvePoint { x: 0.0, y: 0.0 },
+            CurvePoint { x: low_x, y: 0.0 },
+            CurvePoint { x: high_x, y: 1.0 },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ],
+    };
+    for (input, expected) in [(low_x, 0.0_f32), (high_x, 1.0_f32)] {
+        let output = render([f64::from(input); 3], |settings| {
+            settings.tone_curves.red = curve.clone();
+        });
+        assert_eq!((output[0] as f32).to_bits(), expected.to_bits());
+    }
+}
+
+#[test]
+fn maximum_density_curve_processes_a_large_scanline_monotonically() {
+    let points = (0..32)
+        .map(|index| {
+            let value = index as f32 / 31.0;
+            CurvePoint {
+                x: value,
+                y: value * value,
+            }
+        })
+        .collect();
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.red = ToneCurve { points };
+    let pixels = (0..65_536)
+        .map(|index| pixel([index as f64 / 65_535.0, 0.0, 0.0]))
+        .collect();
+    let mut image = CpuImage::new(65_536, 1, pixels).unwrap();
+    DevelopPipeline.process(&mut image, &settings).unwrap();
+    for pair in image.pixels().windows(2) {
+        assert!(pair[1].red() >= pair[0].red());
+    }
+}
+
+#[test]
 fn descending_y_is_rejected_with_a_precise_path() {
     let mut settings = DevelopSettings::default();
     settings.tone_curves.red.points = vec![
@@ -132,6 +212,16 @@ fn golden_curve() -> ToneCurve {
         points: vec![
             CurvePoint { x: 0.0, y: 0.0 },
             CurvePoint { x: 0.5, y: 0.25 },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ],
+    }
+}
+
+fn lifted_curve() -> ToneCurve {
+    ToneCurve {
+        points: vec![
+            CurvePoint { x: 0.0, y: 0.2 },
+            CurvePoint { x: 0.5, y: 0.6 },
             CurvePoint { x: 1.0, y: 1.0 },
         ],
     }

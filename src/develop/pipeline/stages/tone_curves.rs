@@ -3,13 +3,10 @@ use crate::develop::{
     settings::{ToneCurve, ToneCurvesSettings},
 };
 
-// The monotone cubic construction follows Fritsch-Carlson as used by raw
-// processors such as darktable (`rgbcurve.c`, commit 943d74a) and RawTherapee
-// (`curves.cc`, commit 498f623). This implementation and its LUT are local.
+// Grainroom's monotone cubic curve is documented in docs/develop/wp1-math.md.
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const LUMA_EPSILON: f64 = 1.0e-6;
-const LUT_SIZE: usize = 4096;
 
 pub(super) fn supports(_settings: &ToneCurvesSettings) -> bool {
     true
@@ -35,11 +32,19 @@ pub(super) fn apply(
             f64::from(pixel.blue),
         ];
 
-        let old_luminance = luminance(rgb);
-        if old_luminance > LUMA_EPSILON {
+        if !master.is_identity() {
+            let old_luminance = luminance(rgb);
             let new_luminance = master.evaluate(old_luminance);
-            let scale = new_luminance / old_luminance;
-            rgb = [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale];
+            if old_luminance.abs() > LUMA_EPSILON {
+                let scale = new_luminance / old_luminance;
+                rgb = [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale];
+            } else {
+                // Scaling is singular at zero luminance. An equal additive
+                // offset changes Rec.2020 luminance by exactly the requested
+                // delta because the luminance coefficients sum to one.
+                let delta = new_luminance - old_luminance;
+                rgb = [rgb[0] + delta, rgb[1] + delta, rgb[2] + delta];
+            }
         }
 
         rgb = [
@@ -60,13 +65,23 @@ fn luminance(rgb: [f64; 3]) -> f64 {
 
 enum PreparedCurve {
     Identity,
-    Lut {
-        values: Box<[f64; LUT_SIZE]>,
+    Pchip {
+        segments: Box<[PchipSegment]>,
         first_y: f64,
         first_slope: f64,
         last_y: f64,
         last_slope: f64,
     },
+}
+
+struct PchipSegment {
+    x0: f64,
+    x1: f64,
+    y0: f64,
+    y1: f64,
+    cubic: f64,
+    quadratic: f64,
+    linear: f64,
 }
 
 impl PreparedCurve {
@@ -81,13 +96,28 @@ impl PreparedCurve {
             .map(|point| (f64::from(point.x), f64::from(point.y)))
             .collect();
         let slopes = pchip_slopes(&points);
-        let mut values = Box::new([0.0; LUT_SIZE]);
-        for (index, value) in values.iter_mut().enumerate() {
-            let x = index as f64 / (LUT_SIZE - 1) as f64;
-            *value = evaluate_pchip(&points, &slopes, x);
-        }
-        Self::Lut {
-            values,
+        let segments = points
+            .windows(2)
+            .enumerate()
+            .map(|(index, pair)| {
+                let (x0, y0) = pair[0];
+                let (x1, y1) = pair[1];
+                let width = x1 - x0;
+                let first_tangent = width * slopes[index];
+                let second_tangent = width * slopes[index + 1];
+                PchipSegment {
+                    x0,
+                    x1,
+                    y0,
+                    y1,
+                    cubic: 2.0 * (y0 - y1) + first_tangent + second_tangent,
+                    quadratic: 3.0 * (y1 - y0) - 2.0 * first_tangent - second_tangent,
+                    linear: first_tangent,
+                }
+            })
+            .collect();
+        Self::Pchip {
+            segments,
             first_y: points[0].1,
             first_slope: slopes[0],
             last_y: points[points.len() - 1].1,
@@ -95,11 +125,15 @@ impl PreparedCurve {
         }
     }
 
+    fn is_identity(&self) -> bool {
+        matches!(self, Self::Identity)
+    }
+
     fn evaluate(&self, value: f64) -> f64 {
         match self {
             Self::Identity => value,
-            Self::Lut {
-                values,
+            Self::Pchip {
+                segments,
                 first_y,
                 first_slope,
                 last_y,
@@ -111,13 +145,18 @@ impl PreparedCurve {
                 if value > 1.0 {
                     return last_y + last_slope * (value - 1.0);
                 }
-                let position = value * (LUT_SIZE - 1) as f64;
-                let lower = position.floor() as usize;
-                if lower >= LUT_SIZE - 1 {
-                    return values[LUT_SIZE - 1];
+                let index = segments
+                    .partition_point(|segment| segment.x1 < value)
+                    .min(segments.len() - 1);
+                let segment = &segments[index];
+                if value == segment.x0 {
+                    return segment.y0;
                 }
-                let fraction = position - lower as f64;
-                values[lower] + (values[lower + 1] - values[lower]) * fraction
+                if value == segment.x1 {
+                    return segment.y1;
+                }
+                let t = (value - segment.x0) / (segment.x1 - segment.x0);
+                ((segment.cubic * t + segment.quadratic) * t + segment.linear) * t + segment.y0
             }
         }
     }
@@ -170,19 +209,4 @@ fn endpoint_slope(width: f64, adjacent_width: f64, secant: f64, adjacent_secant:
         slope = 3.0 * secant;
     }
     slope
-}
-
-fn evaluate_pchip(points: &[(f64, f64)], slopes: &[f64], x: f64) -> f64 {
-    let upper = points.partition_point(|point| point.0 <= x);
-    let segment = upper.saturating_sub(1).min(points.len() - 2);
-    let (x0, y0) = points[segment];
-    let (x1, y1) = points[segment + 1];
-    let width = x1 - x0;
-    let t = (x - x0) / width;
-    let t2 = t * t;
-    let t3 = t2 * t;
-    (2.0 * t3 - 3.0 * t2 + 1.0) * y0
-        + (t3 - 2.0 * t2 + t) * width * slopes[segment]
-        + (-2.0 * t3 + 3.0 * t2) * y1
-        + (t3 - t2) * width * slopes[segment + 1]
 }
