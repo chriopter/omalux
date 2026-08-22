@@ -91,10 +91,7 @@ pub fn rec2020_luminance_f64(rgb: Rgb) -> f64 {
 
 pub fn exposure_target_luminance(rgb: Rgb, exposure_ev: f64) -> Result<f64, ColorMathError> {
     let target = rec2020_luminance_f64(rgb) * exposure_ev.exp2();
-    let rounded = target as f32;
-    if !target.is_finite() || !rounded.is_finite() || (target != 0.0 && rounded == 0.0) {
-        return Err(ColorMathError::TargetLuminanceOutOfRange);
-    }
+    validate_target_luminance(target)?;
     Ok(target)
 }
 
@@ -168,19 +165,14 @@ pub fn oklab_to_linear_rec2020_preserving_luminance(
     lab: Oklab,
     target_luminance: f64,
 ) -> Result<Rgb, ColorMathError> {
-    let rounded_target = target_luminance as f32;
-    if !target_luminance.is_finite()
-        || !rounded_target.is_finite()
-        || (target_luminance != 0.0 && rounded_target == 0.0)
-    {
-        return Err(ColorMathError::TargetLuminanceOutOfRange);
-    }
+    validate_target_luminance(target_luminance)?;
     let adjusted = oklab_with_luminance(lab, target_luminance);
     let mut rgb = oklab_to_linear_rec2020(adjusted);
     let tolerance = luminance_residual_tolerance(target_luminance);
     for _ in 0..3 {
-        let residual = target_luminance - rec2020_luminance_f64(rgb);
-        if residual.abs() <= tolerance {
+        let actual_luminance = rec2020_luminance_f64(rgb);
+        let residual = target_luminance - actual_luminance;
+        if luminance_residual_is_acceptable(actual_luminance, target_luminance, tolerance) {
             return Ok(rgb);
         }
         rgb = rgb.map(|channel| (f64::from(channel) + residual) as f32);
@@ -188,15 +180,29 @@ pub fn oklab_to_linear_rec2020_preserving_luminance(
             return Err(ColorMathError::TargetLuminanceNotReached);
         }
     }
-    if (rec2020_luminance_f64(rgb) - target_luminance).abs() <= tolerance {
+    if luminance_residual_is_acceptable(rec2020_luminance_f64(rgb), target_luminance, tolerance) {
         Ok(rgb)
     } else {
         Err(ColorMathError::TargetLuminanceNotReached)
     }
 }
 
+fn validate_target_luminance(target_luminance: f64) -> Result<(), ColorMathError> {
+    if !target_luminance.is_finite()
+        || target_luminance.abs() > f64::from(f32::MAX)
+        || (target_luminance != 0.0 && target_luminance.abs() < f64::from(f32::MIN_POSITIVE))
+    {
+        return Err(ColorMathError::TargetLuminanceOutOfRange);
+    }
+    Ok(())
+}
+
 fn luminance_residual_tolerance(target_luminance: f64) -> f64 {
-    64.0 * f64::from(f32::EPSILON) * (1.0 + target_luminance.abs())
+    64.0 * f64::from(f32::EPSILON) * target_luminance.abs().max(f64::from(f32::MIN_POSITIVE))
+}
+
+fn luminance_residual_is_acceptable(actual: f64, target: f64, tolerance: f64) -> bool {
+    actual.is_finite() && !(target != 0.0 && actual == 0.0) && (actual - target).abs() <= tolerance
 }
 
 #[derive(Clone, Copy)]
@@ -449,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn broad_signed_hdr_luminance_targets_are_reached() {
+    fn broad_signed_hdr_luminance_targets_are_reached_or_rejected() {
         let mut state = 0x91e1_0da5_u32;
         for _ in 0..4096 {
             state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
@@ -460,19 +466,76 @@ mod tests {
                 -3.0 + 6.0 * sample(state.rotate_left(23)),
             ];
             let target = -16.0 + 32.0 * sample(state.rotate_left(7));
-            let rgb = oklab_to_linear_rec2020_preserving_luminance(lab, f64::from(target)).unwrap();
-            let tolerance = 2.0e-5 * (1.0 + target.abs());
-            assert!((rec2020_luminance_f64(rgb) - f64::from(target)).abs() <= f64::from(tolerance));
-            assert!(rgb.into_iter().all(f32::is_finite));
+            match oklab_to_linear_rec2020_preserving_luminance(lab, f64::from(target)) {
+                Ok(rgb) => {
+                    assert!(
+                        (rec2020_luminance_f64(rgb) - f64::from(target)).abs()
+                            <= luminance_residual_tolerance(f64::from(target))
+                    );
+                    assert!(rgb.into_iter().all(f32::is_finite));
+                }
+                Err(ColorMathError::TargetLuminanceNotReached) => {}
+                Err(error) => panic!("representable target failed unexpectedly: {error:?}"),
+            }
         }
     }
 
     #[test]
-    fn exposure_targets_reject_f32_overflow_and_underflow() {
+    fn target_range_is_strict_at_positive_and_negative_f32_max() {
+        let limit = f64::from(f32::MAX);
+        let immediately_below = f64::from_bits(limit.to_bits() - 1);
+        let immediately_above = f64::from_bits(limit.to_bits() + 1);
+        let previous = f64::from(f32::from_bits(f32::MAX.to_bits() - 1));
+        let rounding_interval_above_max = limit + (limit - previous) * 0.25;
+        for target in [
+            previous,
+            immediately_below,
+            limit,
+            -previous,
+            -immediately_below,
+            -limit,
+        ] {
+            assert_eq!(validate_target_luminance(target), Ok(()));
+        }
+        for target in [
+            immediately_above,
+            rounding_interval_above_max,
+            -immediately_above,
+            -rounding_interval_above_max,
+        ] {
+            assert_eq!(target as f32, target.signum() as f32 * f32::MAX);
+            assert_eq!(
+                validate_target_luminance(target),
+                Err(ColorMathError::TargetLuminanceOutOfRange)
+            );
+        }
+
         assert_eq!(
             exposure_target_luminance([f32::MAX, f32::MAX * 0.5, f32::MAX * 0.25], 2.0),
             Err(ColorMathError::TargetLuminanceOutOfRange)
         );
+    }
+
+    #[test]
+    fn subnormal_targets_are_explicitly_rejected_at_both_signs() {
+        let minimum_normal = f64::from(f32::MIN_POSITIVE);
+        for target in [minimum_normal, -minimum_normal] {
+            assert_eq!(validate_target_luminance(target), Ok(()));
+            let rgb = oklab_to_linear_rec2020_preserving_luminance([0.0; 3], target).unwrap();
+            let actual = rec2020_luminance_f64(rgb);
+            assert_ne!(actual, 0.0);
+            assert!(
+                (actual - target).abs() <= luminance_residual_tolerance(target),
+                "{actual} did not reach {target}"
+            );
+        }
+        for target in [minimum_normal * 0.5, -minimum_normal * 0.5] {
+            assert_eq!(
+                validate_target_luminance(target),
+                Err(ColorMathError::TargetLuminanceOutOfRange)
+            );
+        }
+
         let subnormal = f32::from_bits(1);
         assert_eq!(
             exposure_target_luminance([subnormal; 3], -2.0),

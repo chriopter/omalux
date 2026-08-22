@@ -48,10 +48,14 @@ cubic has multiple roots, the root nearest the incoming L is selected to avoid
 an unnecessary lightness branch jump.
 
 Source Y and the exposure-scaled target Y are calculated in f64. A target that
-is non-finite, larger than finite f32, or non-zero but smaller than an f32
-subnormal is rejected before the pixel is changed. After conversion back to
-f32 RGB, the residual is checked in f64 against
-`64 * f32::EPSILON * (1 + abs(target_Y))`. An additive neutral correction is a
+is non-finite or whose absolute value is strictly larger than `f32::MAX` is
+rejected before the pixel is changed, including values inside the cast-to-max
+rounding interval. Grainroom also has an explicit flush-to-zero boundary:
+every non-zero target with `abs(Y) < f32::MIN_POSITIVE` is rejected rather than
+silently rounded to zero; `±f32::MIN_POSITIVE` are accepted. After conversion
+back to f32 RGB, the residual is checked in f64 against
+`64 * f32::EPSILON * max(abs(target_Y), f32::MIN_POSITIVE)`. A non-zero accepted
+target can never succeed with an actual Y of zero. An additive neutral correction is a
 last-resort rounding/ill-conditioning fallback. Since the Rec.2020 luminance
 coefficients sum to one, adding the same delta to R, G, and B restores Y without
 clipping. Every fallback is followed by the same definitive finite residual
@@ -105,7 +109,7 @@ centrally owned module files in WP2, `color_mixer.rs` includes `color.rs` and
 
 Integration action: add `mod color;` once in `src/develop/mod.rs`, remove the
 `#[path = "../../color.rs"]` declaration from `color_mixer.rs`, and change both
-stage imports to `super::super::color` (or the equivalent central path). Do not
+stage imports to `crate::develop::color`. Do not
 compile separate copies of `color.rs`: `ColorMathError` and all numerical
 helpers must remain one shared type and implementation. This is a structural
 cleanup only and must not change the numerical contract above.
