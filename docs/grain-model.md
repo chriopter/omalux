@@ -33,6 +33,9 @@ upstream CPU permutation table. The simplex algorithm is by Stefan Gustavson;
 the scalar Rust operation order and vectorized GLSL are based on the
 MIT-licensed Ashima Arts `webgl-noise` snapshot
 [`6abed1e77ed1e18b181627c35f688eb30c9fe75e`](https://github.com/ashima/webgl-noise/tree/6abed1e77ed1e18b181627c35f688eb30c9fe75e).
+Its full copyright and MIT permission notice is retained verbatim in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). The GPL notices on
+the adapted grain-model files remain in place.
 
 ## Normative CPU contract
 
@@ -42,6 +45,12 @@ MIT-licensed Ashima Arts `webgl-noise` snapshot
 - Pixel centers use global full-image coordinates divided by the full image's
   short edge. A tile carries its global origin and full extent, so tile order,
   thread count, zoom, and preview subdivision cannot change a sample.
+- Grain extents are non-empty and limited to `2^20` pixels on either axis.
+  Region construction uses checked area and end-coordinate arithmetic and
+  rejects out-of-bounds regions and mismatched buffers in release builds. Each
+  normalized pixel center is computed in `f64`, reduced into the 289-cell
+  simplex period, and only then converted to `f32`. At the supported maximum
+  extent, adjacent coordinates remain distinct even at the coarsest octave.
 - ISO maps to `(1 + ISO / 2665) / 800`. The three exact frequency/amplitude
   pairs are listed above. Amount maps from 0–100 to 0–1 before the upstream
   exposure-noise factor `0.15`.
@@ -50,6 +59,11 @@ MIT-licensed Ashima Arts `webgl-noise` snapshot
   paper *delta* relative to that safe density is added equally to the original
   scene-linear RGB. Consequently negative and HDR input remain unbounded; there
   is no final RGB clamp, and straight alpha is never touched.
+- Luminance accumulation uses `f64` so cancellation among finite negative/HDR
+  Rec.2020 channels does not overflow an intermediate `f32`. Active grain on
+  any valid finite `f32` RGB either produces finite, unclamped `f32` RGB or
+  returns an explicit `NonFiniteOutput` error; it never silently stores NaN or
+  infinity. Inputs at both signs of `f32::MAX` are covered by the kernel tests.
 - Amount zero returns before seed, coordinate, luminance, or response work and
   is bit-exact.
 
@@ -63,7 +77,13 @@ must add an explicit render context containing `ResolvedGrainSeed`, thread it
 through preflight/process, and only then call the already implemented
 `grain::apply_full_image`. Tests may use `ResolvedGrainSeed::fixed` directly.
 
-The legacy preview shader additionally attenuates procedural detail according
-to the on-screen source-pixel footprint. GPU migration must replace its current
-display-RGB luminance, scalar float seed, and final `[0,1]` clamp with this CPU
-contract before it can be considered export-parity rendering.
+The legacy preview shader is explicitly non-normative. In addition to
+attenuating procedural detail according to the on-screen source-pixel
+footprint, it still uses the older `+1.0` permutation polynomial while pinned
+Ashima commit `6abed1e…` and the normative CPU use `+10.0`. GPU migration must
+port the exact `mod289`, `permute`, skew/unskew, dot-product and accumulation
+operation order; provide the six SplitMix64-derived phases and global reduced
+pixel-center coordinates; and replace display-RGB luminance, scalar float seed,
+and final `[0,1]` clamp with this CPU contract. Independent GLSL reference
+vectors and multi-seed 2-D PSD gates must pass before that shader is called
+export-parity rendering.

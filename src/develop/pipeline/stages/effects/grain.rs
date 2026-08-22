@@ -4,7 +4,8 @@
 //! The three-octave fit and photographic-paper model are adapted from
 //! darktable and RawTherapee. The 2-D simplex kernel is a scalar Rust port of
 //! the MIT-licensed Ashima Arts GLSL formulation. Exact pinned provenance is
-//! recorded in `docs/grain-model.md`.
+//! recorded in `docs/grain-model.md`; the complete MIT notice is retained in
+//! `THIRD_PARTY_NOTICES.md`.
 
 use crate::develop::{CpuImage, RgbaPixel, settings::GrainSettings};
 
@@ -15,6 +16,17 @@ const PAPER_DENSITY_MIN: f32 = 0.000_01;
 const PAPER_DENSITY_MAX: f32 = 0.999_99;
 const EXPOSURE_NOISE_SCALE: f32 = 0.15;
 const SIMPLEX_PERIOD: f32 = 289.0;
+const MAX_GRAIN_DIMENSION: usize = 1 << 20;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum GrainError {
+    EmptyExtent,
+    DimensionTooLarge,
+    DimensionOverflow,
+    RegionOutOfBounds,
+    BufferLengthMismatch { expected: usize, actual: usize },
+    NonFiniteOutput { pixel_index: usize },
+}
 
 /// A seed already resolved from stable image identity by the render context.
 ///
@@ -37,24 +49,87 @@ impl ResolvedGrainSeed {
 /// One tightly packed output region located in a larger full image.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct GrainRegion {
-    pub(super) full_width: usize,
-    pub(super) full_height: usize,
-    pub(super) origin_x: usize,
-    pub(super) origin_y: usize,
-    pub(super) width: usize,
-    pub(super) height: usize,
+    full_width: usize,
+    full_height: usize,
+    origin_x: usize,
+    origin_y: usize,
+    width: usize,
+    height: usize,
 }
 
 impl GrainRegion {
-    pub(super) fn full(image: &CpuImage) -> Self {
-        Self {
-            full_width: image.width() as usize,
-            full_height: image.height() as usize,
-            origin_x: 0,
-            origin_y: 0,
-            width: image.width() as usize,
-            height: image.height() as usize,
+    pub(super) fn new(
+        full_width: usize,
+        full_height: usize,
+        origin_x: usize,
+        origin_y: usize,
+        width: usize,
+        height: usize,
+    ) -> Result<Self, GrainError> {
+        if full_width == 0 || full_height == 0 || width == 0 || height == 0 {
+            return Err(GrainError::EmptyExtent);
         }
+        if full_width > MAX_GRAIN_DIMENSION || full_height > MAX_GRAIN_DIMENSION {
+            return Err(GrainError::DimensionTooLarge);
+        }
+        full_width
+            .checked_mul(full_height)
+            .ok_or(GrainError::DimensionOverflow)?;
+        width
+            .checked_mul(height)
+            .ok_or(GrainError::DimensionOverflow)?;
+        let end_x = origin_x
+            .checked_add(width)
+            .ok_or(GrainError::DimensionOverflow)?;
+        let end_y = origin_y
+            .checked_add(height)
+            .ok_or(GrainError::DimensionOverflow)?;
+        if end_x > full_width || end_y > full_height {
+            return Err(GrainError::RegionOutOfBounds);
+        }
+        Ok(Self {
+            full_width,
+            full_height,
+            origin_x,
+            origin_y,
+            width,
+            height,
+        })
+    }
+
+    pub(super) fn full(image: &CpuImage) -> Result<Self, GrainError> {
+        Self::new(
+            image.width() as usize,
+            image.height() as usize,
+            0,
+            0,
+            image.width() as usize,
+            image.height() as usize,
+        )
+    }
+
+    pub(super) const fn full_width(self) -> usize {
+        self.full_width
+    }
+
+    pub(super) const fn full_height(self) -> usize {
+        self.full_height
+    }
+
+    pub(super) const fn origin_x(self) -> usize {
+        self.origin_x
+    }
+
+    pub(super) const fn origin_y(self) -> usize {
+        self.origin_y
+    }
+
+    pub(super) const fn width(self) -> usize {
+        self.width
+    }
+
+    pub(super) const fn height(self) -> usize {
+        self.height
     }
 }
 
@@ -62,9 +137,9 @@ pub(super) fn apply_full_image(
     image: &mut CpuImage,
     settings: &GrainSettings,
     seed: ResolvedGrainSeed,
-) {
-    let region = GrainRegion::full(image);
-    apply_region(image.pixels_mut(), region, settings, seed);
+) -> Result<(), GrainError> {
+    let region = GrainRegion::full(image)?;
+    apply_region(image.pixels_mut(), region, settings, seed)
 }
 
 /// Applies grain to a tightly packed tile using global image coordinates.
@@ -76,46 +151,56 @@ pub(super) fn apply_region(
     region: GrainRegion,
     settings: &GrainSettings,
     seed: ResolvedGrainSeed,
-) {
-    debug_assert!(region.full_width > 0 && region.full_height > 0);
-    debug_assert!(region.origin_x + region.width <= region.full_width);
-    debug_assert!(region.origin_y + region.height <= region.full_height);
-    debug_assert_eq!(pixels.len(), region.width * region.height);
+) -> Result<(), GrainError> {
+    let expected = region
+        .width
+        .checked_mul(region.height)
+        .ok_or(GrainError::DimensionOverflow)?;
+    if pixels.len() != expected {
+        return Err(GrainError::BufferLengthMismatch {
+            expected,
+            actual: pixels.len(),
+        });
+    }
     if settings.amount == 0.0 {
-        return;
+        return Ok(());
     }
 
     let amount = settings.amount / 100.0;
     let bias = settings.midtone_response / 100.0;
     let scale = iso_scale(settings.size_iso);
     let phases = octave_phases(seed);
-    let short_edge = region.full_width.min(region.full_height) as f32;
+    let short_edge = region.full_width.min(region.full_height);
 
     for (index, pixel) in pixels.iter_mut().enumerate() {
         let local_x = index % region.width;
         let local_y = index / region.width;
         let global_x = region.origin_x + local_x;
         let global_y = region.origin_y + local_y;
-        let position = [
-            (global_x as f32 + 0.5) / short_edge,
-            (global_y as f32 + 0.5) / short_edge,
-        ];
-        let noise = film_noise(position, scale, phases);
-        let luminance = pixel.red * REC2020_LUMA[0]
-            + pixel.green * REC2020_LUMA[1]
-            + pixel.blue * REC2020_LUMA[2];
+        let noise = film_noise_at_pixel(global_x, global_y, short_edge, scale, phases);
+        let luminance = f64::from(pixel.red) * f64::from(REC2020_LUMA[0])
+            + f64::from(pixel.green) * f64::from(REC2020_LUMA[1])
+            + f64::from(pixel.blue) * f64::from(REC2020_LUMA[2]);
 
         // The paper response is defined on density [0,1], but only its change
         // is added to scene-linear RGB. Negative and HDR source values are not
         // replaced by the bounded paper density and are never finally clamped.
-        let density = luminance.clamp(PAPER_DENSITY_MIN, PAPER_DENSITY_MAX);
+        let density =
+            luminance.clamp(f64::from(PAPER_DENSITY_MIN), f64::from(PAPER_DENSITY_MAX)) as f32;
         let exposure = inverse_paper_response(density, bias);
         let developed = paper_response(exposure + noise * amount * EXPOSURE_NOISE_SCALE, bias);
         let delta = developed - density;
-        pixel.red += delta;
-        pixel.green += delta;
-        pixel.blue += delta;
+        let red = pixel.red + delta;
+        let green = pixel.green + delta;
+        let blue = pixel.blue + delta;
+        if !(red.is_finite() && green.is_finite() && blue.is_finite()) {
+            return Err(GrainError::NonFiniteOutput { pixel_index: index });
+        }
+        pixel.red = red;
+        pixel.green = green;
+        pixel.blue = blue;
     }
+    Ok(())
 }
 
 fn iso_scale(size_iso: f32) -> f32 {
@@ -137,16 +222,43 @@ fn inverse_paper_response(density: f32, bias: f32) -> f32 {
     -((1.0 + 2.0 * delta) / (density + delta) - 1.0).ln() * (1.0 + 2.0 * delta) / 4.0 + 0.5
 }
 
-fn film_noise(position: [f32; 2], scale: f32, phases: [[f32; 2]; 3]) -> f32 {
+fn film_noise_at_pixel(
+    global_x: usize,
+    global_y: usize,
+    short_edge: usize,
+    scale: f32,
+    phases: [[f32; 2]; 3],
+) -> f32 {
     let mut total = 0.0;
     for octave in 0..3 {
-        let point = [
-            position[0] * FREQUENCIES[octave] / scale + phases[octave][0],
-            position[1] * FREQUENCIES[octave] / scale + phases[octave][1],
-        ];
+        let point = octave_point(
+            global_x,
+            global_y,
+            short_edge,
+            FREQUENCIES[octave],
+            scale,
+            phases[octave],
+        );
         total += simplex_noise(point) * AMPLITUDES[octave];
     }
     total
+}
+
+fn octave_point(
+    global_x: usize,
+    global_y: usize,
+    short_edge: usize,
+    frequency: f32,
+    scale: f32,
+    phase: [f32; 2],
+) -> [f32; 2] {
+    let divisor = short_edge as f64;
+    let frequency_scale = f64::from(frequency) / f64::from(scale);
+    let x = ((global_x as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[0]))
+        .rem_euclid(f64::from(SIMPLEX_PERIOD));
+    let y = ((global_y as f64 + 0.5) / divisor * frequency_scale + f64::from(phase[1]))
+        .rem_euclid(f64::from(SIMPLEX_PERIOD));
+    [x as f32, y as f32]
 }
 
 fn octave_phases(seed: ResolvedGrainSeed) -> [[f32; 2]; 3] {
@@ -172,17 +284,18 @@ fn splitmix64(state: &mut u64) -> u64 {
     value ^ (value >> 31)
 }
 
-// Scalar f32 port of Ashima Arts' 2-D simplex noise. Operation ordering follows
-// the GLSL source to keep a straightforward future CPU/GPU parity path.
+// Scalar f32 port of Ashima Arts' 2-D simplex noise at pinned commit
+// 6abed1e77ed1e18b181627c35f688eb30c9fe75e. Constants, the +10 permutation,
+// and operation ordering follow noise2D.glsl for a direct CPU/GPU parity path.
 fn simplex_noise(point: [f32; 2]) -> f32 {
     const C_X: f32 = 0.211_324_87;
     const C_Y: f32 = 0.366_025_42;
     const C_Z: f32 = -0.577_350_26;
     const C_W: f32 = 0.024_390_243;
 
-    let skew = (point[0] + point[1]) * C_Y;
+    let skew = point[0] * C_Y + point[1] * C_Y;
     let mut cell = [(point[0] + skew).floor(), (point[1] + skew).floor()];
-    let unskew = (cell[0] + cell[1]) * C_X;
+    let unskew = cell[0] * C_X + cell[1] * C_X;
     let local0 = [point[0] - cell[0] + unskew, point[1] - cell[1] + unskew];
     let corner = if local0[0] > local0[1] {
         [1.0, 0.0]
@@ -201,9 +314,9 @@ fn simplex_noise(point: [f32; 2]) -> f32 {
     let locals = [local0, local1, local2];
     let mut contribution = [0.0; 3];
     for index in 0..3 {
-        let radius =
-            (0.5 - locals[index][0] * locals[index][0] - locals[index][1] * locals[index][1])
-                .max(0.0);
+        let squared_radius =
+            locals[index][0] * locals[index][0] + locals[index][1] * locals[index][1];
+        let radius = (0.5 - squared_radius).max(0.0);
         let mut weight = radius * radius;
         weight *= weight;
         let gradient_x = 2.0 * fract(permutation[index] * C_W) - 1.0;
@@ -218,11 +331,11 @@ fn simplex_noise(point: [f32; 2]) -> f32 {
 }
 
 fn permute(value: f32) -> f32 {
-    mod289(((value * 34.0) + 1.0) * value)
+    mod289(((value * 34.0) + 10.0) * value)
 }
 
 fn mod289(value: f32) -> f32 {
-    value - (value / SIMPLEX_PERIOD).floor() * SIMPLEX_PERIOD
+    value - (value * (1.0 / SIMPLEX_PERIOD)).floor() * SIMPLEX_PERIOD
 }
 
 fn fract(value: f32) -> f32 {
@@ -245,6 +358,17 @@ mod tests {
         RgbaPixel::new(value[0], value[1], value[2], alpha).unwrap()
     }
 
+    fn region(
+        full_width: usize,
+        full_height: usize,
+        origin_x: usize,
+        origin_y: usize,
+        width: usize,
+        height: usize,
+    ) -> GrainRegion {
+        GrainRegion::new(full_width, full_height, origin_x, origin_y, width, height).unwrap()
+    }
+
     #[test]
     fn amount_zero_is_bit_exact_for_unbounded_rgb_and_alpha() {
         let mut pixels = vec![
@@ -254,17 +378,11 @@ mod tests {
         let original = pixels.clone();
         apply_region(
             &mut pixels,
-            GrainRegion {
-                full_width: 2,
-                full_height: 1,
-                origin_x: 0,
-                origin_y: 0,
-                width: 2,
-                height: 1,
-            },
+            region(2, 1, 0, 0, 2, 1),
             &settings(0.0, 4000.0, 100.0),
             ResolvedGrainSeed::fixed(7),
-        );
+        )
+        .unwrap();
         assert_eq!(pixels, original);
     }
 
@@ -286,14 +404,157 @@ mod tests {
     }
 
     #[test]
-    fn simplex_and_three_octave_noise_match_f32_goldens() {
-        assert_eq!(simplex_noise([0.0, 0.0]).to_bits(), 0.0_f32.to_bits());
-        assert_eq!(simplex_noise([0.125, -0.75]).to_bits(), 3_201_403_381);
+    fn simplex_matches_independent_pinned_glsl_reference_vectors() {
+        // Generated independently from the pinned GLSL source with every
+        // scalar rounded to IEEE-754 binary32 after each GLSL operation.
+        // The points cover cells, simplex boundaries, negative coordinates,
+        // and the 289-cell permutation boundary.
+        let vectors = [
+            ([0.0, 0.0], 0_u32),
+            ([0.125, -0.75], 3_200_011_663),
+            ([0.000_000_1, -0.000_000_1], 3_041_743_548),
+            ([0.211_324_87, 0.366_025_42], 1_053_690_685),
+            ([12.999_99, 13.000_01], 3_192_682_416),
+            ([-288.999_97, 288.999_97], 3_107_932_565),
+            ([289.0, 289.0], 1_049_637_202),
+            ([289.000_03, -289.000_03], 3_109_614_572),
+            ([123.456, -78.9], 1_017_503_219),
+            ([-1000.25, 2048.5], 1_050_861_999),
+        ];
+        for (point, expected) in vectors {
+            assert_eq!(simplex_noise(point).to_bits(), expected, "{point:?}");
+        }
+    }
+
+    #[test]
+    fn three_octave_noise_matches_golden() {
         let phases = octave_phases(ResolvedGrainSeed::fixed(42));
         assert_eq!(
-            film_noise([0.25, 0.75], iso_scale(4000.0), phases).to_bits(),
-            3_214_978_724
+            film_noise_at_pixel(0, 1, 2, iso_scale(4000.0), phases).to_bits(),
+            3_190_930_140
         );
+    }
+
+    #[test]
+    fn region_contract_rejects_invalid_extents_bounds_overflow_and_buffers() {
+        assert_eq!(
+            GrainRegion::new(1, 1, 0, 0, 0, 1),
+            Err(GrainError::EmptyExtent)
+        );
+        assert_eq!(
+            GrainRegion::new(MAX_GRAIN_DIMENSION + 1, 1, 0, 0, 1, 1),
+            Err(GrainError::DimensionTooLarge)
+        );
+        assert_eq!(
+            GrainRegion::new(10, 10, 9, 0, 2, 1),
+            Err(GrainError::RegionOutOfBounds)
+        );
+        assert_eq!(
+            GrainRegion::new(10, 10, usize::MAX, 0, 1, 1),
+            Err(GrainError::DimensionOverflow)
+        );
+
+        let valid = region(10, 8, 2, 3, 4, 5);
+        assert_eq!(valid.full_width(), 10);
+        assert_eq!(valid.full_height(), 8);
+        assert_eq!(valid.origin_x(), 2);
+        assert_eq!(valid.origin_y(), 3);
+        assert_eq!(valid.width(), 4);
+        assert_eq!(valid.height(), 5);
+        let mut wrong_length = vec![pixel([0.18; 3], 1.0); 19];
+        assert_eq!(
+            apply_region(
+                &mut wrong_length,
+                valid,
+                &settings(0.0, 4000.0, 50.0),
+                ResolvedGrainSeed::fixed(1),
+            ),
+            Err(GrainError::BufferLengthMismatch {
+                expected: 20,
+                actual: 19,
+            })
+        );
+    }
+
+    #[test]
+    fn reduced_f64_coordinates_keep_adjacent_supported_pixels_distinct() {
+        let scale = iso_scale(6400.0);
+        let phases = octave_phases(ResolvedGrainSeed::fixed(u64::MAX));
+        for octave in 0..3 {
+            let before = octave_point(
+                MAX_GRAIN_DIMENSION - 2,
+                MAX_GRAIN_DIMENSION - 2,
+                MAX_GRAIN_DIMENSION,
+                FREQUENCIES[octave],
+                scale,
+                phases[octave],
+            );
+            let after_x = octave_point(
+                MAX_GRAIN_DIMENSION - 1,
+                MAX_GRAIN_DIMENSION - 2,
+                MAX_GRAIN_DIMENSION,
+                FREQUENCIES[octave],
+                scale,
+                phases[octave],
+            );
+            let after_y = octave_point(
+                MAX_GRAIN_DIMENSION - 2,
+                MAX_GRAIN_DIMENSION - 1,
+                MAX_GRAIN_DIMENSION,
+                FREQUENCIES[octave],
+                scale,
+                phases[octave],
+            );
+            assert_ne!(before[0].to_bits(), after_x[0].to_bits());
+            assert_ne!(before[1].to_bits(), after_y[1].to_bits());
+
+            // Extreme aspect ratio: the long-axis coordinate is reduced in
+            // f64 before conversion to f32 and still advances at the boundary.
+            let long_before = octave_point(
+                MAX_GRAIN_DIMENSION - 2,
+                0,
+                1,
+                FREQUENCIES[octave],
+                scale,
+                phases[octave],
+            );
+            let long_after = octave_point(
+                MAX_GRAIN_DIMENSION - 1,
+                0,
+                1,
+                FREQUENCIES[octave],
+                scale,
+                phases[octave],
+            );
+            assert_ne!(long_before[0].to_bits(), long_after[0].to_bits());
+        }
+
+        // Explicitly exercise phase values at zero, mid-period, and the f32
+        // value immediately below the period, rather than relying only on one
+        // resolved seed's phases.
+        for phase in [0.0, 144.5, f32::from_bits(289.0_f32.to_bits() - 1)] {
+            for coordinate in [0, MAX_GRAIN_DIMENSION / 2, MAX_GRAIN_DIMENSION - 2] {
+                let before = octave_point(
+                    coordinate,
+                    coordinate,
+                    MAX_GRAIN_DIMENSION,
+                    FREQUENCIES[0],
+                    scale,
+                    [phase; 2],
+                );
+                let after = octave_point(
+                    coordinate + 1,
+                    coordinate,
+                    MAX_GRAIN_DIMENSION,
+                    FREQUENCIES[0],
+                    scale,
+                    [phase; 2],
+                );
+                assert_ne!(before[0].to_bits(), after[0].to_bits());
+                assert!((0.0..SIMPLEX_PERIOD).contains(&before[0]));
+                assert!((0.0..SIMPLEX_PERIOD).contains(&after[0]));
+            }
+        }
     }
 
     #[test]
@@ -333,17 +594,11 @@ mod tests {
         let mut full = source.clone();
         apply_region(
             &mut full,
-            GrainRegion {
-                full_width: width,
-                full_height: height,
-                origin_x: 0,
-                origin_y: 0,
-                width,
-                height,
-            },
+            region(width, height, 0, 0, width, height),
             &grain,
             seed,
-        );
+        )
+        .unwrap();
 
         let mut assembled = source;
         for (origin_x, origin_y, tile_width, tile_height) in [
@@ -360,17 +615,11 @@ mod tests {
             }
             apply_region(
                 &mut tile,
-                GrainRegion {
-                    full_width: width,
-                    full_height: height,
-                    origin_x,
-                    origin_y,
-                    width: tile_width,
-                    height: tile_height,
-                },
+                region(width, height, origin_x, origin_y, tile_width, tile_height),
                 &grain,
                 seed,
-            );
+            )
+            .unwrap();
             for local_y in 0..tile_height {
                 let destination = (origin_y + local_y) * width + origin_x;
                 assembled[destination..destination + tile_width]
@@ -386,17 +635,11 @@ mod tests {
             let mut pixels = vec![pixel([0.18; 3], 1.0); 16 * 16];
             apply_region(
                 &mut pixels,
-                GrainRegion {
-                    full_width: 16,
-                    full_height: 16,
-                    origin_x: 0,
-                    origin_y: 0,
-                    width: 16,
-                    height: 16,
-                },
+                region(16, 16, 0, 0, 16, 16),
                 &settings(50.0, 4000.0, 100.0),
                 seed,
-            );
+            )
+            .unwrap();
             pixels
         }
         let resolved = ResolvedGrainSeed::fixed(1234);
@@ -412,32 +655,8 @@ mod tests {
         let seed = ResolvedGrainSeed::fixed(2026);
         let mut low = vec![pixel([0.18; 3], 1.0); 33 * 33];
         let mut high = vec![pixel([0.18; 3], 1.0); 99 * 99];
-        apply_region(
-            &mut low,
-            GrainRegion {
-                full_width: 33,
-                full_height: 33,
-                origin_x: 0,
-                origin_y: 0,
-                width: 33,
-                height: 33,
-            },
-            &grain,
-            seed,
-        );
-        apply_region(
-            &mut high,
-            GrainRegion {
-                full_width: 99,
-                full_height: 99,
-                origin_x: 0,
-                origin_y: 0,
-                width: 99,
-                height: 99,
-            },
-            &grain,
-            seed,
-        );
+        apply_region(&mut low, region(33, 33, 0, 0, 33, 33), &grain, seed).unwrap();
+        apply_region(&mut high, region(99, 99, 0, 0, 99, 99), &grain, seed).unwrap();
         for (x, y) in [(0, 0), (3, 7), (16, 16), (31, 20), (32, 32)] {
             let low_pixel = low[y * 33 + x];
             let high_pixel = high[(3 * y + 1) * 99 + 3 * x + 1];
@@ -451,17 +670,11 @@ mod tests {
         let mut pixels = vec![original];
         apply_region(
             &mut pixels,
-            GrainRegion {
-                full_width: 1,
-                full_height: 1,
-                origin_x: 0,
-                origin_y: 0,
-                width: 1,
-                height: 1,
-            },
+            region(1, 1, 0, 0, 1, 1),
             &settings(100.0, 4000.0, 100.0),
             ResolvedGrainSeed::fixed(9),
-        );
+        )
+        .unwrap();
         let changed = pixels[0];
         assert_eq!(changed.alpha.to_bits(), original.alpha.to_bits());
         let red_delta = changed.red - original.red;
@@ -471,54 +684,138 @@ mod tests {
     }
 
     #[test]
-    fn synthetic_noise_passes_mean_variance_centroid_and_isotropy_gates() {
-        let size = 96;
-        let phases = octave_phases(ResolvedGrainSeed::fixed(0x5eed));
+    fn active_grain_handles_f32_extremes_cancellation_negative_and_hdr() {
+        let source = [
+            [f32::MAX, f32::MAX, f32::MAX],
+            [-f32::MAX, -f32::MAX, -f32::MAX],
+            [f32::MAX, -f32::MAX, f32::MAX],
+            [-f32::MAX, f32::MAX, -f32::MAX],
+            [-1000.0, 0.000_01, 100_000.0],
+        ];
+        let mut pixels = source.map(|rgb| pixel(rgb, 0.42)).to_vec();
+        apply_region(
+            &mut pixels,
+            region(source.len(), 1, 0, 0, source.len(), 1),
+            &settings(100.0, 6400.0, 100.0),
+            ResolvedGrainSeed::fixed(0xfeed_face),
+        )
+        .unwrap();
+        for output in pixels {
+            assert!(output.red.is_finite());
+            assert!(output.green.is_finite());
+            assert!(output.blue.is_finite());
+            assert_eq!(output.alpha.to_bits(), 0.42_f32.to_bits());
+        }
+    }
+
+    #[test]
+    fn two_dimensional_radial_psd_matches_multi_seed_references() {
+        let references = [
+            (
+                0x5eed_u64,
+                [
+                    -0.032_204, 0.496_926, 0.065_854, 0.320_225, 0.613_921, 1.065_319,
+                ],
+            ),
+            (
+                0xdead_beef_u64,
+                [
+                    0.018_328, 0.469_553, 0.057_974, 0.294_927, 0.647_099, 1.105_095,
+                ],
+            ),
+            (
+                0x1234_5678_9abc_def0_u64,
+                [
+                    0.017_401, 0.482_231, 0.047_153, 0.322_179, 0.630_667, 1.233_990,
+                ],
+            ),
+        ];
+        let actuals = references.map(|(seed, _)| (seed, psd_metrics(seed)));
+        let tolerances = [0.005, 0.01, 0.01, 0.015, 0.015, 0.04];
+        for ((_, expected), (_, actual)) in references.into_iter().zip(actuals) {
+            for (index, ((actual, expected), tolerance)) in
+                actual.into_iter().zip(expected).zip(tolerances).enumerate()
+            {
+                assert!(
+                    (actual - expected).abs() < tolerance,
+                    "metric {index}: actual={actual}, expected={expected}"
+                );
+            }
+        }
+    }
+
+    // Returns mean, variance, low/mid/high radial energy fractions, and the
+    // horizontal/vertical angular-sector energy ratio from a true 2-D DFT.
+    fn psd_metrics(seed: u64) -> [f64; 6] {
+        const SIZE: usize = 32;
+        let phases = octave_phases(ResolvedGrainSeed::fixed(seed));
         let scale = iso_scale(4000.0);
-        let field = (0..size * size)
+        let field = (0..SIZE * SIZE)
             .map(|index| {
-                let x = index % size;
-                let y = index / size;
-                film_noise([x as f32 * 0.000_75, y as f32 * 0.000_75], scale, phases)
+                f64::from(film_noise_at_pixel(
+                    index % SIZE,
+                    index / SIZE,
+                    SIZE,
+                    scale,
+                    phases,
+                ))
             })
             .collect::<Vec<_>>();
-        let mean = field.iter().copied().sum::<f32>() / field.len() as f32;
+        let mean = field.iter().sum::<f64>() / field.len() as f64;
         let variance = field
             .iter()
-            .map(|value| (value - mean).powi(2))
-            .sum::<f32>()
-            / field.len() as f32;
-        assert!(mean.abs() < 0.25, "mean={mean}");
-        assert!((0.05..4.0).contains(&variance), "variance={variance}");
-
+            .map(|sample| (sample - mean).powi(2))
+            .sum::<f64>()
+            / field.len() as f64;
+        let mut bands = [0.0_f64; 3];
         let mut horizontal = 0.0;
         let mut vertical = 0.0;
-        for y in 0..size - 1 {
-            for x in 0..size - 1 {
-                let center = field[y * size + x];
-                horizontal += (field[y * size + x + 1] - center).powi(2);
-                vertical += (field[(y + 1) * size + x] - center).powi(2);
+        for signed_y in -(SIZE as isize / 2)..SIZE as isize / 2 {
+            for signed_x in -(SIZE as isize / 2)..SIZE as isize / 2 {
+                if signed_x == 0 && signed_y == 0 {
+                    continue;
+                }
+                let radius = ((signed_x * signed_x + signed_y * signed_y) as f64).sqrt()
+                    / (SIZE as f64 / 2.0);
+                if radius > 1.0 {
+                    continue;
+                }
+                let mut real = 0.0;
+                let mut imaginary = 0.0;
+                for y in 0..SIZE {
+                    for x in 0..SIZE {
+                        let angle = std::f64::consts::TAU
+                            * (signed_x as f64 * x as f64 + signed_y as f64 * y as f64)
+                            / SIZE as f64;
+                        let centered = field[y * SIZE + x] - mean;
+                        real += centered * angle.cos();
+                        imaginary -= centered * angle.sin();
+                    }
+                }
+                let power = real * real + imaginary * imaginary;
+                let band = if radius <= 0.25 {
+                    0
+                } else if radius <= 0.60 {
+                    1
+                } else {
+                    2
+                };
+                bands[band] += power;
+                if signed_x.abs() >= signed_y.abs() {
+                    horizontal += power;
+                } else {
+                    vertical += power;
+                }
             }
         }
-        let isotropy = horizontal / vertical;
-        assert!((0.70..1.43).contains(&isotropy), "isotropy={isotropy}");
-
-        let row = &field[(size / 2) * size..(size / 2 + 1) * size];
-        let mut weighted_frequency = 0.0_f64;
-        let mut total_power = 0.0_f64;
-        for frequency in 1..size / 2 {
-            let mut real = 0.0_f64;
-            let mut imaginary = 0.0_f64;
-            for (index, sample) in row.iter().enumerate() {
-                let angle = std::f64::consts::TAU * frequency as f64 * index as f64 / size as f64;
-                real += f64::from(*sample) * angle.cos();
-                imaginary -= f64::from(*sample) * angle.sin();
-            }
-            let power = real * real + imaginary * imaginary;
-            total_power += power;
-            weighted_frequency += frequency as f64 * power;
-        }
-        let centroid = weighted_frequency / total_power / (size as f64 / 2.0);
-        assert!((0.08..0.85).contains(&centroid), "centroid={centroid}");
+        let total = bands.iter().sum::<f64>();
+        [
+            mean,
+            variance,
+            bands[0] / total,
+            bands[1] / total,
+            bands[2] / total,
+            horizontal / vertical,
+        ]
     }
 }
