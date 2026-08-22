@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Grainroom
+GenericName=Photo Developer
+Comment=Develop photographs with a focused native workflow
+Exec=grainroom
+Icon=grainroom
+Terminal=false
+Categories=Graphics;Photography;
+MimeType=image/jpeg;image/png;image/bmp;image/x-adobe-dng;
+StartupWMClass=grainroom
