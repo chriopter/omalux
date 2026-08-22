@@ -6,7 +6,10 @@ use crate::develop::{
 // Grainroom's monotone cubic curve is documented in docs/develop/wp1-math.md.
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
-const LUMA_EPSILON: f64 = 1.0e-6;
+const MASTER_BLEND_START: f64 = 0.025;
+const MASTER_BLEND_END: f64 = 0.05;
+const MASTER_CHANGE_BLEND_START: f64 = 0.5;
+const MASTER_CHANGE_BLEND_END: f64 = 1.0;
 
 pub(super) fn supports(_settings: &ToneCurvesSettings) -> bool {
     true
@@ -35,16 +38,7 @@ pub(super) fn apply(
         if !master.is_identity() {
             let old_luminance = luminance(rgb);
             let new_luminance = master.evaluate(old_luminance);
-            if old_luminance.abs() > LUMA_EPSILON {
-                let scale = new_luminance / old_luminance;
-                rgb = [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale];
-            } else {
-                // Scaling is singular at zero luminance. An equal additive
-                // offset changes Rec.2020 luminance by exactly the requested
-                // delta because the luminance coefficients sum to one.
-                let delta = new_luminance - old_luminance;
-                rgb = [rgb[0] + delta, rgb[1] + delta, rgb[2] + delta];
-            }
+            rgb = remap_master_luminance(rgb, old_luminance, new_luminance);
         }
 
         rgb = [
@@ -61,6 +55,63 @@ pub(super) fn apply(
 
 fn luminance(rgb: [f64; 3]) -> f64 {
     rgb[0] * LUMA[0] + rgb[1] * LUMA[1] + rgb[2] * LUMA[2]
+}
+
+fn remap_master_luminance(rgb: [f64; 3], old_luminance: f64, new_luminance: f64) -> [f64; 3] {
+    let delta = new_luminance - old_luminance;
+    let additive = [rgb[0] + delta, rgb[1] + delta, rgb[2] + delta];
+    let max_abs_rgb = rgb[0].abs().max(rgb[1].abs()).max(rgb[2].abs());
+    if max_abs_rgb == 0.0 {
+        return additive;
+    }
+
+    // Luminance relative to chroma, rather than an absolute epsilon, detects
+    // cancellation colors at every scene-linear scale. A second relative
+    // measure suppresses ratio scaling when a black lift is large compared
+    // with the pixel itself, keeping every path through RGB origin continuous.
+    // Both candidates have the requested luminance.
+    let relative_luminance = old_luminance.abs() / max_abs_rgb;
+    let relative_weight =
+        smooth_range_weight(relative_luminance, MASTER_BLEND_START, MASTER_BLEND_END);
+    let relative_change = delta.abs() / max_abs_rgb;
+    let change_weight = 1.0
+        - smooth_range_weight(
+            relative_change,
+            MASTER_CHANGE_BLEND_START,
+            MASTER_CHANGE_BLEND_END,
+        );
+    let ratio_weight = relative_weight * change_weight;
+    let mut remapped = if ratio_weight == 0.0 {
+        additive
+    } else {
+        let scale = new_luminance / old_luminance;
+        let ratio = [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale];
+        if ratio_weight == 1.0 {
+            ratio
+        } else {
+            let additive_weight = 1.0 - ratio_weight;
+            [
+                additive[0] * additive_weight + ratio[0] * ratio_weight,
+                additive[1] * additive_weight + ratio[1] * ratio_weight,
+                additive[2] * additive_weight + ratio[2] * ratio_weight,
+            ]
+        }
+    };
+
+    // Correct only floating-point cancellation residue. Equal-channel
+    // addition changes Rec.2020 luminance by the same amount.
+    let residual = new_luminance - luminance(remapped);
+    remapped = [
+        remapped[0] + residual,
+        remapped[1] + residual,
+        remapped[2] + residual,
+    ];
+    remapped
+}
+
+fn smooth_range_weight(value: f64, start: f64, end: f64) -> f64 {
+    let coordinate = ((value - start) / (end - start)).clamp(0.0, 1.0);
+    coordinate * coordinate * (3.0 - 2.0 * coordinate)
 }
 
 enum PreparedCurve {

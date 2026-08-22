@@ -1,5 +1,5 @@
 use grainroom::develop::{
-    CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, RgbaPixel, ToneCurve,
+    CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, PipelineError, RgbaPixel, ToneCurve,
 };
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
@@ -89,6 +89,80 @@ fn master_curve_handles_chromatic_near_zero_luminance() {
     });
     assert_close(luma(output), 0.2, 3.0e-7);
     assert!(output.into_iter().all(f64::is_finite));
+}
+
+#[test]
+fn master_cancellation_transition_is_continuous_bounded_and_scale_relative() {
+    for chroma_scale in [0.01, 1.0, 100.0] {
+        for sign in [-1.0, 1.0] {
+            for boundary in [0.025, 0.05] {
+                let before = render(
+                    cancellation_rgb((boundary - 1.0e-5) * sign, chroma_scale),
+                    |settings| settings.tone_curves.master = lifted_curve(),
+                );
+                let after = render(
+                    cancellation_rgb((boundary + 1.0e-5) * sign, chroma_scale),
+                    |settings| settings.tone_curves.master = lifted_curve(),
+                );
+                let output_step = before
+                    .into_iter()
+                    .zip(after)
+                    .map(|(left, right)| (left - right).abs())
+                    .fold(0.0, f64::max);
+                let normalized_derivative = output_step / (2.0e-5 * chroma_scale);
+                assert!(
+                    normalized_derivative <= 150.0,
+                    "unbounded transition derivative at scale {chroma_scale}, sign {sign}, boundary {boundary}: {normalized_derivative}"
+                );
+            }
+
+            for relative in [0.0, 0.01, 0.0249, 0.0251, 0.0375, 0.0499, 0.0501] {
+                let input = cancellation_rgb(relative * sign, chroma_scale);
+                let input_luma = luma(input);
+                let expected_luma = 0.2 + 0.8 * input_luma;
+                let output = render(input, |settings| {
+                    settings.tone_curves.master = lifted_curve()
+                });
+                assert_close(luma(output), expected_luma, 4.0e-5 * chroma_scale.max(1.0));
+                let max_output = output.into_iter().map(f64::abs).fold(0.0, f64::max);
+                let bound = chroma_scale + 41.0 * (expected_luma.abs() + input_luma.abs());
+                assert!(
+                    max_output <= bound,
+                    "unbounded cancellation output {max_output} > {bound}"
+                );
+            }
+        }
+
+        let negative = render(cancellation_rgb(-1.0e-7, chroma_scale), |settings| {
+            settings.tone_curves.master = lifted_curve()
+        });
+        let positive = render(cancellation_rgb(1.0e-7, chroma_scale), |settings| {
+            settings.tone_curves.master = lifted_curve()
+        });
+        let zero_crossing_step = negative
+            .into_iter()
+            .zip(positive)
+            .map(|(left, right)| (left - right).abs())
+            .fold(0.0, f64::max);
+        assert!(zero_crossing_step <= 1.0e-4 * chroma_scale.max(1.0));
+    }
+}
+
+#[test]
+fn lifted_master_converges_to_one_result_along_chromatic_rgb_origin_paths() {
+    for chroma_scale in [1.0e-2, 1.0e-4] {
+        for relative in [-0.05, -0.025, 0.025, 0.05] {
+            let output = render(cancellation_rgb(relative, chroma_scale), |settings| {
+                settings.tone_curves.master = lifted_curve()
+            });
+            for channel in output {
+                assert!(
+                    (channel - 0.2).abs() <= 2.0 * chroma_scale,
+                    "origin path did not converge at scale {chroma_scale}, relative {relative}: {output:?}"
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -207,6 +281,35 @@ fn curve_processing_preserves_alpha() {
     assert_eq!(image.pixels()[0].alpha().to_bits(), 0.75_f32.to_bits());
 }
 
+#[test]
+fn unrepresentable_hdr_output_errors_transactionally() {
+    let before_one = f32::from_bits(1.0_f32.to_bits() - 1);
+    let overflow_curve = ToneCurve {
+        points: vec![
+            CurvePoint { x: 0.0, y: 0.0 },
+            CurvePoint {
+                x: before_one,
+                y: 0.0,
+            },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ],
+    };
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.red = overflow_curve;
+    let mut image = CpuImage::new(
+        1,
+        1,
+        vec![RgbaPixel::new(f32::MAX, 0.0, 0.0, 0.75).unwrap()],
+    )
+    .unwrap();
+    let original = image.clone();
+    assert!(matches!(
+        DevelopPipeline.process(&mut image, &settings),
+        Err(PipelineError::InvalidImage(_))
+    ));
+    assert_eq!(image, original, "overflow failure mutated the input image");
+}
+
 fn golden_curve() -> ToneCurve {
     ToneCurve {
         points: vec![
@@ -225,6 +328,13 @@ fn lifted_curve() -> ToneCurve {
             CurvePoint { x: 1.0, y: 1.0 },
         ],
     }
+}
+
+fn cancellation_rgb(relative_luminance: f64, chroma_scale: f64) -> [f64; 3] {
+    let red = chroma_scale;
+    let target_luminance = relative_luminance * chroma_scale;
+    let green = (target_luminance - LUMA[0] * red) / LUMA[1];
+    [red, green, 0.0]
 }
 
 fn golden_pchip(x: f64) -> f64 {

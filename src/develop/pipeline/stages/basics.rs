@@ -179,6 +179,7 @@ const D65_KELVIN: f64 = 6504.0;
 const COOL_KELVIN: f64 = 25_000.0;
 const WARM_KELVIN: f64 = 4000.0;
 const MAX_TINT_DUV: f64 = 0.05;
+const MIN_TARGET_LMS: f64 = 0.01;
 
 fn temperature_to_mired(temperature: f32) -> f64 {
     let center = 1_000_000.0 / D65_KELVIN;
@@ -192,14 +193,26 @@ fn temperature_to_mired(temperature: f32) -> f64 {
 
 fn target_white_xy(temperature: f32, tint: f32) -> (f64, f64) {
     let mired = temperature_to_mired(temperature);
-    let (base_x, base_y) = daylight_xy_anchored(1_000_000.0 / mired);
-    let (u, v) = xy_to_uv(base_x, base_y);
+    let ((u, v), (normal_u, normal_v)) = daylight_uv_and_magenta_normal(mired);
     if tint == 0.0 {
         return uv_to_xy(u, v);
     }
 
-    // Duv is measured perpendicular to the daylight locus in CIE 1960 uv.
-    // The chosen normal points below the locus, conventionally toward magenta.
+    let requested_duv = f64::from(tint) / 100.0 * MAX_TINT_DUV;
+    let direction = requested_duv.signum();
+    let safe_limit = safe_duv_limit(u, v, normal_u * direction, normal_v * direction);
+    // `min` is continuous as the requested value or safe boundary changes;
+    // unlike rejecting an unsafe corner, it cannot introduce a color jump.
+    let magnitude = requested_duv.abs().min(safe_limit);
+    uv_to_xy(
+        u + normal_u * direction * magnitude,
+        v + normal_v * direction * magnitude,
+    )
+}
+
+fn daylight_uv_and_magenta_normal(mired: f64) -> ((f64, f64), (f64, f64)) {
+    let (base_x, base_y) = daylight_xy_anchored(1_000_000.0 / mired);
+    let base_uv = xy_to_uv(base_x, base_y);
     const DERIVATIVE_STEP_MIREDS: f64 = 0.1;
     let cool_mired = 1_000_000.0 / COOL_KELVIN;
     let warm_mired = 1_000_000.0 / WARM_KELVIN;
@@ -214,8 +227,35 @@ fn target_white_xy(temperature: f32, tint: f32) -> (f64, f64) {
     let tangent_length = tangent_u.hypot(tangent_v);
     let normal_u = tangent_v / tangent_length;
     let normal_v = -tangent_u / tangent_length;
-    let duv = f64::from(tint) / 100.0 * MAX_TINT_DUV;
-    uv_to_xy(u + normal_u * duv, v + normal_v * duv)
+    (base_uv, (normal_u, normal_v))
+}
+
+fn safe_duv_limit(u: f64, v: f64, direction_u: f64, direction_v: f64) -> f64 {
+    if target_lms_is_safe(
+        u + direction_u * MAX_TINT_DUV,
+        v + direction_v * MAX_TINT_DUV,
+    ) {
+        return MAX_TINT_DUV;
+    }
+
+    let mut safe = 0.0;
+    let mut unsafe_limit = MAX_TINT_DUV;
+    for _ in 0..48 {
+        let candidate = (safe + unsafe_limit) * 0.5;
+        if target_lms_is_safe(u + direction_u * candidate, v + direction_v * candidate) {
+            safe = candidate;
+        } else {
+            unsafe_limit = candidate;
+        }
+    }
+    safe
+}
+
+fn target_lms_is_safe(u: f64, v: f64) -> bool {
+    let (x, y) = uv_to_xy(u, v);
+    let lms = multiply_matrix(BRADFORD, xy_to_xyz(x, y));
+    lms.into_iter()
+        .all(|component| component.is_finite() && component >= MIN_TARGET_LMS)
 }
 
 fn daylight_xy_anchored(kelvin: f64) -> (f64, f64) {
@@ -310,7 +350,9 @@ const REC2020_XYZ_TO_RGB: [[f64; 3]; 3] = [
 #[cfg(test)]
 mod tests {
     use super::{
-        D65_KELVIN, prepare_temperature_tint_matrix, target_white_xy, temperature_to_mired,
+        BRADFORD, D65_KELVIN, MAX_TINT_DUV, MIN_TARGET_LMS, daylight_uv_and_magenta_normal,
+        multiply_matrix, prepare_temperature_tint_matrix, safe_duv_limit, target_white_xy,
+        temperature_to_mired, xy_to_uv, xy_to_xyz,
     };
 
     #[test]
@@ -440,6 +482,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn extreme_temperature_tint_corners_keep_bradford_lms_positive() {
+        for temperature in [-100.0, 100.0] {
+            for tint in [-100.0, 100.0] {
+                let (x, y) = target_white_xy(temperature, tint);
+                let lms = multiply_matrix(BRADFORD, xy_to_xyz(x, y));
+                let matrix = prepare_temperature_tint_matrix(temperature, tint);
+                assert!(
+                    lms.into_iter()
+                        .all(|component| component >= MIN_TARGET_LMS - 1.0e-12),
+                    "unsafe LMS at temperature {temperature}, tint {tint}: {lms:?}"
+                );
+                assert!(matrix.into_iter().flatten().all(f64::is_finite));
+            }
+        }
+    }
+
+    #[test]
+    fn tint_limit_is_continuous_and_positive_tint_stays_magenta() {
+        for temperature in [-100.0, 0.0, 100.0] {
+            let mired = temperature_to_mired(temperature);
+            let ((base_u, base_v), (normal_u, normal_v)) = daylight_uv_and_magenta_normal(mired);
+            for tint in [-100.0, 100.0] {
+                let (x, y) = target_white_xy(temperature, tint);
+                let (u, v) = xy_to_uv(x, y);
+                let signed_duv = (u - base_u) * normal_u + (v - base_v) * normal_v;
+                assert_eq!(signed_duv.is_sign_positive(), tint > 0.0);
+            }
+        }
+
+        let mired = temperature_to_mired(100.0);
+        let ((base_u, base_v), (normal_u, normal_v)) = daylight_uv_and_magenta_normal(mired);
+        let safe_green_limit = safe_duv_limit(base_u, base_v, -normal_u, -normal_v);
+        assert!(safe_green_limit < MAX_TINT_DUV);
+        let boundary_tint = -100.0 * safe_green_limit / MAX_TINT_DUV;
+        let before = target_white_xy(100.0, (boundary_tint - 0.01) as f32);
+        let after = target_white_xy(100.0, (boundary_tint + 0.01) as f32);
+        assert!(
+            (before.0 - after.0).hypot(before.1 - after.1) < 1.0e-4,
+            "tint safety limit introduced a visible discontinuity"
+        );
     }
 
     fn assert_close(actual: f64, expected: f64) {
