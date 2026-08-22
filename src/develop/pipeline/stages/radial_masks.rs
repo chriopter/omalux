@@ -180,10 +180,18 @@ fn mask_region(mask: &RadialMask, width: u32, height: u32) -> Region {
 }
 
 fn radial_coverage(mask: &RadialMask, width: u32, height: u32, x: u32, y: u32) -> f32 {
-    let normalized_x = (x as f32 + 0.5) / width as f32;
-    let normalized_y = (y as f32 + 0.5) / height as f32;
-    let delta_x = (normalized_x - mask.center_x) * width as f32;
-    let delta_y = (normalized_y - mask.center_y) * height as f32;
+    radial_coverage_at(mask, width, height, x as f32 + 0.5, y as f32 + 0.5)
+}
+
+fn radial_coverage_at(
+    mask: &RadialMask,
+    width: u32,
+    height: u32,
+    pixel_center_x: f32,
+    pixel_center_y: f32,
+) -> f32 {
+    let delta_x = pixel_center_x - mask.center_x * width as f32;
+    let delta_y = pixel_center_y - mask.center_y * height as f32;
     let radians = mask.rotation_degrees.to_radians();
     let (sin, cos) = radians.sin_cos();
     let ellipse_x = cos * delta_x + sin * delta_y;
@@ -192,15 +200,25 @@ fn radial_coverage(mask: &RadialMask, width: u32, height: u32, x: u32, y: u32) -
     let radius_y = mask.radius_y * height as f32;
     let distance = ((ellipse_x / radius_x).powi(2) + (ellipse_y / radius_y).powi(2)).sqrt();
 
-    let gradient_x = cos * ellipse_x / radius_x.powi(2) - sin * ellipse_y / radius_y.powi(2);
-    let gradient_y = sin * ellipse_x / radius_x.powi(2) + cos * ellipse_y / radius_y.powi(2);
-    let gradient = gradient_x.hypot(gradient_y).max(f32::MIN_POSITIVE);
-    let coverage = if mask.feather == 0.0 {
-        let signed_distance_pixels = (distance - 1.0) / gradient;
+    let implicit_gradient_x =
+        cos * ellipse_x / radius_x.powi(2) - sin * ellipse_y / radius_y.powi(2);
+    let implicit_gradient_y =
+        sin * ellipse_x / radius_x.powi(2) + cos * ellipse_y / radius_y.powi(2);
+    let implicit_gradient = implicit_gradient_x.hypot(implicit_gradient_y);
+    const DISTANCE_EPSILON: f32 = 1.0e-12;
+    let distance_gradient = if distance > DISTANCE_EPSILON {
+        implicit_gradient / distance
+    } else {
+        0.0
+    };
+    let coverage = if distance <= DISTANCE_EPSILON {
+        1.0
+    } else if mask.feather == 0.0 {
+        let signed_distance_pixels = (distance - 1.0) / distance_gradient.max(f32::MIN_POSITIVE);
         1.0 - smoothstep(-0.5, 0.5, signed_distance_pixels)
     } else {
         let normalized = (distance - (1.0 - mask.feather)) / mask.feather;
-        let aa = 0.5 * gradient / mask.feather;
+        let aa = 0.5 * distance_gradient / mask.feather;
         1.0 - smoothstep(-aa, 1.0 + aa, normalized)
     };
     let coverage = if mask.invert {
@@ -334,23 +352,60 @@ mod tests {
     }
 
     #[test]
-    fn one_pixel_aa_is_symmetric_on_axes_and_rotated_edges() {
-        let mut axis = mask();
-        axis.center_x = 0.5;
-        axis.center_y = 0.5;
-        axis.radius_x = 50.0 / 201.0;
-        axis.radius_y = 30.0 / 201.0;
-        axis.feather = 0.0;
-        let boundary = radial_coverage(&axis, 201, 201, 150, 100);
-        assert!((boundary - 0.5).abs() < 1.0e-5);
-        let inside = radial_coverage(&axis, 201, 201, 149, 100);
-        let outside = radial_coverage(&axis, 201, 201, 151, 100);
-        assert!((inside + outside - 1.0).abs() < 0.03);
+    fn small_circle_edge_between_centers_is_exact_and_symmetric() {
+        let mut circle = mask();
+        circle.center_x = 0.5;
+        circle.center_y = 0.5;
+        circle.radius_x = 2.5 / 21.0;
+        circle.radius_y = 2.5 / 21.0;
+        circle.feather = 0.0;
 
-        axis.rotation_degrees = 45.0;
-        let diagonal_inside = radial_coverage(&axis, 201, 201, 134, 134);
-        let diagonal_outside = radial_coverage(&axis, 201, 201, 136, 136);
-        assert!(diagonal_inside > diagonal_outside);
+        let center_y = 10.5;
+        let edge_x = 13.0;
+        let inside = radial_coverage_at(&circle, 21, 21, edge_x - 0.5, center_y);
+        let edge = radial_coverage_at(&circle, 21, 21, edge_x, center_y);
+        let outside = radial_coverage_at(&circle, 21, 21, edge_x + 0.5, center_y);
+        assert!((inside - 1.0).abs() < 1.0e-6);
+        assert!((edge - 0.5).abs() < 1.0e-6);
+        assert!(outside.abs() < 1.0e-6);
+        assert!((inside + outside - 1.0).abs() < 1.0e-6);
+
+        circle.feather = 0.4;
+        assert_eq!(radial_coverage_at(&circle, 21, 21, 10.5, 10.5), 1.0);
+    }
+
+    #[test]
+    fn rotated_anisotropic_principal_edge_at_45_degrees_is_symmetric() {
+        let mut ellipse = mask();
+        ellipse.center_x = 0.5;
+        ellipse.center_y = 0.5;
+        ellipse.radius_x = 8.0 / 101.0;
+        ellipse.radius_y = 3.0 / 101.0;
+        ellipse.rotation_degrees = 45.0;
+        ellipse.feather = 0.0;
+
+        let direction = std::f32::consts::FRAC_1_SQRT_2;
+        let edge_x = 50.5 + 8.0 * direction;
+        let edge_y = 50.5 + 8.0 * direction;
+        let inside = radial_coverage_at(
+            &ellipse,
+            101,
+            101,
+            edge_x - 0.5 * direction,
+            edge_y - 0.5 * direction,
+        );
+        let edge = radial_coverage_at(&ellipse, 101, 101, edge_x, edge_y);
+        let outside = radial_coverage_at(
+            &ellipse,
+            101,
+            101,
+            edge_x + 0.5 * direction,
+            edge_y + 0.5 * direction,
+        );
+        assert!((inside - 1.0).abs() < 2.0e-5);
+        assert!((edge - 0.5).abs() < 2.0e-5);
+        assert!(outside.abs() < 2.0e-5);
+        assert!((inside + outside - 1.0).abs() < 2.0e-5);
     }
 
     #[test]

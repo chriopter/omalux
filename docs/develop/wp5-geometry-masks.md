@@ -33,9 +33,10 @@ to invoke the CPU helper from the loader would be incorrect.
 
 Ellipse centers and radii are normalized independently against full image width
 and height. Coverage is evaluated analytically at global pixel centers. The
-ellipse gradient converts implicit distance to physical pixels and gives an
-exact symmetric one-pixel transition at an unfeathered edge; smooth feather,
-inversion, and opacity compose on top.
+gradient of normalized ellipse distance converts its first-order signed distance
+to physical pixels. This gives an exact symmetric one-pixel transition for
+circles and ellipse principal axes, and a gradient-based local one-pixel
+approximation elsewhere; smooth feather, inversion, and opacity compose on top.
 Using global coordinates makes a full-frame evaluation invariant to how a
 future scheduler divides the image into tiles.
 
