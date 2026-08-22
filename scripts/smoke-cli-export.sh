@@ -36,6 +36,7 @@ expected_geometry=$(magick identify -format '%wx%h' "$input")
 
 actual_format=$(magick identify -format '%m' "$output")
 actual_geometry=$(magick identify -format '%wx%h' "$output")
+actual_mean=$(magick identify -format '%[fx:mean]' "$output")
 
 if [[ $actual_format != HEIC ]]; then
   echo "expected HEIC, got $actual_format" >&2
@@ -43,6 +44,10 @@ if [[ $actual_format != HEIC ]]; then
 fi
 if [[ $actual_geometry != "$expected_geometry" ]]; then
   echo "expected $expected_geometry, got $actual_geometry" >&2
+  exit 1
+fi
+if ! awk -v mean="$actual_mean" 'BEGIN { exit !(mean > 0.001) }'; then
+  echo "export appears blank (mean=$actual_mean)" >&2
   exit 1
 fi
 

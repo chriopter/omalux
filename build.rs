@@ -1,5 +1,6 @@
 use cxx_qt_build::{CxxQtBuilder, QmlModule};
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -37,17 +38,37 @@ fn bake_shader(source: &Path, output: &Path) {
 }
 
 fn main() {
-    let shader_source = Path::new("qml/shaders/grain.frag");
-    let shader_output = Path::new("qml/shaders/grain.frag.qsb");
-    bake_shader(shader_source, shader_output);
+    let output_directory = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by Cargo"));
+    let shader_source = Path::new("qml/shaders/film_grain.frag");
+    let shader_output = output_directory.join("film_grain.frag.qsb");
+    bake_shader(shader_source, &shader_output);
     println!("cargo:rerun-if-changed={}", shader_source.display());
 
-    CxxQtBuilder::new_qml_module(QmlModule::new("io.omacom.grainroom").qml_file("qml/Main.qml"))
+    let resource_file = output_directory.join("grainroom_shaders.qrc");
+    let resource_xml = format!(
+        "<RCC><qresource prefix=\"/qt/qml/io/omacom/grainroom\"><file alias=\"qml/shaders/film_grain.frag.qsb\">{}</file></qresource></RCC>",
+        shader_output.display()
+    );
+    fs::write(&resource_file, resource_xml).expect("failed to write shader resource file");
+
+    let qml_module = QmlModule::new("io.omacom.grainroom").qml_files([
+        "qml/Main.qml",
+        "qml/components/MockParameterSlider.qml",
+        "qml/components/ParameterSlider.qml",
+        "qml/components/ToolTabButton.qml",
+        "qml/components/TuiButton.qml",
+        "qml/tools/crop/CropPanel.qml",
+        "qml/tools/grain/GrainEffect.qml",
+        "qml/tools/grain/GrainPanel.qml",
+        "qml/tools/metadata/MetadataPanel.qml",
+    ]);
+
+    CxxQtBuilder::new_qml_module(qml_module)
         .qt_module("Gui")
         .qt_module("Network")
         .qt_module("Quick")
         .qt_module("QuickControls2")
-        .file("src/backend.rs")
-        .qrc_resources([shader_output])
+        .file("src/backend/mod.rs")
+        .qrc(&resource_file)
         .build();
 }

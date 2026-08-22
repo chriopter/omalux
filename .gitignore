@@ -1,5 +1,4 @@
 /target/
 /.qmlls.ini
-qml/shaders/*.qsb
 *.tmp
 *.swp

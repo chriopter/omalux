@@ -1,8 +1,8 @@
 #version 440
 
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Grain model adapted for the GPU from darktable src/iop/grain.c and
-// RawTherapee rtengine/ipgrain.cc. See docs/GRAIN.md for provenance.
+// Film grain model adapted for the GPU from darktable src/iop/grain.c and
+// RawTherapee rtengine/ipgrain.cc. See docs/grain-model.md for provenance.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;

@@ -113,11 +113,11 @@ ApplicationWindow {
 
         exportQuality = Math.max(1, Math.min(100,
             Math.round(numericArgument("--quality", 90))))
-        grainControl.value = Math.max(0, Math.min(100,
+        grainPanel.grainValue = Math.max(0, Math.min(100,
             numericArgument("--grain", 24)))
-        grainSizeControl.value = Math.max(20, Math.min(6400,
+        grainPanel.grainSizeValue = Math.max(20, Math.min(6400,
             numericArgument("--grain-size", 4000)))
-        midtonesControl.value = Math.max(0, Math.min(100,
+        grainPanel.midtonesValue = Math.max(0, Math.min(100,
             numericArgument("--midtones", 100)))
 
         console.log("grainroom: opening " + cliInput)
@@ -218,16 +218,7 @@ ApplicationWindow {
     }
 
     function parameterAt(index) {
-        switch (index) {
-        case 0: return grainControl
-        case 1: return grainSizeControl
-        case 2: return midtonesControl
-        case 3: return exposureControl
-        case 4: return contrastControl
-        case 5: return highlightsControl
-        case 6: return shadowsControl
-        default: return vignetteControl
-        }
+        return grainPanel.parameterAt(index)
     }
 
     function selectParameter(index) {
@@ -236,14 +227,7 @@ ApplicationWindow {
         selectedParameter = (index + 8) % 8
         Qt.callLater(function() {
             var control = parameterAt(selectedParameter)
-            var flickable = grainScroll.flickable
-            var point = control.mapToItem(flickable, 0, 0)
-            if (point.y < 0)
-                flickable.contentY = Math.max(
-                    0, flickable.contentY + point.y - 4)
-            else if (point.y + control.height > grainScroll.availableHeight)
-                flickable.contentY += point.y + control.height
-                    - grainScroll.availableHeight + 4
+            grainPanel.ensureVisible(control)
         })
     }
 
@@ -307,7 +291,7 @@ ApplicationWindow {
             return "—"
         var qualityScale = 0.35 + Math.pow(exportQuality / 100, 2) * 0.8
         var bytesPerPixel = format === "JPEG" ? 0.42 : 0.24
-        var grainPenalty = 1 + grainControl.value / 100 * 0.35
+        var grainPenalty = 1 + grainPanel.grainValue / 100 * 0.35
         return "~" + humanFileSize(
             pixels * bytesPerPixel * qualityScale * grainPenalty)
     }
@@ -369,335 +353,6 @@ ApplicationWindow {
             backend.reportExportError("Could not start export render")
     }
 
-    component TuiButton: Button {
-        id: control
-        property bool primary: false
-
-        activeFocusOnTab: false
-        leftPadding: 11
-        rightPadding: 11
-        topPadding: 6
-        bottomPadding: 6
-
-        contentItem: Text {
-            text: control.text
-            color: control.enabled
-                ? (control.primary ? window.pageColor : window.inkColor)
-                : window.mutedColor
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            font.family: window.monoFont
-            font.pixelSize: 12
-            font.bold: control.primary
-        }
-
-        background: Rectangle {
-            implicitHeight: 30
-            implicitWidth: 56
-            radius: 0
-            color: control.primary
-                ? (control.down ? Qt.darker(window.inkColor, 1.25) : window.inkColor)
-                : control.down
-                    ? "#303030"
-                    : control.hovered ? window.raisedColor : "transparent"
-            border.width: 1
-            border.color: control.primary
-                ? window.inkColor
-                : control.hovered ? window.mutedColor : window.lineColor
-        }
-    }
-
-    component ToolTabButton: Button {
-        id: tabButton
-        required property string symbol
-        required property string label
-        property bool selected: false
-
-        implicitWidth: 76
-        implicitHeight: 34
-        activeFocusOnTab: false
-
-        contentItem: Row {
-            anchors.centerIn: parent
-            spacing: 6
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: tabButton.symbol
-                color: tabButton.selected ? window.accentColor : window.mutedColor
-                font.family: window.monoFont
-                font.pixelSize: 13
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: tabButton.label.toUpperCase()
-                color: tabButton.selected ? window.inkColor : window.mutedColor
-                font.family: window.monoFont
-                font.pixelSize: 9
-                font.bold: true
-                font.letterSpacing: 0.2
-                horizontalAlignment: Text.AlignHCenter
-            }
-        }
-
-        background: Rectangle {
-            radius: 0
-            color: tabButton.selected
-                ? Qt.rgba(0.33, 0.52, 0.67, 0.12)
-                : tabButton.down ? "#252525"
-                    : tabButton.hovered ? window.surfaceColor : "transparent"
-
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                height: 2
-                color: window.accentColor
-                visible: tabButton.selected
-            }
-        }
-    }
-
-    component ParameterControl: Item {
-        id: parameter
-        required property int parameterIndex
-        required property string label
-        required property real from
-        required property real to
-        required property real initialValue
-        property real stepSize: 1
-        property real coarseStep: stepSize * 10
-        property string suffix: ""
-        property bool expandable: false
-        property bool expanded: false
-        property alias value: slider.value
-        readonly property bool selected: window.selectedParameter === parameterIndex
-        signal expansionRequested()
-
-        implicitHeight: 58
-        Accessible.role: Accessible.Slider
-        Accessible.name: label
-        Accessible.description: Math.round(value) + suffix
-
-        function nudge(direction, coarse) {
-            var amount = coarse ? coarseStep : stepSize
-            slider.value = Math.max(from, Math.min(to, slider.value + direction * amount))
-        }
-
-        function resetValue() {
-            slider.value = initialValue
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            anchors.topMargin: 4
-            anchors.bottomMargin: 3
-            spacing: 4
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text: parameter.label.toUpperCase()
-                    color: parameter.selected ? window.accentColor : window.inkColor
-                    font.family: window.monoFont
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-
-                Button {
-                    visible: parameter.expandable
-                    implicitWidth: 20
-                    implicitHeight: 18
-                    leftPadding: 0
-                    rightPadding: 0
-                    topPadding: 0
-                    bottomPadding: 0
-                    activeFocusOnTab: false
-                    onClicked: parameter.expansionRequested()
-                    Accessible.name: parameter.expanded
-                        ? "Hide " + parameter.label + " subparameters"
-                        : "Show " + parameter.label + " subparameters"
-
-                    contentItem: Text {
-                        text: parameter.expanded ? "⌄" : "›"
-                        color: window.accentColor
-                        font.family: window.monoFont
-                        font.pixelSize: 12
-                        font.bold: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    background: Item { }
-
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: Math.round(parameter.value) + parameter.suffix
-                    color: parameter.selected ? window.accentColor : window.inkColor
-                    font.family: window.monoFont
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-            }
-
-            Slider {
-                id: slider
-                Layout.fillWidth: true
-                Layout.preferredHeight: 20
-                from: parameter.from
-                to: parameter.to
-                value: parameter.initialValue
-                stepSize: parameter.stepSize
-                snapMode: Slider.SnapAlways
-                enabled: sourceImage.status === Image.Ready
-                activeFocusOnTab: false
-                onPressedChanged: if (pressed)
-                    window.selectParameter(parameter.parameterIndex)
-
-                background: Rectangle {
-                    x: slider.leftPadding
-                    y: slider.topPadding + slider.availableHeight / 2 - height / 2
-                    width: slider.availableWidth
-                    height: 2
-                    color: window.lineColor
-
-                    Rectangle {
-                        width: slider.visualPosition * parent.width
-                        height: parent.height
-                        color: parameter.selected ? window.accentColor : window.mutedColor
-                    }
-                }
-
-                handle: Rectangle {
-                    x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
-                    y: slider.topPadding + slider.availableHeight / 2 - height / 2
-                    width: 8
-                    height: 8
-                    radius: 0
-                    color: parameter.selected ? window.accentColor : window.mutedColor
-                }
-            }
-        }
-
-        HoverHandler {
-            onHoveredChanged: if (hovered)
-                window.selectParameter(parameter.parameterIndex)
-        }
-    }
-
-    component MockParameterControl: Item {
-        id: mockParameter
-        required property int parameterIndex
-        required property string label
-        property real from: 0
-        property real to: 100
-        property real initialValue: 50
-        property real stepSize: 1
-        property real coarseStep: stepSize * 10
-        property string suffix: ""
-        property alias value: mockSlider.value
-        readonly property bool selected: window.selectedParameter === parameterIndex
-
-        implicitHeight: 58
-        Accessible.role: Accessible.Slider
-        Accessible.name: label
-
-        function nudge(direction, coarse) {
-            var amount = coarse ? coarseStep : stepSize
-            mockSlider.value = Math.max(
-                from, Math.min(to, mockSlider.value + direction * amount))
-        }
-
-        function resetValue() {
-            mockSlider.value = initialValue
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            anchors.topMargin: 4
-            anchors.bottomMargin: 3
-            spacing: 4
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text: mockParameter.label.toUpperCase()
-                    color: mockParameter.selected
-                        ? window.accentColor : window.mutedColor
-                    font.family: window.monoFont
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: Math.round(mockSlider.value) + mockParameter.suffix
-                    color: mockParameter.selected
-                        ? window.accentColor : window.inkColor
-                    font.family: window.monoFont
-                    font.pixelSize: 11
-                }
-            }
-
-            Slider {
-                id: mockSlider
-                Layout.fillWidth: true
-                Layout.preferredHeight: 20
-                from: mockParameter.from
-                to: mockParameter.to
-                value: mockParameter.initialValue
-                stepSize: mockParameter.stepSize
-                snapMode: Slider.SnapAlways
-                enabled: sourceImage.status === Image.Ready
-                activeFocusOnTab: false
-                onPressedChanged: if (pressed)
-                    window.selectParameter(mockParameter.parameterIndex)
-
-                background: Rectangle {
-                    x: mockSlider.leftPadding
-                    y: mockSlider.topPadding + mockSlider.availableHeight / 2 - height / 2
-                    width: mockSlider.availableWidth
-                    height: 2
-                    color: window.lineColor
-
-                    Rectangle {
-                        width: mockSlider.visualPosition * parent.width
-                        height: parent.height
-                        color: mockParameter.selected
-                            ? window.accentColor : window.mutedColor
-                    }
-                }
-
-                handle: Rectangle {
-                    x: mockSlider.leftPadding
-                       + mockSlider.visualPosition * (mockSlider.availableWidth - width)
-                    y: mockSlider.topPadding + mockSlider.availableHeight / 2 - height / 2
-                    width: 8
-                    height: 8
-                    radius: 0
-                    color: mockParameter.selected
-                        ? window.accentColor : window.mutedColor
-                }
-            }
-        }
-
-        HoverHandler {
-            onHoveredChanged: if (hovered)
-                window.selectParameter(mockParameter.parameterIndex)
-        }
-    }
 
     PhotoBackend {
         id: backend
@@ -926,12 +581,14 @@ ApplicationWindow {
                     spacing: 9
 
                     TuiButton {
+                        theme: window
                         text: "[O] OPEN"
                         primary: true
                         onClicked: openDialog.open()
                     }
 
                     TuiButton {
+                        theme: window
                         text: "[S] SAVE"
                         enabled: sourceImage.status === Image.Ready
                         onClicked: window.exportMenuVisible = true
@@ -1042,6 +699,7 @@ ApplicationWindow {
                         }
 
                         TuiButton {
+                            theme: window
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "[ O ]  OPEN PHOTOGRAPH"
                             primary: true
@@ -1088,23 +746,19 @@ ApplicationWindow {
                                 }
                             }
 
-                            ShaderEffect {
+                            GrainEffect {
                                 id: grainEffect
                                 anchors.fill: parent
                                 visible: sourceImage.status === Image.Ready
-                                blending: false
-
                                 property var source: sourceImage
                                 property real grainAmount: window.grainEnabled
-                                    ? grainControl.value / 100.0 : 0.0
+                                    ? grainPanel.grainValue / 100.0 : 0.0
                                 property vector2d imageSize: Qt.vector2d(
                                     sourceImage.sourceSize.width,
                                     sourceImage.sourceSize.height)
-                                property real grainCoarseness: grainSizeControl.value
-                                property real midtonesBias: midtonesControl.value / 100.0
+                                property real grainCoarseness: grainPanel.grainSizeValue
+                                property real midtonesBias: grainPanel.midtonesValue / 100.0
                                 property real grainSeed: window.stableSeed(backend.fileName)
-
-                                fragmentShader: "shaders/grain.frag.qsb"
                             }
 
                             Rectangle {
@@ -1192,6 +846,7 @@ ApplicationWindow {
                                 spacing: 0
 
                                 ToolTabButton {
+                                    theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     symbol: "⌗"
@@ -1208,6 +863,7 @@ ApplicationWindow {
                                 }
 
                                 ToolTabButton {
+                                    theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     symbol: "▒"
@@ -1224,6 +880,7 @@ ApplicationWindow {
                                 }
 
                                 ToolTabButton {
+                                    theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     symbol: "ⓘ"
@@ -1246,251 +903,24 @@ ApplicationWindow {
                             Layout.fillHeight: true
                             currentIndex: window.selectedPanel
 
-                            Item {
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    spacing: 12
-
-                                    Text {
-                                        text: "01 / CROP"
-                                        color: window.inkColor
-                                        font.family: window.monoFont
-                                        font.pixelSize: 13
-                                        font.bold: true
-                                        font.letterSpacing: 1
-                                    }
-
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 220
-                                        color: window.surfaceColor
-                                        border.width: 1
-                                        border.color: window.lineColor
-
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 9
-
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: "┌──────────────┐\n│              │\n│  CROP TOOL   │\n│              │\n└──────────────┘"
-                                                color: window.mutedColor
-                                                font.family: window.monoFont
-                                                font.pixelSize: 12
-                                                horizontalAlignment: Text.AlignHCenter
-                                            }
-
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: "PLACEHOLDER / NEXT ITERATION"
-                                                color: window.accentColor
-                                                font.family: window.monoFont
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                            }
-                                        }
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: "PLANNED\n\n• FREE CROP\n• ASPECT RATIOS\n• ROTATE / STRAIGHTEN"
-                                        color: window.mutedColor
-                                        font.family: window.monoFont
-                                        font.pixelSize: 11
-                                        lineHeight: 1.45
-                                    }
-
-                                    Item { Layout.fillHeight: true }
-                                }
+                            CropPanel {
+                                theme: window
                             }
 
-                            Item {
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    spacing: 10
-
-                                    ScrollView {
-                                        id: grainScroll
-                                        readonly property Flickable flickable:
-                                            contentItem as Flickable
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        clip: true
-                                        contentWidth: availableWidth
-                                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                                        ColumnLayout {
-                                            width: grainScroll.availableWidth
-                                            spacing: 8
-
-                                            ParameterControl {
-                                                id: grainControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 0
-                                                label: "Grain"
-                                                from: 0
-                                                to: 100
-                                                initialValue: 24
-                                                stepSize: 1
-                                                coarseStep: 10
-                                                expandable: true
-                                                expanded: window.grainAdvancedExpanded
-                                                onExpansionRequested: window.toggleGrainAdvanced()
-                                            }
-
-                                            Rectangle {
-                                                Layout.fillWidth: true
-                                                implicitHeight: grainSubparameters.implicitHeight + 16
-                                                visible: window.grainAdvancedExpanded
-                                                color: "transparent"
-                                                border.width: 1
-                                                border.color: window.lineColor
-
-                                                ColumnLayout {
-                                                    id: grainSubparameters
-                                                    anchors.fill: parent
-                                                    anchors.margins: 8
-                                                    spacing: 6
-
-                                                    ParameterControl {
-                                                        id: grainSizeControl
-                                                        Layout.fillWidth: true
-                                                        parameterIndex: 1
-                                                        label: "Size"
-                                                        from: 20
-                                                        to: 6400
-                                                        initialValue: 4000
-                                                        stepSize: 100
-                                                        coarseStep: 500
-                                                        suffix: " ISO"
-                                                    }
-
-                                                    ParameterControl {
-                                                        id: midtonesControl
-                                                        Layout.fillWidth: true
-                                                        parameterIndex: 2
-                                                        label: "Midtones"
-                                                        from: 0
-                                                        to: 100
-                                                        initialValue: 100
-                                                        stepSize: 1
-                                                        coarseStep: 10
-                                                    }
-                                                }
-                                            }
-
-                                            MockParameterControl {
-                                                id: exposureControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 3
-                                                label: "Exposure"
-                                                from: -100
-                                                to: 100
-                                                initialValue: 0
-                                            }
-
-                                            MockParameterControl {
-                                                id: contrastControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 4
-                                                label: "Contrast"
-                                                initialValue: 50
-                                            }
-
-                                            MockParameterControl {
-                                                id: highlightsControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 5
-                                                label: "Highlights"
-                                                initialValue: 62
-                                            }
-
-                                            MockParameterControl {
-                                                id: shadowsControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 6
-                                                label: "Shadows"
-                                                initialValue: 38
-                                            }
-
-                                            MockParameterControl {
-                                                id: vignetteControl
-                                                Layout.fillWidth: true
-                                                parameterIndex: 7
-                                                label: "Vignette"
-                                                initialValue: 18
-                                            }
-
-                                        }
-                                    }
-                                }
+                            GrainPanel {
+                                id: grainPanel
+                                theme: window
+                                photoReady: sourceImage.status === Image.Ready
+                                selectedParameter: window.selectedParameter
+                                advancedExpanded: window.grainAdvancedExpanded
+                                onSelectionRequested: index => window.selectParameter(index)
+                                onAdvancedToggleRequested: window.toggleGrainAdvanced()
                             }
 
-                            Item {
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    spacing: 12
-
-                                    Text {
-                                        text: "03 / METADATA"
-                                        color: window.inkColor
-                                        font.family: window.monoFont
-                                        font.pixelSize: 13
-                                        font.bold: true
-                                        font.letterSpacing: 1
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: backend.fileName.length > 0
-                                            ? backend.fileName.toUpperCase()
-                                            : "NO PHOTOGRAPH"
-                                        color: window.accentColor
-                                        elide: Text.ElideMiddle
-                                        font.family: window.monoFont
-                                        font.pixelSize: 11
-                                        font.bold: true
-                                    }
-
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 1
-                                        color: window.lineColor
-                                    }
-
-                                    ScrollView {
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        clip: true
-
-                                        Text {
-                                            width: parent.width
-                                            text: backend.metadataText
-                                            color: backend.fileName.length > 0
-                                                ? window.inkColor : window.mutedColor
-                                            font.family: window.monoFont
-                                            font.pixelSize: 11
-                                            lineHeight: 1.65
-                                            wrapMode: Text.WrapAnywhere
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 1
-                                        color: window.lineColor
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: "EXIF / LIBRAW\nREAD-ONLY"
-                                        color: window.mutedColor
-                                        font.family: window.monoFont
-                                        font.pixelSize: 10
-                                        lineHeight: 1.45
-                                    }
-                                }
+                            MetadataPanel {
+                                theme: window
+                                fileName: backend.fileName
+                                metadataText: backend.metadataText
                             }
                         }
                     }
@@ -1641,6 +1071,7 @@ ApplicationWindow {
                     }
 
                     TuiButton {
+                        theme: window
                         Layout.fillWidth: true
                         text: "[1] ORIGINAL · " + backend.originalFormat
                             + "     " + window.exportDetails("ORIGINAL")
@@ -1648,12 +1079,14 @@ ApplicationWindow {
                     }
 
                     TuiButton {
+                        theme: window
                         Layout.fillWidth: true
                         text: "[2] JPEG · .JPG     " + window.exportDetails("JPEG")
                         onClicked: window.chooseExportFormat("JPEG")
                     }
 
                     TuiButton {
+                        theme: window
                         Layout.fillWidth: true
                         text: "[3] HEIC · .HEIC     " + window.exportDetails("HEIC")
                         onClicked: window.chooseExportFormat("HEIC")

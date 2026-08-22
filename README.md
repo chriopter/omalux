@@ -2,6 +2,10 @@
 
 A focused photo developer for Omarchy, built with Rust, CXX-Qt, Qt Quick and LibRaw.
 
+Implementation boundaries and directory responsibilities are documented in
+[`docs/architecture.md`](docs/architecture.md). The film-grain implementation
+and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
+
 ## MVP
 
 - Open JPEG, PNG, BMP and common camera RAW files
@@ -71,6 +75,6 @@ scripts/smoke-cli-export.sh ~/Downloads/example.jpg
 cargo run --release
 ```
 
-Qt Shader Baker compiles `qml/shaders/grain.frag` during the build. The generated
+Qt Shader Baker compiles `qml/shaders/film_grain.frag` during the build. The generated
 `.qsb` package is embedded into the application and works with Qt's supported
 graphics backends.
