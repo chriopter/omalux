@@ -66,8 +66,11 @@ the adapted grain-model files remain in place.
   any valid finite `f32` RGB either produces finite, unclamped `f32` RGB or
   returns an explicit `NonFiniteOutput` error; it never silently stores NaN or
   infinity. Inputs at both signs of `f32::MAX` are covered by the kernel tests.
-- Amount zero returns before seed, coordinate, luminance, or response work and
-  is bit-exact.
+- Amount zero returns before full-image region/dimension validation, pixel
+  buffer access, seed, coordinate, luminance, or response work. It allocates
+  nothing and is bit-exact, including for shapes outside the active kernel's
+  supported dimension contract. Non-zero grain remains gated by the Effects
+  integration until a render context supplies `ResolvedGrainSeed`.
 
 ## Foundation integration gap
 

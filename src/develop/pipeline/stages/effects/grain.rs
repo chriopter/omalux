@@ -97,17 +97,6 @@ impl GrainRegion {
         })
     }
 
-    pub(super) fn full(image: &CpuImage) -> Result<Self, GrainError> {
-        Self::new(
-            image.width() as usize,
-            image.height() as usize,
-            0,
-            0,
-            image.width() as usize,
-            image.height() as usize,
-        )
-    }
-
     pub(super) const fn full_width(self) -> usize {
         self.full_width
     }
@@ -138,8 +127,23 @@ pub(super) fn apply_full_image(
     settings: &GrainSettings,
     seed: ResolvedGrainSeed,
 ) -> Result<(), GrainError> {
-    let region = GrainRegion::full(image)?;
+    let Some(region) =
+        full_region_for_dimensions(image.width() as usize, image.height() as usize, settings)?
+    else {
+        return Ok(());
+    };
     apply_region(image.pixels_mut(), region, settings, seed)
+}
+
+fn full_region_for_dimensions(
+    width: usize,
+    height: usize,
+    settings: &GrainSettings,
+) -> Result<Option<GrainRegion>, GrainError> {
+    if settings.amount == 0.0 {
+        return Ok(None);
+    }
+    GrainRegion::new(width, height, 0, 0, width, height).map(Some)
 }
 
 /// Applies grain to a tightly packed tile using global image coordinates.
@@ -412,6 +416,37 @@ mod tests {
         )
         .unwrap();
         assert_eq!(pixels, original);
+    }
+
+    #[test]
+    fn neutral_full_image_contract_precedes_oversized_region_validation() {
+        let oversized_width = MAX_GRAIN_DIMENSION + 1;
+        assert_eq!(
+            full_region_for_dimensions(oversized_width, 1, &settings(0.0, 4000.0, 100.0),),
+            Ok(None)
+        );
+        assert_eq!(
+            full_region_for_dimensions(oversized_width, 1, &settings(1.0, 4000.0, 100.0),),
+            Err(GrainError::DimensionTooLarge)
+        );
+
+        let mut image = CpuImage::new(
+            2,
+            1,
+            vec![
+                pixel([-3.0, 0.5, 12.0], 0.25),
+                pixel([f32::MAX, -f32::MAX, 1.0], 0.75),
+            ],
+        )
+        .unwrap();
+        let original = image.clone();
+        apply_full_image(
+            &mut image,
+            &settings(0.0, 4000.0, 100.0),
+            ResolvedGrainSeed::fixed(7),
+        )
+        .unwrap();
+        assert_eq!(image, original);
     }
 
     #[test]
