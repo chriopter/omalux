@@ -44,10 +44,27 @@ fn halation_is_a_distinct_warm_outer_halo() {
     settings.effects.halation = 100.0;
     DevelopPipeline.process(&mut image, &settings).unwrap();
 
-    let halo = rgb(&image, 24, 16);
+    let halo = rgb(&image, 19, 16);
     assert!(halo[0] > 0.0);
     assert!(halo[0] > halo[1]);
     assert!(halo[1] > halo[2]);
+    assert_eq!(rgb(&image, 16, 16), [6.0, 6.0, 6.0]);
+}
+
+#[test]
+fn halation_uses_luminance_energy_for_red_green_and_blue_highlights() {
+    for impulse in [
+        [6.0 / 0.2627, 0.0, 0.0],
+        [0.0, 6.0 / 0.6780, 0.0],
+        [0.0, 0.0, 6.0 / 0.0593],
+    ] {
+        let mut image = impulse_image(65, 65, impulse, 1.0);
+        let settings = settings(0.0, 100.0, 0.0, 0.0, 0.0);
+        DevelopPipeline.process(&mut image, &settings).unwrap();
+        let halo = rgb(&image, 37, 32);
+        assert!(halo[0] > 0.0, "impulse={impulse:?}");
+        assert!(halo[0] > halo[1] && halo[1] > halo[2]);
+    }
 }
 
 #[test]
@@ -87,6 +104,33 @@ fn vignette_uses_symmetric_full_frame_coordinates() {
     assert_eq!(center, 1.0);
     assert!(corners[0] < center);
     assert!(corners.iter().all(|corner| *corner == corners[0]));
+}
+
+#[test]
+fn vignette_is_centered_and_symmetric_on_a_nonsquare_frame() {
+    let pixels = vec![RgbaPixel::new(1.0, 1.0, 1.0, 1.0).unwrap(); 31 * 11];
+    let mut image = CpuImage::new(31, 11, pixels).unwrap();
+    let settings = settings(0.0, 0.0, 0.0, 80.0, 0.0);
+    DevelopPipeline.process(&mut image, &settings).unwrap();
+    assert_eq!(rgb(&image, 15, 5)[0], 1.0);
+    assert_eq!(rgb(&image, 0, 5)[0], rgb(&image, 30, 5)[0]);
+    assert_eq!(rgb(&image, 15, 0)[0], rgb(&image, 15, 10)[0]);
+    assert_eq!(rgb(&image, 0, 0)[0], rgb(&image, 30, 10)[0]);
+}
+
+#[test]
+fn optical_profiles_are_normalized_across_one_two_and_four_x_frames() {
+    let bloom_profiles = [65_u32, 129, 257]
+        .map(|size| normalized_bloom_profile(size, 100.0, &[0.0, 0.015, 0.03, 0.06]));
+    for profile in bloom_profiles.iter().skip(1) {
+        for (reference, candidate) in bloom_profiles[0].iter().zip(profile) {
+            assert!((reference - candidate).abs() < 0.16, "{bloom_profiles:?}");
+        }
+    }
+
+    let narrow = normalized_bloom_profile(257, 10.0, &[0.0, 0.02, 0.05, 0.08]);
+    let broad = normalized_bloom_profile(257, 100.0, &[0.0, 0.02, 0.05, 0.08]);
+    assert!(broad[2] > narrow[2]);
 }
 
 #[test]
@@ -208,4 +252,20 @@ fn rgb(image: &CpuImage, x: usize, y: usize) -> [f32; 3] {
 
 fn alphas(image: &CpuImage) -> Vec<f32> {
     image.pixels().iter().map(|pixel| pixel.alpha()).collect()
+}
+
+fn normalized_bloom_profile(size: u32, amount: f32, offsets: &[f64]) -> Vec<f32> {
+    let mut image = impulse_image(size, size, [8.0, 8.0, 8.0], 1.0);
+    let settings = settings(amount, 0.0, 0.0, 0.0, 0.0);
+    DevelopPipeline.process(&mut image, &settings).unwrap();
+    let center = size as usize / 2;
+    let peak = rgb(&image, center, center)[0] - 8.0;
+    offsets
+        .iter()
+        .map(|offset| {
+            let distance = (*offset * size as f64).round() as usize;
+            let original = if distance == 0 { 8.0 } else { 0.0 };
+            (rgb(&image, center + distance, center)[0] - original) / peak
+        })
+        .collect()
 }
