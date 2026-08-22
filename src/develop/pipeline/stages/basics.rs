@@ -1,11 +1,266 @@
 use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::BasicsSettings};
 
+// The exposure, fulcrum-contrast, tonal-mask, and chroma structure follows the
+// scene-referred models documented by darktable at commit 943d74a
+// (`exposure.c`, `basicadj.c`, `colorbalancergb.c`, `levels.c`, `vibrance.c`,
+// and `temperature.c`). This is an independent Rec.2020 implementation.
+
+const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
+const MIDDLE_GRAY: f64 = 0.18;
+const LUMA_EPSILON: f64 = 1.0e-6;
+
 pub(super) fn supports(settings: &BasicsSettings) -> bool {
-    settings.is_neutral()
+    // Clarity needs a spatial/local-contrast stage and is intentionally not
+    // approximated by the global WP1 pass.
+    settings.clarity == 0.0
 }
 
-pub(super) fn apply(_image: &mut CpuImage, settings: &BasicsSettings) -> Result<(), PipelineError> {
-    supports(settings)
-        .then_some(())
-        .ok_or(PipelineError::StageNotImplemented(DevelopStage::Basics))
+pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(), PipelineError> {
+    if !supports(settings) {
+        return Err(PipelineError::StageNotImplemented(DevelopStage::Basics));
+    }
+    if settings.is_neutral() {
+        return Ok(());
+    }
+
+    let white_balance = prepare_temperature_tint_matrix(settings.temperature, settings.tint);
+    let brightness_ev = f64::from(settings.brightness) / 100.0;
+    let contrast = f64::from(settings.contrast) / 100.0;
+    let saturation = f64::from(settings.saturation) / 100.0;
+    let vibrance = f64::from(settings.vibrance) / 100.0;
+
+    for pixel in image.pixels_mut() {
+        let mut rgb = [
+            f64::from(pixel.red),
+            f64::from(pixel.green),
+            f64::from(pixel.blue),
+        ];
+
+        // Canonical WP1 order. Each operation is independently neutral at 0.
+        rgb = multiply_matrix(white_balance, rgb);
+        rgb = exposure(rgb, brightness_ev);
+        rgb = whites_blacks(rgb, settings.whites, settings.blacks);
+        rgb = highlights_shadows(rgb, settings.highlights, settings.shadows);
+        rgb = contrast_around_middle_gray(rgb, contrast);
+        rgb = saturation_adjustment(rgb, saturation);
+        rgb = vibrance_adjustment(rgb, vibrance);
+
+        pixel.red = rgb[0] as f32;
+        pixel.green = rgb[1] as f32;
+        pixel.blue = rgb[2] as f32;
+    }
+    Ok(())
 }
+
+fn luminance(rgb: [f64; 3]) -> f64 {
+    rgb[0] * LUMA[0] + rgb[1] * LUMA[1] + rgb[2] * LUMA[2]
+}
+
+fn with_luminance(rgb: [f64; 3], old_luminance: f64, new_luminance: f64) -> [f64; 3] {
+    if old_luminance > LUMA_EPSILON {
+        let scale = new_luminance / old_luminance;
+        [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale]
+    } else {
+        rgb
+    }
+}
+
+fn exposure(rgb: [f64; 3], ev: f64) -> [f64; 3] {
+    if ev == 0.0 {
+        return rgb;
+    }
+    let gain = ev.exp2();
+    [rgb[0] * gain, rgb[1] * gain, rgb[2] * gain]
+}
+
+fn tonal_coordinate(luminance: f64) -> f64 {
+    luminance / (luminance + MIDDLE_GRAY)
+}
+
+fn whites_blacks(rgb: [f64; 3], whites: f32, blacks: f32) -> [f64; 3] {
+    if whites == 0.0 && blacks == 0.0 {
+        return rgb;
+    }
+    let old_luminance = luminance(rgb);
+    if old_luminance <= LUMA_EPSILON {
+        return rgb;
+    }
+    let tone = tonal_coordinate(old_luminance);
+    let black_mask = 1.0 - smoothstep(0.05, 0.40, tone);
+    let white_mask = smoothstep(0.60, 0.95, tone);
+    let ev =
+        2.0 * f64::from(blacks) / 100.0 * black_mask + 2.0 * f64::from(whites) / 100.0 * white_mask;
+    with_luminance(rgb, old_luminance, old_luminance * ev.exp2())
+}
+
+fn highlights_shadows(rgb: [f64; 3], highlights: f32, shadows: f32) -> [f64; 3] {
+    if highlights == 0.0 && shadows == 0.0 {
+        return rgb;
+    }
+    let old_luminance = luminance(rgb);
+    if old_luminance <= LUMA_EPSILON {
+        return rgb;
+    }
+    let tone = tonal_coordinate(old_luminance);
+    let shadow_mask = 1.0 - smoothstep(0.10, 0.65, tone);
+    let highlight_mask = smoothstep(0.35, 0.90, tone);
+    let ev = 2.0 * f64::from(shadows) / 100.0 * shadow_mask
+        + 2.0 * f64::from(highlights) / 100.0 * highlight_mask;
+    with_luminance(rgb, old_luminance, old_luminance * ev.exp2())
+}
+
+fn contrast_around_middle_gray(rgb: [f64; 3], amount: f64) -> [f64; 3] {
+    if amount == 0.0 {
+        return rgb;
+    }
+    let old_luminance = luminance(rgb);
+    if old_luminance <= LUMA_EPSILON {
+        return rgb;
+    }
+    let slope = amount.exp2();
+    let new_luminance = MIDDLE_GRAY * (old_luminance / MIDDLE_GRAY).powf(slope);
+    with_luminance(rgb, old_luminance, new_luminance)
+}
+
+fn saturation_adjustment(rgb: [f64; 3], amount: f64) -> [f64; 3] {
+    if amount == 0.0 {
+        return rgb;
+    }
+    let gray = luminance(rgb);
+    let factor = 1.0 + amount;
+    [
+        gray + (rgb[0] - gray) * factor,
+        gray + (rgb[1] - gray) * factor,
+        gray + (rgb[2] - gray) * factor,
+    ]
+}
+
+fn vibrance_adjustment(rgb: [f64; 3], amount: f64) -> [f64; 3] {
+    if amount == 0.0 {
+        return rgb;
+    }
+    let maximum = rgb[0].max(rgb[1]).max(rgb[2]);
+    let minimum = rgb[0].min(rgb[1]).min(rgb[2]);
+    let denominator = maximum.abs().max(minimum.abs()).max(1.0e-4);
+    let occupancy = ((maximum - minimum) / denominator).clamp(0.0, 1.0);
+    let factor = if amount > 0.0 {
+        1.0 + amount * (1.0 - occupancy).powi(2)
+    } else {
+        1.0 + amount
+    };
+    let gray = luminance(rgb);
+    [
+        gray + (rgb[0] - gray) * factor,
+        gray + (rgb[1] - gray) * factor,
+        gray + (rgb[2] - gray) * factor,
+    ]
+}
+
+fn smoothstep(edge0: f64, edge1: f64, value: f64) -> f64 {
+    let value = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    value * value * (3.0 - 2.0 * value)
+}
+
+fn prepare_temperature_tint_matrix(temperature: f32, tint: f32) -> [[f64; 3]; 3] {
+    if temperature == 0.0 && tint == 0.0 {
+        return identity_matrix();
+    }
+
+    const D65_KELVIN: f64 = 6504.0;
+    let target_mired = 1_000_000.0 / D65_KELVIN + f64::from(temperature);
+    let target_kelvin = (1_000_000.0 / target_mired).clamp(4000.0, 25_000.0);
+    let (x, y) = daylight_xy(target_kelvin);
+    let (u, mut v) = xy_to_uv(x, y);
+    v += f64::from(tint) * 0.0005;
+    let (x, y) = uv_to_xy(u, v);
+
+    let source_white = xy_to_xyz(0.3127, 0.3290);
+    let target_white = xy_to_xyz(x, y);
+    let adaptation = bradford_adaptation(source_white, target_white);
+    multiply_matrices(
+        REC2020_XYZ_TO_RGB,
+        multiply_matrices(adaptation, REC2020_RGB_TO_XYZ),
+    )
+}
+
+fn daylight_xy(kelvin: f64) -> (f64, f64) {
+    let inverse = 1.0 / kelvin;
+    let x = if kelvin <= 7000.0 {
+        0.244_063 + 99.11 * inverse + 2_967_800.0 * inverse.powi(2)
+            - 4_607_000_000.0 * inverse.powi(3)
+    } else {
+        0.237_040 + 247.48 * inverse + 1_901_800.0 * inverse.powi(2)
+            - 2_006_400_000.0 * inverse.powi(3)
+    };
+    (x, -3.0 * x * x + 2.87 * x - 0.275)
+}
+
+fn xy_to_uv(x: f64, y: f64) -> (f64, f64) {
+    let denominator = -2.0 * x + 12.0 * y + 3.0;
+    (4.0 * x / denominator, 6.0 * y / denominator)
+}
+
+fn uv_to_xy(u: f64, v: f64) -> (f64, f64) {
+    let denominator = 2.0 * u - 8.0 * v + 4.0;
+    (3.0 * u / denominator, 2.0 * v / denominator)
+}
+
+fn xy_to_xyz(x: f64, y: f64) -> [f64; 3] {
+    [x / y, 1.0, (1.0 - x - y) / y]
+}
+
+fn bradford_adaptation(source_white: [f64; 3], target_white: [f64; 3]) -> [[f64; 3]; 3] {
+    let source_lms = multiply_matrix(BRADFORD, source_white);
+    let target_lms = multiply_matrix(BRADFORD, target_white);
+    let scale = [
+        [target_lms[0] / source_lms[0], 0.0, 0.0],
+        [0.0, target_lms[1] / source_lms[1], 0.0],
+        [0.0, 0.0, target_lms[2] / source_lms[2]],
+    ];
+    multiply_matrices(BRADFORD_INVERSE, multiply_matrices(scale, BRADFORD))
+}
+
+fn identity_matrix() -> [[f64; 3]; 3] {
+    [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+}
+
+fn multiply_matrix(matrix: [[f64; 3]; 3], vector: [f64; 3]) -> [f64; 3] {
+    [
+        matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2],
+        matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
+        matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2],
+    ]
+}
+
+fn multiply_matrices(left: [[f64; 3]; 3], right: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    let mut result = [[0.0; 3]; 3];
+    for row in 0..3 {
+        for column in 0..3 {
+            result[row][column] = (0..3)
+                .map(|index| left[row][index] * right[index][column])
+                .sum();
+        }
+    }
+    result
+}
+
+const BRADFORD: [[f64; 3]; 3] = [
+    [0.8951, 0.2664, -0.1614],
+    [-0.7502, 1.7135, 0.0367],
+    [0.0389, -0.0685, 1.0296],
+];
+const BRADFORD_INVERSE: [[f64; 3]; 3] = [
+    [0.986_992_9, -0.147_054_3, 0.159_962_7],
+    [0.432_305_3, 0.518_360_3, 0.049_291_2],
+    [-0.008_528_7, 0.040_042_8, 0.968_486_7],
+];
+const REC2020_RGB_TO_XYZ: [[f64; 3]; 3] = [
+    [0.636_958_048_3, 0.144_616_903_6, 0.168_880_975_2],
+    [0.262_700_212_0, 0.677_998_071_5, 0.059_301_716_5],
+    [0.0, 0.028_072_693_0, 1.060_985_057_7],
+];
+const REC2020_XYZ_TO_RGB: [[f64; 3]; 3] = [
+    [1.716_651_188_0, -0.355_670_783_8, -0.253_366_281_4],
+    [-0.666_684_351_8, 1.616_481_236_6, 0.015_768_545_8],
+    [0.017_639_857_4, -0.042_770_613_3, 0.942_103_121_2],
+];
