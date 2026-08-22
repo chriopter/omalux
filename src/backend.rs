@@ -166,11 +166,20 @@ impl qobject::PhotoBackend {
             .unwrap_or_else(|_| "—".to_owned());
         self.as_mut()
             .set_original_file_size(QString::from(&original_file_size));
-        self.as_mut()
-            .set_metadata_text(QString::from(&read_metadata(&path)));
-        self.as_mut().rust_mut().source_path = Some(path.clone());
-
         let generation = self.rust().generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.as_mut()
+            .set_metadata_text(QString::from("READING METADATA…"));
+        self.as_mut().rust_mut().source_path = Some(path.clone());
+        let metadata_path = path.clone();
+        let metadata_thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let metadata = read_metadata(&metadata_path);
+            let _ = metadata_thread.queue(move |mut backend| {
+                if backend.rust().generation.load(Ordering::SeqCst) == generation {
+                    backend.as_mut().set_metadata_text(QString::from(&metadata));
+                }
+            });
+        });
 
         if is_qt_image(&path) {
             if let Some(old_preview) = self.as_mut().rust_mut().generated_preview.take() {
@@ -236,15 +245,20 @@ impl qobject::PhotoBackend {
             return;
         };
 
-        match std::fs::copy(&source, &destination) {
-            Ok(_) => self.as_mut().set_status(QString::from(&format!(
-                "Saved original · {}",
-                display_file_name(&destination)
-            ))),
-            Err(error) => self
-                .as_mut()
-                .set_status(QString::from(&format!("Could not save original: {error}"))),
-        }
+        self.as_mut().set_status(QString::from("Saving original…"));
+        let qt_thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let result = std::fs::copy(&source, &destination);
+            let _ = qt_thread.queue(move |mut backend| match result {
+                Ok(_) => backend.as_mut().set_status(QString::from(&format!(
+                    "Saved original · {}",
+                    display_file_name(&destination)
+                ))),
+                Err(error) => backend
+                    .as_mut()
+                    .set_status(QString::from(&format!("Could not save original: {error}"))),
+            });
+        });
     }
 
     pub fn export_rendered(
@@ -275,23 +289,25 @@ impl qobject::PhotoBackend {
         self.as_mut()
             .set_status(QString::from(&format!("Encoding {format}…")));
         let quality = quality.clamp(1, 100);
-        let result = encode_rendered_export(
-            &temporary_png,
-            &destination,
-            &format,
-            quality,
-            width,
-            height,
-        );
-        let _ = std::fs::remove_file(&temporary_png);
-
-        match result {
-            Ok(()) => self.as_mut().set_status(QString::from(&format!(
-                "Saved {format} · {}",
-                display_file_name(&destination)
-            ))),
-            Err(message) => self.as_mut().set_status(QString::from(&message)),
-        }
+        let qt_thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let result = encode_rendered_export(
+                &temporary_png,
+                &destination,
+                &format,
+                quality,
+                width,
+                height,
+            );
+            let _ = std::fs::remove_file(&temporary_png);
+            let _ = qt_thread.queue(move |mut backend| match result {
+                Ok(()) => backend.as_mut().set_status(QString::from(&format!(
+                    "Saved {format} · {}",
+                    display_file_name(&destination)
+                ))),
+                Err(message) => backend.as_mut().set_status(QString::from(&message)),
+            });
+        });
     }
 
     pub fn report_export_error(mut self: Pin<&mut Self>, message: &QString) {
