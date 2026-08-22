@@ -161,6 +161,54 @@ ApplicationWindow {
         }
     }
 
+    component ToolTabButton: Button {
+        id: tabButton
+        required property string symbol
+        required property string label
+        property bool selected: false
+
+        implicitWidth: 42
+        implicitHeight: 48
+        activeFocusOnTab: false
+
+        contentItem: Column {
+            anchors.centerIn: parent
+            spacing: 1
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tabButton.symbol
+                color: tabButton.selected ? window.pageColor : window.inkColor
+                font.family: window.monoFont
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tabButton.label.toUpperCase()
+                color: tabButton.selected ? window.pageColor : window.mutedColor
+                font.family: window.monoFont
+                font.pixelSize: 7
+                font.bold: true
+                font.letterSpacing: 0.4
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+
+        background: Rectangle {
+            radius: 0
+            color: tabButton.selected
+                ? window.inkColor
+                : tabButton.down ? "#303030"
+                    : tabButton.hovered ? window.raisedColor : "transparent"
+            border.width: 1
+            border.color: tabButton.selected
+                ? window.inkColor
+                : tabButton.hovered ? window.mutedColor : window.lineColor
+        }
+    }
+
     component ParameterControl: Item {
         id: parameter
         required property int parameterIndex
@@ -174,7 +222,7 @@ ApplicationWindow {
         property alias value: slider.value
         readonly property bool selected: window.selectedParameter === parameterIndex
 
-        implicitHeight: 98
+        implicitHeight: 58
         Accessible.role: Accessible.Slider
         Accessible.name: label
         Accessible.description: Math.round(value) + suffix
@@ -188,39 +236,43 @@ ApplicationWindow {
             slider.value = initialValue
         }
 
-        Rectangle {
-            anchors.fill: parent
-            color: parameter.selected ? Qt.rgba(0.33, 0.52, 0.67, 0.10) : "transparent"
-            border.width: 1
-            border.color: parameter.selected ? window.accentColor : window.lineColor
+        Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: "›"
+            color: window.accentColor
+            font.family: window.monoFont
+            font.pixelSize: 13
+            font.bold: true
+            visible: parameter.selected
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.leftMargin: 13
-            anchors.rightMargin: 13
-            anchors.topMargin: 11
-            anchors.bottomMargin: 10
-            spacing: 8
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.topMargin: 4
+            anchors.bottomMargin: 3
+            spacing: 4
 
             RowLayout {
                 Layout.fillWidth: true
 
                 Text {
-                    text: (parameter.parameterIndex + 1) + "  " + parameter.label.toUpperCase()
-                    color: parameter.selected ? window.inkColor : window.mutedColor
+                    text: parameter.label.toUpperCase()
+                    color: window.inkColor
                     font.family: window.monoFont
-                    font.pixelSize: 12
-                    font.bold: parameter.selected
+                    font.pixelSize: 11
+                    font.bold: true
                 }
 
                 Item { Layout.fillWidth: true }
 
                 Text {
                     text: Math.round(parameter.value) + parameter.suffix
-                    color: parameter.selected ? window.accentColor : window.inkColor
+                    color: window.inkColor
                     font.family: window.monoFont
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     font.bold: true
                 }
             }
@@ -228,7 +280,7 @@ ApplicationWindow {
             Slider {
                 id: slider
                 Layout.fillWidth: true
-                Layout.preferredHeight: 24
+                Layout.preferredHeight: 20
                 from: parameter.from
                 to: parameter.to
                 value: parameter.initialValue
@@ -249,28 +301,18 @@ ApplicationWindow {
                     Rectangle {
                         width: slider.visualPosition * parent.width
                         height: parent.height
-                        color: slider.enabled ? window.accentColor : window.mutedColor
+                        color: window.mutedColor
                     }
                 }
 
                 handle: Rectangle {
                     x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
                     y: slider.topPadding + slider.availableHeight / 2 - height / 2
-                    width: parameter.selected ? 12 : 10
-                    height: width
+                    width: 8
+                    height: 8
                     radius: 0
-                    color: slider.enabled ? window.inkColor : window.mutedColor
-                    border.width: parameter.selected ? 2 : 1
-                    border.color: parameter.selected ? window.accentColor : window.pageColor
+                    color: window.mutedColor
                 }
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: parameter.selected ? "H/L ADJUST  ·  SHIFT FAST  ·  R RESET" : ""
-                color: window.mutedColor
-                font.family: window.monoFont
-                font.pixelSize: 9
             }
         }
 
@@ -288,23 +330,16 @@ ApplicationWindow {
         property real initialValue: 50
         property string suffix: ""
 
-        implicitHeight: 68
+        implicitHeight: 58
         Accessible.role: Accessible.Slider
         Accessible.name: label + " mock control"
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.width: 1
-            border.color: window.lineColor
-        }
 
         ColumnLayout {
             anchors.fill: parent
             anchors.leftMargin: 12
             anchors.rightMargin: 12
-            anchors.topMargin: 8
-            anchors.bottomMargin: 7
+            anchors.topMargin: 4
+            anchors.bottomMargin: 3
             spacing: 4
 
             RowLayout {
@@ -314,7 +349,8 @@ ApplicationWindow {
                     text: mockParameter.label.toUpperCase()
                     color: window.mutedColor
                     font.family: window.monoFont
-                    font.pixelSize: 10
+                    font.pixelSize: 11
+                    font.bold: true
                 }
 
                 Text {
@@ -330,7 +366,7 @@ ApplicationWindow {
                     text: Math.round(mockSlider.value) + mockParameter.suffix
                     color: window.inkColor
                     font.family: window.monoFont
-                    font.pixelSize: 10
+                    font.pixelSize: 11
                 }
             }
 
@@ -513,13 +549,14 @@ ApplicationWindow {
                     color: window.lineColor
                 }
 
-                RowLayout {
-                    anchors.fill: parent
+                Row {
+                    anchors.left: parent.left
                     anchors.leftMargin: 16
-                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
                     spacing: 9
 
                     Text {
+                        anchors.verticalCenter: parent.verticalCenter
                         text: "GRAINROOM"
                         color: window.inkColor
                         font.family: window.monoFont
@@ -529,13 +566,15 @@ ApplicationWindow {
                     }
 
                     Rectangle {
-                        Layout.preferredWidth: 1
-                        Layout.preferredHeight: 20
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 1
+                        height: 20
                         color: window.lineColor
                     }
 
                     Text {
-                        Layout.fillWidth: true
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: window.width >= 1050 ? 150 : 70
                         text: backend.fileName.length > 0 ? backend.fileName : "NO IMAGE"
                         color: window.mutedColor
                         elide: Text.ElideMiddle
@@ -543,19 +582,12 @@ ApplicationWindow {
                         font.pixelSize: 11
                     }
 
-                    BusyIndicator {
-                        running: backend.loading
-                        visible: running
-                        implicitWidth: 22
-                        implicitHeight: 22
-                    }
+                }
 
-                    Text {
-                        text: backend.status.toUpperCase()
-                        color: window.mutedColor
-                        font.family: window.monoFont
-                        font.pixelSize: 10
-                    }
+                Row {
+                    id: centralControls
+                    anchors.centerIn: parent
+                    spacing: 9
 
                     TuiButton {
                         text: "−"
@@ -592,6 +624,32 @@ ApplicationWindow {
                         onClicked: window.shortcutsVisible = true
                         ToolTip.visible: hovered
                         ToolTip.text: "Keyboard reference · ? / F1"
+                    }
+                }
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 16
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 8
+
+                    BusyIndicator {
+                        anchors.verticalCenter: parent.verticalCenter
+                        running: backend.loading
+                        visible: running
+                        width: visible ? 22 : 0
+                        height: 22
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: window.width >= 1050 ? 150 : 105
+                        text: backend.status.toUpperCase()
+                        color: window.mutedColor
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignRight
+                        font.family: window.monoFont
+                        font.pixelSize: 10
                     }
                 }
             }
@@ -765,30 +823,33 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 6
 
-                            TuiButton {
+                            ToolTabButton {
                                 Layout.preferredWidth: 42
-                                text: "⌗"
-                                primary: window.selectedPanel === 0
+                                symbol: "⌗"
+                                label: "Crop"
+                                selected: window.selectedPanel === 0
                                 onClicked: window.selectPanel(0)
                                 Accessible.name: "Crop · 1"
                                 ToolTip.visible: hovered
                                 ToolTip.text: "Crop · 1"
                             }
 
-                            TuiButton {
+                            ToolTabButton {
                                 Layout.preferredWidth: 42
-                                text: "▒"
-                                primary: window.selectedPanel === 1
+                                symbol: "▒"
+                                label: "Shader"
+                                selected: window.selectedPanel === 1
                                 onClicked: window.selectPanel(1)
                                 Accessible.name: "Grain shader · 2"
                                 ToolTip.visible: hovered
                                 ToolTip.text: "Grain shader · 2"
                             }
 
-                            TuiButton {
+                            ToolTabButton {
                                 Layout.preferredWidth: 42
-                                text: "ⓘ"
-                                primary: window.selectedPanel === 2
+                                symbol: "ⓘ"
+                                label: "Meta"
+                                selected: window.selectedPanel === 2
                                 onClicked: window.selectPanel(2)
                                 Accessible.name: "Metadata · 3"
                                 ToolTip.visible: hovered
@@ -1042,15 +1103,6 @@ ApplicationWindow {
                                                 initialValue: 18
                                             }
 
-                                            Text {
-                                                Layout.fillWidth: true
-                                                Layout.topMargin: 4
-                                                text: "THREE-OCTAVE FILM GRAIN\nDARKTABLE / RAWTHERAPEE MODEL\nGPU PREVIEW"
-                                                color: window.mutedColor
-                                                font.family: window.monoFont
-                                                font.pixelSize: 10
-                                                lineHeight: 1.45
-                                            }
                                         }
                                     }
                                 }
@@ -1181,6 +1233,14 @@ ApplicationWindow {
                     }
 
                     Item { Layout.fillWidth: true }
+
+                    Text {
+                        visible: window.selectedPanel === 1 && window.width >= 1050
+                        text: "[H/L] ADJUST  [⇧] FAST  [R] RESET"
+                        color: window.mutedColor
+                        font.family: window.monoFont
+                        font.pixelSize: 10
+                    }
 
                     Text {
                         text: "[?] KEYS"
