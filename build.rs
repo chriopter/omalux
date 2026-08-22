@@ -11,14 +11,15 @@ fn qsb_path() -> PathBuf {
 
     for qmake in ["qmake6", "qmake"] {
         for query in ["QT_HOST_BINS", "QT_HOST_LIBEXECS"] {
-            if let Ok(output) = Command::new(qmake).args(["-query", query]).output() {
-                if output.status.success() {
-                    let path =
-                        PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()).join("qsb");
-                    if path.exists() {
-                        return path;
-                    }
-                }
+            let Ok(output) = Command::new(qmake).args(["-query", query]).output() else {
+                continue;
+            };
+            if !output.status.success() {
+                continue;
+            }
+            let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()).join("qsb");
+            if path.exists() {
+                return path;
             }
         }
     }

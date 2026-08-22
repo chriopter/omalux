@@ -4,14 +4,15 @@
 //! conversions deliberately use signed cube roots so finite negative scene
 //! values remain finite instead of being clipped at an intermediate stage.
 
-// F0 does not yet expose a shared color module, so WP2's two disjoint stages
-// include this file independently and each sees a deliberately partial API.
-#![allow(dead_code)]
+// `develop::color` is the single shared implementation used by both WP2
+// stages. Helpers needed only by colocated and stage unit tests are compiled
+// only for test builds rather than suppressing dead-code diagnostics globally.
 
 pub type Rgb = [f32; 3];
 pub type Oklab = [f32; 3];
 pub type Oklch = [f32; 3];
 
+#[cfg(test)]
 pub const REC2020_LUMA: Rgb = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const REC2020_LUMA_F64: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 
@@ -79,6 +80,7 @@ const XYZ_TO_REC2020: [[f64; 3]; 3] = [
     [0.017_639_857, -0.042_770_613, 0.942_103_121],
 ];
 
+#[cfg(test)]
 pub fn rec2020_luminance(rgb: Rgb) -> f32 {
     rgb[0] * REC2020_LUMA[0] + rgb[1] * REC2020_LUMA[1] + rgb[2] * REC2020_LUMA[2]
 }
@@ -135,6 +137,7 @@ pub fn wrap_radians(hue: f32) -> f32 {
 
 /// Adds a neutral component so the returned RGB has exactly the requested
 /// Rec.2020 luminance without clipping negative or HDR channel values.
+#[cfg(test)]
 pub fn force_luminance(rgb: Rgb, target_luminance: f32) -> Rgb {
     let delta = target_luminance - rec2020_luminance(rgb);
     [rgb[0] + delta, rgb[1] + delta, rgb[2] + delta]
