@@ -1,9 +1,9 @@
-mod backend;
 mod cli;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 
 fn main() {
+    grainroom::initialize_backend_types();
     if !cli::prepare() {
         return;
     }
