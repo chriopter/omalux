@@ -5,15 +5,22 @@
 //! mask algebra operations are implemented and tested here for a future schema
 //! that can represent grouping without guessing from IDs or ordering.
 
+use super::{
+    basics::PreparedBasics,
+    effects::{add_finite_delta, local_sharpness_delta, local_sharpness_kernel},
+};
 use crate::develop::{
-    CpuImage, PipelineError, RgbaPixel,
+    CpuImage, DevelopStage, PipelineError, RgbaPixel,
     settings::{LocalAdjustments, RadialMask, RadialMasksSettings},
 };
 
-const REC2020_LUMA: [f32; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
+const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
 
-pub(super) fn supports(_settings: &RadialMasksSettings) -> bool {
-    true
+pub(super) fn supports(settings: &RadialMasksSettings) -> bool {
+    settings
+        .masks
+        .iter()
+        .all(|mask| !mask.enabled || mask.opacity == 0.0 || mask.adjustments.sharpness >= 0.0)
 }
 
 pub(super) fn apply(
@@ -23,15 +30,21 @@ pub(super) fn apply(
     if settings.is_neutral() {
         return Ok(());
     }
+    if !supports(settings) {
+        return Err(PipelineError::StageNotImplemented(
+            DevelopStage::RadialMasks,
+        ));
+    }
     apply_with_processor(image, settings, &BuiltinLocalProcessor)
 }
 
 trait LocalAdjustmentProcessor {
-    fn process(
+    fn process_region(
         &self,
         source: &CpuImage,
         adjustments: &LocalAdjustments,
-    ) -> Result<CpuImage, PipelineError>;
+        region: Region,
+    ) -> Vec<RgbaPixel>;
 }
 
 fn apply_with_processor(
@@ -42,8 +55,9 @@ fn apply_with_processor(
     for mask in settings.masks.iter().filter(|mask| {
         mask.enabled && mask.opacity > 0.0 && mask.adjustments != LocalAdjustments::default()
     }) {
-        let adjusted = processor.process(image, &mask.adjustments)?;
-        composite_mask(image, &adjusted, mask);
+        let region = mask_region(mask, image.width(), image.height());
+        let adjusted = processor.process_region(image, &mask.adjustments, region);
+        composite_region(image, &adjusted, mask, region);
     }
     Ok(())
 }
@@ -51,79 +65,117 @@ fn apply_with_processor(
 struct BuiltinLocalProcessor;
 
 impl LocalAdjustmentProcessor for BuiltinLocalProcessor {
-    fn process(
+    fn process_region(
         &self,
         source: &CpuImage,
         adjustments: &LocalAdjustments,
-    ) -> Result<CpuImage, PipelineError> {
-        let mut output = source.clone();
-        let exposure = (2.0 * adjustments.brightness / 100.0).exp2();
-        let contrast = (adjustments.contrast / 50.0).exp2();
-        let saturation = 1.0 + adjustments.saturation / 100.0;
-        let warmth = adjustments.temperature / 100.0 * 0.10;
-        let tint = adjustments.tint / 100.0 * 0.10;
-        for pixel in output.pixels_mut() {
-            let input = [pixel.red, pixel.green, pixel.blue];
-            let mut rgb = input.map(|channel| (channel * exposure - 0.18) * contrast + 0.18);
-            let luma = luminance(rgb);
-            rgb = rgb.map(|channel| luma + saturation * (channel - luma));
-            rgb[0] += warmth + tint * 0.25;
-            rgb[1] -= tint * 0.50;
-            rgb[2] -= warmth - tint * 0.25;
-            pixel.red = rgb[0];
-            pixel.green = rgb[1];
-            pixel.blue = rgb[2];
-        }
-        if adjustments.sharpness != 0.0 {
-            output = sharpen_luma(&output, adjustments.sharpness / 100.0)?;
-        }
-        Ok(output)
-    }
-}
-
-fn sharpen_luma(source: &CpuImage, amount: f32) -> Result<CpuImage, PipelineError> {
-    let mut pixels = source.pixels().to_vec();
-    for y in 0..source.height() {
-        for x in 0..source.width() {
-            let center = source.pixels()[index(source.width(), x, y)];
-            let mut neighbor_luma = 0.0;
-            for (sample_x, sample_y) in [
-                (x.saturating_sub(1), y),
-                ((x + 1).min(source.width() - 1), y),
-                (x, y.saturating_sub(1)),
-                (x, (y + 1).min(source.height() - 1)),
-            ] {
-                neighbor_luma += luminance(pixel_rgb(
-                    source.pixels()[index(source.width(), sample_x, sample_y)],
-                ));
+        region: Region,
+    ) -> Vec<RgbaPixel> {
+        let prepared = PreparedBasics::from_local(adjustments);
+        let width = source.width() as usize;
+        let height = source.height() as usize;
+        let mut output = Vec::with_capacity(region.pixel_count());
+        let kernel = local_sharpness_kernel();
+        let mut scratch = Vec::with_capacity(kernel.len());
+        for y in region.y..region.y + region.height {
+            for x in region.x..region.x + region.width {
+                let mut target = source.pixels()[index(source.width(), x, y)];
+                prepared.apply_pixel(&mut target);
+                if adjustments.sharpness > 0.0 {
+                    let delta = local_sharpness_delta(
+                        [width, height],
+                        [x as usize, y as usize],
+                        adjustments.sharpness,
+                        &kernel,
+                        &mut scratch,
+                        |sample_x, sample_y| {
+                            let mut sample = source.pixels()
+                                [index(source.width(), sample_x as u32, sample_y as u32)];
+                            prepared.apply_pixel(&mut sample);
+                            luminance(pixel_rgb(sample))
+                        },
+                    );
+                    target.red = add_finite_delta(target.red, delta);
+                    target.green = add_finite_delta(target.green, delta);
+                    target.blue = add_finite_delta(target.blue, delta);
+                }
+                output.push(target);
             }
-            let detail = luminance(pixel_rgb(center)) - neighbor_luma * 0.25;
-            let delta = detail * amount;
-            let output = &mut pixels[index(source.width(), x, y)];
-            output.red += delta;
-            output.green += delta;
-            output.blue += delta;
         }
+        output
     }
-    CpuImage::new(source.width(), source.height(), pixels).map_err(PipelineError::InvalidImage)
 }
 
-fn composite_mask(destination: &mut CpuImage, adjusted: &CpuImage, mask: &RadialMask) {
-    debug_assert_eq!(destination.width(), adjusted.width());
-    debug_assert_eq!(destination.height(), adjusted.height());
+fn composite_region(
+    destination: &mut CpuImage,
+    adjusted: &[RgbaPixel],
+    mask: &RadialMask,
+    region: Region,
+) {
     let width = destination.width();
     let height = destination.height();
-    for y in 0..height {
-        for x in 0..width {
+    for y in region.y..region.y + region.height {
+        for x in region.x..region.x + region.width {
             let coverage = radial_coverage(mask, width, height, x, y);
             let position = index(width, x, y);
-            let target = adjusted.pixels()[position];
+            let local = ((y - region.y) * region.width + x - region.x) as usize;
+            let target = adjusted[local];
             let pixel = &mut destination.pixels_mut()[position];
-            pixel.red += coverage * (target.red - pixel.red);
-            pixel.green += coverage * (target.green - pixel.green);
-            pixel.blue += coverage * (target.blue - pixel.blue);
+            if coverage == 1.0 {
+                pixel.red = target.red;
+                pixel.green = target.green;
+                pixel.blue = target.blue;
+            } else if coverage > 0.0 {
+                pixel.red += coverage * (target.red - pixel.red);
+                pixel.green += coverage * (target.green - pixel.green);
+                pixel.blue += coverage * (target.blue - pixel.blue);
+            }
             // Local develop operations preserve the source's straight alpha.
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Region {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+impl Region {
+    fn pixel_count(self) -> usize {
+        usize::try_from(u64::from(self.width) * u64::from(self.height))
+            .expect("region lies within a validated image")
+    }
+}
+
+fn mask_region(mask: &RadialMask, width: u32, height: u32) -> Region {
+    if mask.invert {
+        return Region {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        };
+    }
+    let radians = mask.rotation_degrees.to_radians();
+    let (sin, cos) = radians.sin_cos();
+    let radius_x = mask.radius_x * width as f32;
+    let radius_y = mask.radius_y * height as f32;
+    let extent_x = ((radius_x * cos).powi(2) + (radius_y * sin).powi(2)).sqrt() + 1.0;
+    let extent_y = ((radius_x * sin).powi(2) + (radius_y * cos).powi(2)).sqrt() + 1.0;
+    let center_x = mask.center_x * width as f32;
+    let center_y = mask.center_y * height as f32;
+    let left = (center_x - extent_x).floor().max(0.0) as u32;
+    let top = (center_y - extent_y).floor().max(0.0) as u32;
+    let right = (center_x + extent_x).ceil().min(width as f32) as u32;
+    let bottom = (center_y + extent_y).ceil().min(height as f32) as u32;
+    Region {
+        x: left,
+        y: top,
+        width: right.saturating_sub(left),
+        height: bottom.saturating_sub(top),
     }
 }
 
@@ -140,11 +192,17 @@ fn radial_coverage(mask: &RadialMask, width: u32, height: u32, x: u32, y: u32) -
     let radius_y = mask.radius_y * height as f32;
     let distance = ((ellipse_x / radius_x).powi(2) + (ellipse_y / radius_y).powi(2)).sqrt();
 
-    // One physical pixel of analytic edge AA, expressed in ellipse space.
-    let aa = 0.5 * ((1.0 / radius_x).powi(2) + (1.0 / radius_y).powi(2)).sqrt();
-    let inner = 1.0 - mask.feather;
-    let transition = mask.feather.max(2.0 * aa).max(f32::EPSILON);
-    let coverage = 1.0 - smoothstep(inner - aa, inner + transition + aa, distance);
+    let gradient_x = cos * ellipse_x / radius_x.powi(2) - sin * ellipse_y / radius_y.powi(2);
+    let gradient_y = sin * ellipse_x / radius_x.powi(2) + cos * ellipse_y / radius_y.powi(2);
+    let gradient = gradient_x.hypot(gradient_y).max(f32::MIN_POSITIVE);
+    let coverage = if mask.feather == 0.0 {
+        let signed_distance_pixels = (distance - 1.0) / gradient;
+        1.0 - smoothstep(-0.5, 0.5, signed_distance_pixels)
+    } else {
+        let normalized = (distance - (1.0 - mask.feather)) / mask.feather;
+        let aa = 0.5 * gradient / mask.feather;
+        1.0 - smoothstep(-aa, 1.0 + aa, normalized)
+    };
     let coverage = if mask.invert {
         1.0 - coverage
     } else {
@@ -180,7 +238,9 @@ fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
 }
 
 fn luminance(rgb: [f32; 3]) -> f32 {
-    rgb[0] * REC2020_LUMA[0] + rgb[1] * REC2020_LUMA[1] + rgb[2] * REC2020_LUMA[2]
+    (f64::from(rgb[0]) * REC2020_LUMA[0]
+        + f64::from(rgb[1]) * REC2020_LUMA[1]
+        + f64::from(rgb[2]) * REC2020_LUMA[2]) as f32
 }
 
 fn pixel_rgb(pixel: RgbaPixel) -> [f32; 3] {
@@ -274,24 +334,75 @@ mod tests {
     }
 
     #[test]
+    fn one_pixel_aa_is_symmetric_on_axes_and_rotated_edges() {
+        let mut axis = mask();
+        axis.center_x = 0.5;
+        axis.center_y = 0.5;
+        axis.radius_x = 50.0 / 201.0;
+        axis.radius_y = 30.0 / 201.0;
+        axis.feather = 0.0;
+        let boundary = radial_coverage(&axis, 201, 201, 150, 100);
+        assert!((boundary - 0.5).abs() < 1.0e-5);
+        let inside = radial_coverage(&axis, 201, 201, 149, 100);
+        let outside = radial_coverage(&axis, 201, 201, 151, 100);
+        assert!((inside + outside - 1.0).abs() < 0.03);
+
+        axis.rotation_degrees = 45.0;
+        let diagonal_inside = radial_coverage(&axis, 201, 201, 134, 134);
+        let diagonal_outside = radial_coverage(&axis, 201, 201, 136, 136);
+        assert!(diagonal_inside > diagonal_outside);
+    }
+
+    #[test]
+    fn bounding_roi_matches_full_frame_reference_and_is_small() {
+        let source = CpuImage::new(
+            101,
+            79,
+            (0..101 * 79)
+                .map(|index| {
+                    let value = (index % 127) as f32 / 31.0;
+                    RgbaPixel::new(value - 1.0, value * 0.4, 3.0 - value, 0.8).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+        let mut value = mask();
+        value.radius_x = 0.08;
+        value.radius_y = 0.06;
+        value.adjustments.brightness = 30.0;
+        value.adjustments.sharpness = 40.0;
+        let region = mask_region(&value, source.width(), source.height());
+        assert!(region.pixel_count() * 10 < source.pixels().len());
+
+        let settings = RadialMasksSettings {
+            masks: vec![value.clone()],
+        };
+        let mut optimized = source.clone();
+        apply_with_processor(&mut optimized, &settings, &BuiltinLocalProcessor).unwrap();
+
+        let full = Region {
+            x: 0,
+            y: 0,
+            width: source.width(),
+            height: source.height(),
+        };
+        let adjusted = BuiltinLocalProcessor.process_region(&source, &value.adjustments, full);
+        let mut reference = source;
+        composite_region(&mut reference, &adjusted, &value, full);
+        assert_eq!(optimized, reference);
+    }
+
+    #[test]
     fn callback_processor_is_used_once_per_active_mask() {
         struct White;
         impl LocalAdjustmentProcessor for White {
-            fn process(
+            fn process_region(
                 &self,
-                source: &CpuImage,
+                _source: &CpuImage,
                 _adjustments: &LocalAdjustments,
-            ) -> Result<CpuImage, PipelineError> {
-                CpuImage::new(
-                    source.width(),
-                    source.height(),
-                    source
-                        .pixels()
-                        .iter()
-                        .map(|pixel| RgbaPixel::new(1.0, 1.0, 1.0, pixel.alpha()).unwrap())
-                        .collect(),
-                )
-                .map_err(PipelineError::InvalidImage)
+                region: Region,
+            ) -> Vec<RgbaPixel> {
+                vec![RgbaPixel::new(1.0, 1.0, 1.0, 0.7).unwrap(); region.pixel_count()]
             }
         }
         let mut source =

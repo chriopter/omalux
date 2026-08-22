@@ -210,7 +210,7 @@ fn lerp(left: f64, right: f64, fraction: f64) -> f64 {
     left + (right - left) * fraction
 }
 
-fn reflect101(index: isize, length: usize) -> usize {
+pub(super) fn reflect101(index: isize, length: usize) -> usize {
     if length <= 1 {
         return 0;
     }

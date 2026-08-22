@@ -1,4 +1,7 @@
-use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::BasicsSettings};
+use crate::develop::{
+    CpuImage, DevelopStage, PipelineError, RgbaPixel,
+    settings::{BasicsSettings, LocalAdjustments},
+};
 
 // Grainroom's independent WP1 formulas and reference material are documented
 // in docs/develop/wp1-math.md.
@@ -21,33 +24,73 @@ pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(
         return Ok(());
     }
 
-    let white_balance = prepare_temperature_tint_matrix(settings.temperature, settings.tint);
-    let brightness_ev = f64::from(settings.brightness) / 100.0;
-    let contrast = f64::from(settings.contrast) / 100.0;
-    let saturation = f64::from(settings.saturation) / 100.0;
-    let vibrance = f64::from(settings.vibrance) / 100.0;
-
+    let prepared = PreparedBasics::from_settings(settings);
     for pixel in image.pixels_mut() {
+        prepared.apply_pixel(pixel);
+    }
+    Ok(())
+}
+
+/// Prepared normative WP1 point operations shared with local adjustments.
+/// Spatial clarity is deliberately absent; it remains loudly unsupported.
+pub(super) struct PreparedBasics {
+    white_balance: [[f64; 3]; 3],
+    brightness_ev: f64,
+    whites: f32,
+    blacks: f32,
+    highlights: f32,
+    shadows: f32,
+    contrast: f64,
+    saturation: f64,
+    vibrance: f64,
+}
+
+impl PreparedBasics {
+    fn from_settings(settings: &BasicsSettings) -> Self {
+        Self {
+            white_balance: prepare_temperature_tint_matrix(settings.temperature, settings.tint),
+            brightness_ev: f64::from(settings.brightness) / 100.0,
+            whites: settings.whites,
+            blacks: settings.blacks,
+            highlights: settings.highlights,
+            shadows: settings.shadows,
+            contrast: f64::from(settings.contrast) / 100.0,
+            saturation: f64::from(settings.saturation) / 100.0,
+            vibrance: f64::from(settings.vibrance) / 100.0,
+        }
+    }
+
+    pub(super) fn from_local(settings: &LocalAdjustments) -> Self {
+        Self {
+            white_balance: prepare_temperature_tint_matrix(settings.temperature, settings.tint),
+            brightness_ev: f64::from(settings.brightness) / 100.0,
+            whites: 0.0,
+            blacks: 0.0,
+            highlights: 0.0,
+            shadows: 0.0,
+            contrast: f64::from(settings.contrast) / 100.0,
+            saturation: f64::from(settings.saturation) / 100.0,
+            vibrance: 0.0,
+        }
+    }
+
+    pub(super) fn apply_pixel(&self, pixel: &mut RgbaPixel) {
         let mut rgb = [
             f64::from(pixel.red),
             f64::from(pixel.green),
             f64::from(pixel.blue),
         ];
-
-        // Canonical WP1 order. Each operation is independently neutral at 0.
-        rgb = multiply_matrix(white_balance, rgb);
-        rgb = exposure(rgb, brightness_ev);
-        rgb = whites_blacks(rgb, settings.whites, settings.blacks);
-        rgb = highlights_shadows(rgb, settings.highlights, settings.shadows);
-        rgb = contrast_around_middle_gray(rgb, contrast);
-        rgb = saturation_adjustment(rgb, saturation);
-        rgb = vibrance_adjustment(rgb, vibrance);
-
+        rgb = multiply_matrix(self.white_balance, rgb);
+        rgb = exposure(rgb, self.brightness_ev);
+        rgb = whites_blacks(rgb, self.whites, self.blacks);
+        rgb = highlights_shadows(rgb, self.highlights, self.shadows);
+        rgb = contrast_around_middle_gray(rgb, self.contrast);
+        rgb = saturation_adjustment(rgb, self.saturation);
+        rgb = vibrance_adjustment(rgb, self.vibrance);
         pixel.red = rgb[0] as f32;
         pixel.green = rgb[1] as f32;
         pixel.blue = rgb[2] as f32;
     }
-    Ok(())
 }
 
 fn luminance(rgb: [f64; 3]) -> f64 {

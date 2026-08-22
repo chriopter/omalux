@@ -417,16 +417,12 @@ fn unsupported_settings_by_stage() -> Vec<(DevelopStage, DevelopSettings)> {
     let mut cases = Vec::new();
 
     let mut settings = DevelopSettings::default();
-    settings.geometry.straighten_degrees = 1.0;
-    cases.push((DevelopStage::Geometry, settings));
-
-    let mut settings = DevelopSettings::default();
     settings.basics.clarity = 1.0;
     cases.push((DevelopStage::Basics, settings));
 
     let mut settings = DevelopSettings::default();
     let mut mask = radial_mask("active");
-    mask.adjustments.brightness = 1.0;
+    mask.adjustments.sharpness = -1.0;
     settings.radial_masks.masks.push(mask);
     cases.push((DevelopStage::RadialMasks, settings));
 

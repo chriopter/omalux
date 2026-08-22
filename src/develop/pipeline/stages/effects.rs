@@ -21,3 +21,25 @@ pub(super) fn apply(image: &mut CpuImage, settings: &EffectsSettings) -> Result<
     tonal::apply_sharpness(image, settings.sharpness);
     Ok(())
 }
+
+pub(super) fn local_sharpness_delta<F>(
+    extent: [usize; 2],
+    point: [usize; 2],
+    amount: f32,
+    kernel: &[f64],
+    scratch: &mut Vec<f32>,
+    sample_luminance: F,
+) -> f64
+where
+    F: FnMut(usize, usize) -> f32,
+{
+    tonal::sharpness_delta_at(extent, point, amount, kernel, scratch, sample_luminance)
+}
+
+pub(super) fn local_sharpness_kernel() -> Vec<f64> {
+    spatial::gaussian_kernel(1.0)
+}
+
+pub(super) fn add_finite_delta(channel: f32, delta: f64) -> f32 {
+    spatial::finite_f32(f64::from(channel) + delta)
+}

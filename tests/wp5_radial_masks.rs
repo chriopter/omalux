@@ -1,5 +1,6 @@
 use grainroom::develop::{
-    CpuImage, DevelopPipeline, DevelopSettings, LocalAdjustments, RadialMask, RgbaPixel,
+    CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, LocalAdjustments, PipelineError,
+    RadialMask, RgbaPixel,
 };
 
 fn image(width: u32, height: u32) -> CpuImage {
@@ -31,6 +32,22 @@ fn mask(id: &str) -> RadialMask {
             tint: -4.0,
             sharpness: 12.0,
         },
+    }
+}
+
+fn full_mask(adjustments: LocalAdjustments) -> RadialMask {
+    RadialMask {
+        id: "full".into(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 2.0,
+        radius_y: 2.0,
+        rotation_degrees: 0.0,
+        feather: 0.0,
+        opacity: 1.0,
+        invert: false,
+        adjustments,
     }
 }
 
@@ -96,4 +113,165 @@ fn invert_changes_outside_instead_of_inside() {
     let corner = 0;
     assert!(normal.pixels()[center].blue() > inverted.pixels()[center].blue());
     assert!(normal.pixels()[corner].blue() < inverted.pixels()[corner].blue());
+}
+
+#[test]
+fn every_local_point_slider_is_bit_exact_to_wp1_global_math() {
+    for field in [
+        "brightness",
+        "contrast",
+        "saturation",
+        "temperature",
+        "tint",
+    ] {
+        let source = CpuImage::new(
+            7,
+            5,
+            (0..35)
+                .map(|index| {
+                    let value = index as f32 / 11.0;
+                    RgbaPixel::new(-0.4 + value, 0.2 + value * 0.3, 3.0 - value * 0.2, 0.73)
+                        .unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+        let mut global = source.clone();
+        let mut local = source;
+        let mut global_settings = DevelopSettings::default();
+        let mut adjustments = LocalAdjustments::default();
+        match field {
+            "brightness" => {
+                global_settings.basics.brightness = 37.0;
+                adjustments.brightness = 37.0;
+            }
+            "contrast" => {
+                global_settings.basics.contrast = 37.0;
+                adjustments.contrast = 37.0;
+            }
+            "saturation" => {
+                global_settings.basics.saturation = 37.0;
+                adjustments.saturation = 37.0;
+            }
+            "temperature" => {
+                global_settings.basics.temperature = 37.0;
+                adjustments.temperature = 37.0;
+            }
+            "tint" => {
+                global_settings.basics.tint = 37.0;
+                adjustments.tint = 37.0;
+            }
+            _ => unreachable!(),
+        }
+        let mut local_settings = DevelopSettings::default();
+        local_settings
+            .radial_masks
+            .masks
+            .push(full_mask(adjustments));
+        DevelopPipeline
+            .process(&mut global, &global_settings)
+            .unwrap();
+        DevelopPipeline
+            .process(&mut local, &local_settings)
+            .unwrap();
+        assert_eq!(local, global, "local {field} diverged from WP1");
+    }
+}
+
+#[test]
+fn local_sharpness_is_bit_exact_to_wp3_global_usm() {
+    let source = CpuImage::new(
+        9,
+        7,
+        (0..63)
+            .map(|index| {
+                let edge = if index % 9 < 4 { -0.5 } else { 3.0 };
+                RgbaPixel::new(edge, edge * 0.5, edge * 1.5, 0.61).unwrap()
+            })
+            .collect(),
+    )
+    .unwrap();
+    let mut global = source.clone();
+    let mut local = source;
+    let mut global_settings = DevelopSettings::default();
+    global_settings.effects.sharpness = 64.0;
+    let adjustments = LocalAdjustments {
+        sharpness: 64.0,
+        ..LocalAdjustments::default()
+    };
+    let mut local_settings = DevelopSettings::default();
+    local_settings
+        .radial_masks
+        .masks
+        .push(full_mask(adjustments));
+    DevelopPipeline
+        .process(&mut global, &global_settings)
+        .unwrap();
+    DevelopPipeline
+        .process(&mut local, &local_settings)
+        .unwrap();
+    assert_eq!(local, global);
+}
+
+#[test]
+fn local_pipeline_builds_the_full_effect_before_mask_mix() {
+    let source = image(11, 9);
+    let mut globally_adjusted = source.clone();
+    let mut global_settings = DevelopSettings::default();
+    global_settings.basics.brightness = 25.0;
+    global_settings.effects.sharpness = 50.0;
+    DevelopPipeline
+        .process(&mut globally_adjusted, &global_settings)
+        .unwrap();
+
+    let adjustments = LocalAdjustments {
+        brightness: 25.0,
+        sharpness: 50.0,
+        ..LocalAdjustments::default()
+    };
+    let mut radial = full_mask(adjustments);
+    radial.opacity = 0.5;
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(radial);
+    let mut local = source.clone();
+    DevelopPipeline.process(&mut local, &settings).unwrap();
+    let center = 4 * 11 + 5;
+    for (actual, original, adjusted) in [
+        (
+            local.pixels()[center].red(),
+            source.pixels()[center].red(),
+            globally_adjusted.pixels()[center].red(),
+        ),
+        (
+            local.pixels()[center].green(),
+            source.pixels()[center].green(),
+            globally_adjusted.pixels()[center].green(),
+        ),
+        (
+            local.pixels()[center].blue(),
+            source.pixels()[center].blue(),
+            globally_adjusted.pixels()[center].blue(),
+        ),
+    ] {
+        assert!((actual - (original + 0.5 * (adjusted - original))).abs() < 1.0e-6);
+    }
+}
+
+#[test]
+fn negative_local_sharpness_is_loudly_unsupported_and_atomic() {
+    let mut rendered = image(5, 5);
+    let original = rendered.clone();
+    let adjustments = LocalAdjustments {
+        sharpness: -1.0,
+        ..LocalAdjustments::default()
+    };
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(full_mask(adjustments));
+    assert_eq!(
+        DevelopPipeline.process(&mut rendered, &settings),
+        Err(PipelineError::StageNotImplemented(
+            DevelopStage::RadialMasks
+        ))
+    );
+    assert_eq!(rendered, original);
 }

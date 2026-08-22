@@ -5,7 +5,7 @@
 //! signal-processing definitions. No upstream or proprietary implementation,
 //! coefficients, LUT, preset, or camera profile was consulted or copied.
 
-use super::spatial::{Plane, finite_f32, gaussian_blur};
+use super::spatial::{Plane, finite_f32, gaussian_blur, reflect101};
 use crate::develop::CpuImage;
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
@@ -88,6 +88,46 @@ pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
         pixel.green = finite_f32(f64::from(pixel.green) + adjustment);
         pixel.blue = finite_f32(f64::from(pixel.blue) + adjustment);
     }
+}
+
+pub(super) fn sharpness_delta_at<F>(
+    extent: [usize; 2],
+    point: [usize; 2],
+    amount: f32,
+    kernel: &[f64],
+    horizontal: &mut Vec<f32>,
+    mut sample_luminance: F,
+) -> f64
+where
+    F: FnMut(usize, usize) -> f32,
+{
+    let [width, height] = extent;
+    let [x, y] = point;
+    if amount == 0.0 {
+        return 0.0;
+    }
+    let radius = kernel.len() / 2;
+    horizontal.clear();
+    horizontal.reserve(kernel.len());
+    for offset_y in 0..kernel.len() {
+        let sample_y = reflect101(y as isize + offset_y as isize - radius as isize, height);
+        let mut sum = 0.0;
+        for (offset_x, weight) in kernel.iter().copied().enumerate() {
+            let sample_x = reflect101(x as isize + offset_x as isize - radius as isize, width);
+            sum += f64::from(sample_luminance(sample_x, sample_y)) * weight;
+        }
+        horizontal.push(finite_f32(sum));
+    }
+    let low_pass = horizontal
+        .iter()
+        .copied()
+        .zip(kernel.iter().copied())
+        .map(|(sample, weight)| f64::from(sample) * weight)
+        .sum::<f64>();
+    let source = f64::from(sample_luminance(x, y));
+    let detail = source - low_pass;
+    let thresholded = detail.signum() * (detail.abs() - 0.003).max(0.0);
+    thresholded * f64::from(amount) * 0.015
 }
 
 fn smoothstep(edge0: f64, edge1: f64, value: f64) -> f64 {
