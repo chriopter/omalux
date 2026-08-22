@@ -1,9 +1,7 @@
 use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::BasicsSettings};
 
-// The exposure, fulcrum-contrast, tonal-mask, and chroma structure follows the
-// scene-referred models documented by darktable at commit 943d74a
-// (`exposure.c`, `basicadj.c`, `colorbalancergb.c`, `levels.c`, `vibrance.c`,
-// and `temperature.c`). This is an independent Rec.2020 implementation.
+// Grainroom's independent WP1 formulas and reference material are documented
+// in docs/develop/wp1-math.md.
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const MIDDLE_GRAY: f64 = 0.18;
@@ -166,13 +164,7 @@ fn prepare_temperature_tint_matrix(temperature: f32, tint: f32) -> [[f64; 3]; 3]
         return identity_matrix();
     }
 
-    const D65_KELVIN: f64 = 6504.0;
-    let target_mired = 1_000_000.0 / D65_KELVIN + f64::from(temperature);
-    let target_kelvin = (1_000_000.0 / target_mired).clamp(4000.0, 25_000.0);
-    let (x, y) = daylight_xy(target_kelvin);
-    let (u, mut v) = xy_to_uv(x, y);
-    v += f64::from(tint) * 0.0005;
-    let (x, y) = uv_to_xy(u, v);
+    let (x, y) = target_white_xy(temperature, tint);
 
     let source_white = xy_to_xyz(0.3127, 0.3290);
     let target_white = xy_to_xyz(x, y);
@@ -181,6 +173,56 @@ fn prepare_temperature_tint_matrix(temperature: f32, tint: f32) -> [[f64; 3]; 3]
         REC2020_XYZ_TO_RGB,
         multiply_matrices(adaptation, REC2020_RGB_TO_XYZ),
     )
+}
+
+const D65_KELVIN: f64 = 6504.0;
+const COOL_KELVIN: f64 = 25_000.0;
+const WARM_KELVIN: f64 = 4000.0;
+const MAX_TINT_DUV: f64 = 0.05;
+
+fn temperature_to_mired(temperature: f32) -> f64 {
+    let center = 1_000_000.0 / D65_KELVIN;
+    let amount = f64::from(temperature) / 100.0;
+    if amount >= 0.0 {
+        center + amount * (1_000_000.0 / WARM_KELVIN - center)
+    } else {
+        center + (-amount) * (1_000_000.0 / COOL_KELVIN - center)
+    }
+}
+
+fn target_white_xy(temperature: f32, tint: f32) -> (f64, f64) {
+    let mired = temperature_to_mired(temperature);
+    let (base_x, base_y) = daylight_xy_anchored(1_000_000.0 / mired);
+    let (u, v) = xy_to_uv(base_x, base_y);
+    if tint == 0.0 {
+        return uv_to_xy(u, v);
+    }
+
+    // Duv is measured perpendicular to the daylight locus in CIE 1960 uv.
+    // The chosen normal points below the locus, conventionally toward magenta.
+    const DERIVATIVE_STEP_MIREDS: f64 = 0.1;
+    let cool_mired = 1_000_000.0 / COOL_KELVIN;
+    let warm_mired = 1_000_000.0 / WARM_KELVIN;
+    let before = (mired - DERIVATIVE_STEP_MIREDS).max(cool_mired);
+    let after = (mired + DERIVATIVE_STEP_MIREDS).min(warm_mired);
+    let (before_x, before_y) = daylight_xy_anchored(1_000_000.0 / before);
+    let (after_x, after_y) = daylight_xy_anchored(1_000_000.0 / after);
+    let (u0, v0) = xy_to_uv(before_x, before_y);
+    let (u1, v1) = xy_to_uv(after_x, after_y);
+    let tangent_u = u1 - u0;
+    let tangent_v = v1 - v0;
+    let tangent_length = tangent_u.hypot(tangent_v);
+    let normal_u = tangent_v / tangent_length;
+    let normal_v = -tangent_u / tangent_length;
+    let duv = f64::from(tint) / 100.0 * MAX_TINT_DUV;
+    uv_to_xy(u + normal_u * duv, v + normal_v * duv)
+}
+
+fn daylight_xy_anchored(kelvin: f64) -> (f64, f64) {
+    const D65_XY: (f64, f64) = (0.3127, 0.3290);
+    let (x, y) = daylight_xy(kelvin);
+    let (raw_d65_x, raw_d65_y) = daylight_xy(D65_KELVIN);
+    (x + D65_XY.0 - raw_d65_x, y + D65_XY.1 - raw_d65_y)
 }
 
 fn daylight_xy(kelvin: f64) -> (f64, f64) {
@@ -264,3 +306,146 @@ const REC2020_XYZ_TO_RGB: [[f64; 3]; 3] = [
     [-0.666_684_351_8, 1.616_481_236_6, 0.015_768_545_8],
     [0.017_639_857_4, -0.042_770_613_3, 0.942_103_121_2],
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        D65_KELVIN, prepare_temperature_tint_matrix, target_white_xy, temperature_to_mired,
+    };
+
+    #[test]
+    fn temperature_endpoints_use_the_full_slider_range() {
+        assert_close(1_000_000.0 / temperature_to_mired(-100.0), 25_000.0);
+        assert_close(1_000_000.0 / temperature_to_mired(0.0), D65_KELVIN);
+        assert_close(1_000_000.0 / temperature_to_mired(100.0), 4000.0);
+        assert_ne!(
+            temperature_to_mired(96.0).to_bits(),
+            temperature_to_mired(100.0).to_bits()
+        );
+    }
+
+    #[test]
+    fn temperature_and_tint_whitepoints_match_goldens() {
+        for (temperature, tint, expected) in [
+            (-100.0, 0.0, (0.249_839_613_517_353, 0.254_680_365_073_757)),
+            (0.0, 0.0, (0.312_700_000_000_000, 0.329_000_000_000_000)),
+            (100.0, 0.0, (0.382_329_568_117_353, 0.383_647_161_878_391)),
+            (0.0, -100.0, (0.297_387_552_972_594, 0.430_624_537_556_747)),
+            (0.0, 100.0, (0.323_673_166_458_433, 0.256_174_084_920_873)),
+        ] {
+            let actual = target_white_xy(temperature, tint);
+            assert_close(actual.0, expected.0);
+            assert_close(actual.1, expected.1);
+        }
+    }
+
+    #[test]
+    fn endpoint_adaptation_matrices_match_goldens() {
+        let goldens = [
+            (
+                -100.0,
+                0.0,
+                [
+                    [
+                        0.883_832_527_419_965,
+                        -0.059_499_126_952_997,
+                        0.011_094_946_450_048,
+                    ],
+                    [
+                        -0.003_343_360_290_510,
+                        1.006_737_717_470_062,
+                        -0.010_248_058_267_705,
+                    ],
+                    [
+                        0.005_702_570_873_192,
+                        -0.008_374_447_795_678,
+                        1.810_065_092_898_805,
+                    ],
+                ],
+            ),
+            (
+                0.0,
+                0.0,
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            ),
+            (
+                100.0,
+                0.0,
+                [
+                    [
+                        1.123_751_312_242_211,
+                        0.083_072_563_122_434,
+                        -0.006_291_596_980_879,
+                    ],
+                    [
+                        0.004_616_572_868_311,
+                        0.951_987_217_128_624,
+                        0.005_101_582_271_090,
+                    ],
+                    [
+                        -0.003_510_070_636_723,
+                        0.003_869_899_707_082,
+                        0.549_128_001_038_774,
+                    ],
+                ],
+            ),
+            (
+                0.0,
+                -100.0,
+                [
+                    [
+                        0.835_532_007_212_340,
+                        -0.160_124_006_515_978,
+                        -0.005_595_861_289_803,
+                    ],
+                    [
+                        -0.008_799_197_025_495,
+                        1.166_926_261_437_867,
+                        0.007_904_369_826_139,
+                    ],
+                    [
+                        -0.001_811_712_955_965,
+                        0.007_611_835_377_340,
+                        0.558_655_485_186_120,
+                    ],
+                ],
+            ),
+            (
+                0.0,
+                100.0,
+                [
+                    [
+                        1.198_121_824_483_883,
+                        0.192_888_776_140_963,
+                        0.006_741_119_733_829,
+                    ],
+                    [
+                        0.010_599_777_832_078,
+                        0.798_917_091_065_992,
+                        -0.009_521_967_118_077,
+                    ],
+                    [
+                        0.002_182_382_381_882,
+                        -0.009_169_463_457_487,
+                        1.531_653_518_302_281,
+                    ],
+                ],
+            ),
+        ];
+        for (temperature, tint, expected) in goldens {
+            let actual = prepare_temperature_tint_matrix(temperature, tint);
+            for row in 0..3 {
+                for column in 0..3 {
+                    assert_close(actual[row][column], expected[row][column]);
+                }
+            }
+        }
+    }
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() <= 1.0e-12,
+            "expected {expected}, got {actual}"
+        );
+    }
+}

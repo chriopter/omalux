@@ -79,6 +79,25 @@ fn temperature_and_tint_are_prepared_finite_matrices() {
 }
 
 #[test]
+fn temperature_and_tint_follow_conventional_directions() {
+    let warm = render_gray(0.18, |settings| settings.basics.temperature = 100.0);
+    let cool = render_gray(0.18, |settings| settings.basics.temperature = -100.0);
+    let magenta = render_gray(0.18, |settings| settings.basics.tint = 100.0);
+    assert!(warm[0] > warm[2], "positive temperature must be warmer");
+    assert!(cool[2] > cool[0], "negative temperature must be cooler");
+    assert!(
+        magenta[1] < magenta[0] && magenta[1] < magenta[2],
+        "positive tint must move toward magenta"
+    );
+
+    let almost_warm = render_gray(0.18, |settings| settings.basics.temperature = 96.0);
+    assert_ne!(
+        almost_warm, warm,
+        "the warm endpoint must have no dead zone"
+    );
+}
+
+#[test]
 fn negative_and_hdr_values_remain_finite_and_unclipped() {
     let output = render([-0.5, 0.25, 8.0], |settings| {
         settings.basics.brightness = 50.0;
