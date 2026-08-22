@@ -3,6 +3,12 @@ use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::EffectsSet
 mod optical;
 mod spatial;
 mod tonal;
+// The grain kernel is ready, but Foundation has no render context from which a
+// resolved image-stable seed can be obtained. Keep it compiled and tested while
+// the Effects stage continues to reject non-zero grain rather than inventing a
+// path- or filename-based seed here.
+#[allow(dead_code)]
+mod grain;
 
 pub(super) fn supports(settings: &EffectsSettings) -> bool {
     settings.grain.amount == 0.0
