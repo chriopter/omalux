@@ -4,7 +4,7 @@ use crate::develop::{
 };
 
 #[path = "../../color.rs"]
-mod color;
+pub(super) mod color;
 
 use color::{
     Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020, oklab_to_oklch, oklab_with_luminance,
