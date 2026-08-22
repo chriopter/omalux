@@ -1,12 +1,15 @@
 use crate::develop::{
-    CpuImage, PipelineError,
+    CpuImage, DevelopStage, PipelineError,
     settings::{ColorGradeRange, ColorGradingSettings},
 };
 
 #[cfg(test)]
 use super::color_mixer::color::oklab_to_linear_rec2020;
+#[cfg(test)]
+use super::color_mixer::color::rec2020_luminance;
 use super::color_mixer::color::{
-    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020_preserving_luminance, rec2020_luminance,
+    ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
+    oklab_to_linear_rec2020_preserving_luminance,
 };
 
 const MAX_GRADE_CHROMA: f32 = 0.15;
@@ -49,9 +52,9 @@ impl PreparedColorGrading {
         }
     }
 
-    fn apply(&self, rgb: Rgb) -> Rgb {
+    fn apply(&self, rgb: Rgb) -> Result<Rgb, ColorMathError> {
         if self.neutral {
-            return rgb;
+            return Ok(rgb);
         }
         let lab = linear_rec2020_to_oklab(rgb);
         let weights = grade_weights(lab[0], self.balance, self.transition_width);
@@ -64,7 +67,8 @@ impl PreparedColorGrading {
         // explicit luminance controls apply a weighted local exposure of ±2 EV.
         let luminance_adjustment =
             weighted_component(weights, self.ranges.map(|range| range.luminance));
-        let target_luminance = rec2020_luminance(rgb) * (2.0 * luminance_adjustment).exp2();
+        let target_luminance =
+            exposure_target_luminance(rgb, 2.0 * f64::from(luminance_adjustment))?;
         oklab_to_linear_rec2020_preserving_luminance(graded, target_luminance)
     }
 }
@@ -82,7 +86,12 @@ pub(super) fn apply(
         return Ok(());
     }
     for pixel in image.pixels_mut() {
-        let adjusted = prepared.apply([pixel.red, pixel.green, pixel.blue]);
+        let adjusted = prepared
+            .apply([pixel.red, pixel.green, pixel.blue])
+            .map_err(|error| PipelineError::NumericFailure {
+                stage: DevelopStage::ColorGrading,
+                reason: error.reason(),
+            })?;
         pixel.red = adjusted[0];
         pixel.green = adjusted[1];
         pixel.blue = adjusted[2];
@@ -164,7 +173,7 @@ mod tests {
         let mut settings = ColorGradingSettings::default();
         settings.shadows.saturation = 100.0;
         settings.shadows.hue_degrees = 0.0;
-        let output = PreparedColorGrading::new(&settings).apply(source);
+        let output = PreparedColorGrading::new(&settings).apply(source).unwrap();
         let output_lab = linear_rec2020_to_oklab(output);
         assert_close(output_lab[1], MAX_GRADE_CHROMA, 3.0e-5);
         assert_close(output_lab[2], 0.0, 3.0e-5);
@@ -184,7 +193,7 @@ mod tests {
         let prepared = PreparedColorGrading::new(&settings);
         let weights = grade_weights(source_l, prepared.balance, prepared.transition_width);
         let weighted = weighted_component(weights, prepared.ranges.map(|range| range.luminance));
-        let output = prepared.apply(source);
+        let output = prepared.apply(source).unwrap();
         assert_close(
             rec2020_luminance(output),
             rec2020_luminance(source) * (2.0 * weighted).exp2(),

@@ -52,6 +52,10 @@ pub enum PipelineError {
     InvalidImage(ImageError),
     InvalidSettings(SettingsError),
     StageNotImplemented(DevelopStage),
+    NumericFailure {
+        stage: DevelopStage,
+        reason: &'static str,
+    },
 }
 
 impl fmt::Display for PipelineError {
@@ -62,6 +66,9 @@ impl fmt::Display for PipelineError {
             Self::StageNotImplemented(stage) => {
                 write!(formatter, "non-neutral {stage:?} stage is not implemented")
             }
+            Self::NumericFailure { stage, reason } => {
+                write!(formatter, "numerical failure in {stage:?}: {reason}")
+            }
         }
     }
 }
@@ -71,7 +78,7 @@ impl std::error::Error for PipelineError {
         match self {
             Self::InvalidImage(error) => Some(error),
             Self::InvalidSettings(error) => Some(error),
-            Self::StageNotImplemented(_) => None,
+            Self::StageNotImplemented(_) | Self::NumericFailure { .. } => None,
         }
     }
 }

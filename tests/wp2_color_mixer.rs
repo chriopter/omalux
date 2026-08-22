@@ -1,4 +1,6 @@
-use grainroom::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
+use grainroom::develop::{
+    CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, PipelineError, RgbaPixel,
+};
 
 fn image(pixel: [f32; 4]) -> CpuImage {
     CpuImage::new(
@@ -121,5 +123,84 @@ fn broad_signed_hdr_pipeline_reaches_the_requested_y() {
             pixel.red() * 0.262_700_2 + pixel.green() * 0.677_998_1 + pixel.blue() * 0.059_301_7;
         assert!((actual - target).abs() <= 2.0e-5 * (1.0 + target.abs()));
         assert_eq!(pixel.alpha(), 0.73);
+    }
+}
+
+#[test]
+fn unrepresentable_positive_ev_target_is_transactional() {
+    let mut settings = DevelopSettings::default();
+    for band in [
+        &mut settings.color_mixer.red,
+        &mut settings.color_mixer.orange,
+        &mut settings.color_mixer.yellow,
+        &mut settings.color_mixer.green,
+        &mut settings.color_mixer.aqua,
+        &mut settings.color_mixer.blue,
+        &mut settings.color_mixer.purple,
+        &mut settings.color_mixer.magenta,
+    ] {
+        band.luminance = 100.0;
+    }
+    let mut rendered = image([f32::MAX, f32::MAX * 0.5, f32::MAX * 0.25, 0.44]);
+    let original = rendered.clone();
+    assert!(matches!(
+        DevelopPipeline.process(&mut rendered, &settings),
+        Err(PipelineError::NumericFailure {
+            stage: DevelopStage::ColorMixer,
+            ..
+        })
+    ));
+    assert_eq!(rendered, original);
+}
+
+#[test]
+fn exponent_and_cancellation_sweep_never_silently_misses_y() {
+    let mut settings = DevelopSettings::default();
+    for band in [
+        &mut settings.color_mixer.red,
+        &mut settings.color_mixer.orange,
+        &mut settings.color_mixer.yellow,
+        &mut settings.color_mixer.green,
+        &mut settings.color_mixer.aqua,
+        &mut settings.color_mixer.blue,
+        &mut settings.color_mixer.purple,
+        &mut settings.color_mixer.magenta,
+    ] {
+        band.hue_shift_degrees = 179.0;
+        band.saturation = 100.0;
+    }
+    for magnitude in [
+        f32::from_bits(1),
+        1.0e-30,
+        1.0e-10,
+        1.0,
+        1.0e10,
+        1.0e30,
+        f32::MAX,
+    ] {
+        let red = magnitude;
+        let green = -(f64::from(red) * 0.262_700_2_f64 / 0.677_998_1_f64) as f32;
+        let rgb = [red, green, magnitude * 0.03125];
+        let mut rendered = image([rgb[0], rgb[1], rgb[2], 0.52]);
+        let original = rendered.clone();
+        let target = f64::from(rgb[0]) * 0.262_700_2
+            + f64::from(rgb[1]) * 0.677_998_1
+            + f64::from(rgb[2]) * 0.059_301_7;
+        match DevelopPipeline.process(&mut rendered, &settings) {
+            Ok(()) => {
+                let pixel = rendered.pixels()[0];
+                let actual = f64::from(pixel.red()) * 0.262_700_2
+                    + f64::from(pixel.green()) * 0.677_998_1
+                    + f64::from(pixel.blue()) * 0.059_301_7;
+                let tolerance = 64.0 * f64::from(f32::EPSILON) * (1.0 + target.abs());
+                assert!((actual - target).abs() <= tolerance);
+                assert_eq!(pixel.alpha(), 0.52);
+            }
+            Err(PipelineError::NumericFailure {
+                stage: DevelopStage::ColorMixer,
+                ..
+            }) => assert_eq!(rendered, original),
+            Err(error) => panic!("unexpected pipeline error: {error}"),
+        }
     }
 }

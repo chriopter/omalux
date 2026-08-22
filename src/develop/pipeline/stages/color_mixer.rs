@@ -1,14 +1,16 @@
 use crate::develop::{
-    CpuImage, PipelineError,
+    CpuImage, DevelopStage, PipelineError,
     settings::{ColorBandAdjustment, ColorMixerSettings},
 };
 
 #[path = "../../color.rs"]
 pub(super) mod color;
 
+#[cfg(test)]
+use color::rec2020_luminance;
 use color::{
-    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020_preserving_luminance, oklab_to_oklch,
-    oklch_to_oklab, rec2020_luminance, wrap_radians,
+    ColorMathError, Rgb, exposure_target_luminance, linear_rec2020_to_oklab,
+    oklab_to_linear_rec2020_preserving_luminance, oklab_to_oklch, oklch_to_oklab, wrap_radians,
 };
 
 const BAND_COUNT: usize = 8;
@@ -32,16 +34,16 @@ impl PreparedColorMixer {
         }
     }
 
-    fn apply(&self, rgb: Rgb) -> Rgb {
+    fn apply(&self, rgb: Rgb) -> Result<Rgb, ColorMathError> {
         if self.neutral {
-            return rgb;
+            return Ok(rgb);
         }
 
         let lch = oklab_to_oklch(linear_rec2020_to_oklab(rgb));
         if lch[1] <= 1.0e-5 {
             // Hue is undefined for neutral pixels. In particular, a color-band
             // luminance adjustment must not choose an arbitrary band for gray.
-            return rgb;
+            return Ok(rgb);
         }
 
         let gate = smoothstep(1.0e-5, 5.0e-4, lch[1]);
@@ -55,7 +57,7 @@ impl PreparedColorMixer {
             lch[1] * (1.0 + saturation).max(0.0),
             wrap_radians(lch[2] + hue_shift),
         ];
-        let target_luminance = rec2020_luminance(rgb) * (2.0 * luminance).exp2();
+        let target_luminance = exposure_target_luminance(rgb, 2.0 * f64::from(luminance))?;
         oklab_to_linear_rec2020_preserving_luminance(oklch_to_oklab(adjusted_lch), target_luminance)
     }
 }
@@ -73,7 +75,12 @@ pub(super) fn apply(
         return Ok(());
     }
     for pixel in image.pixels_mut() {
-        let adjusted = prepared.apply([pixel.red, pixel.green, pixel.blue]);
+        let adjusted = prepared
+            .apply([pixel.red, pixel.green, pixel.blue])
+            .map_err(|error| PipelineError::NumericFailure {
+                stage: DevelopStage::ColorMixer,
+                reason: error.reason(),
+            })?;
         pixel.red = adjusted[0];
         pixel.green = adjusted[1];
         pixel.blue = adjusted[2];
@@ -192,7 +199,7 @@ mod tests {
         settings.red.hue_shift_degrees = 45.0;
         settings.red.saturation = 100.0;
         settings.red.luminance = 100.0;
-        let output = PreparedColorMixer::new(&settings).apply(source);
+        let output = PreparedColorMixer::new(&settings).apply(source).unwrap();
         let output_lch = oklab_to_oklch(linear_rec2020_to_oklab(output));
         assert_close(output_lch[2], 45.0_f32.to_radians(), 2.0e-4);
         assert_close(output_lch[1], 0.2, 2.0e-4);
@@ -211,7 +218,10 @@ mod tests {
         settings.red.luminance = 100.0;
         let prepared = PreparedColorMixer::new(&settings);
         for gray in [0.0, 0.01, 0.18, 1.0, 8.0] {
-            assert_eq!(prepared.apply([gray, gray, gray]), [gray, gray, gray]);
+            assert_eq!(
+                prepared.apply([gray, gray, gray]).unwrap(),
+                [gray, gray, gray]
+            );
         }
     }
 

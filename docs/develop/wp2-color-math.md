@@ -47,12 +47,17 @@ and applies safeguarded Newton iterations inside each monotone bracket. If the
 cubic has multiple roots, the root nearest the incoming L is selected to avoid
 an unnecessary lightness branch jump.
 
-After conversion back to f32 RGB, the residual is checked against
-`32 * f32::EPSILON * (1 + abs(target_Y))`. An additive neutral correction is a
+Source Y and the exposure-scaled target Y are calculated in f64. A target that
+is non-finite, larger than finite f32, or non-zero but smaller than an f32
+subnormal is rejected before the pixel is changed. After conversion back to
+f32 RGB, the residual is checked in f64 against
+`64 * f32::EPSILON * (1 + abs(target_Y))`. An additive neutral correction is a
 last-resort rounding/ill-conditioning fallback. Since the Rec.2020 luminance
 coefficients sum to one, adding the same delta to R, G, and B restores Y without
-clipping. The pipeline's final finite-pixel validation still turns numerical
-overflow into a transactional error rather than committing a damaged image.
+clipping. Every fallback is followed by the same definitive finite residual
+check. Failure produces `PipelineError::NumericFailure` and the transactional
+pipeline leaves the caller's complete image unchanged; an infinite tolerance
+is never accepted.
 
 Regression tests include the signed counterexamples that defeated the former
 unbounded Newton iteration and deterministic property sweeps through the
@@ -86,15 +91,21 @@ exposure of up to two stops. Chroma-only grading preserves source Rec.2020 Y.
 The conceptual separation into smooth shadows/midtones/highlights masks and a
 scene-referred color-grading stage was cross-checked against darktable's public
 `colorbalancergb.c` at the pinned repository snapshot
-[`943d74a`](https://github.com/darktable-org/darktable/blob/943d74a/src/iop/colorbalancergb.c).
+[`943d74a50e5baeecee26005cf20309e32f487949`](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/iop/colorbalancergb.c).
 Grainroom does not reproduce darktable's UCS, gamut mapping, masks, parameter
 scales, or implementation; the OKLab model and all formulas above are local.
+darktable is licensed GPL-3.0-or-later. Its file is cited for conceptual and
+comparative provenance only; no darktable implementation is incorporated here.
 
 ## Current module integration
 
 Foundation F0 has no central shared-color module declaration. To avoid editing
 centrally owned module files in WP2, `color_mixer.rs` includes `color.rs` and
-`color_grading.rs` imports that same module through the mixer. When the feature
-branches are integrated, `color.rs` should become `develop::color` in the
-central module tree and both stages should import it directly. This is a
-structural cleanup only and must not change the numerical contract above.
+`color_grading.rs` imports that same module through the mixer.
+
+Integration action: add `mod color;` once in `src/develop/mod.rs`, remove the
+`#[path = "../../color.rs"]` declaration from `color_mixer.rs`, and change both
+stage imports to `super::super::color` (or the equivalent central path). Do not
+compile separate copies of `color.rs`: `ColorMathError` and all numerical
+helpers must remain one shared type and implementation. This is a structural
+cleanup only and must not change the numerical contract above.

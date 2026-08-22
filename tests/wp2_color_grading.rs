@@ -1,4 +1,6 @@
-use grainroom::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
+use grainroom::develop::{
+    CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, PipelineError, RgbaPixel,
+};
 
 fn image(pixel: [f32; 4]) -> CpuImage {
     CpuImage::new(
@@ -112,4 +114,22 @@ fn broad_signed_hdr_pipeline_reaches_the_requested_y() {
         assert!((luminance(&pixel) - target).abs() <= 2.0e-5 * (1.0 + target.abs()));
         assert_eq!(pixel.alpha(), 0.81);
     }
+}
+
+#[test]
+fn unrepresentable_positive_ev_target_is_transactional() {
+    let mut settings = DevelopSettings::default();
+    settings.color_grading.shadows.luminance = 100.0;
+    settings.color_grading.midtones.luminance = 100.0;
+    settings.color_grading.highlights.luminance = 100.0;
+    let mut rendered = image([f32::MAX, f32::MAX * 0.5, f32::MAX * 0.25, 0.36]);
+    let original = rendered.clone();
+    assert!(matches!(
+        DevelopPipeline.process(&mut rendered, &settings),
+        Err(PipelineError::NumericFailure {
+            stage: DevelopStage::ColorGrading,
+            ..
+        })
+    ));
+    assert_eq!(rendered, original);
 }
