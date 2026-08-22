@@ -16,6 +16,10 @@ pub mod qobject {
         #[qproperty(QString, original_format, cxx_name = "originalFormat")]
         #[qproperty(QString, original_file_size, cxx_name = "originalFileSize")]
         #[qproperty(QString, metadata_text, cxx_name = "metadataText")]
+        #[qproperty(QString, theme_background, cxx_name = "themeBackground")]
+        #[qproperty(QString, theme_foreground, cxx_name = "themeForeground")]
+        #[qproperty(QString, theme_accent, cxx_name = "themeAccent")]
+        #[qproperty(QString, theme_selection, cxx_name = "themeSelection")]
         #[qproperty(QString, status)]
         #[qproperty(bool, loading)]
         type PhotoBackend = super::PhotoBackendRust;
@@ -43,6 +47,10 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "reportExportError"]
         fn report_export_error(self: Pin<&mut Self>, message: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "startThemeWatcher"]
+        fn start_theme_watcher(self: Pin<&mut Self>);
     }
 
     impl cxx_qt::Threading for PhotoBackend {}
@@ -51,9 +59,30 @@ pub mod qobject {
 use core::pin::Pin;
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QUrl};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ThemeColors {
+    background: String,
+    foreground: String,
+    accent: String,
+    selection: String,
+}
+
+impl Default for ThemeColors {
+    fn default() -> Self {
+        Self {
+            background: "#101010".to_owned(),
+            foreground: "#eeeeee".to_owned(),
+            accent: "#5584aa".to_owned(),
+            selection: "#263746".to_owned(),
+        }
+    }
+}
 
 pub struct PhotoBackendRust {
     preview_url: QUrl,
@@ -61,26 +90,37 @@ pub struct PhotoBackendRust {
     original_format: QString,
     original_file_size: QString,
     metadata_text: QString,
+    theme_background: QString,
+    theme_foreground: QString,
+    theme_accent: QString,
+    theme_selection: QString,
     status: QString,
     loading: bool,
     generation: AtomicU64,
     generated_preview: Option<PathBuf>,
     source_path: Option<PathBuf>,
+    theme_watcher: Option<RecommendedWatcher>,
 }
 
 impl Default for PhotoBackendRust {
     fn default() -> Self {
+        let theme = load_omarchy_theme();
         Self {
             preview_url: QUrl::default(),
             file_name: QString::default(),
             original_format: QString::from("—"),
             original_file_size: QString::from("—"),
             metadata_text: QString::from("NO PHOTOGRAPH LOADED"),
+            theme_background: QString::from(&theme.background),
+            theme_foreground: QString::from(&theme.foreground),
+            theme_accent: QString::from(&theme.accent),
+            theme_selection: QString::from(&theme.selection),
             status: QString::from("Open a JPEG or RAW photograph"),
             loading: false,
             generation: AtomicU64::new(0),
             generated_preview: None,
             source_path: None,
+            theme_watcher: None,
         }
     }
 }
@@ -257,6 +297,112 @@ impl qobject::PhotoBackend {
     pub fn report_export_error(mut self: Pin<&mut Self>, message: &QString) {
         self.as_mut().set_status(message.clone());
     }
+
+    pub fn start_theme_watcher(mut self: Pin<&mut Self>) {
+        self.as_mut().apply_theme(load_omarchy_theme());
+
+        let Some(current_theme) = omarchy_current_theme_path() else {
+            return;
+        };
+        let pending = Arc::new(AtomicBool::new(false));
+        let pending_from_event = Arc::clone(&pending);
+        let qt_thread = self.qt_thread();
+        let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+            if event.is_err() || pending_from_event.swap(true, Ordering::AcqRel) {
+                return;
+            }
+            let pending_after_update = Arc::clone(&pending_from_event);
+            if qt_thread
+                .queue(move |mut backend| {
+                    // Theme switches replace Omarchy's `current` symlink, so
+                    // rebuild the watches after every relevant filesystem event.
+                    pending_after_update.store(false, Ordering::Release);
+                    backend.as_mut().start_theme_watcher();
+                })
+                .is_err()
+            {
+                pending_from_event.store(false, Ordering::Release);
+            }
+        });
+
+        let Ok(mut watcher) = watcher else {
+            return;
+        };
+        let omarchy_state = current_theme
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf);
+        let watches_state = omarchy_state
+            .as_ref()
+            .is_some_and(|path| watcher.watch(path, RecursiveMode::NonRecursive).is_ok());
+        let watches_theme = watcher
+            .watch(&current_theme, RecursiveMode::Recursive)
+            .is_ok();
+        if watches_state || watches_theme {
+            self.as_mut().rust_mut().theme_watcher = Some(watcher);
+        }
+    }
+
+    fn apply_theme(mut self: Pin<&mut Self>, theme: ThemeColors) {
+        if self.theme_background().to_string() != theme.background {
+            self.as_mut()
+                .set_theme_background(QString::from(&theme.background));
+        }
+        if self.theme_foreground().to_string() != theme.foreground {
+            self.as_mut()
+                .set_theme_foreground(QString::from(&theme.foreground));
+        }
+        if self.theme_accent().to_string() != theme.accent {
+            self.as_mut().set_theme_accent(QString::from(&theme.accent));
+        }
+        if self.theme_selection().to_string() != theme.selection {
+            self.as_mut()
+                .set_theme_selection(QString::from(&theme.selection));
+        }
+    }
+}
+
+fn omarchy_current_theme_path() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .map(|home| PathBuf::from(home).join(".local/state/omarchy/current/theme"))
+}
+
+fn load_omarchy_theme() -> ThemeColors {
+    let fallback = ThemeColors::default();
+    let Some(path) = omarchy_current_theme_path() else {
+        return fallback;
+    };
+    let Ok(contents) = std::fs::read_to_string(path.join("colors.toml")) else {
+        return fallback;
+    };
+    parse_theme_colors(&contents, fallback)
+}
+
+fn parse_theme_colors(contents: &str, mut colors: ThemeColors) -> ThemeColors {
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value
+            .trim()
+            .trim_matches(|character| character == '\"' || character == '\'')
+            .to_owned();
+        if value.is_empty() {
+            continue;
+        }
+        match key.trim() {
+            "background" => colors.background = value,
+            "foreground" => colors.foreground = value,
+            "accent" => colors.accent = value,
+            "selection" => colors.selection = value,
+            _ => {}
+        }
+    }
+    colors
 }
 
 fn local_destination(url: &QUrl) -> Option<PathBuf> {
@@ -458,7 +604,7 @@ fn develop_raw_preview(path: &Path, generation: u64) -> Result<PathBuf, String> 
 
 #[cfg(test)]
 mod tests {
-    use super::{human_file_size, is_qt_image, metadata_field};
+    use super::{ThemeColors, human_file_size, is_qt_image, metadata_field, parse_theme_colors};
     use std::path::Path;
 
     #[test]
@@ -486,5 +632,17 @@ mod tests {
         let output = "Camera: Fujifilm X-T5\nISO speed: 800\nShutter: 1/125 sec\n";
         assert_eq!(metadata_field(output, "Camera"), Some("Fujifilm X-T5"));
         assert_eq!(metadata_field(output, "ISO speed"), Some("800"));
+    }
+
+    #[test]
+    fn parses_the_omarchy_color_contract() {
+        let colors = parse_theme_colors(
+            "mode = 'dark'\nbackground = '#111c18'\nforeground = \"#C1C497\"\naccent = '#509475'\nselection = '#32473B'\n",
+            ThemeColors::default(),
+        );
+        assert_eq!(colors.background, "#111c18");
+        assert_eq!(colors.foreground, "#C1C497");
+        assert_eq!(colors.accent, "#509475");
+        assert_eq!(colors.selection, "#32473B");
     }
 }

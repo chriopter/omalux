@@ -20,13 +20,14 @@ ApplicationWindow {
     title: backend.fileName.length > 0 ? backend.fileName + " — Grainroom" : "Grainroom"
     color: pageColor
 
-    readonly property color pageColor: "#101010"
-    readonly property color surfaceColor: "#171717"
-    readonly property color raisedColor: "#202020"
-    readonly property color inkColor: "#eeeeee"
-    readonly property color mutedColor: "#8f9191"
-    readonly property color lineColor: "#363636"
-    readonly property color accentColor: "#5584aa"
+    readonly property color pageColor: backend.themeBackground
+    readonly property color inkColor: backend.themeForeground
+    readonly property color accentColor: backend.themeAccent
+    readonly property color selectionColor: backend.themeSelection
+    readonly property color surfaceColor: mixColors(pageColor, inkColor, 0.035)
+    readonly property color raisedColor: mixColors(pageColor, inkColor, 0.08)
+    readonly property color mutedColor: mixColors(pageColor, inkColor, 0.55)
+    readonly property color lineColor: mixColors(pageColor, inkColor, 0.18)
     readonly property string monoFont: "iA Writer Mono S"
     readonly property real sidebarWidth: 316
 
@@ -49,6 +50,13 @@ ApplicationWindow {
     readonly property string cliRequestedFormat:
         argumentValue("--format", inferredCliFormat(cliOutput)).toUpperCase()
     property bool cliExportStarted: false
+
+    function mixColors(base, tint, amount) {
+        return Qt.rgba(base.r + (tint.r - base.r) * amount,
+                       base.g + (tint.g - base.g) * amount,
+                       base.b + (tint.b - base.b) * amount,
+                       1.0)
+    }
 
     function argumentValue(name, fallback) {
         var position = commandLineArguments.indexOf(name)
@@ -131,7 +139,10 @@ ApplicationWindow {
             exportRendered(format, destination)
     }
 
-    Component.onCompleted: startCli()
+    Component.onCompleted: {
+        backend.startThemeWatcher()
+        startCli()
+    }
 
     function enterPhotoFullscreen() {
         if (sourceImage.status !== Image.Ready || photoFullscreen)

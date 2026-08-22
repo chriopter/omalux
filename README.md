@@ -7,6 +7,7 @@ A focused photo developer for Omarchy, built with Rust, CXX-Qt, Qt Quick and Lib
 - Open JPEG, PNG, BMP and common camera RAW files
 - Decode a half-size RAW preview with LibRaw
 - Apply procedural monochrome grain live with a Qt Quick fragment shader
+- Follow the active Omarchy color theme live, including theme switches while running
 - Switch between Crop (placeholder), Grain, and real file/EXIF metadata panels
 - Keep Grain as the primary control, with Size and Midtones in a collapsible advanced section; five labeled mock controls demonstrate sidebar growth
 - Save the unchanged original or export JPEG/HEIC at adjustable quality, with resolution and size estimates
