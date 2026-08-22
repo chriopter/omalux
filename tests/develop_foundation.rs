@@ -260,6 +260,18 @@ fn implemented_stages_preflight_and_process_non_neutral_settings() {
     let mut cases = Vec::new();
 
     let mut settings = DevelopSettings::default();
+    settings.geometry.quarter_turns_clockwise = 1;
+    settings.geometry.perspective_horizontal = 10.0;
+    settings.geometry.perspective_vertical = -5.0;
+    settings.geometry.crop = Some(grainroom::develop::CropRect {
+        x: 0.0,
+        y: 0.0,
+        width: 1.0,
+        height: 0.5,
+    });
+    cases.push((DevelopStage::Geometry, settings));
+
+    let mut settings = DevelopSettings::default();
     settings.basics.contrast = 10.0;
     cases.push((DevelopStage::Basics, settings));
 
@@ -278,6 +290,12 @@ fn implemented_stages_preflight_and_process_non_neutral_settings() {
     let mut settings = DevelopSettings::default();
     settings.color_grading.midtones.saturation = 10.0;
     cases.push((DevelopStage::ColorGrading, settings));
+
+    let mut settings = DevelopSettings::default();
+    let mut mask = radial_mask("supported");
+    mask.adjustments.brightness = 10.0;
+    settings.radial_masks.masks.push(mask);
+    cases.push((DevelopStage::RadialMasks, settings));
 
     let mut settings = DevelopSettings::default();
     settings.effects.bloom = 10.0;
