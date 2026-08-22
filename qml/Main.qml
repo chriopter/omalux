@@ -222,9 +222,10 @@ ApplicationWindow {
     }
 
     function selectParameter(index) {
-        if (index === 1 || index === 2)
+        if (index === 19 || index === 20)
             grainAdvancedExpanded = true
-        selectedParameter = (index + 8) % 8
+        selectedParameter = (index + grainPanel.parameterCount)
+            % grainPanel.parameterCount
         Qt.callLater(function() {
             var control = parameterAt(selectedParameter)
             grainPanel.ensureVisible(control)
@@ -232,9 +233,7 @@ ApplicationWindow {
     }
 
     function moveParameter(direction) {
-        var order = grainAdvancedExpanded
-            ? [0, 1, 2, 3, 4, 5, 6, 7]
-            : [0, 3, 4, 5, 6, 7]
+        var order = grainPanel.navigationOrder()
         var position = order.indexOf(selectedParameter)
         if (position < 0)
             position = 0
@@ -255,8 +254,36 @@ ApplicationWindow {
             selectedParameter = 0
     }
 
+    function activeMockPanel() {
+        switch (selectedPanel) {
+        case 0: return cropPanel
+        default: return null
+        }
+    }
+
+    function moveActiveParameter(direction) {
+        if (selectedPanel === 1)
+            moveParameter(direction)
+        else if (activeMockPanel())
+            activeMockPanel().moveSelection(direction)
+    }
+
+    function adjustActiveParameter(direction, coarse) {
+        if (selectedPanel === 1)
+            adjustParameter(direction, coarse)
+        else if (activeMockPanel())
+            activeMockPanel().adjustSelection(direction, coarse)
+    }
+
+    function resetActiveParameter() {
+        if (selectedPanel === 1)
+            resetParameter()
+        else if (activeMockPanel())
+            activeMockPanel().resetSelection()
+    }
+
     function selectPanel(index) {
-        selectedPanel = (index + 3) % 3
+        selectedPanel = (index + 4) % 4
     }
 
     function movePanel(direction) {
@@ -507,35 +534,37 @@ ApplicationWindow {
                 window.selectPanel(1)
             } else if (keyText === "3") {
                 window.selectPanel(2)
+            } else if (keyText === "4") {
+                window.selectPanel(3)
             } else if (keyText === "[") {
                 window.movePanel(-1)
             } else if (keyText === "]") {
                 window.movePanel(1)
-            } else if (window.selectedPanel === 1
+            } else if (window.selectedPanel <= 1
                        && (event.key === Qt.Key_Down || keyText === "j")) {
-                window.moveParameter(1)
-            } else if (window.selectedPanel === 1
+                window.moveActiveParameter(1)
+            } else if (window.selectedPanel <= 1
                        && (event.key === Qt.Key_Up || keyText === "k")) {
-                window.moveParameter(-1)
-            } else if (window.selectedPanel === 1
+                window.moveActiveParameter(-1)
+            } else if (window.selectedPanel <= 1
                        && (event.key === Qt.Key_Left || keyText === "h")) {
-                window.adjustParameter(-1, coarse)
-            } else if (window.selectedPanel === 1
+                window.adjustActiveParameter(-1, coarse)
+            } else if (window.selectedPanel <= 1
                        && (event.key === Qt.Key_Right || keyText === "l")) {
-                window.adjustParameter(1, coarse)
+                window.adjustActiveParameter(1, coarse)
             } else if (keyText === "g") {
                 window.selectPanel(1)
-                window.selectParameter(0)
+                window.selectParameter(18)
             } else if (keyText === "s") {
                 window.selectPanel(1)
-                window.selectParameter(1)
+                window.selectParameter(19)
             } else if (keyText === "m") {
                 window.selectPanel(1)
-                window.selectParameter(2)
+                window.selectParameter(20)
             } else if (keyText === "a" && window.selectedPanel === 1) {
                 window.toggleGrainAdvanced()
-            } else if (keyText === "r" && window.selectedPanel === 1) {
-                window.resetParameter()
+            } else if (keyText === "r" && window.selectedPanel <= 1) {
+                window.resetActiveParameter()
             } else if (keyText === "b") {
                 window.grainEnabled = !window.grainEnabled
             } else if (keyText === "o") {
@@ -835,15 +864,18 @@ ApplicationWindow {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 34
-                            color: "transparent"
+                            Layout.preferredHeight: 69
+                            color: window.lineColor
                             border.width: 1
                             border.color: window.lineColor
 
-                            RowLayout {
+                            GridLayout {
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                spacing: 0
+                                columns: 2
+                                rows: 2
+                                rowSpacing: 1
+                                columnSpacing: 1
 
                                 ToolTabButton {
                                     theme: window
@@ -856,27 +888,26 @@ ApplicationWindow {
                                     Accessible.name: "Crop · 1"
                                 }
 
-                                Rectangle {
-                                    Layout.preferredWidth: 1
+                                ToolTabButton {
+                                    theme: window
+                                    Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    color: window.lineColor
+                                    symbol: "≡"
+                                    label: "Edit"
+                                    selected: window.selectedPanel === 1
+                                    onClicked: window.selectPanel(1)
+                                    Accessible.name: "Edit · 2"
                                 }
 
                                 ToolTabButton {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    symbol: "▒"
-                                    label: "Shader"
-                                    selected: window.selectedPanel === 1
-                                    onClicked: window.selectPanel(1)
-                                    Accessible.name: "Grain shader · 2"
-                                }
-
-                                Rectangle {
-                                    Layout.preferredWidth: 1
-                                    Layout.fillHeight: true
-                                    color: window.lineColor
+                                    symbol: "◆"
+                                    label: "Presets"
+                                    selected: window.selectedPanel === 2
+                                    onClicked: window.selectPanel(2)
+                                    Accessible.name: "Presets · 3"
                                 }
 
                                 ToolTabButton {
@@ -885,9 +916,9 @@ ApplicationWindow {
                                     Layout.fillHeight: true
                                     symbol: "ⓘ"
                                     label: "Meta"
-                                    selected: window.selectedPanel === 2
-                                    onClicked: window.selectPanel(2)
-                                    Accessible.name: "Metadata · 3"
+                                    selected: window.selectedPanel === 3
+                                    onClicked: window.selectPanel(3)
+                                    Accessible.name: "Metadata · 4"
                                 }
                             }
                         }
@@ -904,7 +935,9 @@ ApplicationWindow {
                             currentIndex: window.selectedPanel
 
                             CropPanel {
+                                id: cropPanel
                                 theme: window
+                                photoReady: sourceImage.status === Image.Ready
                             }
 
                             GrainPanel {
@@ -915,6 +948,11 @@ ApplicationWindow {
                                 advancedExpanded: window.grainAdvancedExpanded
                                 onSelectionRequested: index => window.selectParameter(index)
                                 onAdvancedToggleRequested: window.toggleGrainAdvanced()
+                            }
+
+                            PresetsPanel {
+                                theme: window
+                                photoReady: sourceImage.status === Image.Ready
                             }
 
                             MetadataPanel {
@@ -947,7 +985,7 @@ ApplicationWindow {
                     spacing: 18
 
                     Text {
-                        text: "[1/2/3] PANELS"
+                        text: "[1–4] PANELS"
                         color: window.accentColor
                         font.family: window.monoFont
                         font.pixelSize: 10
@@ -992,7 +1030,7 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
 
                     Text {
-                        visible: window.selectedPanel === 1 && window.width >= 1050
+                        visible: window.selectedPanel <= 1 && window.width >= 1050
                         text: "[↑/↓] SELECT  [←/→] ADJUST  [⇧] FAST  [R] RESET"
                         color: window.mutedColor
                         font.family: window.monoFont
@@ -1224,7 +1262,7 @@ ApplicationWindow {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "1 / 2 / 3   CROP / GRAIN / METADATA\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT GRAIN PARAMETER\n↓ / ↑       SELECT GRAIN PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\nB           TOGGLE GRAIN BYPASS\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
+                        text: "1–4         CROP / EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\nB           TOGGLE GRAIN BYPASS\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 12

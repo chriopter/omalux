@@ -12,8 +12,9 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 - Decode a half-size RAW preview with LibRaw
 - Apply procedural monochrome grain live with a Qt Quick fragment shader
 - Follow the active Omarchy color theme live, including theme switches while running
-- Switch between Crop (placeholder), Grain, and real file/EXIF metadata panels
-- Keep Grain as the primary control, with Size and Midtones in a collapsible advanced section; five labeled mock controls demonstrate sidebar growth
+- Switch between Crop, Edit, Presets, and real file/EXIF metadata panels in a compact two-row tool grid
+- Edit groups all controls under Basics, Color, and Effects; Grain remains live, with Size and Midtones in a collapsible advanced section
+- Try three generic preset mockups while the preset processing pipeline is still being built
 - Save the unchanged original or export JPEG/HEIC at adjustable quality, with resolution and size estimates
 - Zoom from 25% to 800% with the mouse wheel or touchpad pinch, and pan enlarged photographs
 - Navigate the TUI-inspired develop panel with J/K or arrows, adjust with H/L, and press `?` for the complete keyboard reference
@@ -21,7 +22,7 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 
 ## Keyboard
 
-- `1`, `2`, `3`: open Crop, Grain, or Metadata; `Tab` and `[`/`]` cycle panels
+- `1`–`4`: open Crop, Edit, Presets, or Metadata; `Tab` and `[`/`]` cycle panels
 - `J`/`K` or `Down`/`Up`: select a parameter
 - `H`/`L` or `Left`/`Right`: adjust it; hold `Shift` for larger steps
 - `G`, `S`, `M`: jump to Grain, Size, or Midtones

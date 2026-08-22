@@ -58,9 +58,12 @@ fn main() {
         "qml/components/ToolTabButton.qml",
         "qml/components/TuiButton.qml",
         "qml/tools/crop/CropPanel.qml",
+        "qml/tools/adjustments/AdjustmentsPanel.qml",
         "qml/tools/grain/GrainEffect.qml",
         "qml/tools/grain/GrainPanel.qml",
         "qml/tools/metadata/MetadataPanel.qml",
+        "qml/tools/presets/PresetsPanel.qml",
+        "qml/tools/tinting/TintingPanel.qml",
     ]);
 
     CxxQtBuilder::new_qml_module(qml_module)

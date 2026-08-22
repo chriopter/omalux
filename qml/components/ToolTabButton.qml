@@ -40,7 +40,7 @@ Button {
         color: control.selected ? control.theme.selectionColor
                                 : control.down ? control.theme.raisedColor
                                                : control.hovered ? control.theme.surfaceColor
-                                                                 : "transparent"
+                                                                 : control.theme.pageColor
 
         Rectangle {
             anchors.left: parent.left

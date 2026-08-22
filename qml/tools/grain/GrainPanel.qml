@@ -11,6 +11,7 @@ Item {
     required property int selectedParameter
     required property bool advancedExpanded
 
+    readonly property int parameterCount: 23
     property alias grainValue: grainControl.value
     property alias grainSizeValue: grainSizeControl.value
     property alias midtonesValue: midtonesControl.value
@@ -18,30 +19,78 @@ Item {
     signal selectionRequested(int index)
     signal advancedToggleRequested
 
+    readonly property var basics: [
+        { "label": "Brightness", "from": -100, "to": 100 },
+        { "label": "Contrast", "from": -100, "to": 100 },
+        { "label": "Clarity", "from": -100, "to": 100 },
+        { "label": "Highlights", "from": -100, "to": 100 },
+        { "label": "Shadows", "from": -100, "to": 100 },
+        { "label": "Whites", "from": -100, "to": 100 },
+        { "label": "Blacks", "from": -100, "to": 100 }
+    ]
+
+    readonly property var colors: [
+        { "label": "Saturation", "from": -100, "to": 100, "suffix": "" },
+        { "label": "Vibrance", "from": -100, "to": 100, "suffix": "" },
+        { "label": "Temperature", "from": -100, "to": 100, "suffix": "" },
+        { "label": "Tint", "from": -100, "to": 100, "suffix": "" },
+        { "label": "Highlight amount", "from": 0, "to": 100, "suffix": "" },
+        { "label": "Highlight color", "from": -180, "to": 180, "suffix": "°" },
+        { "label": "Shadow amount", "from": 0, "to": 100, "suffix": "" },
+        { "label": "Shadow color", "from": -180, "to": 180, "suffix": "°" }
+    ]
+
     function parameterAt(index) {
+        if (index < 7)
+            return basicsRepeater.itemAt(index)
+        if (index < 15)
+            return colorRepeater.itemAt(index - 7)
         switch (index) {
-        case 0: return grainControl
-        case 1: return grainSizeControl
-        case 2: return midtonesControl
-        case 3: return exposureControl
-        case 4: return contrastControl
-        case 5: return highlightsControl
-        case 6: return shadowsControl
-        default: return vignetteControl
+        case 15: return bloomControl
+        case 16: return halationControl
+        case 17: return fadeControl
+        case 18: return grainControl
+        case 19: return grainSizeControl
+        case 20: return midtonesControl
+        case 21: return vignetteControl
+        default: return sharpnessControl
         }
     }
 
+    function navigationOrder() {
+        const result = []
+        for (let index = 0; index < parameterCount; ++index) {
+            if (advancedExpanded || (index !== 19 && index !== 20))
+                result.push(index)
+        }
+        return result
+    }
+
     function ensureVisible(control) {
-        const flickable = grainScroll.flickable
+        if (!control)
+            return
+        const flickable = editScroll.flickable
         const point = control.mapToItem(flickable, 0, 0)
         if (point.y < 0)
             flickable.contentY = Math.max(0, flickable.contentY + point.y - 4)
-        else if (point.y + control.height > grainScroll.availableHeight)
-            flickable.contentY += point.y + control.height - grainScroll.availableHeight + 4
+        else if (point.y + control.height > editScroll.availableHeight)
+            flickable.contentY += point.y + control.height
+                - editScroll.availableHeight + 4
+    }
+
+    component GroupHeading: Text {
+        Layout.fillWidth: true
+        Layout.topMargin: 8
+        Layout.bottomMargin: 2
+        color: panel.theme.accentColor
+        font.family: panel.theme.monoFont
+        font.pixelSize: 10
+        font.bold: true
+        font.letterSpacing: 1
     }
 
     ScrollView {
-        id: grainScroll
+        id: editScroll
         readonly property Flickable flickable: contentItem as Flickable
         anchors.fill: parent
         clip: true
@@ -50,8 +99,97 @@ Item {
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
         ColumnLayout {
-            width: grainScroll.availableWidth
-            spacing: 8
+            width: editScroll.availableWidth
+            spacing: 4
+
+            GroupHeading { text: "01 / BASICS" }
+
+            Repeater {
+                id: basicsRepeater
+                model: panel.basics
+
+                delegate: ParameterSlider {
+                    required property int index
+                    required property var modelData
+                    Layout.fillWidth: true
+                    theme: panel.theme
+                    photoReady: panel.photoReady
+                    selectedParameter: panel.selectedParameter
+                    parameterIndex: index
+                    label: modelData.label
+                    from: modelData.from
+                    to: modelData.to
+                    initialValue: 0
+                    onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
+                }
+            }
+
+            GroupHeading { text: "02 / COLOR" }
+
+            Repeater {
+                id: colorRepeater
+                model: panel.colors
+
+                delegate: ParameterSlider {
+                    required property int index
+                    required property var modelData
+                    Layout.fillWidth: true
+                    theme: panel.theme
+                    photoReady: panel.photoReady
+                    selectedParameter: panel.selectedParameter
+                    parameterIndex: index + 7
+                    label: modelData.label
+                    from: modelData.from
+                    to: modelData.to
+                    suffix: modelData.suffix
+                    initialValue: 0
+                    onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
+                }
+            }
+
+            GroupHeading { text: "03 / EFFECTS" }
+
+            ParameterSlider {
+                id: bloomControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 15
+                label: "Bloom"
+                from: 0
+                to: 100
+                initialValue: 0
+                onSelectionRequested: index => panel.selectionRequested(index)
+            }
+
+            ParameterSlider {
+                id: halationControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 16
+                label: "Halation"
+                from: 0
+                to: 100
+                initialValue: 0
+                onSelectionRequested: index => panel.selectionRequested(index)
+            }
+
+            ParameterSlider {
+                id: fadeControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 17
+                label: "Fade"
+                from: 0
+                to: 100
+                initialValue: 0
+                onSelectionRequested: index => panel.selectionRequested(index)
+            }
 
             ParameterSlider {
                 id: grainControl
@@ -59,13 +197,11 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 0
+                parameterIndex: 18
                 label: "Grain"
                 from: 0
                 to: 100
                 initialValue: 24
-                stepSize: 1
-                coarseStep: 10
                 expandable: true
                 expanded: panel.advancedExpanded
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -92,7 +228,7 @@ Item {
                         theme: panel.theme
                         photoReady: panel.photoReady
                         selectedParameter: panel.selectedParameter
-                        parameterIndex: 1
+                        parameterIndex: 19
                         label: "Size"
                         from: 20
                         to: 6400
@@ -109,76 +245,41 @@ Item {
                         theme: panel.theme
                         photoReady: panel.photoReady
                         selectedParameter: panel.selectedParameter
-                        parameterIndex: 2
+                        parameterIndex: 20
                         label: "Midtones"
                         from: 0
                         to: 100
                         initialValue: 100
-                        stepSize: 1
-                        coarseStep: 10
                         onSelectionRequested: index => panel.selectionRequested(index)
                     }
                 }
             }
 
-            MockParameterSlider {
-                id: exposureControl
+            ParameterSlider {
+                id: vignetteControl
                 Layout.fillWidth: true
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 3
-                label: "Exposure"
+                parameterIndex: 21
+                label: "Vignette"
                 from: -100
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
             }
 
-            MockParameterSlider {
-                id: contrastControl
+            ParameterSlider {
+                id: sharpnessControl
                 Layout.fillWidth: true
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 4
-                label: "Contrast"
-                onSelectionRequested: index => panel.selectionRequested(index)
-            }
-
-            MockParameterSlider {
-                id: highlightsControl
-                Layout.fillWidth: true
-                theme: panel.theme
-                photoReady: panel.photoReady
-                selectedParameter: panel.selectedParameter
-                parameterIndex: 5
-                label: "Highlights"
-                initialValue: 62
-                onSelectionRequested: index => panel.selectionRequested(index)
-            }
-
-            MockParameterSlider {
-                id: shadowsControl
-                Layout.fillWidth: true
-                theme: panel.theme
-                photoReady: panel.photoReady
-                selectedParameter: panel.selectedParameter
-                parameterIndex: 6
-                label: "Shadows"
-                initialValue: 38
-                onSelectionRequested: index => panel.selectionRequested(index)
-            }
-
-            MockParameterSlider {
-                id: vignetteControl
-                Layout.fillWidth: true
-                theme: panel.theme
-                photoReady: panel.photoReady
-                selectedParameter: panel.selectedParameter
-                parameterIndex: 7
-                label: "Vignette"
-                initialValue: 18
+                parameterIndex: 22
+                label: "Sharpness"
+                from: 0
+                to: 100
+                initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
             }
         }
