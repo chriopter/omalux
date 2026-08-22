@@ -1,5 +1,7 @@
 use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::EffectsSettings};
 
+mod spatial;
+
 pub(super) fn supports(settings: &EffectsSettings) -> bool {
     settings.is_neutral()
 }
