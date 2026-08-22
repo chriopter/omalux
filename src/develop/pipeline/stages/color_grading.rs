@@ -3,8 +3,10 @@ use crate::develop::{
     settings::{ColorGradeRange, ColorGradingSettings},
 };
 
+#[cfg(test)]
+use super::color_mixer::color::oklab_to_linear_rec2020;
 use super::color_mixer::color::{
-    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020, oklab_with_luminance, rec2020_luminance,
+    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020_preserving_luminance, rec2020_luminance,
 };
 
 const MAX_GRADE_CHROMA: f32 = 0.15;
@@ -63,8 +65,7 @@ impl PreparedColorGrading {
         let luminance_adjustment =
             weighted_component(weights, self.ranges.map(|range| range.luminance));
         let target_luminance = rec2020_luminance(rgb) * (2.0 * luminance_adjustment).exp2();
-        graded = oklab_with_luminance(graded, target_luminance);
-        oklab_to_linear_rec2020(graded)
+        oklab_to_linear_rec2020_preserving_luminance(graded, target_luminance)
     }
 }
 

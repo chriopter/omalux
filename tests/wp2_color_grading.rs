@@ -63,3 +63,53 @@ fn valid_grading_settings_remain_finite_for_negative_and_hdr_inputs() {
         assert!(pixel.blue().is_finite());
     }
 }
+
+#[test]
+fn signed_counterexample_preserves_actual_luminance() {
+    let mut settings = DevelopSettings::default();
+    settings.color_grading.shadows.hue_degrees = 218.021_76;
+    settings.color_grading.shadows.saturation = 77.775_41;
+    let rgb = [0.004_847_942, -0.226_648_48, 1.279_416_7];
+    let mut rendered = image([rgb[0], rgb[1], rgb[2], 0.29]);
+    let target = luminance(&rendered.pixels()[0]);
+    DevelopPipeline.process(&mut rendered, &settings).unwrap();
+    let pixel = rendered.pixels()[0];
+    assert!((luminance(&pixel) - target).abs() <= 2.0e-6);
+    assert_eq!(pixel.alpha(), 0.29);
+}
+
+#[test]
+fn broad_signed_hdr_pipeline_reaches_the_requested_y() {
+    let mut state = 0xc801_3ea4_u32;
+    for _ in 0..512 {
+        state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let sample = |value: u32| value as f32 / u32::MAX as f32;
+        let rgb = [
+            -2.0 + 18.0 * sample(state),
+            -2.0 + 18.0 * sample(state.rotate_left(9)),
+            -2.0 + 18.0 * sample(state.rotate_left(21)),
+        ];
+        let hue = 360.0 * sample(state.rotate_left(3));
+        let saturation = 100.0 * sample(state.rotate_left(13));
+        let luminance_amount = -100.0 + 200.0 * sample(state.rotate_left(25));
+        let mut settings = DevelopSettings::default();
+        for range in [
+            &mut settings.color_grading.shadows,
+            &mut settings.color_grading.midtones,
+            &mut settings.color_grading.highlights,
+        ] {
+            range.hue_degrees = hue;
+            range.saturation = saturation;
+            range.luminance = luminance_amount;
+        }
+        settings.color_grading.balance = -100.0 + 200.0 * sample(state.rotate_left(5));
+        settings.color_grading.blending = 100.0 * sample(state.rotate_left(17));
+        let source_y = rgb[0] * 0.262_700_2 + rgb[1] * 0.677_998_1 + rgb[2] * 0.059_301_7;
+        let target = source_y * (2.0 * luminance_amount / 100.0).exp2();
+        let mut rendered = image([rgb[0], rgb[1], rgb[2], 0.81]);
+        DevelopPipeline.process(&mut rendered, &settings).unwrap();
+        let pixel = rendered.pixels()[0];
+        assert!((luminance(&pixel) - target).abs() <= 2.0e-5 * (1.0 + target.abs()));
+        assert_eq!(pixel.alpha(), 0.81);
+    }
+}

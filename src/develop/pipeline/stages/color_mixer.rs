@@ -7,7 +7,7 @@ use crate::develop::{
 pub(super) mod color;
 
 use color::{
-    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020, oklab_to_oklch, oklab_with_luminance,
+    Rgb, linear_rec2020_to_oklab, oklab_to_linear_rec2020_preserving_luminance, oklab_to_oklch,
     oklch_to_oklab, rec2020_luminance, wrap_radians,
 };
 
@@ -46,7 +46,7 @@ impl PreparedColorMixer {
 
         let gate = smoothstep(1.0e-5, 5.0e-4, lch[1]);
         let weights = band_weights(lch[2], DEFAULT_SMOOTHING);
-        let hue_shift = gate * weighted_sum(weights, self.hue_shift);
+        let hue_shift = gate * weighted_circular_mean(weights, self.hue_shift);
         let saturation = gate * weighted_sum(weights, self.saturation);
         let luminance = gate * weighted_sum(weights, self.luminance);
 
@@ -56,8 +56,7 @@ impl PreparedColorMixer {
             wrap_radians(lch[2] + hue_shift),
         ];
         let target_luminance = rec2020_luminance(rgb) * (2.0 * luminance).exp2();
-        let adjusted_lab = oklab_with_luminance(oklch_to_oklab(adjusted_lch), target_luminance);
-        oklab_to_linear_rec2020(adjusted_lab)
+        oklab_to_linear_rec2020_preserving_luminance(oklch_to_oklab(adjusted_lch), target_luminance)
     }
 }
 
@@ -122,6 +121,22 @@ fn weighted_sum(weights: [f32; BAND_COUNT], values: [f32; BAND_COUNT]) -> f32 {
         .sum()
 }
 
+fn weighted_circular_mean(weights: [f32; BAND_COUNT], values: [f32; BAND_COUNT]) -> f32 {
+    let (sine, cosine) =
+        weights
+            .into_iter()
+            .zip(values)
+            .fold((0.0, 0.0), |(sine, cosine), (weight, value)| {
+                let (value_sine, value_cosine) = value.sin_cos();
+                (sine + weight * value_sine, cosine + weight * value_cosine)
+            });
+    if sine.abs() + cosine.abs() <= 1.0e-7 {
+        0.0
+    } else {
+        sine.atan2(cosine)
+    }
+}
+
 fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
     let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -172,7 +187,7 @@ mod tests {
 
     #[test]
     fn red_band_has_normative_hue_chroma_and_luminance_semantics() {
-        let source = oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, 0.0]));
+        let source = color::oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, 0.0]));
         let mut settings = ColorMixerSettings::default();
         settings.red.hue_shift_degrees = 45.0;
         settings.red.saturation = 100.0;
@@ -198,5 +213,28 @@ mod tests {
         for gray in [0.0, 0.01, 0.18, 1.0, 8.0] {
             assert_eq!(prepared.apply([gray, gray, gray]), [gray, gray, gray]);
         }
+    }
+
+    #[test]
+    fn hue_offsets_interpolate_across_the_signed_wrap_without_cancellation() {
+        let mut weights = [0.0; BAND_COUNT];
+        weights[0] = 0.5;
+        weights[1] = 0.5;
+        for (left, right) in [(180.0_f32, -180.0_f32), (179.0, -179.0)] {
+            let mut values = [0.0; BAND_COUNT];
+            values[0] = left.to_radians();
+            values[1] = right.to_radians();
+            let result = weighted_circular_mean(weights, values);
+            assert!((result.abs() - std::f32::consts::PI).abs() <= 2.0e-4);
+        }
+
+        let midpoint = std::f32::consts::TAU / 16.0;
+        let epsilon = 1.0e-5;
+        let mut values = [0.0; BAND_COUNT];
+        values[0] = 179.0_f32.to_radians();
+        values[1] = -179.0_f32.to_radians();
+        let below = weighted_circular_mean(band_weights(midpoint - epsilon, 50.0), values);
+        let above = weighted_circular_mean(band_weights(midpoint + epsilon, 50.0), values);
+        assert!(wrap_radians(above - below).min(wrap_radians(below - above)) <= 1.0e-4);
     }
 }

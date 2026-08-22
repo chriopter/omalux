@@ -118,28 +118,186 @@ pub fn oklab_with_luminance(mut lab: Oklab, target_luminance: f32) -> Oklab {
     let l_offset = 0.396_337_777_4 * a + 0.215_803_757_3 * b;
     let m_offset = -0.105_561_345_8 * a - 0.063_854_172_8 * b;
     let s_offset = -0.089_484_177_5 * a - 1.291_485_548 * b;
-    let mut lightness = f64::from(lab[0]);
+    let polynomial = LuminancePolynomial::new(l_offset, m_offset, s_offset, target);
+    lab[0] = polynomial.closest_root(f64::from(lab[0])) as f32;
+    lab
+}
 
-    for _ in 0..12 {
-        let l = lightness + l_offset;
-        let m = lightness + m_offset;
-        let s = lightness + s_offset;
-        let value = -0.040_575_762_624_313_7 * l * l * l + 1.112_286_829_397_059_4 * m * m * m
-            - 0.071_711_066_661_517 * s * s * s;
-        let derivative = 3.0
-            * (-0.040_575_762_624_313_7 * l * l + 1.112_286_829_397_059_4 * m * m
-                - 0.071_711_066_661_517 * s * s);
-        if derivative.abs() <= 1.0e-12 {
-            break;
-        }
-        let correction = (value - target) / derivative;
-        lightness -= correction.clamp(-4.0, 4.0);
-        if correction.abs() <= 1.0e-10 {
-            break;
+/// Converts an adjusted OKLab color while enforcing the requested Rec.2020 Y.
+///
+/// Solving OKLab lightness retains the requested hue and chroma. The final
+/// additive correction is only a defensive fallback for f64-to-f32 rounding or
+/// an ill-conditioned cubic; because Rec.2020 luma coefficients sum to one it
+/// restores Y without clipping negative or HDR channels.
+pub fn oklab_to_linear_rec2020_preserving_luminance(lab: Oklab, target_luminance: f32) -> Rgb {
+    let adjusted = oklab_with_luminance(lab, target_luminance);
+    let mut rgb = oklab_to_linear_rec2020(adjusted);
+    let tolerance = 32.0 * f32::EPSILON * (1.0 + target_luminance.abs());
+    if (rec2020_luminance(rgb) - target_luminance).abs() > tolerance {
+        rgb = force_luminance(rgb, target_luminance);
+        // One more correction absorbs the rounding of the first f32 addition.
+        rgb = force_luminance(rgb, target_luminance);
+    }
+    rgb
+}
+
+#[derive(Clone, Copy)]
+struct LuminancePolynomial {
+    coefficients: [f64; 4],
+    target: f64,
+}
+
+impl LuminancePolynomial {
+    fn new(l_offset: f64, m_offset: f64, s_offset: f64, target: f64) -> Self {
+        const WEIGHTS: [f64; 3] = [
+            -0.040_575_762_624_313_7,
+            1.112_286_829_397_059_4,
+            -0.071_711_066_661_517,
+        ];
+        let offsets = [l_offset, m_offset, s_offset];
+        let cubic = WEIGHTS.iter().sum();
+        let quadratic = 3.0
+            * WEIGHTS
+                .iter()
+                .zip(offsets)
+                .map(|(weight, offset)| weight * offset)
+                .sum::<f64>();
+        let linear = 3.0
+            * WEIGHTS
+                .iter()
+                .zip(offsets)
+                .map(|(weight, offset)| weight * offset * offset)
+                .sum::<f64>();
+        let constant = WEIGHTS
+            .iter()
+            .zip(offsets)
+            .map(|(weight, offset)| weight * offset * offset * offset)
+            .sum::<f64>()
+            - target;
+        Self {
+            coefficients: [cubic, quadratic, linear, constant],
+            target,
         }
     }
-    lab[0] = lightness as f32;
-    lab
+
+    fn value(self, lightness: f64) -> f64 {
+        let [cubic, quadratic, linear, constant] = self.coefficients;
+        ((cubic * lightness + quadratic) * lightness + linear) * lightness + constant
+    }
+
+    fn derivative(self, lightness: f64) -> f64 {
+        let [cubic, quadratic, linear, _] = self.coefficients;
+        (3.0 * cubic * lightness + 2.0 * quadratic) * lightness + linear
+    }
+
+    fn residual_tolerance(self) -> f64 {
+        2.0e-12 * (1.0 + self.target.abs())
+    }
+
+    /// Finds every real root by splitting the cubic at its stationary points,
+    /// then chooses the root nearest the incoming OKLab lightness. Each
+    /// monotone interval uses safeguarded Newton steps inside a bracket.
+    fn closest_root(self, initial: f64) -> f64 {
+        let [cubic, quadratic, linear, constant] = self.coefficients;
+        let discriminant = quadratic * quadratic - 3.0 * cubic * linear;
+        let mut stationary = Vec::with_capacity(2);
+        if discriminant > 0.0 {
+            let root = discriminant.sqrt();
+            stationary.push((-quadratic - root) / (3.0 * cubic));
+            stationary.push((-quadratic + root) / (3.0 * cubic));
+        } else if discriminant == 0.0 {
+            stationary.push(-quadratic / (3.0 * cubic));
+        }
+
+        let mut radius = (1.0 + initial.abs())
+            .max(1.0 + (constant / cubic).abs().cbrt())
+            .max(
+                stationary
+                    .iter()
+                    .map(|value| 1.0 + value.abs())
+                    .fold(1.0, f64::max),
+            );
+        for _ in 0..128 {
+            if self.value(-radius) <= 0.0 && self.value(radius) >= 0.0 {
+                break;
+            }
+            radius *= 2.0;
+        }
+
+        let mut bounds = Vec::with_capacity(4);
+        bounds.push(-radius);
+        bounds.extend(
+            stationary
+                .into_iter()
+                .filter(|value| *value > -radius && *value < radius),
+        );
+        bounds.push(radius);
+
+        let mut roots = Vec::with_capacity(3);
+        let tolerance = self.residual_tolerance();
+        for &bound in &bounds {
+            if self.value(bound).abs() <= tolerance {
+                push_distinct(&mut roots, bound);
+            }
+        }
+        for interval in bounds.windows(2) {
+            let lower_value = self.value(interval[0]);
+            let upper_value = self.value(interval[1]);
+            if lower_value.is_sign_negative() != upper_value.is_sign_negative() {
+                push_distinct(
+                    &mut roots,
+                    self.solve_bracket(interval[0], interval[1], initial),
+                );
+            }
+        }
+
+        roots
+            .into_iter()
+            .min_by(|left, right| (left - initial).abs().total_cmp(&(right - initial).abs()))
+            .unwrap_or(initial)
+    }
+
+    fn solve_bracket(self, mut lower: f64, mut upper: f64, initial: f64) -> f64 {
+        let mut lower_value = self.value(lower);
+        let mut candidate = initial.clamp(lower, upper);
+        for _ in 0..96 {
+            let value = self.value(candidate);
+            if value.abs() <= self.residual_tolerance() {
+                return candidate;
+            }
+            if value.is_sign_negative() == lower_value.is_sign_negative() {
+                lower = candidate;
+                lower_value = value;
+            } else {
+                upper = candidate;
+            }
+            if upper - lower <= 2.0e-13 * (1.0 + candidate.abs()) {
+                break;
+            }
+            let derivative = self.derivative(candidate);
+            let newton = candidate - value / derivative;
+            candidate = if derivative != 0.0 && newton > lower && newton < upper {
+                newton
+            } else {
+                0.5 * (lower + upper)
+            };
+        }
+        let midpoint = 0.5 * (lower + upper);
+        if self.value(candidate).abs() <= self.value(midpoint).abs() {
+            candidate
+        } else {
+            midpoint
+        }
+    }
+}
+
+fn push_distinct(values: &mut Vec<f64>, candidate: f64) {
+    if values
+        .iter()
+        .all(|value| (value - candidate).abs() > 1.0e-10 * (1.0 + candidate.abs()))
+    {
+        values.push(candidate);
+    }
 }
 
 fn to_f64(value: Rgb) -> [f64; 3] {
@@ -218,5 +376,36 @@ mod tests {
         assert_eq!(adjusted[1], source[1]);
         assert_eq!(adjusted[2], source[2]);
         assert!((rec2020_luminance(oklab_to_linear_rec2020(adjusted)) - 2.0).abs() <= 3.0e-6);
+    }
+
+    #[test]
+    fn bracketed_solver_handles_negative_luminance_counterexamples() {
+        for (lab, target) in [
+            ([-0.243_762_7, -1.936_353_8, 0.602_729_4], -0.082_114_2),
+            ([-0.281_462_2, 0.223_760_8, -1.076_560_4], -0.076_522_1),
+        ] {
+            let rgb = oklab_to_linear_rec2020_preserving_luminance(lab, target);
+            assert!((rec2020_luminance(rgb) - target).abs() <= 2.0e-6);
+            assert!(rgb.into_iter().all(f32::is_finite));
+        }
+    }
+
+    #[test]
+    fn broad_signed_hdr_luminance_targets_are_reached() {
+        let mut state = 0x91e1_0da5_u32;
+        for _ in 0..4096 {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let sample = |value: u32| value as f32 / u32::MAX as f32;
+            let lab = [
+                -2.0 + 4.0 * sample(state),
+                -3.0 + 6.0 * sample(state.rotate_left(11)),
+                -3.0 + 6.0 * sample(state.rotate_left(23)),
+            ];
+            let target = -16.0 + 32.0 * sample(state.rotate_left(7));
+            let rgb = oklab_to_linear_rec2020_preserving_luminance(lab, target);
+            let tolerance = 2.0e-5 * (1.0 + target.abs());
+            assert!((rec2020_luminance(rgb) - target).abs() <= tolerance);
+            assert!(rgb.into_iter().all(f32::is_finite));
+        }
     }
 }
