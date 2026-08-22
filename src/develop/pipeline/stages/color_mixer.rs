@@ -1,5 +1,8 @@
 use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::ColorMixerSettings};
 
+#[path = "../../color.rs"]
+mod color;
+
 pub(super) fn supports(settings: &ColorMixerSettings) -> bool {
     settings.is_neutral()
 }
