@@ -31,6 +31,7 @@ impl ToneCurve {
             ));
         }
         let mut previous_x = -1.0;
+        let mut previous_y = -1.0;
         for (index, point) in self.points.iter().enumerate() {
             validate_range(&format!("{path}.points[{index}].x"), point.x, 0.0, 1.0)?;
             validate_range(&format!("{path}.points[{index}].y"), point.y, 0.0, 1.0)?;
@@ -40,7 +41,14 @@ impl ToneCurve {
                     "x coordinates must be strictly increasing",
                 ));
             }
+            if point.y < previous_y {
+                return Err(SettingsError::new(
+                    format!("{path}.points[{index}].y"),
+                    "y coordinates must be nondecreasing for a monotone curve",
+                ));
+            }
             previous_x = point.x;
+            previous_y = point.y;
         }
         if self.points.first().map(|point| point.x) != Some(0.0)
             || self.points.last().map(|point| point.x) != Some(1.0)
