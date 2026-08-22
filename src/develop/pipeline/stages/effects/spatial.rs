@@ -1,38 +1,31 @@
-//! Deterministic, full-frame spatial primitives for CPU effects.
+//! Deterministic bounded-memory spatial primitives.
 //!
-//! The implementation deliberately uses a fixed traversal and accumulation
-//! order. It never splits an image into independently filtered tiles, so large
-//! radii cannot introduce tile-boundary seams.
+//! A filter request always carries the full image extent plus an output ROI.
+//! Every ROI reads its halo from global full-frame coordinates with Reflect101;
+//! tiles therefore produce exactly the same samples as a single full-frame ROI.
+//! Pixels are stored as `f32`, while each convolution uses a fixed-order `f64`
+//! accumulator. The implementation allocates one full scalar output (4 B/pixel)
+//! and reuses a scratch halo of `tile_width * (tile_height + 2*radius) * 4`
+//! bytes. Pyramid construction retains only the current level and dimension
+//! metadata; the geometric low-resolution tail is bounded below 4/3 of a plane.
 
-use crate::develop::CpuImage;
-
-#[derive(Clone, Debug)]
-pub(super) struct RgbImage {
-    width: usize,
-    height: usize,
-    pixels: Vec<[f64; 3]>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct Rect {
+    pub(super) x: usize,
+    pub(super) y: usize,
+    pub(super) width: usize,
+    pub(super) height: usize,
 }
 
-impl RgbImage {
-    pub(super) fn from_cpu(image: &CpuImage) -> Self {
-        Self {
-            width: image.width() as usize,
-            height: image.height() as usize,
-            pixels: image
-                .pixels()
-                .iter()
-                .map(|pixel| {
-                    [
-                        f64::from(pixel.red()),
-                        f64::from(pixel.green()),
-                        f64::from(pixel.blue()),
-                    ]
-                })
-                .collect(),
-        }
-    }
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Plane {
+    width: usize,
+    height: usize,
+    pixels: Vec<f32>,
+}
 
-    pub(super) fn from_pixels(width: usize, height: usize, pixels: Vec<[f64; 3]>) -> Self {
+impl Plane {
+    pub(super) fn new(width: usize, height: usize, pixels: Vec<f32>) -> Self {
         debug_assert_eq!(pixels.len(), width * height);
         Self {
             width,
@@ -41,26 +34,17 @@ impl RgbImage {
         }
     }
 
-    pub(super) fn width(&self) -> usize {
-        self.width
+    pub(super) fn filled(width: usize, height: usize, value: f32) -> Self {
+        Self::new(width, height, vec![value; width * height])
     }
 
-    pub(super) fn height(&self) -> usize {
-        self.height
-    }
-
-    pub(super) fn pixels(&self) -> &[[f64; 3]] {
+    pub(super) fn pixels(&self) -> &[f32] {
         &self.pixels
     }
 
-    pub(super) fn map_pixels(mut self, mut map: impl FnMut([f64; 3]) -> [f64; 3]) -> Self {
-        for pixel in &mut self.pixels {
-            *pixel = map(*pixel);
-        }
-        self
-    }
-
-    fn pixel(&self, x: usize, y: usize) -> [f64; 3] {
+    fn sample(&self, x: isize, y: isize) -> f32 {
+        let x = reflect101(x, self.width);
+        let y = reflect101(y, self.height);
         self.pixels[y * self.width + x]
     }
 }
@@ -70,12 +54,13 @@ pub(super) fn gaussian_kernel(sigma: f64) -> Vec<f64> {
         return vec![1.0];
     }
     let radius = (sigma * 3.0).ceil() as usize;
-    let mut kernel = Vec::with_capacity(radius * 2 + 1);
     let denominator = 2.0 * sigma * sigma;
-    for offset in -(radius as isize)..=(radius as isize) {
-        let distance = offset as f64;
-        kernel.push((-distance * distance / denominator).exp());
-    }
+    let mut kernel = (-(radius as isize)..=(radius as isize))
+        .map(|offset| {
+            let distance = offset as f64;
+            (-distance * distance / denominator).exp()
+        })
+        .collect::<Vec<_>>();
     let sum: f64 = kernel.iter().sum();
     for weight in &mut kernel {
         *weight /= sum;
@@ -83,130 +68,146 @@ pub(super) fn gaussian_kernel(sigma: f64) -> Vec<f64> {
     kernel
 }
 
-pub(super) fn gaussian_blur(source: &RgbImage, sigma: f64) -> RgbImage {
+pub(super) fn gaussian_blur(source: &Plane, sigma: f64) -> Plane {
+    gaussian_blur_tiled(source, sigma, 128, 64)
+}
+
+pub(super) fn gaussian_blur_tiled(
+    source: &Plane,
+    sigma: f64,
+    tile_width: usize,
+    tile_height: usize,
+) -> Plane {
     let kernel = gaussian_kernel(sigma);
     if kernel.len() == 1 {
         return source.clone();
     }
+    let mut output = Plane::filled(source.width, source.height, 0.0);
+    let mut scratch = Vec::new();
+    let tile_width = tile_width.max(1);
+    let tile_height = tile_height.max(1);
+    for y in (0..source.height).step_by(tile_height) {
+        for x in (0..source.width).step_by(tile_width) {
+            let roi = Rect {
+                x,
+                y,
+                width: tile_width.min(source.width - x),
+                height: tile_height.min(source.height - y),
+            };
+            gaussian_roi(source, &mut output, roi, &kernel, &mut scratch);
+        }
+    }
+    output
+}
+
+/// Filters `roi` against `source`'s full extent. The scratch halo represents
+/// raw global y coordinates; Reflect101 is applied only when sampling the full
+/// image, making the result independent of ROI boundaries.
+fn gaussian_roi(
+    source: &Plane,
+    output: &mut Plane,
+    roi: Rect,
+    kernel: &[f64],
+    scratch: &mut Vec<f32>,
+) {
     let radius = kernel.len() / 2;
-    let mut horizontal = vec![[0.0; 3]; source.pixels.len()];
-    for y in 0..source.height {
-        for x in 0..source.width {
-            let mut sum = [0.0; 3];
-            for (kernel_index, weight) in kernel.iter().copied().enumerate() {
-                let sample_x = reflect101(
-                    x as isize + kernel_index as isize - radius as isize,
-                    source.width,
-                );
-                let sample = source.pixel(sample_x, y);
-                for channel in 0..3 {
-                    sum[channel] += sample[channel] * weight;
-                }
+    let scratch_height = roi.height + 2 * radius;
+    scratch.resize(roi.width * scratch_height, 0.0);
+
+    for scratch_y in 0..scratch_height {
+        let global_y = roi.y as isize + scratch_y as isize - radius as isize;
+        for local_x in 0..roi.width {
+            let global_x = roi.x + local_x;
+            let mut sum = 0.0_f64;
+            for (index, weight) in kernel.iter().copied().enumerate() {
+                let sample_x = global_x as isize + index as isize - radius as isize;
+                sum += f64::from(source.sample(sample_x, global_y)) * weight;
             }
-            horizontal[y * source.width + x] = sum;
+            scratch[scratch_y * roi.width + local_x] = finite_f32(sum);
         }
     }
 
-    let horizontal = RgbImage::from_pixels(source.width, source.height, horizontal);
-    let mut vertical = vec![[0.0; 3]; source.pixels.len()];
-    for y in 0..source.height {
-        for x in 0..source.width {
-            let mut sum = [0.0; 3];
-            for (kernel_index, weight) in kernel.iter().copied().enumerate() {
-                let sample_y = reflect101(
-                    y as isize + kernel_index as isize - radius as isize,
-                    source.height,
-                );
-                let sample = horizontal.pixel(x, sample_y);
-                for channel in 0..3 {
-                    sum[channel] += sample[channel] * weight;
-                }
+    for local_y in 0..roi.height {
+        for local_x in 0..roi.width {
+            let mut sum = 0.0_f64;
+            for (index, weight) in kernel.iter().copied().enumerate() {
+                sum += f64::from(scratch[(local_y + index) * roi.width + local_x]) * weight;
             }
-            vertical[y * source.width + x] = sum;
+            output.pixels[(roi.y + local_y) * output.width + roi.x + local_x] = finite_f32(sum);
         }
     }
-    RgbImage::from_pixels(source.width, source.height, vertical)
 }
 
-/// Builds a complete-image Gaussian pyramid and reconstructs it at level zero.
-/// Coarser levels provide wide support without radius-sized per-pixel work.
-pub(super) fn pyramid_blur(source: &RgbImage, levels: usize) -> RgbImage {
-    let mut pyramid = vec![source.clone()];
-    for _ in 1..levels.max(1) {
-        let previous = pyramid.last().expect("level zero exists");
-        if previous.width == 1 && previous.height == 1 {
-            break;
-        }
-        pyramid.push(downsample2(&gaussian_blur(previous, 1.0)));
+/// Applies a blur whose sigma is specified in level-zero pixels. The image is
+/// reduced until the residual sigma is at most 2.5 pixels, filtered once, then
+/// reconstructed through the recorded full-frame dimensions.
+pub(super) fn pyramid_blur(source: Plane, sigma_full: f64) -> Plane {
+    if sigma_full <= f64::EPSILON {
+        return source;
     }
-
-    let mut reconstructed = gaussian_blur(pyramid.last().expect("level zero exists"), 1.2);
-    for finer in pyramid.iter().rev().skip(1) {
-        reconstructed = upsample_bilinear(&reconstructed, finer.width, finer.height);
-        reconstructed = gaussian_blur(&reconstructed, 0.8);
+    let mut current = source;
+    let mut dimensions = Vec::new();
+    let mut residual_sigma = sigma_full;
+    while residual_sigma > 2.5 && (current.width > 2 || current.height > 2) {
+        dimensions.push((current.width, current.height));
+        current = downsample2_reflect101(&current);
+        residual_sigma *= 0.5;
     }
-    reconstructed
+    current = gaussian_blur(&current, residual_sigma.max(0.5));
+    for (width, height) in dimensions.into_iter().rev() {
+        current = upsample_bilinear(&current, width, height);
+    }
+    current
 }
 
-fn downsample2(source: &RgbImage) -> RgbImage {
+fn downsample2_reflect101(source: &Plane) -> Plane {
     let width = source.width.div_ceil(2);
     let height = source.height.div_ceil(2);
     let mut pixels = Vec::with_capacity(width * height);
     for y in 0..height {
         for x in 0..width {
-            let mut sum = [0.0; 3];
-            let mut samples = 0.0;
-            for offset_y in 0..2 {
-                for offset_x in 0..2 {
-                    let sample_x = (x * 2 + offset_x).min(source.width - 1);
-                    let sample_y = (y * 2 + offset_y).min(source.height - 1);
-                    let sample = source.pixel(sample_x, sample_y);
-                    for channel in 0..3 {
-                        sum[channel] += sample[channel];
-                    }
-                    samples += 1.0;
-                }
-            }
-            for value in &mut sum {
-                *value /= samples;
-            }
-            pixels.push(sum);
+            let x0 = (2 * x) as isize;
+            let y0 = (2 * y) as isize;
+            let sum = f64::from(source.sample(x0, y0))
+                + f64::from(source.sample(x0 + 1, y0))
+                + f64::from(source.sample(x0, y0 + 1))
+                + f64::from(source.sample(x0 + 1, y0 + 1));
+            pixels.push(finite_f32(sum * 0.25));
         }
     }
-    RgbImage::from_pixels(width, height, pixels)
+    Plane::new(width, height, pixels)
 }
 
-fn upsample_bilinear(source: &RgbImage, width: usize, height: usize) -> RgbImage {
-    if source.width == width && source.height == height {
-        return source.clone();
-    }
+fn upsample_bilinear(source: &Plane, width: usize, height: usize) -> Plane {
     let mut pixels = Vec::with_capacity(width * height);
     let scale_x = source.width as f64 / width as f64;
     let scale_y = source.height as f64 / height as f64;
     for y in 0..height {
-        let source_y = ((y as f64 + 0.5) * scale_y - 0.5).max(0.0);
-        let y0 = source_y.floor() as usize;
-        let y1 = (y0 + 1).min(source.height - 1);
-        let fraction_y = source_y - y0 as f64;
+        let source_y = (y as f64 + 0.5) * scale_y - 0.5;
+        let y0 = source_y.floor();
+        let fy = source_y - y0;
         for x in 0..width {
-            let source_x = ((x as f64 + 0.5) * scale_x - 0.5).max(0.0);
-            let x0 = source_x.floor() as usize;
-            let x1 = (x0 + 1).min(source.width - 1);
-            let fraction_x = source_x - x0 as f64;
-            let top = lerp_rgb(source.pixel(x0, y0), source.pixel(x1, y0), fraction_x);
-            let bottom = lerp_rgb(source.pixel(x0, y1), source.pixel(x1, y1), fraction_x);
-            pixels.push(lerp_rgb(top, bottom, fraction_y));
+            let source_x = (x as f64 + 0.5) * scale_x - 0.5;
+            let x0 = source_x.floor();
+            let fx = source_x - x0;
+            let top = lerp(
+                f64::from(source.sample(x0 as isize, y0 as isize)),
+                f64::from(source.sample(x0 as isize + 1, y0 as isize)),
+                fx,
+            );
+            let bottom = lerp(
+                f64::from(source.sample(x0 as isize, y0 as isize + 1)),
+                f64::from(source.sample(x0 as isize + 1, y0 as isize + 1)),
+                fx,
+            );
+            pixels.push(finite_f32(lerp(top, bottom, fy)));
         }
     }
-    RgbImage::from_pixels(width, height, pixels)
+    Plane::new(width, height, pixels)
 }
 
-fn lerp_rgb(left: [f64; 3], right: [f64; 3], fraction: f64) -> [f64; 3] {
-    [
-        left[0] + (right[0] - left[0]) * fraction,
-        left[1] + (right[1] - left[1]) * fraction,
-        left[2] + (right[2] - left[2]) * fraction,
-    ]
+fn lerp(left: f64, right: f64, fraction: f64) -> f64 {
+    left + (right - left) * fraction
 }
 
 fn reflect101(index: isize, length: usize) -> usize {
@@ -222,24 +223,28 @@ fn reflect101(index: isize, length: usize) -> usize {
     }
 }
 
+pub(super) fn finite_f32(value: f64) -> f32 {
+    value.clamp(-(f32::MAX as f64), f32::MAX as f64) as f32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn reflect101_has_no_repeated_edge_sample() {
+    fn reflect101_and_odd_downsample_do_not_repeat_edges() {
         let samples = (-4..=8)
             .map(|index| reflect101(index, 4))
             .collect::<Vec<_>>();
         assert_eq!(samples, vec![2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2]);
-        assert_eq!(reflect101(-100, 1), 0);
+        let odd = Plane::new(3, 1, vec![1.0, 2.0, 9.0]);
+        assert_eq!(downsample2_reflect101(&odd).pixels(), &[1.5, 5.5]);
     }
 
     #[test]
-    fn gaussian_kernel_is_symmetric_normalized_and_deterministic() {
+    fn kernel_is_symmetric_normalized_and_deterministic() {
         let first = gaussian_kernel(1.4);
-        let second = gaussian_kernel(1.4);
-        assert_eq!(first, second);
+        assert_eq!(first, gaussian_kernel(1.4));
         assert!((first.iter().sum::<f64>() - 1.0).abs() < 1e-12);
         for index in 0..first.len() {
             assert_eq!(first[index], first[first.len() - 1 - index]);
@@ -247,19 +252,36 @@ mod tests {
     }
 
     #[test]
-    fn gaussian_preserves_constant_and_impulse_energy() {
-        let constant = RgbImage::from_pixels(7, 5, vec![[0.3, -0.2, 4.0]; 35]);
-        let filtered = gaussian_blur(&constant, 1.6);
-        for pixel in filtered.pixels() {
-            assert!((pixel[0] - 0.3).abs() < 1e-12);
-            assert!((pixel[1] + 0.2).abs() < 1e-12);
-            assert!((pixel[2] - 4.0).abs() < 1e-12);
+    fn split_tiles_are_bit_identical_to_full_roi_for_boundaries_and_radii() {
+        let pixels = (0..37 * 23)
+            .map(|index| ((index * 37 % 101) as f32 - 50.0) / 13.0)
+            .collect();
+        let source = Plane::new(37, 23, pixels);
+        for sigma in [0.55, 1.3, 3.8, 7.0] {
+            let full = gaussian_blur_tiled(&source, sigma, 37, 23);
+            for (tile_width, tile_height) in [(1, 1), (7, 5), (16, 8), (36, 22)] {
+                assert_eq!(
+                    gaussian_blur_tiled(&source, sigma, tile_width, tile_height),
+                    full,
+                    "sigma={sigma}, tile={tile_width}x{tile_height}"
+                );
+            }
         }
+    }
 
-        let mut impulse = vec![[0.0; 3]; 81];
-        impulse[40] = [1.0, 1.0, 1.0];
-        let filtered = gaussian_blur(&RgbImage::from_pixels(9, 9, impulse), 1.0);
-        let energy: f64 = filtered.pixels().iter().map(|pixel| pixel[0]).sum();
-        assert!((energy - 1.0).abs() < 1e-12);
+    #[test]
+    fn gaussian_preserves_constant_and_impulse_energy() {
+        let constant = Plane::filled(31, 17, 0.3);
+        assert_eq!(gaussian_blur(&constant, 4.0), constant);
+
+        let mut impulse = vec![0.0; 41 * 41];
+        impulse[20 * 41 + 20] = 1.0;
+        let filtered = gaussian_blur(&Plane::new(41, 41, impulse), 2.0);
+        let energy: f64 = filtered
+            .pixels()
+            .iter()
+            .map(|value| f64::from(*value))
+            .sum();
+        assert!((energy - 1.0).abs() < 2e-6);
     }
 }

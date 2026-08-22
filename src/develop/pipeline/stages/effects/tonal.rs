@@ -1,6 +1,6 @@
 //! Global tonal and detail effects in the normative scene-linear working space.
 
-use super::{optical::finite_f32, spatial::RgbImage, spatial::gaussian_blur};
+use super::spatial::{Plane, finite_f32, gaussian_blur};
 use crate::develop::CpuImage;
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
@@ -53,7 +53,7 @@ pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
     }
     let width = image.width() as usize;
     let height = image.height() as usize;
-    let luminance = RgbImage::from_pixels(
+    let luminance = Plane::new(
         width,
         height,
         image
@@ -63,7 +63,7 @@ pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
                 let value = f64::from(pixel.red) * REC2020_LUMA[0]
                     + f64::from(pixel.green) * REC2020_LUMA[1]
                     + f64::from(pixel.blue) * REC2020_LUMA[2];
-                [value; 3]
+                finite_f32(value)
             })
             .collect(),
     );
@@ -76,7 +76,7 @@ pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
         .zip(luminance.pixels())
         .zip(blurred.pixels())
     {
-        let detail = source[0] - low_pass[0];
+        let detail = f64::from(*source) - f64::from(*low_pass);
         let thresholded = detail.signum() * (detail.abs() - threshold).max(0.0);
         let adjustment = thresholded * strength;
         pixel.red = finite_f32(f64::from(pixel.red) + adjustment);
