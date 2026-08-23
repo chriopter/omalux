@@ -69,10 +69,10 @@ backend commands without loading Qt:
 
 ```bash
 grainroom --help
-grainroom presets list
-grainroom presets show neutral
-grainroom parameters list
-grainroom probe
+grainroom presets list --json
+grainroom presets show neutral --json
+grainroom parameters list --json
+grainroom probe --json
 ```
 
 Launch the separately packaged desktop sibling explicitly with
@@ -82,7 +82,7 @@ executable and never searches `PATH` for it.
 A development request can already be validated without touching its files:
 
 ```bash
-grainroom develop photo.raw --output result.jpg \
+grainroom develop --input photo.raw --output result.jpg \
   --preset neutral --set basics.contrast=10 --quality 90
 ```
 

@@ -64,15 +64,15 @@ pub(crate) fn dispatch(
             arguments.input.as_deref().map(Path::as_os_str),
             stderr,
         ),
-        Command::Develop(arguments) => validate_develop(arguments, stderr),
+        Command::Develop(arguments) => validate_develop(arguments, stdout, stderr),
         Command::Presets(arguments) => match arguments.command {
-            PresetsCommand::List => list_presets(stdout, stderr),
-            PresetsCommand::Show { id } => show_preset(&id, stdout, stderr),
+            PresetsCommand::List { json } => list_presets(json, stdout, stderr),
+            PresetsCommand::Show { id, json } => show_preset(&id, json, stdout, stderr),
         },
         Command::Parameters(arguments) => match arguments.command {
-            ParametersCommand::List => list_parameters(stdout, stderr),
+            ParametersCommand::List { json } => list_parameters(json, stdout, stderr),
         },
-        Command::Probe => probe(stdout, stderr),
+        Command::Probe(arguments) => probe(arguments.json, stdout, stderr),
     }
 }
 
@@ -105,7 +105,11 @@ fn launch_gui(
     }
 }
 
-fn validate_develop(arguments: DevelopArgs, stderr: &mut dyn Write) -> CommandExit {
+fn validate_develop(
+    arguments: DevelopArgs,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> CommandExit {
     let format = match arguments.format.or_else(|| infer_format(&arguments.output)) {
         Some(format) => format,
         None => {
@@ -129,32 +133,51 @@ fn validate_develop(arguments: DevelopArgs, stderr: &mut dyn Write) -> CommandEx
         );
         return CommandExit::Usage;
     }
-    let catalog = match PresetCatalog::built_in() {
-        Ok(catalog) => catalog,
-        Err(_) => {
-            human_error(stderr, "built-in preset catalog is unavailable");
-            return CommandExit::Internal;
+    if arguments.preset_file.is_none() {
+        let catalog = match PresetCatalog::built_in() {
+            Ok(catalog) => catalog,
+            Err(_) => {
+                human_error(stderr, "built-in preset catalog is unavailable");
+                return CommandExit::Internal;
+            }
+        };
+        let preset_id = arguments.preset.as_deref().unwrap_or("neutral");
+        let Some(preset) = catalog.get(preset_id) else {
+            human_error(stderr, "unknown built-in preset ID");
+            return CommandExit::Usage;
+        };
+        if apply_parameter_overrides(&preset.settings, &arguments.overrides).is_err() {
+            human_error(stderr, "parameter overrides do not form valid settings");
+            return CommandExit::Usage;
         }
-    };
-    let Some(preset) = catalog.get(&arguments.preset) else {
-        human_error(stderr, "unknown built-in preset ID");
-        return CommandExit::Usage;
-    };
-    if apply_parameter_overrides(&preset.settings, &arguments.overrides).is_err() {
-        human_error(stderr, "parameter overrides do not form valid settings");
-        return CommandExit::Usage;
     }
     let _validated_request = (
         arguments.input,
         arguments.output,
         format,
         arguments.quality,
+        arguments.preset_file,
+        arguments.unprofiled,
+        arguments.metadata,
+        arguments.alpha,
         arguments.overwrite,
+        arguments.progress,
     );
-    human_error(
-        stderr,
-        "develop execution is unavailable until the job and encoder boundary is integrated",
-    );
+    if arguments.json {
+        if write_json(
+            stdout,
+            &json!({"error": {"code": "unavailable", "message": "develop execution is unavailable"}}),
+            stderr,
+        ) != CommandExit::Success
+        {
+            return CommandExit::Internal;
+        }
+    } else {
+        human_error(
+            stderr,
+            "develop execution is unavailable until the job and encoder boundary is integrated",
+        );
+    }
     CommandExit::Unavailable
 }
 
@@ -169,7 +192,7 @@ fn infer_format(output: &Path) -> Option<DevelopFormat> {
     }
 }
 
-fn list_presets(stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
+fn list_presets(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
     let catalog = match PresetCatalog::built_in() {
         Ok(catalog) => catalog,
         Err(_) => {
@@ -182,10 +205,26 @@ fn list_presets(stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
         .iter()
         .map(|preset| json!({"id": preset.id, "name": preset.name}))
         .collect::<Vec<_>>();
-    write_json(stdout, &json!({"presets": values}), stderr)
+    if json_output {
+        write_json(stdout, &json!({"presets": values}), stderr)
+    } else if catalog
+        .documents()
+        .iter()
+        .all(|preset| writeln!(stdout, "{}\t{}", preset.id, preset.name).is_ok())
+    {
+        CommandExit::Success
+    } else {
+        human_error(stderr, "preset output could not be written");
+        CommandExit::Internal
+    }
 }
 
-fn show_preset(id: &str, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
+fn show_preset(
+    id: &str,
+    json_output: bool,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> CommandExit {
     let catalog = match PresetCatalog::built_in() {
         Ok(catalog) => catalog,
         Err(_) => {
@@ -197,8 +236,13 @@ fn show_preset(id: &str, stdout: &mut dyn Write, stderr: &mut dyn Write) -> Comm
         human_error(stderr, "unknown built-in preset ID");
         return CommandExit::Usage;
     };
-    match preset.to_canonical_json() {
-        Ok(json) if writeln!(stdout, "{json}").is_ok() => CommandExit::Success,
+    let output = if json_output {
+        preset.to_canonical_json()
+    } else {
+        serde_json::to_string_pretty(preset).map_err(grainroom::develop::PresetError::Json)
+    };
+    match output {
+        Ok(output) if writeln!(stdout, "{output}").is_ok() => CommandExit::Success,
         _ => {
             human_error(stderr, "preset output could not be written");
             CommandExit::Internal
@@ -206,9 +250,14 @@ fn show_preset(id: &str, stdout: &mut dyn Write, stderr: &mut dyn Write) -> Comm
     }
 }
 
-fn list_parameters(stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
-    let values = parameter_registry()
-        .into_iter()
+fn list_parameters(
+    json_output: bool,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> CommandExit {
+    let registry = parameter_registry();
+    let values = registry
+        .iter()
         .map(|parameter| {
             json!({
                 "id": parameter.id,
@@ -223,16 +272,49 @@ fn list_parameters(stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExi
             })
         })
         .collect::<Vec<_>>();
-    write_json(stdout, &json!({"parameters": values}), stderr)
+    if json_output {
+        write_json(stdout, &json!({"parameters": values}), stderr)
+    } else if registry.iter().all(|parameter| {
+        writeln!(
+            stdout,
+            "{}\t{}\t{}",
+            parameter.id,
+            kind_name(parameter.kind),
+            parameter.label
+        )
+        .is_ok()
+    }) {
+        CommandExit::Success
+    } else {
+        human_error(stderr, "parameter output could not be written");
+        CommandExit::Internal
+    }
 }
 
-fn probe(stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
+fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
     let available = matches!(probe_dcraw_emu(), RawCapability::Available { .. });
-    write_json(
+    if json_output {
+        write_json(
+            stdout,
+            &json!({"raw": {"available": available, "backend": "libraw-dcraw-emu"}}),
+            stderr,
+        )
+    } else if writeln!(
         stdout,
-        &json!({"raw": {"available": available, "backend": "libraw-dcraw-emu"}}),
-        stderr,
+        "raw\tlibraw-dcraw-emu\t{}",
+        if available {
+            "available"
+        } else {
+            "unavailable"
+        }
     )
+    .is_ok()
+    {
+        CommandExit::Success
+    } else {
+        human_error(stderr, "probe output could not be written");
+        CommandExit::Internal
+    }
 }
 
 fn write_json(
@@ -351,7 +433,7 @@ mod tests {
         let exit = dispatch(
             Cli {
                 command: Command::Presets(PresetsArgs {
-                    command: PresetsCommand::List,
+                    command: PresetsCommand::List { json: true },
                 }),
             },
             &Resolver(PathBuf::new()),

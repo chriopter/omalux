@@ -8,12 +8,17 @@ legacy `--headless` option therefore cannot launch the desktop application.
 
 ```text
 grainroom gui [--input PATH]
-grainroom develop INPUT --output PATH [--preset ID] [--set ID=VALUE]...
-                  [--format jpeg|heic] [--quality 1..100] [--overwrite]
-grainroom presets list
-grainroom presets show ID
-grainroom parameters list
-grainroom probe
+grainroom develop --input PATH --output PATH
+                  [--format jpeg|jpg|heic|heif] [--quality 1..100]
+                  [--preset ID | --preset-file PATH] [--set ID=VALUE]...
+                  [--unprofiled assume-srgb|reject]
+                  [--metadata preserve-safe|strip-location|strip-all]
+                  [--alpha reject|flatten-black|flatten=#RRGGBB]
+                  [--overwrite] [--json] [--progress none|human|json]
+grainroom presets list [--json]
+grainroom presets show ID [--json]
+grainroom parameters list [--json]
+grainroom probe [--json]
 ```
 
 `gui` is the sole GUI-launching command. It derives `grainroom-gui` from the
@@ -23,15 +28,20 @@ Paths remain native `PathBuf`/`OsString` values, so non-UTF-8 Linux filenames
 are not converted or logged.
 
 `develop` resolves a built-in preset and validates all typed overrides as one
-transaction. Duplicate `--set` parameter IDs are rejected. Output format is
+transaction. `--preset` and `--preset-file` are mutually exclusive, and
+duplicate `--set` parameter IDs are rejected. An external preset path is kept
+opaque until the job layer is available, so this validation phase performs no
+file I/O. Output format is
 inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or `.heif` when
 `--format` is absent. The command does not inspect the input or destination at
 this stage. A valid request returns unavailable until the job and encoder
 boundary is integrated; no destination is created.
 
-Catalog, registry, and probe data is compact JSON on stdout. Probe JSON reports
-only the backend name and availability, never executable paths. Diagnostics are
-human-readable on stderr and avoid echoing input/output paths.
+Catalog, registry, and probe commands produce human-readable stdout by default
+and compact JSON with `--json`. Probe JSON reports only the backend name and
+availability, never executable paths. A JSON-mode unavailable develop result is
+also path-free JSON on stdout. Other diagnostics are human-readable on stderr
+and avoid echoing input/output paths.
 
 ## Exit status
 
