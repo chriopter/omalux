@@ -3,8 +3,8 @@ use grainroom::{
     io::{
         ResourceLimits, SdrRangePolicy, SignalRelation,
         color::{
-            SceneRenderError, SceneToDisplayTransform, WorkingToSrgbTransform,
-            estimate_scene_render_working_set,
+            SceneRenderAlgorithm, SceneRenderError, SceneToDisplayTransform,
+            WorkingToSrgbTransform, estimate_scene_render_working_set,
         },
     },
 };
@@ -147,6 +147,15 @@ fn rendered_scene_is_accepted_by_the_existing_lcms_srgb_boundary() {
             &limits,
         )
         .unwrap();
+    assert_eq!(report.algorithm, SceneRenderAlgorithm::LogLogisticSrgbV1);
+    assert_eq!(
+        report.input_signal_relation,
+        SignalRelation::SceneRelatedRaw
+    );
+    assert_eq!(
+        report.output_signal_relation,
+        SignalRelation::LinearizedDisplayReferred
+    );
     let mut encoded = vec![[0.0; 4]; source.len()];
     let output_report = WorkingToSrgbTransform::new(&limits)
         .unwrap()
