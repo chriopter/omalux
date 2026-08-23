@@ -1,10 +1,13 @@
 use super::{EncodeError, LimitError, MetadataKind, ResourceLimits, SourceDigestV1};
-use crate::develop::CpuImage;
+use crate::develop::{CpuImage, ImageError};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum SignalRelation {
-    SceneReferred,
+    /// Linear Rec.2020 produced by the RAW scene pipeline; display rendering
+    /// is still required before an SDR display encoding can be produced.
+    SceneRelatedRaw,
     LinearizedDisplayReferred,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,10 +38,46 @@ pub struct IccProfileProvenance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PngCicpFields {
-    pub color_primaries: u8,
-    pub transfer_function: u8,
-    pub matrix_coefficients: u8,
-    pub video_full_range: bool,
+    color_primaries: u8,
+    transfer_function: u8,
+    matrix_coefficients: u8,
+    video_full_range_flag: u8,
+}
+
+impl PngCicpFields {
+    /// Parses the four raw cICP bytes. PNG permits only full-range flag 0 or 1.
+    pub fn try_from_raw(
+        color_primaries: u8,
+        transfer_function: u8,
+        matrix_coefficients: u8,
+        video_full_range_flag: u8,
+    ) -> Result<Self, crate::io::color::ColorError> {
+        if video_full_range_flag > 1 {
+            return Err(crate::io::color::ColorError::InvalidPngCicp);
+        }
+        Ok(Self {
+            color_primaries,
+            transfer_function,
+            matrix_coefficients,
+            video_full_range_flag,
+        })
+    }
+
+    pub const fn color_primaries(self) -> u8 {
+        self.color_primaries
+    }
+
+    pub const fn transfer_function(self) -> u8 {
+        self.transfer_function
+    }
+
+    pub const fn matrix_coefficients(self) -> u8 {
+        self.matrix_coefficients
+    }
+
+    pub const fn video_full_range_flag(self) -> u8 {
+        self.video_full_range_flag
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -166,17 +205,138 @@ impl MetadataBundle {
     pub const fn orientation_consumed(&self) -> bool {
         self.orientation_consumed
     }
+
+    fn validate(&self, limits: &ResourceLimits) -> Result<(), LimitError> {
+        limits.validate()?;
+        let mut total = 0_u64;
+        for (kind, value) in [
+            (MetadataKind::Exif, self.exif.as_deref()),
+            (MetadataKind::Xmp, self.xmp.as_deref()),
+            (MetadataKind::Iptc, self.iptc.as_deref()),
+        ] {
+            if let Some(value) = value {
+                limits.check_metadata_component(kind, value.len())?;
+                total = total
+                    .checked_add(value.len() as u64)
+                    .ok_or(LimitError::ArithmeticOverflow)?;
+            }
+        }
+        limits.check_metadata_total(total)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DecodedPhoto {
-    pub image: CpuImage,
-    pub metadata: MetadataBundle,
-    pub source_digest: SourceDigestV1,
-    pub color: ColorProvenance,
-    pub signal_relation: SignalRelation,
-    pub diagnostics: Vec<Diagnostic>,
+    image: CpuImage,
+    metadata: MetadataBundle,
+    source_digest: SourceDigestV1,
+    color: ColorProvenance,
+    signal_relation: SignalRelation,
+    diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum DecodedPhotoError {
+    Image(ImageError),
+    Limit(LimitError),
+    ColorRelationMismatch,
+}
+
+impl fmt::Display for DecodedPhotoError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Image(error) => error.fmt(formatter),
+            Self::Limit(error) => error.fmt(formatter),
+            Self::ColorRelationMismatch => formatter
+                .write_str("decoded color provenance is inconsistent with its signal relation"),
+        }
+    }
+}
+
+impl std::error::Error for DecodedPhotoError {}
+
+impl DecodedPhoto {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        image: CpuImage,
+        metadata: MetadataBundle,
+        source_digest: SourceDigestV1,
+        color: ColorProvenance,
+        signal_relation: SignalRelation,
+        diagnostics: Vec<Diagnostic>,
+        limits: &ResourceLimits,
+    ) -> Result<Self, DecodedPhotoError> {
+        let photo = Self {
+            image,
+            metadata,
+            source_digest,
+            color,
+            signal_relation,
+            diagnostics,
+        };
+        photo.validate(limits)?;
+        Ok(photo)
+    }
+
+    pub fn validate(&self, limits: &ResourceLimits) -> Result<(), DecodedPhotoError> {
+        limits.validate().map_err(DecodedPhotoError::Limit)?;
+        self.image.validate().map_err(DecodedPhotoError::Image)?;
+        let pixels = u64::from(self.image.width())
+            .checked_mul(u64::from(self.image.height()))
+            .ok_or(DecodedPhotoError::Limit(LimitError::ArithmeticOverflow))?;
+        if pixels > limits.max_pixels {
+            return Err(DecodedPhotoError::Limit(LimitError::PixelCount {
+                requested: pixels,
+                maximum: limits.max_pixels,
+            }));
+        }
+        let working_bytes = pixels
+            .checked_mul(16)
+            .ok_or(DecodedPhotoError::Limit(LimitError::ArithmeticOverflow))?;
+        if working_bytes > limits.max_working_bytes {
+            return Err(DecodedPhotoError::Limit(LimitError::WorkingBytes {
+                requested: working_bytes,
+                maximum: limits.max_working_bytes,
+            }));
+        }
+        self.metadata
+            .validate(limits)
+            .map_err(DecodedPhotoError::Limit)?;
+        let expected = match self.color {
+            ColorProvenance::RawMatrix { .. } => Some(SignalRelation::SceneRelatedRaw),
+            ColorProvenance::EmbeddedIcc { .. }
+            | ColorProvenance::DeclaredSrgb
+            | ColorProvenance::PngDeclared { .. }
+            | ColorProvenance::AssumedSrgb { .. } => {
+                Some(SignalRelation::LinearizedDisplayReferred)
+            }
+        };
+        if expected.is_some_and(|expected| expected != self.signal_relation) {
+            return Err(DecodedPhotoError::ColorRelationMismatch);
+        }
+        Ok(())
+    }
+
+    pub fn image(&self) -> &CpuImage {
+        &self.image
+    }
+    pub fn metadata(&self) -> &MetadataBundle {
+        &self.metadata
+    }
+    pub const fn source_digest(&self) -> SourceDigestV1 {
+        self.source_digest
+    }
+    pub fn color(&self) -> &ColorProvenance {
+        &self.color
+    }
+    pub const fn signal_relation(&self) -> SignalRelation {
+        self.signal_relation
+    }
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -326,5 +486,78 @@ mod tests {
         }
         o.raw.white_balance = WhiteBalancePolicy::Explicit([2.0, 1.0, 1.5, 1.0]);
         assert!(o.validate().is_ok());
+    }
+
+    #[test]
+    fn decoded_photo_constructor_enforces_relation_and_resource_invariants() {
+        let image = CpuImage::new(
+            1,
+            1,
+            vec![crate::develop::RgbaPixel::new(0.1, 0.2, 0.3, 1.0).unwrap()],
+        )
+        .unwrap();
+        let digest = SourceDigestV1::from_bytes(b"decoded-photo-test");
+        let limits = ResourceLimits::default();
+        assert!(
+            DecodedPhoto::new(
+                image.clone(),
+                MetadataBundle::default(),
+                digest,
+                ColorProvenance::DeclaredSrgb,
+                SignalRelation::LinearizedDisplayReferred,
+                Vec::new(),
+                &limits,
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            DecodedPhoto::new(
+                image.clone(),
+                MetadataBundle::default(),
+                digest,
+                ColorProvenance::RawMatrix {
+                    matrix: RawMatrixSource::CameraDatabase,
+                    white_balance: WhiteBalanceProvenance::Camera,
+                },
+                SignalRelation::LinearizedDisplayReferred,
+                Vec::new(),
+                &limits,
+            )
+            .unwrap_err(),
+            DecodedPhotoError::ColorRelationMismatch
+        );
+        assert_eq!(
+            DecodedPhoto::new(
+                image.clone(),
+                MetadataBundle::default(),
+                digest,
+                ColorProvenance::EmbeddedIcc {
+                    profile_sha256: [7; 32],
+                    profile_bytes: 128,
+                    lcms_version: 2_170,
+                },
+                SignalRelation::SceneRelatedRaw,
+                Vec::new(),
+                &limits,
+            )
+            .unwrap_err(),
+            DecodedPhotoError::ColorRelationMismatch
+        );
+        let constrained = ResourceLimits {
+            max_working_bytes: 15,
+            ..limits
+        };
+        assert!(matches!(
+            DecodedPhoto::new(
+                image,
+                MetadataBundle::default(),
+                digest,
+                ColorProvenance::DeclaredSrgb,
+                SignalRelation::LinearizedDisplayReferred,
+                Vec::new(),
+                &constrained,
+            ),
+            Err(DecodedPhotoError::Limit(LimitError::WorkingBytes { .. }))
+        ));
     }
 }

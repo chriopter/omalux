@@ -115,7 +115,13 @@ fn roundtrip_is_close_and_alpha_is_bit_exact_including_subnormal() {
     let mut encoded = [[0.0; 4]; 3];
     let report = WorkingToSrgbTransform::new(&limits)
         .unwrap()
-        .transform_scanline(&working, &mut encoded, SdrRangePolicy::Reject, &limits)
+        .transform_scanline(
+            &working,
+            &mut encoded,
+            SignalRelation::LinearizedDisplayReferred,
+            SdrRangePolicy::Reject,
+            &limits,
+        )
         .unwrap();
     assert_eq!(report.clipped_samples, 0);
     assert_eq!(
@@ -159,7 +165,13 @@ fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
     let original = [[0.2, 0.3, 0.4, 0.5]];
     let mut rejected = original;
     assert!(matches!(
-        transform.transform_scanline(&source, &mut rejected, SdrRangePolicy::Reject, &limits),
+        transform.transform_scanline(
+            &source,
+            &mut rejected,
+            SignalRelation::LinearizedDisplayReferred,
+            SdrRangePolicy::Reject,
+            &limits,
+        ),
         Err(ColorError::OutputOutOfRange { .. })
     ));
     assert_eq!(rejected, original);
@@ -169,6 +181,7 @@ fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
         .transform_scanline(
             &source,
             &mut clipped,
+            SignalRelation::LinearizedDisplayReferred,
             SdrRangePolicy::ClipAndReport,
             &limits,
         )
@@ -180,6 +193,26 @@ fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
             .all(|sample| (0.0..=1.0).contains(sample))
     );
     assert_eq!(clipped[0][3].to_bits(), source[0].alpha().to_bits());
+}
+
+#[test]
+fn scene_related_raw_requires_a_display_rendering_stage_before_srgb() {
+    let source = [RgbaPixel::new(0.18, 0.18, 0.18, 1.0).unwrap()];
+    let limits = ResourceLimits::default();
+    let transform = WorkingToSrgbTransform::new(&limits).unwrap();
+    let original = [[0.25, 0.5, 0.75, 0.5]];
+    let mut destination = original;
+    assert_eq!(
+        transform.transform_scanline(
+            &source,
+            &mut destination,
+            SignalRelation::SceneRelatedRaw,
+            SdrRangePolicy::Reject,
+            &limits,
+        ),
+        Err(ColorError::SceneToDisplayRenderingRequired)
+    );
+    assert_eq!(destination, original);
 }
 
 #[test]

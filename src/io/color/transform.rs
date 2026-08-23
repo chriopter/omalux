@@ -134,7 +134,10 @@ impl RasterToWorkingTransform {
             *destination = RgbaPixel::new(output[0], output[1], output[2], input[3])
                 .expect("validated LCMS output and encoded alpha");
         }
-        Ok(ColorTransformReport::new(0))
+        Ok(ColorTransformReport::new(
+            0,
+            SignalRelation::LinearizedDisplayReferred,
+        ))
     }
 }
 
@@ -150,11 +153,11 @@ pub struct ColorTransformReport {
 }
 
 impl ColorTransformReport {
-    fn new(clipped_samples: u64) -> Self {
+    fn new(clipped_samples: u64, working_signal_relation: SignalRelation) -> Self {
         Self {
             clipped_samples,
             lcms_version: lcms2::version(),
-            working_signal_relation: SignalRelation::LinearizedDisplayReferred,
+            working_signal_relation,
         }
     }
 }
@@ -191,9 +194,13 @@ impl WorkingToSrgbTransform {
         &self,
         source: &[RgbaPixel],
         destination: &mut [[f32; 4]],
+        input_relation: SignalRelation,
         range: SdrRangePolicy,
         limits: &ResourceLimits,
     ) -> Result<ColorTransformReport, ColorError> {
+        if input_relation == SignalRelation::SceneRelatedRaw {
+            return Err(ColorError::SceneToDisplayRenderingRequired);
+        }
         if source.len() != destination.len() {
             return Err(ColorError::LengthMismatch {
                 source: source.len(),
@@ -251,7 +258,7 @@ impl WorkingToSrgbTransform {
             pixel[3] = source_pixel.alpha();
         }
         destination.copy_from_slice(&output);
-        Ok(ColorTransformReport::new(clipped_samples))
+        Ok(ColorTransformReport::new(clipped_samples, input_relation))
     }
 }
 

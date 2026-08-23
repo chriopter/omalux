@@ -177,16 +177,16 @@ fn reject_duplicate<T>(chunk: &PngChunk<T>, kind: PngColorChunk) -> Result<(), C
 }
 
 fn cicp_profile(cicp: PngCicpFields, limits: &ResourceLimits) -> Result<RgbProfile, ColorError> {
-    if cicp.matrix_coefficients != 0 {
+    if cicp.matrix_coefficients() != 0 {
         return Err(ColorError::InvalidPngCicp);
     }
-    if matches!(cicp.transfer_function, 16 | 18) {
+    if matches!(cicp.transfer_function(), 16 | 18) {
         return Err(ColorError::UnsupportedHdrPngCicp);
     }
-    if cicp.color_primaries != 1 || !cicp.video_full_range {
+    if cicp.color_primaries() != 1 || cicp.video_full_range_flag() != 1 {
         return Err(ColorError::UnsupportedPngCicp);
     }
-    match cicp.transfer_function {
+    match cicp.transfer_function() {
         13 => srgb_profile(limits),
         1 => bt709_profile(limits),
         _ => Err(ColorError::UnsupportedPngCicp),
@@ -317,12 +317,7 @@ mod tests {
     #[test]
     fn cicp_has_priority_and_hdr_is_loudly_unsupported() {
         let mut declarations = srgb_declarations();
-        declarations.cicp = PngChunk::one(PngCicpFields {
-            color_primaries: 1,
-            transfer_function: 13,
-            matrix_coefficients: 0,
-            video_full_range: true,
-        });
+        declarations.cicp = PngChunk::one(PngCicpFields::try_from_raw(1, 13, 0, 1).unwrap());
         let resolved =
             resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap();
         let ColorProvenance::PngDeclared {
@@ -335,7 +330,7 @@ mod tests {
         };
         assert_eq!(selected, PngSelectedColorSource::Cicp);
         assert_eq!(recorded.cicp, declarations.cicp.value);
-        declarations.cicp.value.as_mut().unwrap().transfer_function = 16;
+        declarations.cicp = PngChunk::one(PngCicpFields::try_from_raw(1, 16, 0, 1).unwrap());
         assert_eq!(
             resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap_err(),
             ColorError::UnsupportedHdrPngCicp
@@ -344,6 +339,10 @@ mod tests {
 
     #[test]
     fn selected_duplicates_and_invalid_fields_are_rejected() {
+        assert_eq!(
+            PngCicpFields::try_from_raw(1, 13, 0, 2),
+            Err(ColorError::InvalidPngCicp)
+        );
         let declarations = PngColorDeclarations {
             srgb_rendering_intent: PngChunk::duplicated(0),
             ..PngColorDeclarations::default()
@@ -365,12 +364,7 @@ mod tests {
     #[test]
     fn bt709_cicp_is_supported_and_selected_iccp_is_bounded() {
         let declarations = PngColorDeclarations {
-            cicp: PngChunk::one(PngCicpFields {
-                color_primaries: 1,
-                transfer_function: 1,
-                matrix_coefficients: 0,
-                video_full_range: true,
-            }),
+            cicp: PngChunk::one(PngCicpFields::try_from_raw(1, 1, 0, 1).unwrap()),
             ..PngColorDeclarations::default()
         };
         resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap();
@@ -390,6 +384,38 @@ mod tests {
                 crate::io::LimitError::MetadataBytes { .. }
             ))
         ));
+    }
+
+    #[test]
+    fn unsupported_cicp_primaries_and_gray_iccp_fail_loudly() {
+        let declarations = PngColorDeclarations {
+            cicp: PngChunk::one(PngCicpFields::try_from_raw(9, 13, 0, 1).unwrap()),
+            ..PngColorDeclarations::default()
+        };
+        assert_eq!(
+            resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap_err(),
+            ColorError::UnsupportedPngCicp
+        );
+
+        let gray = Profile::new_gray(
+            &CIExyY {
+                x: 0.3457,
+                y: 0.3585,
+                Y: 1.0,
+            },
+            &ToneCurve::new(2.2),
+        )
+        .unwrap()
+        .icc()
+        .unwrap();
+        let declarations = PngColorDeclarations {
+            iccp: PngChunk::one(&gray),
+            ..PngColorDeclarations::default()
+        };
+        assert_eq!(
+            resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap_err(),
+            ColorError::UnsupportedColorSpace
+        );
     }
 
     #[test]
@@ -436,5 +462,35 @@ mod tests {
             ..PngColorDeclarations::default()
         };
         resolve_png_color_declarations(declarations, &ResourceLimits::default()).unwrap();
+    }
+
+    #[test]
+    fn generated_cicp_and_gamma_profiles_are_time_independent() {
+        let limits = ResourceLimits::default();
+        let cicp = PngColorDeclarations {
+            cicp: PngChunk::one(PngCicpFields::try_from_raw(1, 1, 0, 1).unwrap()),
+            ..PngColorDeclarations::default()
+        };
+        let gamma = PngColorDeclarations {
+            gamma_times_100000: PngChunk::one(45_455),
+            chromaticities_times_100000: PngChunk::one(PngChrmFields::SRGB),
+            ..PngColorDeclarations::default()
+        };
+        let first = [
+            resolve_png_color_declarations(cicp, &limits).unwrap(),
+            resolve_png_color_declarations(gamma, &limits).unwrap(),
+        ];
+        std::thread::sleep(std::time::Duration::from_millis(1_100));
+        let second = [
+            resolve_png_color_declarations(cicp, &limits).unwrap(),
+            resolve_png_color_declarations(gamma, &limits).unwrap(),
+        ];
+        for (first, second) in first.into_iter().zip(second) {
+            assert_eq!(first.provenance, second.provenance);
+            assert_eq!(
+                first.profile.to_icc(&limits).unwrap(),
+                second.profile.to_icc(&limits).unwrap()
+            );
+        }
     }
 }

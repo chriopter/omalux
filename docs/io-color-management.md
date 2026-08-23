@@ -26,6 +26,11 @@ or RAW decoder or encoder is currently connected to it.
   runtime version. An sRGB
   fallback is returned only by the explicit `assumed_srgb_profile` API and
   always carries `AssumedSrgb` provenance plus a warning diagnostic.
+- Every generated ICC uses the fixed valid header creation time
+  `2000-01-01T00:00:00` and an unset (all-zero) optional profile ID. Grainroom
+  reopens and validates those exact canonical bytes, stores them in the
+  `RgbProfile`, and hashes/exports the same bytes. This removes LCMS's wall-clock
+  timestamp from generated sRGB, Rec.2020, cICP, and gAMA/cHRM provenance.
 
 The numerical constants follow ITU-R BT.2020-2 for Rec.2020/D65 and IEC
 61966-2-1 for sRGB. PNG behavior follows the exact priority in
@@ -48,7 +53,10 @@ results carry `LinearizedDisplayReferred`; a future decoder must copy that into
 so every alpha bit pattern, including positive subnormals and signed zero, is
 preserved exactly.
 
-Working-to-sRGB conversion requires an explicit `SdrRangePolicy`. `Reject`
+Working-to-sRGB conversion requires both the input `SignalRelation` and an
+explicit `SdrRangePolicy`. `SceneRelatedRaw` returns the typed
+`SceneToDisplayRenderingRequired` error transactionally: a future tone/display
+rendering contract must run first. `LinearizedDisplayReferred` is accepted. `Reject`
 fails transactionally if an output RGB channel is outside `[0, 1]`;
 `ClipAndReport` clamps and counts clipped samples. There is no implicit tone
 mapping.
@@ -82,6 +90,8 @@ errors.
   supported. Non-RGB matrix coefficients are invalid. PQ (16) and HLG (18)
   produce a typed unsupported-HDR error until an HDR decode path exists;
   unsupported primaries/transfers and narrow range also fail explicitly.
+  `PngCicpFields::try_from_raw` retains the raw bytes and rejects full-range
+  flag values other than 0 or 1 before profile resolution.
 - Selected `sRGB` validates only its rendering-intent byte and ignores lower
   compatibility chunks.
 - Selected `gAMA+cHRM` retains the raw PNG integers. gAMA zero is invalid;
@@ -104,3 +114,12 @@ Packaging TODO: pin the supported LCMS package version and add a final-binary
 linkage/version gate. Tests currently require the LCMS 2 major family and
 generate all ICC/LUT fixtures in memory. They download no profiles and use no
 private image data.
+
+## Decoder integration invariant
+
+Codecs must construct results through `DecodedPhoto::new` rather than assembling
+fields. The constructor validates the CPU image, pixel and working-byte limits,
+metadata limits, and known provenance/relation pairs. PNG, embedded ICC, declared
+or assumed sRGB are display-referred; `RawMatrix` is `SceneRelatedRaw`. Fields are
+private and read through accessors so a valid result cannot later be made
+internally inconsistent.

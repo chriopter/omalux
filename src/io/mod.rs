@@ -22,9 +22,10 @@ pub use error::{
 };
 pub use limits::{DecodeWorkingSetProfile, ResourceLimits, WorkingSetEstimate};
 pub use types::{
-    AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeOptions, DecodedPhoto, Diagnostic,
-    DiagnosticCode, DiagnosticSeverity, EncodeOptions, IccProfileProvenance, MetadataBundle,
-    MetadataPolicy, OutputFormat, OutputProfile, PngChrmFields, PngCicpFields,
-    PngColorDeclarationsProvenance, PngSelectedColorSource, RawDecodeOptions, RawMatrixSource,
-    SdrRangePolicy, SignalRelation, UnprofiledPolicy, WhiteBalancePolicy, WhiteBalanceProvenance,
+    AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeOptions, DecodedPhoto,
+    DecodedPhotoError, Diagnostic, DiagnosticCode, DiagnosticSeverity, EncodeOptions,
+    IccProfileProvenance, MetadataBundle, MetadataPolicy, OutputFormat, OutputProfile,
+    PngChrmFields, PngCicpFields, PngColorDeclarationsProvenance, PngSelectedColorSource,
+    RawDecodeOptions, RawMatrixSource, SdrRangePolicy, SignalRelation, UnprofiledPolicy,
+    WhiteBalancePolicy, WhiteBalanceProvenance,
 };

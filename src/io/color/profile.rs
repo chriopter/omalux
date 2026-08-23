@@ -31,6 +31,11 @@ const REC2020_PRIMARIES: CIExyYTRIPLE = CIExyYTRIPLE {
     },
 };
 
+const ICC_CREATION_DATE_RANGE: std::ops::Range<usize> = 24..36;
+const ICC_PROFILE_ID_RANGE: std::ops::Range<usize> = 84..100;
+// ICC dateTimeNumber: 2000-01-01 00:00:00, six big-endian u16 values.
+const CANONICAL_CREATION_DATE: [u8; 12] = [0x07, 0xd0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0];
+
 /// An opaque, validated RGB ICC profile owned by the color pipeline.
 pub struct RgbProfile {
     pub(super) inner: Profile,
@@ -89,11 +94,8 @@ impl RgbProfile {
         // path.
         let bytes = profile.icc().map_err(|_| ColorError::ProfileGeneration)?;
         limits.check_metadata_component(MetadataKind::Icc, bytes.len())?;
-        Ok(Self {
-            inner: profile,
-            provenance: profile_provenance(&bytes),
-            serialized: bytes,
-        })
+        let (profile, bytes) = canonicalize_generated_profile(bytes)?;
+        Self::validate_input(profile, profile_provenance(&bytes), bytes)
     }
 
     fn validate_input(
@@ -211,6 +213,22 @@ fn profile_provenance(bytes: &[u8]) -> IccProfileProvenance {
     }
 }
 
+fn canonicalize_generated_profile(mut bytes: Vec<u8>) -> Result<(Profile, Vec<u8>), ColorError> {
+    if bytes.len() < 128 || bytes.get(36..40) != Some(b"acsp") {
+        return Err(ColorError::ProfileGeneration);
+    }
+    bytes[ICC_CREATION_DATE_RANGE].copy_from_slice(&CANONICAL_CREATION_DATE);
+    // A computed ICC profile ID incorporates the header timestamp. Generated
+    // LCMS profiles currently leave it unset; canonical zero remains the valid
+    // "not computed" representation after replacing the volatile timestamp.
+    bytes[ICC_PROFILE_ID_RANGE].fill(0);
+    let reopened = Profile::new_icc(&bytes).map_err(|_| ColorError::ProfileGeneration)?;
+    if reopened.color_space() != ColorSpaceSignature::RgbData {
+        return Err(ColorError::ProfileGeneration);
+    }
+    Ok((reopened, bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,6 +244,23 @@ mod tests {
             let bytes = profile.to_icc(&limits).unwrap();
             let reopened = RgbProfile::from_icc(&bytes, &limits).unwrap();
             assert!(reopened.is_matrix_shaper());
+        }
+    }
+
+    #[test]
+    fn generated_profile_header_is_canonical_and_time_independent() {
+        let limits = ResourceLimits::default();
+        let first_srgb = srgb_profile(&limits).unwrap();
+        let first_working = linear_rec2020_profile(&limits).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1_100));
+        let second_srgb = srgb_profile(&limits).unwrap();
+        let second_working = linear_rec2020_profile(&limits).unwrap();
+        for (first, second) in [(first_srgb, second_srgb), (first_working, second_working)] {
+            let first = first.to_icc(&limits).unwrap();
+            let second = second.to_icc(&limits).unwrap();
+            assert_eq!(first, second);
+            assert_eq!(&first[ICC_CREATION_DATE_RANGE], &CANONICAL_CREATION_DATE);
+            assert_eq!(&first[ICC_PROFILE_ID_RANGE], &[0; 16]);
         }
     }
 

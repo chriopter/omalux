@@ -43,6 +43,7 @@ pub enum ColorError {
         pixel: usize,
         channel: RasterChannel,
     },
+    SceneToDisplayRenderingRequired,
     NonFiniteOutput {
         pixel: usize,
         channel: RasterChannel,
@@ -84,6 +85,9 @@ impl fmt::Display for ColorError {
             Self::OutputOutOfRange { pixel, channel } => write!(
                 formatter,
                 "output raster pixel {pixel} has an out-of-range {channel:?} sample"
+            ),
+            Self::SceneToDisplayRenderingRequired => formatter.write_str(
+                "scene-related RAW pixels require display rendering before sRGB encoding",
             ),
             Self::NonFiniteOutput { pixel, channel } => write!(
                 formatter,
