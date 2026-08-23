@@ -1,5 +1,6 @@
 //! Bounded display-referred image encoding.
 
+mod jpeg;
 mod metadata;
 mod prepare;
 
@@ -8,6 +9,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+pub use jpeg::{JpegEncodeRequest, encode_jpeg};
 pub use metadata::MetadataWriteReport;
 pub use prepare::{JpegEncodeInput, PreparedDisplayRgb, prepare_display_rgb8};
 

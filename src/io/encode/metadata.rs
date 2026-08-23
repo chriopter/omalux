@@ -415,7 +415,7 @@ mod tests {
         let source = source_exif();
         let metadata = MetadataBundle::try_new(
             Some(source),
-            Some(b"private path and gps".to_vec()),
+            Some(b"SYNTHETIC_LOCATION_PAYLOAD".to_vec()),
             Some(b"iptc".to_vec()),
             true,
             &ResourceLimits::default(),

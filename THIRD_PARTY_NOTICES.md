@@ -60,7 +60,8 @@ The dynamically linked Little CMS 2 library is MIT licensed, Copyright (c)
 ## Raster codec crates
 
 Grainroom uses the following Rust crates through their public APIs for bounded
-JPEG, PNG, and BMP decoding. Grainroom does not copy their codec source:
+JPEG, PNG, and BMP decoding and JPEG encoding. Grainroom does not copy their
+codec source:
 
 - `image` 0.25.10 — MIT OR Apache-2.0
 - `png` 0.18.1, Copyright (c) 2015 nwin — MIT OR Apache-2.0

@@ -88,6 +88,11 @@ impl DecodeWorkingSetProfile {
 }
 
 impl ResourceLimits {
+    pub fn with_max_output_bytes(mut self, maximum: u64) -> Self {
+        self.max_output_bytes = maximum;
+        self
+    }
+
     /// Estimates decode storage plus two 16-byte RGBA f32 buffers and caller
     /// supplied scratch. Every operation is checked before an allocation.
     pub fn validate(&self) -> Result<(), LimitError> {
@@ -207,10 +212,15 @@ impl ResourceLimits {
         let scanline_scratch_bytes = u64::from(width)
             .checked_mul(64)
             .ok_or(LimitError::ArithmeticOverflow)?;
+        // Prepared metadata and the image encoder each own a copy while the
+        // codec is active.
+        let duplicated_profile_metadata = profile_metadata_bytes
+            .checked_mul(2)
+            .ok_or(LimitError::ArithmeticOverflow)?;
         let peak_bytes = resident_image_bytes
             .checked_add(encoded_rgb_bytes)
             .and_then(|value| value.checked_add(scanline_scratch_bytes))
-            .and_then(|value| value.checked_add(profile_metadata_bytes))
+            .and_then(|value| value.checked_add(duplicated_profile_metadata))
             .ok_or(LimitError::ArithmeticOverflow)?;
         if peak_bytes > self.max_working_bytes {
             return Err(LimitError::WorkingBytes {
@@ -334,7 +344,7 @@ mod tests {
         assert_eq!(estimate.resident_image_bytes, 3_200);
         assert_eq!(estimate.encoded_rgb_bytes, 600);
         assert_eq!(estimate.scanline_scratch_bytes, 640);
-        assert_eq!(estimate.peak_bytes, 4_568);
+        assert_eq!(estimate.peak_bytes, 4_696);
         assert!(matches!(
             limits.check_output_bytes(limits.max_output_bytes + 1),
             Err(LimitError::OutputBytes { .. })

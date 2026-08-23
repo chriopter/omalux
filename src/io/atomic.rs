@@ -47,6 +47,13 @@ impl Default for AtomicOutputOptions {
     }
 }
 
+impl AtomicOutputOptions {
+    pub fn with_overwrite(mut self, overwrite: OverwritePolicy) -> Self {
+        self.overwrite = overwrite;
+        self
+    }
+}
+
 /// The destination is committed and its containing directory was synced.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
