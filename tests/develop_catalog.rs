@@ -11,8 +11,8 @@ fn built_in_catalog_is_canonical_neutral_and_searchable() {
     assert_eq!(neutral.name, "Neutral");
     assert!(neutral.settings.is_neutral());
     assert_eq!(
-        neutral.to_canonical_json().unwrap(),
-        include_str!("../presets/builtin/neutral.json").trim_end()
+        format!("{}\n", neutral.to_canonical_json().unwrap()),
+        include_str!("../presets/builtin/neutral.json")
     );
     assert!(catalog.get("missing").is_none());
 }
@@ -36,7 +36,7 @@ fn catalog_sorts_canonicalizes_and_rejects_duplicate_ids() {
 #[test]
 #[cfg(target_os = "linux")]
 fn external_loader_is_bounded_nofollow_and_schema_validated() {
-    use std::os::unix::fs::symlink;
+    use std::os::unix::{fs::symlink, net::UnixListener};
 
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("neutral.json");
@@ -63,5 +63,28 @@ fn external_loader_is_bounded_nofollow_and_schema_validated() {
     assert!(matches!(
         load_preset_file(&malformed),
         Err(PresetCatalogError::Preset(_))
+    ));
+
+    let fifo = directory.path().join("preset.fifo");
+    rustix::fs::mkfifoat(
+        rustix::fs::CWD,
+        &fifo,
+        rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+    )
+    .unwrap();
+    assert!(matches!(
+        load_preset_file(&fifo),
+        Err(PresetCatalogError::NotRegularFile)
+    ));
+
+    let socket = directory.path().join("preset.socket");
+    let _listener = UnixListener::bind(&socket).unwrap();
+    assert!(matches!(
+        load_preset_file(&socket),
+        Err(PresetCatalogError::FileOpen | PresetCatalogError::NotRegularFile)
+    ));
+    assert!(matches!(
+        load_preset_file(directory.path()),
+        Err(PresetCatalogError::NotRegularFile)
     ));
 }

@@ -25,14 +25,7 @@ impl PresetCatalog {
             .try_reserve_exact(BUILTIN_PRESETS.len())
             .map_err(|_| PresetCatalogError::Allocation)?;
         for json in BUILTIN_PRESETS {
-            let document = PresetDocument::from_json(json).map_err(PresetCatalogError::Preset)?;
-            let canonical = document
-                .to_canonical_json()
-                .map_err(PresetCatalogError::Preset)?;
-            if json.trim_end() != canonical {
-                return Err(PresetCatalogError::NonCanonical(document.id));
-            }
-            documents.push(document);
+            documents.push(parse_builtin_json(json)?);
         }
         Self::from_documents(documents)
     }
@@ -63,6 +56,19 @@ impl PresetCatalog {
     }
 }
 
+fn parse_builtin_json(json: &str) -> Result<PresetDocument, PresetCatalogError> {
+    let document = PresetDocument::from_json(json).map_err(PresetCatalogError::Preset)?;
+    let canonical = document
+        .to_canonical_json()
+        .map_err(PresetCatalogError::Preset)?;
+    // Repository convention: exactly canonical compact JSON followed by one
+    // LF. Do not admit spaces, CRLF, or additional blank lines.
+    if json.strip_suffix('\n') != Some(canonical.as_str()) {
+        return Err(PresetCatalogError::NonCanonical(document.id));
+    }
+    Ok(document)
+}
+
 /// Opens one external preset without following a final symlink, bounds it
 /// before and during reading, then delegates all schema checks to
 /// `PresetDocument::from_json`.
@@ -78,7 +84,7 @@ fn load_preset_file_with_limit(
     let (mut file, advertised) = {
         let fd = fs::open(
             path,
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )
         .map_err(|_| PresetCatalogError::FileOpen)?;
@@ -213,5 +219,25 @@ mod tests {
             load_preset_file_with_limit(&path, 8),
             Err(PresetCatalogError::FileTooLarge { .. })
         ));
+    }
+
+    #[test]
+    fn built_in_format_is_exact_canonical_json_plus_one_lf() {
+        let canonical = PresetDocument::new("neutral", "Neutral", Default::default())
+            .to_canonical_json()
+            .unwrap();
+        assert!(parse_builtin_json(&format!("{canonical}\n")).is_ok());
+        for noncanonical in [
+            canonical.clone(),
+            format!("{canonical} \n"),
+            format!("{canonical}\r\n"),
+            format!("{canonical}\n\n"),
+            format!(" {canonical}\n"),
+        ] {
+            assert!(matches!(
+                parse_builtin_json(&noncanonical),
+                Err(PresetCatalogError::NonCanonical(id)) if id == "neutral"
+            ));
+        }
     }
 }

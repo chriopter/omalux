@@ -7,8 +7,11 @@ invented “default look” or reference preset. New built-ins require an explic
 reviewed recipe and must be checked in as canonical schema-v1 JSON under
 `presets/builtin/`.
 
-External preset JSON is opened once on Linux with `O_NOFOLLOW`, must be a
-regular file, and is bounded to 1 MiB before and during reading. Schema,
+Built-ins use exactly compact canonical JSON followed by one LF; leading,
+trailing, or additional whitespace is rejected during catalog construction.
+
+External preset JSON is opened once on Linux with `O_NOFOLLOW | O_NONBLOCK`,
+must be a regular file, and is bounded to 1 MiB before and during reading. Schema,
 identity, unknown-field and setting validation remains owned by
 `PresetDocument::from_json`. Catalog errors do not include source paths.
 
