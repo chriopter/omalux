@@ -7,6 +7,10 @@ No handwritten unsafe FFI or external profile asset is part of this module.
 
 This is a codec-independent contract. It does not claim that a JPEG, PNG, HEIC,
 or RAW decoder or encoder is currently connected to it.
+The implemented LCMS input transform covers encoded RGB raster pixels only;
+it is not a RAW demosaic or camera-color pipeline. Scene-related RAW working
+pixels are intentionally rejected by the sRGB encoder until an explicit
+scene-to-display rendering stage exists.
 
 ## Profiles and working space
 
