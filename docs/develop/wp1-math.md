@@ -28,8 +28,8 @@ highlights/shadows, contrast, clarity, saturation, then vibrance.
 Clarity is an independently specified, self-guided base/detail filter rather
 than a second unsharp mask. Rec.2020 luminance `Y` is mapped to the signed,
 unbounded guide `I = asinh(Y / 0.18)`, so negative and HDR scene values remain
-defined. Two separable 17x17 box passes with radius `r = 8` form the guided
-base:
+defined. Two guided-filter averaging stages, comprising four scalar separable
+17x17 box filters with radius `r = 8`, form the guided base:
 
 ```text
 mean = box(I, r)
@@ -48,12 +48,19 @@ it is also stable at zero luminance and chromatic cancellation. Conversion back
 to finite `f32` saturates only at the storage type's extrema. Amount zero exits
 before allocating or touching pixels and is byte-exact.
 
-Both box passes use global full-frame Reflect101 coordinates and fixed-order
-`f64` accumulation. The logical source halo is `2r = 16` pixels, making any
-tile split bit-identical to a full-frame pass. Radius is measured in post-geometry
-level-zero image pixels. The implementation retains three `f32` scalar planes
-(12 bytes per pixel) and reuses two bounded `f64` tile scratch buffers; at the
-default 128x64 tile the scratch is below 200 KiB.
+All box filters use global full-frame Reflect101 coordinates and deterministic
+`f64` rolling sums. Fixed global 16-pixel restart anchors initialize a window
+in ascending offset order; a caller tile beginning between anchors replays from
+the preceding anchor. Every global pixel therefore has the same remove-then-add
+history regardless of caller tile partition. Steady-state work is two
+accumulations per axis and output pixel, independent of radius; radius affects
+only anchor initialization. The logical source halo is `2r = 16` pixels, and
+arbitrary tile splits are bit-identical, including adversarial signed guides.
+The exact numeric golden pins this canonical order. Radius is measured in
+post-geometry level-zero image pixels. The implementation retains three `f32`
+scalar planes (12 bytes per pixel) and reuses two bounded `f64` tile scratch
+buffers; including worst-case anchor replay, scratch stays below 200 KiB for
+the default 128x64 tile.
 
 ### Temperature and tint
 
