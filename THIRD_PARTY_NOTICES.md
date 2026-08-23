@@ -56,3 +56,31 @@ SOFTWARE.
 The dynamically linked Little CMS 2 library is MIT licensed, Copyright (c)
 2023 Marti Maria Saguer. Its license terms are the MIT terms reproduced in the
 `rust-lcms2` section above.
+
+## Raster codec crates
+
+Grainroom uses the following Rust crates through their public APIs for bounded
+JPEG, PNG, and BMP decoding. Grainroom does not copy their codec source:
+
+- `image` 0.25.10 — MIT OR Apache-2.0
+- `png` 0.18.1, Copyright (c) 2015 nwin — MIT OR Apache-2.0
+- `flate2` 1.1.9, Copyright (c) 2014-2026 Alex Crichton — MIT OR Apache-2.0
+- `crc32fast` 1.5.1, Copyright (c) 2018 Sam Rijs, Alex Crichton and contributors — MIT OR Apache-2.0
+- `zune-jpeg` 0.5.15 and `zune-core` 0.5.3, Copyright (c) zune-image developers — MIT OR Apache-2.0 OR Zlib
+- `fdeflate` 0.3.7 — MIT OR Apache-2.0
+- `miniz_oxide` 0.8.9, with its published RAD Game Tools, Valve,
+  Rich Geldreich, Tenacious Software, Frommi, and oyvindln notices — MIT OR
+  Zlib OR Apache-2.0
+- `adler2` 2.0.1, Copyright (c) Jonas Schievink — 0BSD OR MIT OR Apache-2.0
+- `simd-adler32` 0.3.10, Copyright (c) 2021 Marvin Countryman — MIT
+- `byteorder-lite` 0.1.0, Copyright (c) 2015 Andrew Gallant — Unlicense OR MIT
+- `moxcms` 0.8.1, Copyright (c) Radzivon Bartoshyk — BSD-3-Clause OR Apache-2.0
+- `pxfm` 0.1.30, Copyright (c) Radzivon Bartoshyk — BSD-3-Clause OR Apache-2.0
+- `bytemuck` 1.25.2, Copyright (c) Lokathor — Zlib OR Apache-2.0 OR MIT
+- `num-traits` 0.2.19, The Rust Project Developers — MIT OR Apache-2.0
+- `bitflags` 2.13.1, The Rust Project Developers — MIT OR Apache-2.0
+- `cfg-if` 1.0.4, Copyright (c) Alex Crichton — MIT OR Apache-2.0
+
+The MIT license text is reproduced above. The Apache-2.0 and Zlib alternatives
+are available in each crate's published source distribution; Grainroom selects
+the MIT option where offered.
