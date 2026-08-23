@@ -397,7 +397,13 @@ fn decompress_selected_iccp(
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<Vec<u8>, DecodeError> {
-    let nul = data
+    if cancellation.cancelled() {
+        return Err(DecodeError::Cancelled);
+    }
+    // PNG limits profile names to 1..=79 bytes. Never search an attacker-sized
+    // compressed payload for the separator: byte 80 must already be NUL.
+    let keyword_window = &data[..data.len().min(80)];
+    let nul = keyword_window
         .iter()
         .position(|byte| *byte == 0)
         .ok_or(DecodeError::CorruptInput)?;
@@ -443,11 +449,6 @@ fn decompress_selected_iccp(
     }
     let mut decoder = flate2::bufread::ZlibDecoder::new(Cursor::new(compressed));
     let mut profile = Vec::new();
-    let reserve = usize::try_from(maximum.min(64 * 1024))
-        .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
-    profile
-        .try_reserve_exact(reserve)
-        .map_err(|_| allocation_error())?;
     let mut chunk = [0_u8; 32 * 1024];
     loop {
         if cancellation.cancelled() {
@@ -475,7 +476,12 @@ fn decompress_selected_iccp(
                 maximum,
             }));
         }
-        profile.try_reserve(count).map_err(|_| allocation_error())?;
+        // `next` was checked against the exact logical bound above. Request
+        // only the bytes needed for this output chunk; never use geometric
+        // spare-capacity growth for hostile compressed metadata.
+        profile
+            .try_reserve_exact(count)
+            .map_err(|_| allocation_error())?;
         profile.extend_from_slice(&chunk[..count]);
     }
     if usize::try_from(decoder.get_ref().position()).ok() != Some(compressed.len()) {
@@ -535,5 +541,85 @@ mod tests {
             decompress_selected_iccp(&data, 0, &DecodeOptions::default(), &cancellation),
             Err(DecodeError::Cancelled)
         ));
+    }
+
+    #[test]
+    fn iccp_keyword_scan_never_enters_an_attacker_sized_payload() {
+        let cancellation = RasterCancellation::default();
+        let no_nul = vec![b'x'; 2 * 1024 * 1024];
+        assert!(matches!(
+            decompress_selected_iccp(&no_nul, 0, &DecodeOptions::default(), &cancellation),
+            Err(DecodeError::CorruptInput)
+        ));
+
+        let mut late_nul = no_nul;
+        late_nul[80] = 0;
+        assert!(matches!(
+            decompress_selected_iccp(&late_nul, 0, &DecodeOptions::default(), &cancellation),
+            Err(DecodeError::CorruptInput)
+        ));
+    }
+
+    #[test]
+    fn selected_iccp_uses_exact_non_power_of_two_peak_and_payload_budget() {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(&vec![3_u8; 997]).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut data = b"profile\0\0".to_vec();
+        data.extend_from_slice(&compressed);
+        let exif_bytes = 7_usize;
+        let exact_peak = compressed.len() as u64 + 1_003 + exif_bytes as u64;
+        let mut options = DecodeOptions::default();
+        options.limits.max_icc_bytes = 1_003;
+        options.limits.max_working_bytes = exact_peak;
+        assert_eq!(
+            decompress_selected_iccp(&data, exif_bytes, &options, &RasterCancellation::default())
+                .unwrap()
+                .len(),
+            997
+        );
+
+        options.limits.max_working_bytes = exact_peak - 1;
+        assert!(matches!(
+            decompress_selected_iccp(&data, exif_bytes, &options, &RasterCancellation::default()),
+            Err(DecodeError::Limit(
+                crate::io::LimitError::WorkingBytes { .. }
+            ))
+        ));
+
+        let mut oversized = b"profile\0\0".to_vec();
+        oversized.extend(std::iter::repeat_n(0_u8, 1_004));
+        options.limits.max_working_bytes = u64::MAX;
+        assert!(matches!(
+            decompress_selected_iccp(&oversized, 0, &options, &RasterCancellation::default()),
+            Err(DecodeError::Limit(
+                crate::io::LimitError::MetadataBytes { .. }
+            ))
+        ));
+    }
+
+    #[test]
+    fn cross_thread_cancellation_preempts_large_iccp_validation() {
+        use std::sync::{Arc, Barrier};
+
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(&vec![0x4d; 8 * 1024 * 1024]).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut data = b"profile\0\0".to_vec();
+        data.extend_from_slice(&compressed);
+        let mut options = DecodeOptions::default();
+        options.limits.max_icc_bytes = 8 * 1024 * 1024 + 1;
+        let cancellation = RasterCancellation::default();
+        let trigger = Arc::new(Barrier::new(2));
+        let worker_cancellation = cancellation.clone();
+        let worker_trigger = Arc::clone(&trigger);
+        let worker = std::thread::spawn(move || {
+            worker_trigger.wait();
+            decompress_selected_iccp(&data, 0, &options, &worker_cancellation)
+        });
+        trigger.wait();
+        cancellation.cancel();
+        let result = worker.join().unwrap();
+        assert!(matches!(result, Err(DecodeError::Cancelled)));
     }
 }

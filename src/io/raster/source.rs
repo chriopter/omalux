@@ -46,7 +46,7 @@ pub(super) fn read_once(
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(initial)
-        .map_err(|_| DecodeError::Input(io::Error::other("source buffer allocation failed")))?;
+        .map_err(|_| DecodeError::Limit(crate::io::LimitError::Allocation))?;
     let mut file = File::from(fd);
     let mut chunk = [0_u8; 64 * 1024];
     loop {
@@ -67,7 +67,7 @@ pub(super) fn read_once(
             .check_source_bytes(next)
             .map_err(DecodeError::Limit)?;
         bytes
-            .try_reserve(count)
+            .try_reserve_exact(count)
             .map_err(|_| DecodeError::Limit(crate::io::LimitError::Allocation))?;
         bytes.extend_from_slice(&chunk[..count]);
     }

@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{io::Cursor, mem::size_of};
 
 use image::{ImageDecoder, codecs::jpeg::JpegDecoder};
 
@@ -126,6 +126,12 @@ struct JpegMarkers {
     exif: Option<Vec<u8>>,
 }
 
+#[derive(Clone, Copy)]
+struct IccPart {
+    start: usize,
+    end: usize,
+}
+
 fn scan_markers(
     bytes: &[u8],
     options: &DecodeOptions,
@@ -137,7 +143,9 @@ fn scan_markers(
     let mut offset = 2_usize;
     let mut components = None;
     let mut exif = None;
-    let mut icc_parts: Vec<Option<Vec<u8>>> = Vec::new();
+    // ICC APP2 payloads remain ranges into the immutable source buffer until
+    // validation is complete. Only the final, exact-size profile is copied.
+    let mut icc_parts: Vec<Option<IccPart>> = Vec::new();
     let mut icc_count = None;
     let mut icc_total = 0_usize;
     while offset < bytes.len() {
@@ -197,6 +205,7 @@ fn scan_markers(
                 .limits
                 .check_metadata_total(total)
                 .map_err(DecodeError::Limit)?;
+            check_metadata_working_peak(icc_total, raw.len(), icc_parts.len(), options)?;
             let mut copy = Vec::new();
             copy.try_reserve_exact(raw.len())
                 .map_err(|_| allocation_error())?;
@@ -218,12 +227,16 @@ fn scan_markers(
             }
             icc_count = Some(count);
             if icc_parts.is_empty() {
+                check_metadata_working_peak(icc_total, exif_len(&exif), count, options)?;
                 icc_parts
                     .try_reserve_exact(count)
                     .map_err(|_| allocation_error())?;
                 icc_parts.resize_with(count, || None);
             }
             let part = &data[14..];
+            if icc_parts[sequence - 1].is_some() {
+                return Err(DecodeError::CorruptInput);
+            }
             icc_total = icc_total.checked_add(part.len()).ok_or(DecodeError::Limit(
                 crate::io::LimitError::ArithmeticOverflow,
             ))?;
@@ -243,30 +256,18 @@ fn scan_markers(
                 .limits
                 .check_metadata_total(metadata_total)
                 .map_err(DecodeError::Limit)?;
-            let mut copy = Vec::new();
-            copy.try_reserve_exact(part.len())
-                .map_err(|_| allocation_error())?;
-            copy.extend_from_slice(part);
-            if icc_parts[sequence - 1].replace(copy).is_some() {
-                return Err(DecodeError::CorruptInput);
-            }
+            check_metadata_working_peak(icc_total, exif_len(&exif), icc_parts.len(), options)?;
+            icc_parts[sequence - 1] = Some(IccPart {
+                start: start.checked_add(14).ok_or(DecodeError::CorruptInput)?,
+                end,
+            });
         }
     }
     let icc = if let Some(count) = icc_count {
         if icc_parts.len() != count || icc_parts.iter().any(Option::is_none) {
             return Err(DecodeError::CorruptInput);
         }
-        let mut assembled = Vec::new();
-        assembled
-            .try_reserve_exact(icc_total)
-            .map_err(|_| allocation_error())?;
-        for part in icc_parts {
-            if cancellation.cancelled() {
-                return Err(DecodeError::Cancelled);
-            }
-            assembled.extend_from_slice(part.as_deref().expect("validated complete ICC"));
-        }
-        Some(assembled)
+        Some(assemble_icc(bytes, &icc_parts, icc_total, cancellation)?)
     } else {
         None
     };
@@ -288,9 +289,133 @@ fn scan_markers(
     })
 }
 
+fn exif_len(exif: &Option<Vec<u8>>) -> usize {
+    exif.as_ref().map_or(0, Vec::len)
+}
+
+fn check_metadata_working_peak(
+    icc_bytes: usize,
+    exif_bytes: usize,
+    part_count: usize,
+    options: &DecodeOptions,
+) -> Result<(), DecodeError> {
+    let descriptors =
+        part_count
+            .checked_mul(size_of::<Option<IccPart>>())
+            .ok_or(DecodeError::Limit(
+                crate::io::LimitError::ArithmeticOverflow,
+            ))?;
+    let requested = u64::try_from(icc_bytes)
+        .ok()
+        .and_then(|value| value.checked_add(u64::try_from(exif_bytes).ok()?))
+        .and_then(|value| value.checked_add(u64::try_from(descriptors).ok()?))
+        .ok_or(DecodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    if requested > options.limits.max_working_bytes {
+        return Err(DecodeError::Limit(crate::io::LimitError::WorkingBytes {
+            requested,
+            maximum: options.limits.max_working_bytes,
+        }));
+    }
+    Ok(())
+}
+
+fn assemble_icc(
+    bytes: &[u8],
+    parts: &[Option<IccPart>],
+    total: usize,
+    cancellation: &RasterCancellation,
+) -> Result<Vec<u8>, DecodeError> {
+    let mut assembled = Vec::new();
+    assembled
+        .try_reserve_exact(total)
+        .map_err(|_| allocation_error())?;
+    for part in parts {
+        let part = part.ok_or(DecodeError::CorruptInput)?;
+        let source = bytes
+            .get(part.start..part.end)
+            .ok_or(DecodeError::CorruptInput)?;
+        for chunk in source.chunks(16 * 1024) {
+            if cancellation.cancelled() {
+                return Err(DecodeError::Cancelled);
+            }
+            assembled.extend_from_slice(chunk);
+        }
+    }
+    if assembled.len() != total {
+        return Err(DecodeError::CorruptInput);
+    }
+    Ok(assembled)
+}
+
 fn is_sof(marker: u8) -> bool {
     matches!(
         marker,
         0xc0 | 0xc1 | 0xc2 | 0xc3 | 0xc5 | 0xc6 | 0xc7 | 0xc9 | 0xca | 0xcb | 0xcd | 0xce | 0xcf
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn marker(bytes: &mut Vec<u8>, marker: u8, data: &[u8]) {
+        bytes.extend_from_slice(&[0xff, marker]);
+        bytes.extend_from_slice(&u16::try_from(data.len() + 2).unwrap().to_be_bytes());
+        bytes.extend_from_slice(data);
+    }
+
+    fn jpeg_with_icc_parts(parts: &[&[u8]]) -> Vec<u8> {
+        let mut bytes = vec![0xff, 0xd8];
+        for (index, part) in parts.iter().enumerate() {
+            let mut data = b"ICC_PROFILE\0".to_vec();
+            data.push(u8::try_from(index + 1).unwrap());
+            data.push(u8::try_from(parts.len()).unwrap());
+            data.extend_from_slice(part);
+            marker(&mut bytes, 0xe2, &data);
+        }
+        marker(&mut bytes, 0xc0, &[8, 0, 1, 0, 1, 3]);
+        bytes.extend_from_slice(&[0xff, 0xda]);
+        bytes
+    }
+
+    #[test]
+    fn multipart_icc_has_one_exact_final_copy_and_checked_peak() {
+        let first = vec![0x31; 101];
+        let second = vec![0x72; 102];
+        let bytes = jpeg_with_icc_parts(&[&first, &second]);
+        let descriptor_bytes = 2 * size_of::<Option<IccPart>>();
+        let exact_peak = u64::try_from(first.len() + second.len() + descriptor_bytes).unwrap();
+        let mut options = DecodeOptions::default();
+        options.limits.max_icc_bytes = 211;
+        options.limits.max_working_bytes = exact_peak;
+        let markers = scan_markers(&bytes, &options, &RasterCancellation::default()).unwrap();
+        let mut expected = first;
+        expected.extend_from_slice(&second);
+        assert_eq!(markers.icc.unwrap(), expected);
+
+        options.limits.max_working_bytes = exact_peak - 1;
+        assert!(matches!(
+            scan_markers(&bytes, &options, &RasterCancellation::default()),
+            Err(DecodeError::Limit(
+                crate::io::LimitError::WorkingBytes { .. }
+            ))
+        ));
+    }
+
+    #[test]
+    fn icc_part_assembly_polls_cancellation_before_copying() {
+        let bytes = vec![0x5a; 32 * 1024];
+        let parts = [Some(IccPart {
+            start: 0,
+            end: bytes.len(),
+        })];
+        let cancellation = RasterCancellation::default();
+        cancellation.cancel();
+        assert!(matches!(
+            assemble_icc(&bytes, &parts, bytes.len(), &cancellation),
+            Err(DecodeError::Cancelled)
+        ));
+    }
 }
