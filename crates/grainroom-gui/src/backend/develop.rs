@@ -329,6 +329,27 @@ mod tests {
         settings
     }
 
+    fn local_exposure_settings(exposure_ev: f32) -> DevelopSettings {
+        let mut settings = DevelopSettings::default();
+        settings.radial_masks.masks.push(RadialMask {
+            id: "gui-local-exposure-only".to_owned(),
+            enabled: true,
+            center_x: 0.5,
+            center_y: 0.5,
+            radius_x: 2.0,
+            radius_y: 2.0,
+            rotation_degrees: 0.0,
+            feather: 0.0,
+            opacity: 1.0,
+            invert: false,
+            adjustments: LocalAdjustments {
+                exposure_ev,
+                ..LocalAdjustments::default()
+            },
+        });
+        settings
+    }
+
     #[test]
     fn catalog_and_settings_are_core_owned_json() {
         let catalog: serde_json::Value =
@@ -432,6 +453,32 @@ mod tests {
         let path = preview.path().to_owned();
         drop(preview);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn preview_artifact_isolates_local_exposure_from_settings_json() {
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        jpeg_fixture(input.path());
+        let neutral = develop_preview(
+            input.path(),
+            DevelopSettings::default(),
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let local_settings: DevelopSettings =
+            serde_json::from_str(&settings_json(&local_exposure_settings(1.0)).unwrap()).unwrap();
+        let local =
+            develop_preview(input.path(), local_settings, &CancellationToken::new()).unwrap();
+        let sum = |path: &Path| {
+            image::open(path)
+                .unwrap()
+                .to_rgb8()
+                .pixels()
+                .flat_map(|pixel| pixel.0)
+                .map(u64::from)
+                .sum::<u64>()
+        };
+        assert!(sum(local.path()) > sum(neutral.path()));
     }
 
     #[test]

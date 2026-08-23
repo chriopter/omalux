@@ -148,9 +148,9 @@ fn nonlinear_seven_point_pchip_has_extended_segment_goldens() {
 }
 
 #[test]
-fn preset_v1_migrates_explicitly_and_v2_is_strict() {
+fn preset_v1_migrates_explicitly_and_v3_is_strict() {
     let migrated = PresetDocument::from_json(V1_NEUTRAL).unwrap();
-    assert_eq!(migrated.schema_version, 2);
+    assert_eq!(migrated.schema_version, 3);
     assert_eq!(migrated.settings.basics.exposure_ev, 0.0);
     assert!(
         migrated
@@ -178,12 +178,12 @@ fn preset_v1_migrates_explicitly_and_v2_is_strict() {
     ));
     assert!(serde_json::from_str::<PresetDocument>(&extended_v1).is_err());
 
-    let missing_v2 = migrated
+    let missing_v3 = migrated
         .to_canonical_json()
         .unwrap()
         .replacen("\"exposure_ev\":0.0,", "", 1);
     assert!(matches!(
-        PresetDocument::from_json(&missing_v2),
+        PresetDocument::from_json(&missing_v3),
         Err(PresetError::MissingRequiredField(
             "settings.basics.exposure_ev"
         ))
@@ -191,7 +191,7 @@ fn preset_v1_migrates_explicitly_and_v2_is_strict() {
 
     let direct_v1: PresetDocument = serde_json::from_str(V1_NEUTRAL).unwrap();
     assert_eq!(direct_v1, migrated);
-    assert!(serde_json::from_str::<PresetDocument>(&missing_v2).is_err());
+    assert!(serde_json::from_str::<PresetDocument>(&missing_v3).is_err());
     let direct_v2: PresetDocument =
         serde_json::from_str(&migrated.to_canonical_json().unwrap()).unwrap();
     assert_eq!(direct_v2, migrated);
@@ -219,22 +219,34 @@ fn preset_with_local_exposure(exposure_ev: f32) -> PresetDocument {
 }
 
 #[test]
-fn local_exposure_is_required_in_v2_and_migrated_only_from_v1() {
-    let v2 = preset_with_local_exposure(0.0).to_canonical_json().unwrap();
-    let missing_v2 = v2.replacen(
+fn local_exposure_is_required_in_v3_and_migrated_from_v1_and_v2() {
+    let v3 = preset_with_local_exposure(0.0).to_canonical_json().unwrap();
+    let missing_v3 = v3.replacen(
         "\"adjustments\":{\"exposure_ev\":0.0,",
         "\"adjustments\":{",
         1,
     );
     assert!(matches!(
-        PresetDocument::from_json(&missing_v2),
+        PresetDocument::from_json(&missing_v3),
         Err(PresetError::MissingRequiredField(
             "settings.radial_masks.masks[].adjustments.exposure_ev"
         ))
     ));
-    assert!(serde_json::from_str::<PresetDocument>(&missing_v2).is_err());
+    assert!(serde_json::from_str::<PresetDocument>(&missing_v3).is_err());
 
-    let v1 = missing_v2
+    let v2 = missing_v3.replacen("\"schema_version\":3", "\"schema_version\":2", 1);
+    let migrated_v2 = PresetDocument::from_json(&v2).unwrap();
+    assert_eq!(migrated_v2.schema_version, 3);
+    assert_eq!(
+        migrated_v2.settings.radial_masks.masks[0]
+            .adjustments
+            .exposure_ev,
+        0.0
+    );
+    let direct_v2: PresetDocument = serde_json::from_str(&v2).unwrap();
+    assert_eq!(direct_v2, migrated_v2);
+
+    let v1 = v2
         .replacen("\"schema_version\":2", "\"schema_version\":1", 1)
         .replacen("\"exposure_ev\":0.0,", "", 1);
     let migrated = PresetDocument::from_json(&v1).unwrap();
@@ -260,6 +272,20 @@ fn local_exposure_is_required_in_v2_and_migrated_only_from_v1() {
         })
     ));
     assert!(serde_json::from_str::<PresetDocument>(&illegal_v1).is_err());
+
+    let illegal_v2 = v2.replacen(
+        "\"adjustments\":{",
+        "\"adjustments\":{\"exposure_ev\":1.0,",
+        1,
+    );
+    assert!(matches!(
+        PresetDocument::from_json(&illegal_v2),
+        Err(PresetError::FieldNotAvailable {
+            version: 2,
+            path: "settings.radial_masks.masks[].adjustments.exposure_ev"
+        })
+    ));
+    assert!(serde_json::from_str::<PresetDocument>(&illegal_v2).is_err());
 }
 
 #[test]

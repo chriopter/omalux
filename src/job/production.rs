@@ -339,6 +339,28 @@ mod tests {
         settings
     }
 
+    fn local_exposure_settings(exposure_ev: f32) -> crate::develop::DevelopSettings {
+        use crate::develop::{LocalAdjustments, RadialMask};
+        let mut settings = crate::develop::DevelopSettings::default();
+        settings.radial_masks.masks.push(RadialMask {
+            id: "local-exposure-only".to_owned(),
+            enabled: true,
+            center_x: 0.5,
+            center_y: 0.5,
+            radius_x: 2.0,
+            radius_y: 2.0,
+            rotation_degrees: 0.0,
+            feather: 0.0,
+            opacity: 1.0,
+            invert: false,
+            adjustments: LocalAdjustments {
+                exposure_ev,
+                ..LocalAdjustments::default()
+            },
+        });
+        settings
+    }
+
     fn full_component_settings() -> crate::develop::DevelopSettings {
         use crate::develop::CurvePoint;
 
@@ -388,6 +410,80 @@ mod tests {
         }
     }
 
+    fn settings_job(
+        input: &Path,
+        output: &Path,
+        format: OutputFormat,
+        settings: crate::develop::DevelopSettings,
+    ) -> crate::job::DevelopJob {
+        let mut job = geometry_mask_job(input, output, format);
+        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+            "isolated-settings-job",
+            "Isolated settings job",
+            settings,
+        ));
+        job
+    }
+
+    fn jpeg_rgb_sum(path: &Path) -> u64 {
+        image::open(path)
+            .unwrap()
+            .to_rgb8()
+            .pixels()
+            .flat_map(|pixel| pixel.0)
+            .map(u64::from)
+            .sum()
+    }
+
+    #[cfg(feature = "heic")]
+    fn heic_rgb_sum(path: &Path) -> u64 {
+        use libheif_sys as heif;
+        use std::ptr;
+
+        let bytes = stdfs::read(path).unwrap();
+        unsafe {
+            let context = heif::heif_context_alloc();
+            assert!(!context.is_null());
+            let read = heif::heif_context_read_from_memory_without_copy(
+                context,
+                bytes.as_ptr().cast(),
+                bytes.len(),
+                ptr::null(),
+            );
+            assert_eq!(read.code, heif::heif_error_code_heif_error_Ok);
+            let mut handle = ptr::null_mut();
+            let primary = heif::heif_context_get_primary_image_handle(context, &mut handle);
+            assert_eq!(primary.code, heif::heif_error_code_heif_error_Ok);
+            let width = heif::heif_image_handle_get_width(handle) as usize;
+            let height = heif::heif_image_handle_get_height(handle) as usize;
+            let mut decoded = ptr::null_mut();
+            let decode = heif::heif_decode_image(
+                handle,
+                &mut decoded,
+                heif::heif_colorspace_heif_colorspace_RGB,
+                heif::heif_chroma_heif_chroma_interleaved_RGB,
+                ptr::null(),
+            );
+            assert_eq!(decode.code, heif::heif_error_code_heif_error_Ok);
+            let mut stride = 0usize;
+            let plane = heif::heif_image_get_plane_readonly2(
+                decoded,
+                heif::heif_channel_heif_channel_interleaved,
+                &mut stride,
+            );
+            assert!(!plane.is_null());
+            let rows = std::slice::from_raw_parts(plane, stride * height);
+            let sum = rows
+                .chunks_exact(stride)
+                .map(|row| row[..width * 3].iter().copied().map(u64::from).sum::<u64>())
+                .sum();
+            heif::heif_image_release(decoded);
+            heif::heif_image_handle_release(handle);
+            heif::heif_context_free(context);
+            sum
+        }
+    }
+
     fn full_component_job(
         input: &Path,
         output: &Path,
@@ -433,6 +529,85 @@ mod tests {
         assert_full_component_profile(&report);
         let decoded = image::open(output).unwrap();
         assert_eq!((decoded.width(), decoded.height()), (3, 4));
+    }
+
+    #[test]
+    fn raster_and_raw_jpeg_artifacts_isolate_local_exposure() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+
+        let directory = tempdir().unwrap();
+        let raster_input = directory.path().join("isolated.jpg");
+        jpeg_solid(&raster_input, 4, 3, [30, 60, 90]);
+        let raster_neutral = directory.path().join("raster-neutral.jpg");
+        let raster_local = directory.path().join("raster-local.jpg");
+        for (output, settings) in [
+            (&raster_neutral, crate::develop::DevelopSettings::default()),
+            (&raster_local, local_exposure_settings(1.0)),
+        ] {
+            DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+                .run(
+                    &settings_job(&raster_input, output, OutputFormat::Jpeg, settings),
+                    &ProductionPhotoDecoder::new(),
+                    &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                    &CancellationToken::new(),
+                    &mut NoProgress,
+                )
+                .unwrap();
+        }
+        assert!(jpeg_rgb_sum(&raster_local) > jpeg_rgb_sum(&raster_neutral));
+
+        let raw_input = directory.path().join("isolated.nef");
+        stdfs::write(&raw_input, b"isolated synthetic raw").unwrap();
+        let raw_neutral = directory.path().join("raw-neutral.jpg");
+        let raw_local = directory.path().join("raw-local.jpg");
+        for (output, settings) in [
+            (&raw_neutral, crate::develop::DevelopSettings::default()),
+            (&raw_local, local_exposure_settings(1.0)),
+        ] {
+            DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+                .run(
+                    &settings_job(&raw_input, output, OutputFormat::Jpeg, settings),
+                    &ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path())),
+                    &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                    &CancellationToken::new(),
+                    &mut NoProgress,
+                )
+                .unwrap();
+        }
+        assert!(jpeg_rgb_sum(&raw_local) > jpeg_rgb_sum(&raw_neutral));
+    }
+
+    #[cfg(feature = "heic")]
+    #[test]
+    fn heic_artifact_isolates_local_exposure() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("isolated.jpg");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let neutral = directory.path().join("neutral.heic");
+        let local = directory.path().join("local.heic");
+        for (output, settings) in [
+            (&neutral, crate::develop::DevelopSettings::default()),
+            (&local, local_exposure_settings(1.0)),
+        ] {
+            DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+                .run(
+                    &settings_job(&input, output, OutputFormat::Heic, settings),
+                    &ProductionPhotoDecoder::new(),
+                    &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                    &CancellationToken::new(),
+                    &mut NoProgress,
+                )
+                .unwrap();
+        }
+        assert!(heic_rgb_sum(&local) > heic_rgb_sum(&neutral));
     }
 
     #[cfg(feature = "heic")]

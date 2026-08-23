@@ -25,7 +25,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
 
     let preset = run(&["presets", "show", "neutral", "--json"]);
     assert!(preset.status.success());
-    assert_eq!(json(&preset)["schema_version"], 2);
+    assert_eq!(json(&preset)["schema_version"], 3);
 
     let parameters = run(&["parameters", "list", "--json"]);
     assert!(parameters.status.success());

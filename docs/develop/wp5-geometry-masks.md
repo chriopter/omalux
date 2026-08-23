@@ -50,6 +50,10 @@ as global USM. The RadialMasksV1 local model permits negative sharpness although
 WP3 does not define it; active negative local sharpness therefore fails loudly
 at preflight instead of inventing blur semantics.
 
+Preset schema v3 introduces local `exposure_ev`. Readers migrate schema v1 and
+v2 masks to the neutral value `0`; those older versions reject the field rather
+than accepting ambiguous forward data. Schema v3 requires it in every mask.
+
 Non-inverted masks allocate and process only the rotated ellipse bounding box
 plus a one-pixel analytic-AA margin. Sharpness reads its three-sigma halo from
 the complete input through global Reflect101 coordinates but materializes only

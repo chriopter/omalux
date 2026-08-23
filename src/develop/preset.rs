@@ -2,8 +2,9 @@ use super::{DevelopSettings, SettingsError};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::fmt;
 
-pub const PRESET_SCHEMA_VERSION: u32 = 2;
+pub const PRESET_SCHEMA_VERSION: u32 = 3;
 const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
+const PREVIOUS_PRESET_SCHEMA_VERSION: u32 = 2;
 pub const PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
 const LOCAL_EXPOSURE_PATH: &str = "settings.radial_masks.masks[].adjustments.exposure_ev";
 
@@ -43,7 +44,7 @@ impl<'de> Deserialize<'de> for PresetDocument {
         }
         if !matches!(
             wire.schema_version,
-            LEGACY_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
+            LEGACY_PRESET_SCHEMA_VERSION | PREVIOUS_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
         ) {
             return Err(D::Error::custom("unsupported preset schema version"));
         }
@@ -62,13 +63,18 @@ impl<'de> Deserialize<'de> for PresetDocument {
                     ));
                 }
                 basics.insert("exposure_ev".to_owned(), serde_json::Value::from(0.0));
-                migrate_v1_local_exposure(&mut settings_value).map_err(D::Error::custom)?;
+                migrate_local_exposure(&mut settings_value, LEGACY_PRESET_SCHEMA_VERSION)
+                    .map_err(D::Error::custom)?;
             }
-            PRESET_SCHEMA_VERSION if !has_exposure => {
+            PREVIOUS_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION if !has_exposure => {
                 return Err(D::Error::missing_field("settings.basics.exposure_ev"));
             }
+            PREVIOUS_PRESET_SCHEMA_VERSION => {
+                migrate_local_exposure(&mut settings_value, PREVIOUS_PRESET_SCHEMA_VERSION)
+                    .map_err(D::Error::custom)?;
+            }
             PRESET_SCHEMA_VERSION => {
-                require_v2_local_exposure(&settings_value).map_err(D::Error::custom)?;
+                require_v3_local_exposure(&settings_value).map_err(D::Error::custom)?;
             }
             _ => unreachable!("version checked above"),
         }
@@ -134,7 +140,7 @@ impl PresetDocument {
         }
         if !matches!(
             envelope.schema_version,
-            LEGACY_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
+            LEGACY_PRESET_SCHEMA_VERSION | PREVIOUS_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
         ) {
             return Err(PresetError::UnsupportedVersion(envelope.schema_version));
         }
@@ -147,18 +153,23 @@ impl PresetDocument {
                 path: "settings.basics.exposure_ev",
             });
         }
-        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION && has_any_local_exposure(&value)
+        if matches!(
+            envelope.schema_version,
+            LEGACY_PRESET_SCHEMA_VERSION | PREVIOUS_PRESET_SCHEMA_VERSION
+        ) && has_any_local_exposure(&value)
         {
             return Err(PresetError::FieldNotAvailable {
-                version: LEGACY_PRESET_SCHEMA_VERSION,
+                version: envelope.schema_version,
                 path: LOCAL_EXPOSURE_PATH,
             });
         }
         if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
             validate_v1_value_semantics(&value)?;
         }
-        if envelope.schema_version == PRESET_SCHEMA_VERSION
-            && value.pointer("/settings/basics/exposure_ev").is_none()
+        if matches!(
+            envelope.schema_version,
+            PREVIOUS_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
+        ) && value.pointer("/settings/basics/exposure_ev").is_none()
         {
             return Err(PresetError::MissingRequiredField(
                 "settings.basics.exposure_ev",
@@ -202,7 +213,10 @@ fn has_missing_local_exposure(value: &serde_json::Value) -> bool {
     local_adjustments(value).any(|adjustments| !adjustments.contains_key("exposure_ev"))
 }
 
-fn migrate_v1_local_exposure(value: &mut serde_json::Value) -> Result<(), &'static str> {
+fn migrate_local_exposure(
+    value: &mut serde_json::Value,
+    source_version: u32,
+) -> Result<(), String> {
     let Some(masks) = value
         .pointer_mut("/radial_masks/masks")
         .and_then(serde_json::Value::as_array_mut)
@@ -217,14 +231,16 @@ fn migrate_v1_local_exposure(value: &mut serde_json::Value) -> Result<(), &'stat
             continue;
         };
         if adjustments.contains_key("exposure_ev") {
-            return Err("local exposure is unavailable in schema v1");
+            return Err(format!(
+                "local exposure is unavailable in schema v{source_version}"
+            ));
         }
         adjustments.insert("exposure_ev".to_owned(), serde_json::Value::from(0.0));
     }
     Ok(())
 }
 
-fn require_v2_local_exposure(value: &serde_json::Value) -> Result<(), &'static str> {
+fn require_v3_local_exposure(value: &serde_json::Value) -> Result<(), &'static str> {
     if has_missing_local_exposure_in_settings(value) {
         Err("missing field settings.radial_masks.masks[].adjustments.exposure_ev")
     } else {
