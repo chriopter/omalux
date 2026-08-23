@@ -46,23 +46,39 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
 }
 
 #[test]
-fn develop_validates_format_ranges_overrides_and_stops_as_unavailable() {
-    let valid = run(&[
-        "develop",
-        "--input",
-        "input.raw",
-        "--output",
-        "output.JPEG",
-        "--quality",
-        "90",
-        "--set",
-        "basics.contrast=-12.5",
-        "--set",
-        "effects.fade=5",
-    ]);
+fn develop_validates_format_ranges_and_keeps_active_settings_unproven() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("input.jpg");
+    let output = directory.path().join("output.JPEG");
+    image::save_buffer_with_format(
+        &input,
+        &[10_u8, 20, 30],
+        1,
+        1,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Jpeg,
+    )
+    .unwrap();
+    let valid = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .args([
+            "--quality",
+            "90",
+            "--set",
+            "basics.contrast=-12.5",
+            "--set",
+            "effects.fade=5",
+        ])
+        .output()
+        .unwrap();
     assert_eq!(valid.status.code(), Some(69));
     assert!(valid.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&valid.stderr).contains("execution is unavailable"));
+    assert!(String::from_utf8_lossy(&valid.stderr).contains("unproven_pipeline_budget"));
+    assert!(!output.exists());
 
     for arguments in [
         vec!["develop", "--input", "in.jpg", "--output", "out.unknown"],
@@ -113,9 +129,9 @@ fn foundation_flags_are_typed_and_preset_sources_conflict() {
         "json",
         "--json",
     ]);
-    assert_eq!(valid.status.code(), Some(69));
-    assert_eq!(json(&valid)["error"]["code"], "unavailable");
-    assert!(valid.stderr.is_empty());
+    assert_eq!(valid.status.code(), Some(1));
+    assert_eq!(json(&valid)["outcome"]["code"], "input_io");
+    assert!(!valid.stderr.is_empty());
 
     let conflict = run(&[
         "develop",
@@ -151,11 +167,11 @@ fn legacy_headless_is_a_typed_usage_error() {
 }
 
 #[test]
-fn unavailable_develop_does_not_open_or_create_any_requested_file() {
+fn unavailable_heic_does_not_open_or_create_any_requested_file() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("does-not-exist.raw");
     let preset = directory.path().join("does-not-exist.json");
-    let output = directory.path().join("must-not-exist.jpg");
+    let output = directory.path().join("must-not-exist.heic");
     let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
         .arg("develop")
         .arg("--input")

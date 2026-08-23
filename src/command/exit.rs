@@ -4,7 +4,9 @@ use std::process::ExitCode;
 pub(crate) enum CommandExit {
     Success,
     Usage,
+    Failed,
     Unavailable,
+    Cancelled,
     Internal,
     Child(u8),
 }
@@ -22,7 +24,9 @@ impl CommandExit {
         match self {
             Self::Success => 0,
             Self::Usage => 2,
+            Self::Failed => 1,
             Self::Unavailable => 69,
+            Self::Cancelled => 130,
             Self::Internal => 70,
             Self::Child(code) => code,
         }

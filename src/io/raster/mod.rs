@@ -68,6 +68,7 @@ pub fn decode_raster_with_identity(
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    options.validate()?;
     let buffered = source::read_once(source.as_ref(), &options.limits, || {
         cancellation.cancelled()
     })?;
@@ -81,6 +82,7 @@ pub(crate) fn decode_raster_file(
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    options.validate()?;
     let buffered = source::read_file_once(source, &options.limits, || cancellation.cancelled())?;
     decode_buffered(buffered, options, cancellation)
 }
@@ -90,7 +92,6 @@ fn decode_buffered(
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
-    options.validate()?;
     let mut payload = match sniff(&buffered.bytes)? {
         RasterFormat::Jpeg => jpeg::decode(&buffered.bytes, options, cancellation)?,
         RasterFormat::Png => png::decode(&buffered.bytes, options, cancellation)?,

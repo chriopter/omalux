@@ -77,14 +77,14 @@ mod tests {
     }
 
     #[test]
-    fn unavailable_develop_emits_no_progress_stream() {
+    fn unavailable_heic_emits_no_progress_stream_or_file_io() {
         let base = [
             "grainroom",
             "develop",
             "--input",
             "source.raw",
             "--output",
-            "result.jpg",
+            "result.heic",
         ];
         let mut human = base.to_vec();
         human.extend(["--progress", "human"]);
@@ -101,6 +101,118 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
         assert_eq!(value["error"]["code"], "unavailable");
         assert_eq!(stdout.lines().count(), 1);
+    }
+
+    #[test]
+    fn neutral_jpeg_runs_end_to_end_with_path_free_json_progress() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input.jpg");
+        let output = directory.path().join("output.jpg");
+        image::save_buffer_with_format(
+            &input,
+            &[20_u8, 80, 160],
+            1,
+            1,
+            image::ColorType::Rgb8,
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+        let arguments = vec![
+            OsString::from("grainroom"),
+            OsString::from("develop"),
+            OsString::from("--input"),
+            input.clone().into_os_string(),
+            OsString::from("--output"),
+            output.clone().into_os_string(),
+            OsString::from("--json"),
+            OsString::from("--progress"),
+            OsString::from("json"),
+        ];
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit = run_from(arguments, &mut stdout, &mut stderr);
+        assert_eq!(exit, ExitCode::SUCCESS);
+        assert!(output.is_file());
+        let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+        assert_eq!(report["outcome"]["status"], "published_and_durable");
+        let progress = String::from_utf8(stderr).unwrap();
+        assert!(progress.lines().count() >= 6);
+        let combined = format!("{}{}", String::from_utf8(stdout).unwrap(), progress);
+        assert!(!combined.contains(directory.path().to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn hardlink_destination_is_rejected_without_overwriting_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input.jpg");
+        let output = directory.path().join("output.jpg");
+        image::save_buffer_with_format(
+            &input,
+            &[40_u8, 50, 60],
+            1,
+            1,
+            image::ColorType::Rgb8,
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+        std::fs::hard_link(&input, &output).unwrap();
+        let before = std::fs::read(&input).unwrap();
+        let arguments = vec![
+            OsString::from("grainroom"),
+            OsString::from("develop"),
+            OsString::from("--input"),
+            input.into_os_string(),
+            OsString::from("--output"),
+            output.into_os_string(),
+            OsString::from("--overwrite"),
+            OsString::from("--json"),
+        ];
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit = run_from(arguments, &mut stdout, &mut stderr);
+        assert_eq!(exit, ExitCode::from(1));
+        let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+        assert_eq!(report["outcome"]["code"], "destination_conflict");
+        assert_eq!(
+            std::fs::read(directory.path().join("input.jpg")).unwrap(),
+            before
+        );
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn active_override_stays_honestly_unproven_and_creates_no_target() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input.jpg");
+        let output = directory.path().join("output.jpg");
+        image::save_buffer_with_format(
+            &input,
+            &[70_u8, 80, 90],
+            1,
+            1,
+            image::ColorType::Rgb8,
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+        let arguments = vec![
+            OsString::from("grainroom"),
+            OsString::from("develop"),
+            OsString::from("--input"),
+            input.into_os_string(),
+            OsString::from("--output"),
+            output.clone().into_os_string(),
+            OsString::from("--set"),
+            OsString::from("basics.contrast=10"),
+            OsString::from("--json"),
+        ];
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let exit = run_from(arguments, &mut stdout, &mut stderr);
+        assert_eq!(exit, ExitCode::from(69));
+        let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
+        assert_eq!(report["outcome"]["code"], "unproven_pipeline_budget");
+        assert!(!output.exists());
+        assert!(stderr.is_empty());
     }
 
     #[test]

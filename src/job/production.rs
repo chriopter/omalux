@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-use rustix::fs::{self, Mode, OFlags};
+use rustix::fs::{self, FileType, Mode, OFlags};
 
 use crate::{
     io::{
@@ -83,6 +83,17 @@ impl ProductionPhotoDecoder {
         options: &DecodeOptions,
         cancellation: &CancellationToken,
     ) -> Result<DecodedSource, DecodeError> {
+        let stat = fs::fstat(&file).map_err(|error| {
+            DecodeError::Input(io::Error::from_raw_os_error(error.raw_os_error()))
+        })?;
+        if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile {
+            return Err(DecodeError::UnsupportedFormat);
+        }
+        let advertised = u64::try_from(stat.st_size).map_err(|_| DecodeError::UnsupportedFormat)?;
+        options
+            .limits
+            .check_source_bytes(advertised)
+            .map_err(DecodeError::Limit)?;
         let mut signature = [0_u8; 8];
         let read = file
             .read_at(&mut signature, 0)
@@ -286,5 +297,49 @@ mod tests {
                 | Err(DecodeError::ColorManagement)
                 | Err(DecodeError::Metadata)
         ));
+    }
+
+    #[test]
+    fn pre_cancelled_job_never_opens_input_or_creates_target() {
+        use crate::{
+            develop::PresetCatalog,
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::{
+                DevelopJob, DevelopJobRunner, DevelopOutput, JobErrorCode, NoProgress,
+                PresetSelection,
+            },
+        };
+        let directory = tempdir().unwrap();
+        let output = directory.path().join("never-created.jpg");
+        let limits = ResourceLimits::default();
+        let job = DevelopJob {
+            input: directory.path().join("does-not-exist.jpg"),
+            output: output.clone(),
+            decode: DecodeOptions::default(),
+            output_options: DevelopOutput::new(
+                OutputFormat::Jpeg,
+                90,
+                OutputProfile::Srgb,
+                MetadataPolicy::StripLocation,
+                AlphaPolicy::Reject,
+                SdrRangePolicy::ClipAndReport,
+            ),
+            overwrite: OverwritePolicy::Forbid,
+            preset: PresetSelection::CatalogId("neutral".to_owned()),
+            overrides: Vec::new(),
+        };
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let failure = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &job,
+                &ProductionPhotoDecoder::new(),
+                &ProductionJpegEncoder::new(limits),
+                &cancellation,
+                &mut NoProgress,
+            )
+            .unwrap_err();
+        assert_eq!(failure.error.code, JobErrorCode::Cancelled);
+        assert!(!output.exists());
     }
 }

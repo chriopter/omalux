@@ -19,7 +19,7 @@ pub(crate) struct Cli {
 pub(crate) enum Command {
     /// Launch the packaged desktop sibling.
     Gui(GuiArgs),
-    /// Validate a non-interactive development request.
+    /// Develop one photo non-interactively.
     Develop(DevelopArgs),
     /// Inspect built-in presets.
     Presets(PresetsArgs),
@@ -89,6 +89,22 @@ pub(crate) struct DevelopArgs {
     /// Progress stream mode.
     #[arg(long, value_enum, default_value_t = ProgressArg::None)]
     pub(crate) progress: ProgressArg,
+
+    /// Maximum encoded source bytes accepted.
+    #[arg(long, value_name = "BYTES")]
+    pub(crate) max_source_bytes: Option<u64>,
+
+    /// Maximum decoded pixels accepted.
+    #[arg(long, value_name = "COUNT")]
+    pub(crate) max_pixels: Option<u64>,
+
+    /// Maximum audited working-set bytes accepted.
+    #[arg(long, value_name = "BYTES")]
+    pub(crate) max_working_bytes: Option<u64>,
+
+    /// Maximum encoded output bytes accepted.
+    #[arg(long, value_name = "BYTES")]
+    pub(crate) max_output_bytes: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

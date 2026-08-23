@@ -35,6 +35,7 @@ pub fn decode_raw_with_identity(
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    validate_request(options, execution)?;
     let staged = stage::stage_source(
         source.as_ref(),
         &execution.staging_directory,
@@ -53,6 +54,7 @@ pub(crate) fn decode_raw_file(
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    validate_request(options, execution)?;
     let staged = stage::stage_source_file(
         source,
         source_name,
@@ -69,11 +71,6 @@ fn decode_staged(
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
-    options.validate()?;
-    execution.validate()?;
-    if !options.raw.apply_orientation {
-        return Err(DecodeError::InvalidOptions);
-    }
     process::run_dcraw(
         &staged,
         options.raw.white_balance,
@@ -125,6 +122,18 @@ fn decode_staged(
     )
     .map_err(map_decoded_photo_error)?;
     Ok((photo, staged.identity))
+}
+
+fn validate_request(
+    options: &DecodeOptions,
+    execution: &RawExecutionOptions,
+) -> Result<(), DecodeError> {
+    options.validate()?;
+    execution.validate()?;
+    if !options.raw.apply_orientation {
+        return Err(DecodeError::InvalidOptions);
+    }
+    Ok(())
 }
 
 fn map_decoded_photo_error(error: DecodedPhotoError) -> DecodeError {

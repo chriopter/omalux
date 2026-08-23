@@ -19,6 +19,7 @@ heic = ["dep:libheif-sys"]
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 crc32fast = "1.5"
+ctrlc = "3.5"
 flate2 = "1.1"
 image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png"] }
 lcms2 = "6.1.1"

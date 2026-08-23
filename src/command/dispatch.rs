@@ -1,10 +1,24 @@
 use super::{
     CommandExit,
-    args::{Cli, Command, DevelopArgs, DevelopFormat, ParametersCommand, PresetsCommand},
+    args::{
+        AlphaArg, Cli, Command, DevelopArgs, DevelopFormat, MetadataArg, ParametersCommand,
+        PresetsCommand, ProgressArg, UnprofiledArg,
+    },
 };
 use grainroom::develop::{
     DevelopStage, ParameterKind, ParameterUnit, PresetCatalog, apply_parameter_overrides,
-    parameter_registry,
+    load_preset_file, parameter_registry,
+};
+use grainroom::{
+    io::{
+        AlphaPolicy, DecodeOptions, MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy,
+        ResourceLimits, SdrRangePolicy, UnprofiledPolicy,
+    },
+    job::{
+        CancellationToken, DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput,
+        JobErrorCode, JobStage, PresetSelection, ProductionJpegEncoder, ProductionPhotoDecoder,
+        ProgressSink,
+    },
 };
 use serde_json::json;
 use std::{
@@ -21,6 +35,10 @@ use std::{
     },
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, ExitStatus, Stdio},
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -210,52 +228,277 @@ fn validate_develop(
         );
         return CommandExit::Usage;
     }
-    if arguments.preset_file.is_none() {
-        let catalog = match PresetCatalog::built_in() {
-            Ok(catalog) => catalog,
+    // V1 intentionally rejects HEIC before preset or input I/O and before any
+    // destination can be created.
+    if format == DevelopFormat::Heic {
+        return emit_unavailable(arguments.json, stdout, stderr, "heic_encoder");
+    }
+
+    let catalog = match PresetCatalog::built_in() {
+        Ok(catalog) => catalog,
+        Err(_) => {
+            human_error(stderr, "built-in preset catalog is unavailable");
+            return CommandExit::Internal;
+        }
+    };
+    let preset = if let Some(path) = arguments.preset_file.as_deref() {
+        match load_preset_file(path) {
+            Ok(document) => PresetSelection::document(document),
             Err(_) => {
-                human_error(stderr, "built-in preset catalog is unavailable");
-                return CommandExit::Internal;
+                human_error(stderr, "external preset could not be loaded");
+                return CommandExit::Usage;
             }
-        };
-        let preset_id = arguments.preset.as_deref().unwrap_or("neutral");
-        let Some(preset) = catalog.get(preset_id) else {
+        }
+    } else {
+        let id = arguments.preset.as_deref().unwrap_or("neutral");
+        let Some(document) = catalog.get(id) else {
             human_error(stderr, "unknown built-in preset ID");
             return CommandExit::Usage;
         };
-        if apply_parameter_overrides(&preset.settings, &arguments.overrides).is_err() {
-            human_error(stderr, "parameter overrides do not form valid settings");
-            return CommandExit::Usage;
+        PresetSelection::CatalogId(document.id.clone())
+    };
+    let base_settings = match &preset {
+        PresetSelection::CatalogId(id) => {
+            &catalog.get(id).expect("catalog ID was checked").settings
         }
+        PresetSelection::Document(document) => &document.settings,
+    };
+    if apply_parameter_overrides(base_settings, &arguments.overrides).is_err() {
+        human_error(stderr, "parameter overrides do not form valid settings");
+        return CommandExit::Usage;
     }
-    let _validated_request = (
-        arguments.input,
-        arguments.output,
-        format,
+
+    let mut limits = ResourceLimits::default();
+    if let Some(value) = arguments.max_source_bytes {
+        limits.max_source_bytes = value;
+    }
+    if let Some(value) = arguments.max_pixels {
+        limits.max_pixels = value;
+    }
+    if let Some(value) = arguments.max_working_bytes {
+        limits.max_working_bytes = value;
+    }
+    if let Some(value) = arguments.max_output_bytes {
+        limits.max_output_bytes = value;
+    }
+    let mut decode = DecodeOptions::default();
+    decode.limits = limits;
+    decode.unprofiled = match arguments.unprofiled {
+        UnprofiledArg::AssumeSrgb => UnprofiledPolicy::AssumeSrgbAndWarn,
+        UnprofiledArg::Reject => UnprofiledPolicy::Reject,
+    };
+    let alpha = match arguments.alpha {
+        AlphaArg::Reject => AlphaPolicy::Reject,
+        AlphaArg::FlattenBlack => AlphaPolicy::Flatten([0.0; 3]),
+        AlphaArg::Flatten(rgb) => AlphaPolicy::Flatten(rgb.map(|value| f32::from(value) / 255.0)),
+    };
+    let output_options = DevelopOutput::new(
+        OutputFormat::Jpeg,
         arguments.quality,
-        arguments.preset_file,
-        arguments.unprofiled,
-        arguments.metadata,
-        arguments.alpha,
-        arguments.overwrite,
-        arguments.progress,
+        OutputProfile::Srgb,
+        match arguments.metadata {
+            MetadataArg::PreserveSafe => MetadataPolicy::PreserveSafe,
+            MetadataArg::StripLocation => MetadataPolicy::StripLocation,
+            MetadataArg::StripAll => MetadataPolicy::StripAll,
+        },
+        alpha,
+        SdrRangePolicy::ClipAndReport,
     );
-    if arguments.json {
-        if write_json(
-            stdout,
-            &json!({"error": {"code": "unavailable", "message": "develop execution is unavailable"}}),
-            stderr,
-        ) != CommandExit::Success
-        {
+    let job = DevelopJob {
+        input: arguments.input,
+        output: arguments.output,
+        decode,
+        output_options,
+        overwrite: if arguments.overwrite {
+            OverwritePolicy::Replace
+        } else {
+            OverwritePolicy::Forbid
+        },
+        preset,
+        overrides: arguments.overrides,
+    };
+    let runner = DevelopJobRunner::new(catalog);
+    let decoder = ProductionPhotoDecoder::new();
+    let encoder = ProductionJpegEncoder::new(limits);
+    let cancellation = CancellationToken::new();
+    let _signal_guard = match ActiveCancellation::install(cancellation.clone()) {
+        Ok(guard) => guard,
+        Err(()) => {
+            human_error(stderr, "interrupt handler could not be installed");
             return CommandExit::Internal;
         }
-    } else {
-        human_error(
+    };
+    let mut progress = CliProgress {
+        mode: arguments.progress,
+        output: stderr,
+    };
+    let result = runner.run(&job, &decoder, &encoder, &cancellation, &mut progress);
+    match result {
+        Ok(report) => {
+            if arguments.json {
+                write_json(stdout, &report, stderr)
+            } else if writeln!(stdout, "{}", human_success(&report.outcome)).is_ok() {
+                CommandExit::Success
+            } else {
+                CommandExit::Internal
+            }
+        }
+        Err(failure) => {
+            let exit = failure_exit(failure.error.code);
+            if arguments.json {
+                if write_json(stdout, &failure.report, stderr) == CommandExit::Success {
+                    exit
+                } else {
+                    CommandExit::Internal
+                }
+            } else {
+                human_error(
+                    stderr,
+                    &format!(
+                        "develop failed at {} ({})",
+                        job_stage_name(failure.error.stage),
+                        error_name(failure.error.code)
+                    ),
+                );
+                exit
+            }
+        }
+    }
+}
+
+fn human_success(outcome: &DevelopJobOutcome) -> String {
+    match outcome {
+        DevelopJobOutcome::PublishedAndDurable { bytes_written } => {
+            format!("develop complete: published_and_durable ({bytes_written} bytes)")
+        }
+        DevelopJobOutcome::PublishedButNotDurable { bytes_written } => {
+            format!("develop complete: published_but_not_durable ({bytes_written} bytes)")
+        }
+        DevelopJobOutcome::Failure { .. } => "develop failed".to_owned(),
+    }
+}
+
+static ACTIVE_CANCELLATION: OnceLock<Mutex<Option<(u64, CancellationToken)>>> = OnceLock::new();
+static INTERRUPT_HANDLER: OnceLock<Result<(), ()>> = OnceLock::new();
+static NEXT_CANCELLATION_ID: AtomicU64 = AtomicU64::new(1);
+
+struct ActiveCancellation {
+    id: u64,
+}
+
+impl ActiveCancellation {
+    fn install(token: CancellationToken) -> Result<Self, ()> {
+        let slot = ACTIVE_CANCELLATION.get_or_init(|| Mutex::new(None));
+        INTERRUPT_HANDLER
+            .get_or_init(|| ctrlc::set_handler(cancel_active_job).map_err(|_| ()))
+            .as_ref()
+            .map_err(|_| ())?;
+        let id = NEXT_CANCELLATION_ID.fetch_add(1, Ordering::Relaxed);
+        *slot.lock().map_err(|_| ())? = Some((id, token));
+        Ok(Self { id })
+    }
+}
+
+fn cancel_active_job() {
+    if let Some(slot) = ACTIVE_CANCELLATION.get()
+        && let Ok(active) = slot.lock()
+        && let Some((_, token)) = active.as_ref()
+    {
+        token.cancel();
+    }
+}
+
+impl Drop for ActiveCancellation {
+    fn drop(&mut self) {
+        if let Some(slot) = ACTIVE_CANCELLATION.get()
+            && let Ok(mut active) = slot.lock()
+            && active.as_ref().is_some_and(|(id, _)| *id == self.id)
+        {
+            *active = None;
+        }
+    }
+}
+
+struct CliProgress<'a> {
+    mode: ProgressArg,
+    output: &'a mut dyn Write,
+}
+
+impl ProgressSink for CliProgress<'_> {
+    fn stage_completed(&mut self, stage: JobStage) {
+        match self.mode {
+            ProgressArg::None => {}
+            ProgressArg::Human => {
+                let _ = writeln!(self.output, "completed {}", job_stage_name(stage));
+            }
+            ProgressArg::Json => {
+                let _ = serde_json::to_writer(
+                    &mut self.output,
+                    &json!({"event": "stage_completed", "stage": stage}),
+                );
+                let _ = writeln!(self.output);
+            }
+        }
+    }
+}
+
+fn emit_unavailable(
+    json_output: bool,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    capability: &str,
+) -> CommandExit {
+    if json_output {
+        let _ = write_json(
+            stdout,
+            &json!({"error": {"code": "unavailable", "capability": capability}}),
             stderr,
-            "develop execution is unavailable until production decoder and encoder services are wired",
         );
+    } else {
+        human_error(stderr, "requested output codec is unavailable");
     }
     CommandExit::Unavailable
+}
+
+fn failure_exit(code: JobErrorCode) -> CommandExit {
+    match code {
+        JobErrorCode::Cancelled => CommandExit::Cancelled,
+        JobErrorCode::RawBackend | JobErrorCode::UnprovenPipelineBudget => CommandExit::Unavailable,
+        JobErrorCode::InvalidOptions => CommandExit::Usage,
+        JobErrorCode::Internal => CommandExit::Internal,
+        _ => CommandExit::Failed,
+    }
+}
+
+fn job_stage_name(stage: JobStage) -> &'static str {
+    match stage {
+        JobStage::Validate => "validate",
+        JobStage::Decode => "decode",
+        JobStage::ResolveSettings => "resolve_settings",
+        JobStage::Develop => "develop",
+        JobStage::SceneRender => "scene_render",
+        JobStage::Encode => "encode",
+        JobStage::Complete => "complete",
+    }
+}
+
+fn error_name(code: JobErrorCode) -> &'static str {
+    match code {
+        JobErrorCode::InputIo => "input_io",
+        JobErrorCode::UnsupportedFormat => "unsupported_format",
+        JobErrorCode::CorruptInput => "corrupt_input",
+        JobErrorCode::ColorManagement => "color_management",
+        JobErrorCode::Metadata => "metadata",
+        JobErrorCode::RawBackend => "raw_backend",
+        JobErrorCode::ResourceLimit => "resource_limit",
+        JobErrorCode::InvalidOptions => "invalid_options",
+        JobErrorCode::Cancelled => "cancelled",
+        JobErrorCode::Encode => "encode",
+        JobErrorCode::OutputIo => "output_io",
+        JobErrorCode::DestinationConflict => "destination_conflict",
+        JobErrorCode::UnprovenPipelineBudget => "unproven_pipeline_budget",
+        JobErrorCode::Internal => "internal",
+    }
 }
 
 fn infer_format(output: &Path) -> Option<DevelopFormat> {
@@ -551,9 +794,9 @@ fn kill_probe_group(process_group: u32) {
     }
 }
 
-fn write_json(
+fn write_json<T: serde::Serialize + ?Sized>(
     stdout: &mut dyn Write,
-    value: &serde_json::Value,
+    value: &T,
     stderr: &mut dyn Write,
 ) -> CommandExit {
     if serde_json::to_writer(&mut *stdout, value).is_ok() && writeln!(stdout).is_ok() {
