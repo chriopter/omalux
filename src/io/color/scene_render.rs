@@ -9,6 +9,43 @@ const REC2020_LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const SCENE_MIDDLE_GREY: f64 = 0.18;
 const DISPLAY_MIDDLE_GREY: f64 = 0.18;
 const LOG_CONTRAST: f64 = 1.7;
+// D65 linear-light matrices. They are kept here, rather than delegated to an
+// encoded ICC transform, because gamut compression operates in target-linear
+// coordinates before the existing LCMS output transform applies the sRGB TRC.
+const REC2020_TO_SRGB: [[f64; 3]; 3] = [
+    [
+        1.660_491_002_108_434,
+        -0.587_641_138_788_55,
+        -0.072_849_863_319_884,
+    ],
+    [
+        -0.124_550_474_521_591,
+        1.132_899_897_125_96,
+        -0.008_349_422_604_369,
+    ],
+    [
+        -0.018_150_763_354_905,
+        -0.100_578_898_008_007,
+        1.118_729_661_362_912,
+    ],
+];
+const SRGB_TO_REC2020: [[f64; 3]; 3] = [
+    [
+        0.627_403_895_934_699,
+        0.329_283_038_377_883,
+        0.043_313_065_687_418,
+    ],
+    [
+        0.069_097_289_358_232,
+        0.919_540_395_075_459,
+        0.011_362_315_566_309,
+    ],
+    [
+        0.016_391_438_875_15,
+        0.088_013_307_877_226,
+        0.895_595_253_247_624,
+    ],
+];
 
 /// Versioned, non-creative scene-to-display rendering method.
 ///
@@ -61,13 +98,16 @@ impl SceneToDisplayTransform {
             .try_reserve_exact(source.len())
             .map_err(|_| SceneRenderError::Allocation)?;
         let mut tone_mapped_pixels = 0_u64;
+        let mut gamut_compressed_pixels = 0_u64;
         let mut nonpositive_luminance_pixels = 0_u64;
         for (index, pixel) in source.iter().enumerate() {
-            let (rendered, tone_mapped, nonpositive) = render_tone(pixel);
+            let (toned, tone_mapped, nonpositive) = render_tone(pixel);
+            let (rendered, gamut_compressed) = compress_to_srgb_gamut(toned);
             if !rendered[..3].iter().all(|sample| sample.is_finite()) {
                 return Err(SceneRenderError::NonFiniteOutput { pixel: index });
             }
             tone_mapped_pixels += u64::from(tone_mapped);
+            gamut_compressed_pixels += u64::from(gamut_compressed);
             nonpositive_luminance_pixels += u64::from(nonpositive);
             scratch.push(
                 RgbaPixel::new(
@@ -85,10 +125,33 @@ impl SceneToDisplayTransform {
             input_signal_relation: SignalRelation::SceneRelatedRaw,
             output_signal_relation: SignalRelation::LinearizedDisplayReferred,
             tone_mapped_pixels,
-            gamut_compressed_pixels: 0,
+            gamut_compressed_pixels,
             nonpositive_luminance_pixels,
         })
     }
+}
+
+fn compress_to_srgb_gamut(rec2020: [f64; 4]) -> ([f64; 4], bool) {
+    let rgb = [rec2020[0], rec2020[1], rec2020[2]];
+    let neutral = dot(rgb, REC2020_LUMA).clamp(0.0, 1.0);
+    let target = multiply_matrix(REC2020_TO_SRGB, rgb);
+    let mut chroma_scale = 1.0_f64;
+    for sample in target {
+        let delta = sample - neutral;
+        if sample < 0.0 && delta < 0.0 {
+            chroma_scale = chroma_scale.min(neutral / -delta);
+        } else if sample > 1.0 && delta > 0.0 {
+            chroma_scale = chroma_scale.min((1.0 - neutral) / delta);
+        }
+    }
+    chroma_scale = chroma_scale.clamp(0.0, 1.0);
+    let mapped_target =
+        target.map(|sample| (neutral + chroma_scale * (sample - neutral)).clamp(0.0, 1.0));
+    let mapped = multiply_matrix(SRGB_TO_REC2020, mapped_target);
+    (
+        [mapped[0], mapped[1], mapped[2], rec2020[3]],
+        chroma_scale < 1.0,
+    )
 }
 
 fn render_tone(pixel: &RgbaPixel) -> ([f64; 4], bool, bool) {
@@ -129,6 +192,14 @@ fn log_logistic_luminance(luminance: f64) -> f64 {
 
 fn dot(left: [f64; 3], right: [f64; 3]) -> f64 {
     left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+}
+
+fn multiply_matrix(matrix: [[f64; 3]; 3], vector: [f64; 3]) -> [f64; 3] {
+    [
+        dot(matrix[0], vector),
+        dot(matrix[1], vector),
+        dot(matrix[2], vector),
+    ]
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -287,5 +358,24 @@ mod tests {
             Err(SceneRenderError::InvalidSignalRelation { .. })
         ));
         assert_eq!(destination, original);
+    }
+
+    #[test]
+    fn target_gamut_compression_is_bounded_and_neutral_preserving() {
+        let (gray, compressed) = compress_to_srgb_gamut([0.18, 0.18, 0.18, 0.5]);
+        assert!(!compressed);
+        for sample in &gray[..3] {
+            assert!((*sample - 0.18).abs() < 2.0e-15);
+        }
+
+        let (mapped, compressed) = compress_to_srgb_gamut([1.0, 0.0, 0.0, 0.25]);
+        assert!(compressed);
+        let target = multiply_matrix(REC2020_TO_SRGB, [mapped[0], mapped[1], mapped[2]]);
+        assert!(
+            target
+                .iter()
+                .all(|sample| (-2.0e-15..=1.0 + 2.0e-15).contains(sample))
+        );
+        assert_eq!(mapped[3].to_bits(), 0.25_f64.to_bits());
     }
 }
