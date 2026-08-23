@@ -81,6 +81,20 @@ fn signed_counterexample_preserves_actual_luminance() {
 }
 
 #[test]
+fn black_can_receive_chroma_without_a_false_zero_luminance_failure() {
+    let mut settings = DevelopSettings::default();
+    settings.color_grading.shadows.hue_degrees = 32.0;
+    settings.color_grading.shadows.saturation = 45.0;
+    let mut rendered = image([0.0, 0.0, 0.0, 1.0]);
+    DevelopPipeline.process(&mut rendered, &settings).unwrap();
+    let pixel = rendered.pixels()[0];
+    assert!(pixel.red().is_finite());
+    assert!(pixel.green().is_finite());
+    assert!(pixel.blue().is_finite());
+    assert!(luminance(&pixel).abs() <= 1.0e-6);
+}
+
+#[test]
 fn broad_signed_hdr_pipeline_reaches_the_requested_y() {
     let mut state = 0xc801_3ea4_u32;
     for _ in 0..512 {

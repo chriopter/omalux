@@ -171,10 +171,10 @@ pub fn oklab_to_linear_rec2020_preserving_luminance(
     validate_target_luminance(target_luminance)?;
     let adjusted = oklab_with_luminance(lab, target_luminance);
     let mut rgb = oklab_to_linear_rec2020(adjusted);
-    let tolerance = luminance_residual_tolerance(target_luminance);
     for _ in 0..3 {
         let actual_luminance = rec2020_luminance_f64(rgb);
         let residual = target_luminance - actual_luminance;
+        let tolerance = conversion_luminance_tolerance(target_luminance, rgb);
         if luminance_residual_is_acceptable(actual_luminance, target_luminance, tolerance) {
             return Ok(rgb);
         }
@@ -183,7 +183,11 @@ pub fn oklab_to_linear_rec2020_preserving_luminance(
             return Err(ColorMathError::TargetLuminanceNotReached);
         }
     }
-    if luminance_residual_is_acceptable(rec2020_luminance_f64(rgb), target_luminance, tolerance) {
+    if luminance_residual_is_acceptable(
+        rec2020_luminance_f64(rgb),
+        target_luminance,
+        conversion_luminance_tolerance(target_luminance, rgb),
+    ) {
         Ok(rgb)
     } else {
         Err(ColorMathError::TargetLuminanceNotReached)
@@ -202,6 +206,19 @@ fn validate_target_luminance(target_luminance: f64) -> Result<(), ColorMathError
 
 fn luminance_residual_tolerance(target_luminance: f64) -> f64 {
     64.0 * f64::from(f32::EPSILON) * target_luminance.abs().max(f64::from(f32::MIN_POSITIVE))
+}
+
+fn conversion_luminance_tolerance(target_luminance: f64, rgb: Rgb) -> f64 {
+    // A zero or cancellation-dominated Y can still require non-zero channels
+    // to retain the requested OKLab hue/chroma. Account for the unavoidable
+    // f32 channel quantization in the Rec.2020 dot product instead of scaling
+    // the entire acceptance bound only by a near-zero target.
+    let channel_scale = rgb
+        .into_iter()
+        .map(|channel| f64::from(channel).abs())
+        .fold(1.0, f64::max);
+    luminance_residual_tolerance(target_luminance)
+        .max(8.0 * f64::from(f32::EPSILON) * channel_scale)
 }
 
 fn luminance_residual_is_acceptable(actual: f64, target: f64, tolerance: f64) -> bool {
