@@ -24,6 +24,12 @@ grainroom probe [--json]
 `gui` is the sole GUI-launching command. It derives `grainroom-gui` from the
 directory of the running `grainroom` executable and passes an input path as the
 two arguments `--input`, `PATH`. It never resolves the GUI through `PATH`.
+On Linux it holds the executable directory, opens the sibling with
+`O_NOFOLLOW`, verifies a regular executable, and launches that held file via
+`/proc/self/fd`; replacing the sibling name after validation cannot redirect
+the launch. The containing installation directory remains the packaging trust
+boundary: administrators must not allow untrusted users to create executable
+hardlinks there.
 Paths remain native `PathBuf`/`OsString` values, so non-UTF-8 Linux filenames
 are not converted or logged.
 
@@ -36,10 +42,16 @@ inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or `.heif` when
 `--format` is absent. The command does not inspect the input or destination at
 this stage. A valid request returns unavailable until the job and encoder
 boundary is integrated; no destination is created.
+Because execution is unavailable, every `--progress` mode currently emits no
+progress events. JSON mode emits only the final unavailable object on stdout;
+human mode emits only the final diagnostic on stderr.
 
 Catalog, registry, and probe commands produce human-readable stdout by default
-and compact JSON with `--json`. Probe JSON reports only the backend name and
-availability, never executable paths. A JSON-mode unavailable develop result is
+(`list` output is TSV) and compact JSON with `--json`. Probe considers only
+fixed system/package paths owned by root and not group/world writable, then
+runs a bounded `dcraw_emu` behavior handshake. It never searches `PATH`.
+Probe JSON reports only the backend name and functional availability, never
+executable paths. A JSON-mode unavailable develop result is
 also path-free JSON on stdout. Other diagnostics are human-readable on stderr
 and avoid echoing input/output paths.
 

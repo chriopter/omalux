@@ -2,47 +2,125 @@ use super::{
     CommandExit,
     args::{Cli, Command, DevelopArgs, DevelopFormat, ParametersCommand, PresetsCommand},
 };
-use grainroom::{
-    develop::{
-        DevelopStage, ParameterKind, ParameterUnit, PresetCatalog, apply_parameter_overrides,
-        parameter_registry,
-    },
-    io::raw::{RawCapability, probe_dcraw_emu},
+use grainroom::develop::{
+    DevelopStage, ParameterKind, ParameterUnit, PresetCatalog, apply_parameter_overrides,
+    parameter_registry,
 };
 use serde_json::json;
 use std::{
     collections::HashSet,
     ffi::OsStr,
+    fs::File,
     io::{self, Write},
+    os::{
+        fd::AsRawFd,
+        unix::{
+            fs::{MetadataExt, PermissionsExt},
+            process::CommandExt,
+        },
+    },
     path::{Path, PathBuf},
-    process::{Command as ProcessCommand, ExitStatus},
+    process::{Command as ProcessCommand, ExitStatus, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
+const RAW_PROBE_CANDIDATES: [&str; 2] = ["/usr/bin/dcraw_emu", "/usr/local/bin/dcraw_emu"];
+const RAW_PROBE_SENTINEL: &str = "/proc/self/fd/2147483647";
+const RAW_PROBE_CAPTURE_BYTES: usize = 8 * 1024;
+
 pub(crate) trait GuiResolver {
-    fn packaged_sibling(&self) -> io::Result<PathBuf>;
+    fn packaged_sibling(&self) -> io::Result<HeldGuiExecutable>;
 }
 
 pub(crate) trait GuiProcess {
-    fn launch(&mut self, executable: &Path, input: Option<&OsStr>) -> io::Result<ExitStatus>;
+    fn launch(
+        &mut self,
+        executable: &HeldGuiExecutable,
+        input: Option<&OsStr>,
+    ) -> io::Result<ExitStatus>;
 }
 
 pub(crate) struct SystemGuiResolver;
 
-impl GuiResolver for SystemGuiResolver {
-    fn packaged_sibling(&self) -> io::Result<PathBuf> {
-        let executable = std::env::current_exe()?;
-        let directory = executable
-            .parent()
-            .ok_or_else(|| io::Error::other("core executable has no parent directory"))?;
-        Ok(directory.join("grainroom-gui"))
+pub(crate) struct HeldGuiExecutable {
+    file: File,
+}
+
+impl HeldGuiExecutable {
+    #[cfg(target_os = "linux")]
+    fn proc_path(&self) -> PathBuf {
+        PathBuf::from(format!("/proc/self/fd/{}", self.file.as_raw_fd()))
     }
+}
+
+impl GuiResolver for SystemGuiResolver {
+    fn packaged_sibling(&self) -> io::Result<HeldGuiExecutable> {
+        let executable = std::env::current_exe()?;
+        resolve_gui_sibling(&executable)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_gui_sibling(core_executable: &Path) -> io::Result<HeldGuiExecutable> {
+    use rustix::fs::{self, FileType, Mode, OFlags};
+
+    let directory = core_executable
+        .parent()
+        .ok_or_else(|| io::Error::other("core executable has no parent directory"))?;
+    let directory = fs::open(
+        directory,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(io::Error::from)?;
+    let sibling = fs::openat(
+        &directory,
+        "grainroom-gui",
+        // The descriptor deliberately survives exec: script interpreters and
+        // `/proc/self/fd` launch both need the held object after pathname
+        // resolution. The GUI receives only this read-only executable fd.
+        OFlags::RDONLY | OFlags::NOFOLLOW,
+        Mode::empty(),
+    )
+    .map_err(io::Error::from)?;
+    let metadata = fs::fstat(&sibling).map_err(io::Error::from)?;
+    if FileType::from_raw_mode(metadata.st_mode) != FileType::RegularFile
+        || metadata.st_mode & 0o111 == 0
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "packaged GUI sibling is not a regular executable",
+        ));
+    }
+    Ok(HeldGuiExecutable {
+        file: File::from(sibling),
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn resolve_gui_sibling(_core_executable: &Path) -> io::Result<HeldGuiExecutable> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "secure packaged GUI launch is unavailable on this platform",
+    ))
 }
 
 pub(crate) struct SystemGuiProcess;
 
 impl GuiProcess for SystemGuiProcess {
-    fn launch(&mut self, executable: &Path, input: Option<&OsStr>) -> io::Result<ExitStatus> {
-        let mut command = ProcessCommand::new(executable);
+    fn launch(
+        &mut self,
+        executable: &HeldGuiExecutable,
+        input: Option<&OsStr>,
+    ) -> io::Result<ExitStatus> {
+        #[cfg(not(target_os = "linux"))]
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "secure packaged GUI launch is unavailable on this platform",
+        ));
+        #[cfg(target_os = "linux")]
+        let mut command = ProcessCommand::new(executable.proc_path());
         if let Some(input) = input {
             command.arg("--input").arg(input);
         }
@@ -83,7 +161,7 @@ fn launch_gui(
     stderr: &mut dyn Write,
 ) -> CommandExit {
     let executable = match resolver.packaged_sibling() {
-        Ok(path) => path,
+        Ok(executable) => executable,
         Err(_) => {
             human_error(stderr, "packaged GUI sibling could not be resolved");
             return CommandExit::Unavailable;
@@ -292,7 +370,7 @@ fn list_parameters(
 }
 
 fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
-    let available = matches!(probe_dcraw_emu(), RawCapability::Available { .. });
+    let available = trusted_raw_probe(&RAW_PROBE_CANDIDATES);
     if json_output {
         write_json(
             stdout,
@@ -314,6 +392,117 @@ fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> C
     } else {
         human_error(stderr, "probe output could not be written");
         CommandExit::Internal
+    }
+}
+
+fn trusted_raw_probe(candidates: &[&str]) -> bool {
+    candidates.iter().any(|candidate| {
+        let path = Path::new(candidate);
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return false;
+        };
+        path.is_absolute()
+            && metadata.file_type().is_file()
+            && metadata.uid() == 0
+            && metadata.permissions().mode() & 0o111 != 0
+            && metadata.permissions().mode() & 0o022 == 0
+            && functional_dcraw_handshake(path)
+    })
+}
+
+fn functional_dcraw_handshake(executable: &Path) -> bool {
+    let mut command = ProcessCommand::new(executable);
+    command
+        .arg("-v")
+        .arg(RAW_PROBE_SENTINEL)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .process_group(0);
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(_) => return false,
+    };
+    let process_group = child.id();
+    let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return false;
+    };
+    let (send_output, receive_output) = std::sync::mpsc::sync_channel(2);
+    let stdout_reader = capture_probe_stream(stdout, send_output.clone());
+    let stderr_reader = capture_probe_stream(stderr, send_output);
+    let deadline = Instant::now() + Duration::from_millis(750);
+    let mut status = None;
+    let mut output = Vec::new();
+    let mut captures = 0;
+    while Instant::now() < deadline && (status.is_none() || captures != 2) {
+        if status.is_none() {
+            match child.try_wait() {
+                Ok(value) => status = value,
+                Err(_) => break,
+            }
+        }
+        while let Ok(value) = receive_output.try_recv() {
+            captures += 1;
+            if let Some(value) = value {
+                output.extend_from_slice(&value);
+            }
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    if status.is_none() || captures != 2 {
+        kill_probe_group(process_group);
+        let _ = child.wait();
+        while captures != 2 {
+            match receive_output.recv_timeout(Duration::from_millis(100)) {
+                Ok(value) => {
+                    captures += 1;
+                    if let Some(value) = value {
+                        output.extend_from_slice(&value);
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    }
+    let _ = stdout_reader.join();
+    let _ = stderr_reader.join();
+    let output = String::from_utf8_lossy(&output);
+    status.and_then(|status| status.code()) == Some(2)
+        && output.contains("Using ")
+        && output.contains(" threads")
+        && output.contains(&format!("Processing file {RAW_PROBE_SENTINEL}"))
+        && output.contains("Cannot open")
+}
+
+fn capture_probe_stream(
+    mut stream: impl std::io::Read + Send + 'static,
+    send_output: std::sync::mpsc::SyncSender<Option<Vec<u8>>>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut retained = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(count) => {
+                    let remaining = RAW_PROBE_CAPTURE_BYTES.saturating_sub(retained.len());
+                    retained.extend_from_slice(&chunk[..count.min(remaining)]);
+                }
+                Err(_) => {
+                    let _ = send_output.send(None);
+                    return;
+                }
+            }
+        }
+        let _ = send_output.send(Some(retained));
+    })
+}
+
+fn kill_probe_group(process_group: u32) {
+    if let Some(pid) = rustix::process::Pid::from_raw(process_group as i32) {
+        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
     }
 }
 
@@ -377,24 +566,32 @@ mod tests {
     use crate::command::args::{GuiArgs, PresetsArgs};
     use std::{
         cell::RefCell,
-        os::unix::{ffi::OsStringExt, process::ExitStatusExt},
+        fs,
+        os::unix::{ffi::OsStringExt, fs::PermissionsExt, process::ExitStatusExt},
     };
+    use tempfile::tempdir;
 
-    struct Resolver(PathBuf);
+    struct Resolver(File);
     impl GuiResolver for Resolver {
-        fn packaged_sibling(&self) -> io::Result<PathBuf> {
-            Ok(self.0.clone())
+        fn packaged_sibling(&self) -> io::Result<HeldGuiExecutable> {
+            Ok(HeldGuiExecutable {
+                file: self.0.try_clone()?,
+            })
         }
     }
 
     #[derive(Default)]
     struct Process {
-        call: RefCell<Option<(PathBuf, Option<std::ffi::OsString>)>>,
+        call: RefCell<Option<(bool, Option<std::ffi::OsString>)>>,
     }
     impl GuiProcess for Process {
-        fn launch(&mut self, executable: &Path, input: Option<&OsStr>) -> io::Result<ExitStatus> {
+        fn launch(
+            &mut self,
+            executable: &HeldGuiExecutable,
+            input: Option<&OsStr>,
+        ) -> io::Result<ExitStatus> {
             self.call.replace(Some((
-                executable.to_owned(),
+                executable.file.metadata()?.is_file(),
                 input.map(OsStr::to_os_string),
             )));
             Ok(ExitStatus::from_raw(0))
@@ -403,7 +600,9 @@ mod tests {
 
     #[test]
     fn gui_uses_only_resolved_sibling_and_preserves_os_input() {
-        let sibling = PathBuf::from("/packaged/bin/grainroom-gui");
+        let directory = tempdir().unwrap();
+        let sibling = directory.path().join("grainroom-gui");
+        fs::write(&sibling, b"held executable").unwrap();
         let input = PathBuf::from(std::ffi::OsString::from_vec(b"photo-\xff.jpg".to_vec()));
         let mut process = Process::default();
         let mut stdout = Vec::new();
@@ -414,7 +613,7 @@ mod tests {
                     input: Some(input.clone()),
                 }),
             },
-            &Resolver(sibling.clone()),
+            &Resolver(File::open(sibling).unwrap()),
             &mut process,
             &mut stdout,
             &mut stderr,
@@ -422,8 +621,76 @@ mod tests {
         assert_eq!(exit, CommandExit::Child(0));
         assert_eq!(
             process.call.into_inner(),
-            Some((sibling, Some(input.into_os_string())))
+            Some((true, Some(input.into_os_string())))
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn secure_gui_resolution_rejects_symlinks_and_non_executables() {
+        let directory = tempdir().unwrap();
+        let core = directory.path().join("grainroom");
+        fs::write(&core, b"core").unwrap();
+        let sibling = directory.path().join("grainroom-gui");
+        std::os::unix::fs::symlink("/bin/true", &sibling).unwrap();
+        assert!(resolve_gui_sibling(&core).is_err());
+
+        fs::remove_file(&sibling).unwrap();
+        fs::write(&sibling, b"not executable").unwrap();
+        assert!(resolve_gui_sibling(&core).is_err());
+
+        fs::set_permissions(&sibling, fs::Permissions::from_mode(0o700)).unwrap();
+        let held = resolve_gui_sibling(&core).unwrap();
+        fs::rename(&sibling, directory.path().join("replaced")).unwrap();
+        fs::write(&sibling, b"replacement").unwrap();
+        assert_eq!(fs::read(held.proc_path()).unwrap(), b"not executable");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn system_gui_process_executes_the_held_file() {
+        let directory = tempdir().unwrap();
+        let core = directory.path().join("grainroom");
+        fs::write(&core, b"core").unwrap();
+        let sibling = directory.path().join("grainroom-gui");
+        fs::write(&sibling, b"#!/bin/sh\nexit 23\n").unwrap();
+        fs::set_permissions(&sibling, fs::Permissions::from_mode(0o700)).unwrap();
+        let held = resolve_gui_sibling(&core).unwrap();
+        fs::rename(&sibling, directory.path().join("old-gui")).unwrap();
+        fs::write(&sibling, b"#!/bin/sh\nexit 47\n").unwrap();
+        fs::set_permissions(&sibling, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            SystemGuiProcess.launch(&held, None).unwrap().code(),
+            Some(23)
+        );
+    }
+
+    #[test]
+    fn raw_probe_requires_the_expected_bounded_behavior() {
+        let directory = tempdir().unwrap();
+        let valid = directory.path().join("valid");
+        fs::write(
+            &valid,
+            format!(
+                "#!/bin/sh\nprintf 'Using 4 threads\\nProcessing file {RAW_PROBE_SENTINEL}\\nCannot open {RAW_PROBE_SENTINEL}: Input/output error\\n' >&2\nexit 2\n"
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&valid, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(functional_dcraw_handshake(&valid));
+
+        let impostor = directory.path().join("dcraw_emu");
+        fs::write(&impostor, "#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&impostor, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(!functional_dcraw_handshake(&impostor));
+        assert!(!trusted_raw_probe(&[impostor.to_str().unwrap()]));
+
+        let hanging = directory.path().join("hanging");
+        fs::write(&hanging, "#!/bin/sh\nsleep 5 &\nexit 0\n").unwrap();
+        fs::set_permissions(&hanging, fs::Permissions::from_mode(0o700)).unwrap();
+        let started = Instant::now();
+        assert!(!functional_dcraw_handshake(&hanging));
+        assert!(started.elapsed() < Duration::from_millis(1_200));
     }
 
     #[test]
@@ -436,7 +703,7 @@ mod tests {
                     command: PresetsCommand::List { json: true },
                 }),
             },
-            &Resolver(PathBuf::new()),
+            &Resolver(File::open("/dev/null").unwrap()),
             &mut Process::default(),
             &mut stdout,
             &mut stderr,

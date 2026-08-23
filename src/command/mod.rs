@@ -75,4 +75,39 @@ mod tests {
         assert!(stdout.is_empty());
         assert!(stderr.contains("unexpected argument '--headless'"));
     }
+
+    #[test]
+    fn unavailable_develop_emits_no_progress_stream() {
+        let base = [
+            "grainroom",
+            "develop",
+            "--input",
+            "source.raw",
+            "--output",
+            "result.jpg",
+        ];
+        let mut human = base.to_vec();
+        human.extend(["--progress", "human"]);
+        let (code, stdout, stderr) = invoke(&human);
+        assert_eq!(code, ExitCode::from(69));
+        assert!(stdout.is_empty());
+        assert_eq!(stderr.lines().count(), 1);
+
+        let mut json = base.to_vec();
+        json.extend(["--progress", "json", "--json"]);
+        let (code, stdout, stderr) = invoke(&json);
+        assert_eq!(code, ExitCode::from(69));
+        assert!(stderr.is_empty());
+        let value: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(value["error"]["code"], "unavailable");
+        assert_eq!(stdout.lines().count(), 1);
+    }
+
+    #[test]
+    fn list_help_describes_default_tsv_output() {
+        let (code, stdout, stderr) = invoke(&["grainroom", "presets", "list", "--help"]);
+        assert_eq!(code, ExitCode::SUCCESS);
+        assert!(stdout.contains("TSV, or JSON"));
+        assert!(stderr.is_empty());
+    }
 }

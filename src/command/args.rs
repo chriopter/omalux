@@ -158,12 +158,12 @@ pub(crate) struct PresetsArgs {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum PresetsCommand {
-    /// Emit the built-in preset index as JSON.
+    /// Emit the built-in preset index as TSV, or JSON with --json.
     List {
         #[arg(long)]
         json: bool,
     },
-    /// Emit one canonical preset document as JSON.
+    /// Emit one preset document as pretty JSON, or canonical JSON with --json.
     Show {
         id: String,
         #[arg(long)]
@@ -185,7 +185,7 @@ pub(crate) struct ProbeArgs {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum ParametersCommand {
-    /// Emit the stable parameter registry as JSON.
+    /// Emit the stable parameter registry as TSV, or JSON with --json.
     List {
         #[arg(long)]
         json: bool,

@@ -77,7 +77,8 @@ grainroom probe --json
 
 Launch the separately packaged desktop sibling explicitly with
 `grainroom gui [--input PATH]`. The core resolves `grainroom-gui` beside its own
-executable and never searches `PATH` for it.
+executable and never searches `PATH` for it. Linux launch holds and verifies
+the regular sibling without following symlinks before executing the held file.
 
 A development request can already be validated without touching its files:
 
