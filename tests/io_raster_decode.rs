@@ -2,8 +2,9 @@ use std::{fs, io::Write, path::Path};
 
 use flate2::{Compression, write::ZlibEncoder};
 use grainroom::io::{
-    ColorProvenance, DecodeError, DecodeOptions, DiagnosticCode, PngSelectedColorSource,
-    ResourceLimits, SignalRelation, SourceDigestV1, UnprofiledPolicy,
+    ColorProvenance, DecodeError, DecodeOptions, DiagnosticCode, ErrorCode, LimitError,
+    PngSelectedColorSource, ResourceLimits, SignalRelation, SourceDigestV1, StableErrorCode,
+    UnprofiledPolicy,
     color::srgb_profile,
     raster::{RasterCancellation, decode_raster},
 };
@@ -645,6 +646,36 @@ fn strict_unprofiled_cancel_limits_digest_and_corruption_are_stable() {
         ),
         Err(DecodeError::UnsupportedFormat)
     ));
+}
+
+#[test]
+fn raster_uses_shared_streaming_digest_and_coexists_with_raw_errors() {
+    let directory = TempDir::new().unwrap();
+    let width = 257_u32;
+    let height = 129_u32;
+    let pixels = vec![0x5a; usize::try_from(width * height * 3).unwrap()];
+    let mut bmp = Vec::new();
+    BmpEncoder::new(&mut bmp)
+        .write_image(&pixels, width, height, ExtendedColorType::Rgb8)
+        .unwrap();
+    assert!(bmp.len() > 64 * 1024);
+    let photo = decode(&write_source(&directory, "streaming-digest.bmp", &bmp));
+    assert_eq!(
+        photo.source_digest(),
+        SourceDigestV1::from_reader(&bmp[..], &ResourceLimits::default()).unwrap()
+    );
+
+    assert_eq!(
+        LimitError::Allocation.error_code(),
+        ErrorCode::ResourceLimit
+    );
+    assert_eq!(
+        DecodeError::RawBackendTimedOut.error_code(),
+        ErrorCode::RawBackend
+    );
+    assert_eq!(DecodeError::Cancelled.error_code(), ErrorCode::Cancelled);
+    let _raw_cancellation = grainroom::io::raw::RawCancellation::default();
+    let _raster_cancellation = RasterCancellation::default();
 }
 
 #[cfg(unix)]

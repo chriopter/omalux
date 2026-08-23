@@ -237,3 +237,45 @@ fn image_limits(limits: &ResourceLimits) -> image::Limits {
     image_limits.max_alloc = Some(limits.max_working_bytes.min(limits.max_decoded_bytes));
     image_limits
 }
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+
+    fn numbered() -> CpuImage {
+        CpuImage::new(
+            3,
+            2,
+            (0..6)
+                .map(|value| RgbaPixel::new(value as f32, 0.0, 0.0, 1.0).unwrap())
+                .collect(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn cancellable_raster_orientation_matches_all_eight_exact_permutations() {
+        for (orientation, dimensions, expected) in [
+            (1, (3, 2), vec![0., 1., 2., 3., 4., 5.]),
+            (2, (3, 2), vec![2., 1., 0., 5., 4., 3.]),
+            (3, (3, 2), vec![5., 4., 3., 2., 1., 0.]),
+            (4, (3, 2), vec![3., 4., 5., 0., 1., 2.]),
+            (5, (2, 3), vec![0., 3., 1., 4., 2., 5.]),
+            (6, (2, 3), vec![3., 0., 4., 1., 5., 2.]),
+            (7, (2, 3), vec![5., 2., 4., 1., 3., 0.]),
+            (8, (2, 3), vec![2., 5., 1., 4., 0., 3.]),
+        ] {
+            let output =
+                apply_orientation(numbered(), orientation, &RasterCancellation::default()).unwrap();
+            assert_eq!((output.width(), output.height()), dimensions);
+            assert_eq!(
+                output
+                    .pixels()
+                    .iter()
+                    .map(RgbaPixel::red)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+    }
+}

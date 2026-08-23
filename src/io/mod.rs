@@ -9,8 +9,8 @@ pub mod color;
 mod digest;
 mod error;
 mod limits;
-pub mod raw;
 pub mod raster;
+pub mod raw;
 mod types;
 
 pub use atomic::{
