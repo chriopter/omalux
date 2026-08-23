@@ -75,7 +75,7 @@ pub(super) fn local_sharpness_delta<F>(
     point: [usize; 2],
     amount: f32,
     kernel: &[f64],
-    scratch: &mut Vec<f32>,
+    scratch: &mut [f32],
     sample_luminance: F,
 ) -> f64
 where
@@ -84,8 +84,17 @@ where
     tonal::sharpness_delta_at(extent, point, amount, kernel, scratch, sample_luminance)
 }
 
-pub(super) fn local_sharpness_kernel() -> Vec<f64> {
-    spatial::gaussian_kernel(1.0)
+pub(super) fn local_sharpness_kernel() -> [f64; 7] {
+    let mut kernel = [0.0; 7];
+    for (index, weight) in kernel.iter_mut().enumerate() {
+        let distance = index as f64 - 3.0;
+        *weight = (-distance * distance / 2.0).exp();
+    }
+    let sum: f64 = kernel.iter().sum();
+    for weight in &mut kernel {
+        *weight /= sum;
+    }
+    kernel
 }
 
 pub(super) fn add_finite_delta(channel: f32, delta: f64) -> f32 {

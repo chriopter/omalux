@@ -13,6 +13,22 @@ pub(super) fn color_v1_heap_bytes(settings: &DevelopSettings) -> Result<u64, Pip
     tone_curves::prepared_heap_bytes(&settings.tone_curves)
 }
 
+pub(super) fn geometry_v1_working_set(
+    width: u32,
+    height: u32,
+    settings: &crate::develop::GeometrySettings,
+) -> Result<(u32, u32, u64), PipelineError> {
+    geometry::working_set(width, height, settings)
+}
+
+pub(super) fn radial_masks_v1_scratch_bytes(
+    width: u32,
+    height: u32,
+    settings: &crate::develop::RadialMasksSettings,
+) -> Result<u64, PipelineError> {
+    radial_masks::scratch_bytes(width, height, settings)
+}
+
 pub(super) fn ensure_supported(
     stage: DevelopStage,
     settings: &DevelopSettings,

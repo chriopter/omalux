@@ -247,8 +247,8 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         .unwrap();
     let json = serde_json::to_string(&report).unwrap();
     assert!(json.contains("io.omacom.grainroom.develop-job-report"));
-    assert!(json.contains("\"schema_version\":3"));
-    assert!(json.contains("\"profile\":\"pointwise_v1\""));
+    assert!(json.contains("\"schema_version\":4"));
+    assert!(json.contains("\"pointwise_v1\":true"));
     assert!(json.contains("\"estimated_peak_bytes\":64"));
     assert!(!json.contains("/virtual/"));
     assert!(!json.contains("input.raw"));
@@ -495,7 +495,8 @@ fn color_spatial_job_reports_json_profile_and_rejects_peak_minus_one_before_deve
         Some(grainroom::job::ReportDevelopWorkingSetProfile::ColorSpatialV1)
     );
     let json = serde_json::to_string(&report).unwrap();
-    assert!(json.contains("\"profile\":\"color_spatial_v1\""));
+    assert!(json.contains("\"color_v1\":true"));
+    assert!(json.contains("\"spatial_v1\":true"));
     assert!(json.contains("\"estimated_peak_bytes\":632"));
 
     let rejected_encoder = FakeEncoder::default();
@@ -558,11 +559,9 @@ fn grain_seed_depends_on_content_not_renamed_paths() {
 }
 
 #[test]
-fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
-    let mut geometry = DevelopSettings::default();
-    geometry.geometry.straighten_degrees = 1.0;
-    let mut radial = DevelopSettings::default();
-    radial.radial_masks.masks.push(RadialMask {
+fn negative_local_sharpness_is_fail_closed_before_develop() {
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(RadialMask {
         id: "resource-test".to_owned(),
         enabled: true,
         center_x: 0.5,
@@ -575,39 +574,37 @@ fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
         invert: false,
         adjustments: LocalAdjustments {
             brightness: 1.0,
+            sharpness: -1.0,
             ..LocalAdjustments::default()
         },
     });
-
-    for (index, settings) in [geometry, radial].into_iter().enumerate() {
-        let decoder = FakeDecoder {
-            photo: decoded(),
-            cancel_after_decode: false,
-            calls: Arc::default(),
-        };
-        let encoder = FakeEncoder::default();
-        let mut request = job();
-        request.preset = PresetSelection::document(PresetDocument::new(
-            format!("resource-test-{index}"),
-            "Resource test",
-            settings,
-        ));
-        let mut stages = Stages::default();
-        let failure = DevelopJobRunner::built_in()
-            .unwrap()
-            .run(
-                &request,
-                &decoder,
-                &encoder,
-                &CancellationToken::new(),
-                &mut stages,
-            )
-            .unwrap_err();
-        assert_eq!(failure.error.stage, JobStage::ResolveSettings);
-        assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
-        assert_eq!(stages.0, [JobStage::Validate, JobStage::Decode]);
-        assert!(encoder.calls.lock().unwrap().is_empty());
-    }
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut request = job();
+    request.preset = PresetSelection::document(PresetDocument::new(
+        "negative-local-sharpness",
+        "Negative local sharpness",
+        settings,
+    ));
+    let mut stages = Stages::default();
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &request,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut stages,
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+    assert_eq!(stages.0, [JobStage::Validate, JobStage::Decode]);
+    assert!(encoder.calls.lock().unwrap().is_empty());
 }
 
 #[test]

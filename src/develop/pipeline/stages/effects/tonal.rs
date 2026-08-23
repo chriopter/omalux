@@ -96,7 +96,7 @@ pub(super) fn sharpness_delta_at<F>(
     point: [usize; 2],
     amount: f32,
     kernel: &[f64],
-    horizontal: &mut Vec<f32>,
+    horizontal: &mut [f32],
     mut sample_luminance: F,
 ) -> f64
 where
@@ -108,16 +108,15 @@ where
         return 0.0;
     }
     let radius = kernel.len() / 2;
-    horizontal.clear();
-    horizontal.reserve(kernel.len());
-    for offset_y in 0..kernel.len() {
+    debug_assert_eq!(horizontal.len(), kernel.len());
+    for (offset_y, horizontal_value) in horizontal.iter_mut().enumerate() {
         let sample_y = reflect101(y as isize + offset_y as isize - radius as isize, height);
         let mut sum = 0.0;
         for (offset_x, weight) in kernel.iter().copied().enumerate() {
             let sample_x = reflect101(x as isize + offset_x as isize - radius as isize, width);
             sum += f64::from(sample_luminance(sample_x, sample_y)) * weight;
         }
-        horizontal.push(finite_f32(sum));
+        *horizontal_value = finite_f32(sum);
     }
     let low_pass = horizontal
         .iter()

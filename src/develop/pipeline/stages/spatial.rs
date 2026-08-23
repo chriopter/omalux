@@ -67,25 +67,6 @@ impl Plane {
     }
 }
 
-pub(super) fn gaussian_kernel(sigma: f64) -> Vec<f64> {
-    if sigma <= f64::EPSILON {
-        return vec![1.0];
-    }
-    let radius = (sigma * 3.0).ceil() as usize;
-    let denominator = 2.0 * sigma * sigma;
-    let mut kernel = (-(radius as isize)..=(radius as isize))
-        .map(|offset| {
-            let distance = offset as f64;
-            (-distance * distance / denominator).exp()
-        })
-        .collect::<Vec<_>>();
-    let sum: f64 = kernel.iter().sum();
-    for weight in &mut kernel {
-        *weight /= sum;
-    }
-    kernel
-}
-
 pub(super) fn gaussian_blur(source: &Plane, sigma: f64) -> Result<Plane, PipelineError> {
     gaussian_blur_tiled(source, sigma, 128, 64)
 }
@@ -325,8 +306,8 @@ mod tests {
 
     #[test]
     fn kernel_is_symmetric_normalized_and_deterministic() {
-        let first = gaussian_kernel(1.4);
-        assert_eq!(first, gaussian_kernel(1.4));
+        let first = try_gaussian_kernel(1.4).unwrap();
+        assert_eq!(first, try_gaussian_kernel(1.4).unwrap());
         assert!((first.iter().sum::<f64>() - 1.0).abs() < 1e-12);
         for index in 0..first.len() {
             assert_eq!(first[index], first[first.len() - 1 - index]);

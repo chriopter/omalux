@@ -13,6 +13,7 @@ use crate::develop::{
     CpuImage, DevelopStage, PipelineError, RgbaPixel,
     settings::{LocalAdjustments, RadialMask, RadialMasksSettings},
 };
+use crate::io::LimitError;
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
 
@@ -44,7 +45,7 @@ trait LocalAdjustmentProcessor {
         source: &CpuImage,
         adjustments: &LocalAdjustments,
         region: Region,
-    ) -> Vec<RgbaPixel>;
+    ) -> Result<Vec<RgbaPixel>, PipelineError>;
 }
 
 fn apply_with_processor(
@@ -56,7 +57,7 @@ fn apply_with_processor(
         mask.enabled && mask.opacity > 0.0 && mask.adjustments != LocalAdjustments::default()
     }) {
         let region = mask_region(mask, image.width(), image.height());
-        let adjusted = processor.process_region(image, &mask.adjustments, region);
+        let adjusted = processor.process_region(image, &mask.adjustments, region)?;
         composite_region(image, &adjusted, mask, region);
     }
     Ok(())
@@ -70,13 +71,16 @@ impl LocalAdjustmentProcessor for BuiltinLocalProcessor {
         source: &CpuImage,
         adjustments: &LocalAdjustments,
         region: Region,
-    ) -> Vec<RgbaPixel> {
+    ) -> Result<Vec<RgbaPixel>, PipelineError> {
         let prepared = PreparedBasics::from_local(adjustments);
         let width = source.width() as usize;
         let height = source.height() as usize;
-        let mut output = Vec::with_capacity(region.pixel_count());
+        let mut output = Vec::new();
+        output
+            .try_reserve_exact(region.pixel_count())
+            .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
         let kernel = local_sharpness_kernel();
-        let mut scratch = Vec::with_capacity(kernel.len());
+        let mut scratch = [0.0_f32; 7];
         for y in region.y..region.y + region.height {
             for x in region.x..region.x + region.width {
                 let mut target = source.pixels()[index(source.width(), x, y)];
@@ -102,8 +106,33 @@ impl LocalAdjustmentProcessor for BuiltinLocalProcessor {
                 output.push(target);
             }
         }
-        output
+        Ok(output)
     }
+}
+
+/// Exact requested heap payload for the largest active ROI. Masks are
+/// processed sequentially; analytic coverage and the normative 7-tap local
+/// sharpness kernel use stack storage and allocate no mask or halo plane.
+pub(super) fn scratch_bytes(
+    width: u32,
+    height: u32,
+    settings: &RadialMasksSettings,
+) -> Result<u64, PipelineError> {
+    let largest_roi_pixels = settings
+        .masks
+        .iter()
+        .filter(|mask| {
+            mask.enabled && mask.opacity > 0.0 && mask.adjustments != LocalAdjustments::default()
+        })
+        .map(|mask| {
+            let region = mask_region(mask, width, height);
+            u64::from(region.width) * u64::from(region.height)
+        })
+        .max()
+        .unwrap_or(0);
+    largest_roi_pixels
+        .checked_mul(16)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))
 }
 
 fn composite_region(
@@ -441,7 +470,9 @@ mod tests {
             width: source.width(),
             height: source.height(),
         };
-        let adjusted = BuiltinLocalProcessor.process_region(&source, &value.adjustments, full);
+        let adjusted = BuiltinLocalProcessor
+            .process_region(&source, &value.adjustments, full)
+            .unwrap();
         let mut reference = source;
         composite_region(&mut reference, &adjusted, &value, full);
         assert_eq!(optimized, reference);
@@ -456,8 +487,11 @@ mod tests {
                 _source: &CpuImage,
                 _adjustments: &LocalAdjustments,
                 region: Region,
-            ) -> Vec<RgbaPixel> {
-                vec![RgbaPixel::new(1.0, 1.0, 1.0, 0.7).unwrap(); region.pixel_count()]
+            ) -> Result<Vec<RgbaPixel>, PipelineError> {
+                Ok(vec![
+                    RgbaPixel::new(1.0, 1.0, 1.0, 0.7).unwrap();
+                    region.pixel_count()
+                ])
             }
         }
         let mut source =

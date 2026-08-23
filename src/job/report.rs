@@ -8,7 +8,7 @@ use crate::{
 use super::{JobErrorCode, JobStage};
 
 pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.grainroom.develop-job-report";
-pub const DEVELOP_JOB_REPORT_VERSION: u32 = 3;
+pub const DEVELOP_JOB_REPORT_VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReportDigest(pub [u8; 32]);
@@ -62,21 +62,45 @@ impl From<SignalRelation> for ReportSignalRelation {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ReportDevelopWorkingSetProfile {
-    PointwiseV1,
-    ColorV1,
-    SpatialV1,
-    ColorSpatialV1,
+pub struct ReportDevelopWorkingSetProfile {
+    pub pointwise_v1: bool,
+    pub color_v1: bool,
+    pub spatial_v1: bool,
+    pub geometry_v1: bool,
+    pub radial_masks_v1: bool,
+}
+
+#[allow(non_upper_case_globals)]
+impl ReportDevelopWorkingSetProfile {
+    pub const PointwiseV1: Self = Self::new(false, false, false, false);
+    pub const ColorV1: Self = Self::new(true, false, false, false);
+    pub const SpatialV1: Self = Self::new(false, true, false, false);
+    pub const ColorSpatialV1: Self = Self::new(true, true, false, false);
+
+    pub const fn new(
+        color_v1: bool,
+        spatial_v1: bool,
+        geometry_v1: bool,
+        radial_masks_v1: bool,
+    ) -> Self {
+        Self {
+            pointwise_v1: true,
+            color_v1,
+            spatial_v1,
+            geometry_v1,
+            radial_masks_v1,
+        }
+    }
 }
 
 impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
     fn from(value: DevelopWorkingSetProfile) -> Self {
-        match value {
-            DevelopWorkingSetProfile::PointwiseV1 => Self::PointwiseV1,
-            DevelopWorkingSetProfile::ColorV1 => Self::ColorV1,
-            DevelopWorkingSetProfile::SpatialV1 => Self::SpatialV1,
-            DevelopWorkingSetProfile::ColorSpatialV1 => Self::ColorSpatialV1,
+        Self {
+            pointwise_v1: true,
+            color_v1: value.color_v1,
+            spatial_v1: value.spatial_v1,
+            geometry_v1: value.geometry_v1,
+            radial_masks_v1: value.radial_masks_v1,
         }
     }
 }
@@ -85,20 +109,15 @@ impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
 /// For RAW this is the maximum of develop and later scene-render phases.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DevelopWorkingSetSummary {
-    encoded_peak_and_profile: u64,
+    profile: Option<ReportDevelopWorkingSetProfile>,
+    estimated_peak_bytes: u64,
 }
 
 impl DevelopWorkingSetSummary {
-    // Every reviewed job peak is a sum/max of RGBA-f32 image bytes, scanlines,
-    // and 56-byte PCHIP segments, so bit zero is structurally free.
-    const COLOR_V1_TAG: u64 = 1;
-    const SPATIAL_V1_TAG: u64 = 2;
-    const PROFILE_MASK: u64 = Self::COLOR_V1_TAG | Self::SPATIAL_V1_TAG;
-    const PEAK_MASK: u64 = !Self::PROFILE_MASK;
-
     const fn pending() -> Self {
         Self {
-            encoded_peak_and_profile: 0,
+            profile: None,
+            estimated_peak_bytes: 0,
         }
     }
 
@@ -106,33 +125,19 @@ impl DevelopWorkingSetSummary {
         profile: DevelopWorkingSetProfile,
         estimated_peak_bytes: u64,
     ) -> Self {
-        debug_assert!(estimated_peak_bytes > 0 && estimated_peak_bytes & Self::PROFILE_MASK == 0);
-        let tag = match profile {
-            DevelopWorkingSetProfile::PointwiseV1 => 0,
-            DevelopWorkingSetProfile::ColorV1 => Self::COLOR_V1_TAG,
-            DevelopWorkingSetProfile::SpatialV1 => Self::SPATIAL_V1_TAG,
-            DevelopWorkingSetProfile::ColorSpatialV1 => Self::PROFILE_MASK,
-        };
+        debug_assert!(estimated_peak_bytes > 0);
         Self {
-            encoded_peak_and_profile: estimated_peak_bytes | tag,
+            profile: Some(profile.into()),
+            estimated_peak_bytes,
         }
     }
 
     pub const fn profile(self) -> Option<ReportDevelopWorkingSetProfile> {
-        if self.encoded_peak_and_profile == 0 {
-            None
-        } else {
-            match self.encoded_peak_and_profile & Self::PROFILE_MASK {
-                0 => Some(ReportDevelopWorkingSetProfile::PointwiseV1),
-                Self::COLOR_V1_TAG => Some(ReportDevelopWorkingSetProfile::ColorV1),
-                Self::SPATIAL_V1_TAG => Some(ReportDevelopWorkingSetProfile::SpatialV1),
-                _ => Some(ReportDevelopWorkingSetProfile::ColorSpatialV1),
-            }
-        }
+        self.profile
     }
 
     pub const fn estimated_peak_bytes(self) -> u64 {
-        self.encoded_peak_and_profile & Self::PEAK_MASK
+        self.estimated_peak_bytes
     }
 }
 
@@ -242,8 +247,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compact_profile_tag_preserves_the_full_aligned_peak_domain() {
-        let peak = u64::MAX - 3;
+    fn explicit_profile_preserves_the_full_peak_domain() {
+        let peak = u64::MAX;
         for profile in [
             DevelopWorkingSetProfile::PointwiseV1,
             DevelopWorkingSetProfile::ColorV1,
@@ -254,6 +259,6 @@ mod tests {
             assert_eq!(summary.estimated_peak_bytes(), peak);
             assert_eq!(summary.profile(), Some(profile.into()));
         }
-        assert_eq!(std::mem::size_of::<DevelopWorkingSetSummary>(), 8);
+        assert!(std::mem::size_of::<DevelopWorkingSetSummary>() >= 16);
     }
 }

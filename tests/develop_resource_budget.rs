@@ -1,6 +1,6 @@
 use grainroom::develop::{
-    CpuImage, CurvePoint, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopStage,
-    DevelopWorkingSetProfile, LocalAdjustments, PipelineError, RadialMask, RgbaPixel,
+    CpuImage, CropRect, CurvePoint, DevelopPipeline, DevelopRenderContext, DevelopSettings,
+    DevelopStage, DevelopWorkingSetProfile, LocalAdjustments, PipelineError, RadialMask, RgbaPixel,
     estimate_develop_working_set,
 };
 use grainroom::io::{LimitError, ResourceLimits};
@@ -132,17 +132,9 @@ fn combined_spatial_stages_use_the_max_sequential_stage_peak() {
     assert_eq!(estimate.peak_bytes, 1_744);
 }
 
-#[test]
-fn every_unproven_allocation_family_fails_closed_before_rendering() {
-    let limits = ResourceLimits::default();
-
-    let mut geometry = DevelopSettings::default();
-    geometry.geometry.quarter_turns_clockwise = 1;
-    assert_unproven(&geometry, DevelopStage::Geometry, &limits);
-
-    let mut radial = DevelopSettings::default();
-    radial.radial_masks.masks.push(RadialMask {
-        id: "budget-gate".into(),
+fn active_mask(invert: bool, sharpness: f32) -> RadialMask {
+    RadialMask {
+        id: "budget-mask".into(),
         enabled: true,
         center_x: 0.5,
         center_y: 0.5,
@@ -151,13 +143,147 @@ fn every_unproven_allocation_family_fails_closed_before_rendering() {
         rotation_degrees: 0.0,
         feather: 0.1,
         opacity: 1.0,
-        invert: false,
+        invert,
         adjustments: LocalAdjustments {
             brightness: 1.0,
+            sharpness,
             ..LocalAdjustments::default()
         },
+    }
+}
+
+#[test]
+fn geometry_v1_crop_rotate_and_perspective_have_exact_simultaneous_peaks() {
+    type GeometryCase = (fn(&mut DevelopSettings), u64, (u32, u32));
+    let cases: [GeometryCase; 3] = [
+        (
+            |settings| settings.geometry.quarter_turns_clockwise = 1,
+            576,
+            (3, 4),
+        ),
+        (
+            |settings| settings.geometry.perspective_horizontal = 10.0,
+            576,
+            (4, 3),
+        ),
+        (
+            |settings| {
+                settings.geometry.crop = Some(CropRect {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 0.5,
+                    height: 1.0,
+                });
+            },
+            480,
+            (2, 3),
+        ),
+    ];
+    for (configure, exact_peak, dimensions) in cases {
+        let mut settings = DevelopSettings::default();
+        configure(&mut settings);
+        let exact = ResourceLimits::default().with_max_working_bytes(exact_peak);
+        let estimate = estimate_develop_working_set(4, 3, &settings, &exact).unwrap();
+        assert!(estimate.profile.geometry_v1);
+        assert_eq!(estimate.peak_bytes, exact_peak);
+        let mut rendered = image(4, 3);
+        DevelopPipeline
+            .process_bounded(&mut rendered, &settings, &exact)
+            .unwrap();
+        assert_eq!((rendered.width(), rendered.height()), dimensions);
+
+        let below = ResourceLimits::default().with_max_working_bytes(exact_peak - 1);
+        let mut rejected = image(4, 3);
+        let original = rejected.clone();
+        assert_eq!(
+            DevelopPipeline.process_bounded(&mut rejected, &settings, &below),
+            Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
+                requested: exact_peak,
+                maximum: exact_peak - 1,
+            }))
+        );
+        assert_eq!(rejected, original);
+    }
+}
+
+#[test]
+fn geometry_v1_accounts_two_live_stage_images_for_rotate_then_projective() {
+    let mut settings = DevelopSettings::default();
+    settings.geometry.quarter_turns_clockwise = 1;
+    settings.geometry.straighten_degrees = 2.0;
+    settings.geometry.crop = Some(CropRect {
+        x: 0.25,
+        y: 0.25,
+        width: 0.5,
+        height: 0.5,
     });
-    assert_unproven(&radial, DevelopStage::RadialMasks, &limits);
+    let exact = ResourceLimits::default().with_max_working_bytes(768);
+    let estimate = estimate_develop_working_set(4, 3, &settings, &exact).unwrap();
+    assert_eq!(estimate.peak_bytes, 768);
+    assert_eq!(estimate.stage_scratch_bytes, 384);
+}
+
+#[test]
+fn radial_masks_v1_accounts_largest_roi_and_full_invert_without_mask_planes() {
+    let mut roi = DevelopSettings::default();
+    roi.radial_masks.masks.push(active_mask(false, 20.0));
+    let roi_estimate =
+        estimate_develop_working_set(8, 6, &roi, &ResourceLimits::default()).unwrap();
+    assert!(roi_estimate.profile.radial_masks_v1);
+    assert!(roi_estimate.stage_scratch_bytes > 0);
+    assert!(roi_estimate.stage_scratch_bytes < 8 * 6 * 16);
+
+    let mut full = DevelopSettings::default();
+    full.radial_masks.masks.push(active_mask(true, 20.0));
+    let exact_peak = 8 * 6 * 48;
+    let exact = ResourceLimits::default().with_max_working_bytes(exact_peak);
+    let estimate = estimate_develop_working_set(8, 6, &full, &exact).unwrap();
+    assert_eq!(estimate.stage_scratch_bytes, 8 * 6 * 16);
+    assert_eq!(estimate.peak_bytes, exact_peak);
+    let mut rendered = image(8, 6);
+    DevelopPipeline
+        .process_bounded(&mut rendered, &full, &exact)
+        .unwrap();
+
+    let below = ResourceLimits::default().with_max_working_bytes(exact_peak - 1);
+    let mut rejected = image(8, 6);
+    let original = rejected.clone();
+    assert!(
+        DevelopPipeline
+            .process_bounded(&mut rejected, &full, &below)
+            .is_err()
+    );
+    assert_eq!(rejected, original);
+}
+
+#[test]
+fn geometry_masks_compose_explicitly_with_color_and_spatial_profiles() {
+    let mut settings = DevelopSettings::default();
+    settings.geometry.quarter_turns_clockwise = 1;
+    settings.tone_curves.master.points[1].y = 0.8;
+    settings.basics.clarity = 15.0;
+    settings.radial_masks.masks.push(active_mask(false, 0.0));
+    let estimate =
+        estimate_develop_working_set(8, 6, &settings, &ResourceLimits::default()).unwrap();
+    assert_eq!(
+        estimate.profile,
+        DevelopWorkingSetProfile::new(true, true, true, true)
+    );
+    let mut rendered = image(8, 6);
+    DevelopPipeline
+        .process_bounded(&mut rendered, &settings, &ResourceLimits::default())
+        .unwrap();
+}
+
+#[test]
+fn negative_local_sharpness_remains_unsupported_before_mutation() {
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(active_mask(false, -1.0));
+    assert_unproven(
+        &settings,
+        DevelopStage::RadialMasks,
+        &ResourceLimits::default(),
+    );
 }
 
 fn max_curve(offset: f32) -> Vec<CurvePoint> {
@@ -311,10 +437,11 @@ fn assert_unproven(settings: &DevelopSettings, stage: DevelopStage, limits: &Res
     );
     let mut candidate = image(2, 2);
     let original = candidate.clone();
-    assert_eq!(
+    assert!(matches!(
         DevelopPipeline.process_bounded(&mut candidate, settings, limits),
-        Err(PipelineError::ResourceProfileUnavailable(stage))
-    );
+        Err(PipelineError::ResourceProfileUnavailable(value))
+            | Err(PipelineError::StageNotImplemented(value)) if value == stage
+    ));
     assert_eq!(candidate, original);
 }
 

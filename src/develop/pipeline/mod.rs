@@ -7,17 +7,40 @@ use super::{
 use crate::io::{LimitError, ResourceLimits};
 use std::fmt;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DevelopWorkingSetProfile {
-    /// Transactional image copy plus allocation-free pointwise stages.
-    PointwiseV1,
-    /// PointwiseV1 plus bounded prepared tone curves and allocation-free
-    /// color mixer/grading state.
-    ColorV1,
-    /// Pointwise stages plus the reviewed full-frame clarity/effects family.
-    SpatialV1,
-    /// The union of the reviewed ColorV1 and SpatialV1 stage families.
-    ColorSpatialV1,
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DevelopWorkingSetProfile {
+    /// Reviewed bounded prepared tone curves and allocation-free color state.
+    pub color_v1: bool,
+    /// Reviewed full-frame clarity/effects family.
+    pub spatial_v1: bool,
+    /// Reviewed orthogonal/projective/crop geometry family.
+    pub geometry_v1: bool,
+    /// Reviewed analytic radial-mask/local-adjustment family.
+    pub radial_masks_v1: bool,
+}
+
+#[allow(non_upper_case_globals)]
+impl DevelopWorkingSetProfile {
+    /// Compatibility names for the four profiles admitted before family
+    /// composition became explicit. PointwiseV1 is the all-false base.
+    pub const PointwiseV1: Self = Self::new(false, false, false, false);
+    pub const ColorV1: Self = Self::new(true, false, false, false);
+    pub const SpatialV1: Self = Self::new(false, true, false, false);
+    pub const ColorSpatialV1: Self = Self::new(true, true, false, false);
+
+    pub const fn new(
+        color_v1: bool,
+        spatial_v1: bool,
+        geometry_v1: bool,
+        radial_masks_v1: bool,
+    ) -> Self {
+        Self {
+            color_v1,
+            spatial_v1,
+            geometry_v1,
+            radial_masks_v1,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,14 +180,27 @@ fn estimate_validated_working_set(
             maximum: limits.max_pixels,
         }));
     }
-    let unsupported = unproven_stage(settings);
-    if let Some(stage) = unsupported {
-        return Err(PipelineError::ResourceProfileUnavailable(stage));
+    if radial_masks_have_negative_sharpness(settings) {
+        return Err(PipelineError::ResourceProfileUnavailable(
+            DevelopStage::RadialMasks,
+        ));
     }
     let source_image_bytes = pixels
         .checked_mul(16)
         .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
     let transactional_image_bytes = source_image_bytes;
+    let geometry_active = !settings.geometry.is_neutral();
+    let (develop_width, develop_height, geometry_scratch_bytes) = if geometry_active {
+        stages::geometry_v1_working_set(width, height, &settings.geometry)?
+    } else {
+        (width, height, 0)
+    };
+    let develop_pixels = u64::from(develop_width)
+        .checked_mul(u64::from(develop_height))
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let developed_image_bytes = develop_pixels
+        .checked_mul(16)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
     let color_active = !settings.tone_curves.is_neutral()
         || !settings.color_mixer.is_neutral()
         || !settings.color_grading.is_neutral();
@@ -178,17 +214,41 @@ fn estimate_validated_working_set(
         || settings.effects.halation != 0.0
         || settings.effects.sharpness != 0.0;
     let spatial_scratch_bytes = if spatial_active {
-        spatial_stage_scratch_bytes(width, height, pixels, settings)?
+        spatial_stage_scratch_bytes(develop_width, develop_height, develop_pixels, settings)?
     } else {
         0
     };
-    // Color and spatial stages execute sequentially, so their scratch peaks
-    // are alternatives rather than simultaneously resident payloads.
-    let stage_scratch_bytes = color_scratch_bytes.max(spatial_scratch_bytes);
-    let peak_bytes = source_image_bytes
+    let radial_masks_active = !settings.radial_masks.is_neutral();
+    let radial_masks_scratch_bytes = if radial_masks_active {
+        stages::radial_masks_v1_scratch_bytes(
+            develop_width,
+            develop_height,
+            &settings.radial_masks,
+        )?
+    } else {
+        0
+    };
+
+    // Geometry runs while the original transaction image is still resident.
+    // Once it commits into that transaction, later families run sequentially
+    // against the possibly cropped dimensions.
+    let clone_peak = source_image_bytes
         .checked_add(transactional_image_bytes)
-        .and_then(|bytes| bytes.checked_add(stage_scratch_bytes))
         .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let geometry_peak = clone_peak
+        .checked_add(geometry_scratch_bytes)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let post_geometry_base = source_image_bytes
+        .checked_add(developed_image_bytes)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let later_scratch = color_scratch_bytes
+        .max(spatial_scratch_bytes)
+        .max(radial_masks_scratch_bytes);
+    let later_peak = post_geometry_base
+        .checked_add(later_scratch)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let peak_bytes = clone_peak.max(geometry_peak).max(later_peak);
+    let stage_scratch_bytes = peak_bytes - clone_peak;
     if peak_bytes > limits.max_working_bytes {
         return Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
             requested: peak_bytes,
@@ -196,15 +256,12 @@ fn estimate_validated_working_set(
         }));
     }
     Ok(DevelopWorkingSetEstimate {
-        profile: if color_active && spatial_active {
-            DevelopWorkingSetProfile::ColorSpatialV1
-        } else if color_active {
-            DevelopWorkingSetProfile::ColorV1
-        } else if spatial_active {
-            DevelopWorkingSetProfile::SpatialV1
-        } else {
-            DevelopWorkingSetProfile::PointwiseV1
-        },
+        profile: DevelopWorkingSetProfile::new(
+            color_active,
+            spatial_active,
+            geometry_active,
+            radial_masks_active,
+        ),
         pixels,
         source_image_bytes,
         transactional_image_bytes,
@@ -213,14 +270,12 @@ fn estimate_validated_working_set(
     })
 }
 
-fn unproven_stage(settings: &DevelopSettings) -> Option<DevelopStage> {
-    if !settings.geometry.is_neutral() {
-        return Some(DevelopStage::Geometry);
-    }
-    if !settings.radial_masks.is_neutral() {
-        return Some(DevelopStage::RadialMasks);
-    }
-    None
+fn radial_masks_have_negative_sharpness(settings: &DevelopSettings) -> bool {
+    settings
+        .radial_masks
+        .masks
+        .iter()
+        .any(|mask| mask.enabled && mask.opacity > 0.0 && mask.adjustments.sharpness < 0.0)
 }
 
 fn spatial_stage_scratch_bytes(

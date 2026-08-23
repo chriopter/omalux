@@ -46,14 +46,24 @@ pub(crate) fn apply_orthogonal_transform(
 ) -> Result<CpuImage, PipelineError> {
     let turns = quarter_turns_clockwise % 4;
     if turns == 0 && !flip_horizontal && !flip_vertical {
-        return Ok(source.clone());
+        let mut pixels = Vec::new();
+        pixels
+            .try_reserve_exact(source.pixels().len())
+            .map_err(|_| PipelineError::ResourceLimit(crate::io::LimitError::Allocation))?;
+        pixels.extend_from_slice(source.pixels());
+        return CpuImage::new(source.width(), source.height(), pixels)
+            .map_err(PipelineError::InvalidImage);
     }
     let (width, height) = if matches!(turns, 0 | 2) {
         (source.width(), source.height())
     } else {
         (source.height(), source.width())
     };
-    let mut pixels = Vec::with_capacity(pixel_count(width, height));
+    let count = pixel_count(width, height);
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(count)
+        .map_err(|_| PipelineError::ResourceLimit(crate::io::LimitError::Allocation))?;
     for output_y in 0..height {
         for output_x in 0..width {
             let turned_x = if flip_horizontal {

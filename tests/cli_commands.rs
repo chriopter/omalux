@@ -166,8 +166,11 @@ fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
         let result = develop(&input, &output, Some(setting));
         assert!(result.status.success(), "{name}: {:?}", result);
         let report = json(&result);
-        assert_eq!(report["schema_version"], 3);
-        assert_eq!(report["develop_working_set"]["profile"], "pointwise_v1");
+        assert_eq!(report["schema_version"], 4);
+        assert_eq!(
+            report["develop_working_set"]["profile"]["pointwise_v1"],
+            true
+        );
         assert_ne!(
             image::open(output).unwrap().to_rgb8().into_raw(),
             neutral_pixels,
@@ -250,10 +253,11 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
         .unwrap();
     assert!(result.status.success(), "{result:?}");
     let report = json(&result);
-    assert_eq!(report["schema_version"], 3);
+    assert_eq!(report["schema_version"], 4);
     assert_eq!(report["output_format"], "jpeg");
     assert_eq!(report["encoding"]["format"], "jpeg");
-    assert_eq!(report["develop_working_set"]["profile"], "color_spatial_v1");
+    assert_eq!(report["develop_working_set"]["profile"]["color_v1"], true);
+    assert_eq!(report["develop_working_set"]["profile"]["spatial_v1"], true);
     assert!(output.exists());
     assert_ne!(
         image::open(&output).unwrap().to_rgb8(),
@@ -263,7 +267,7 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
 }
 
 #[test]
-fn unsupported_spatial_cli_setting_fails_before_target_publication() {
+fn geometry_cli_setting_runs_with_the_bounded_profile() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("input.jpg");
     let output = directory.path().join("must-not-exist.jpg");
@@ -287,9 +291,12 @@ fn unsupported_spatial_cli_setting_fails_before_target_publication() {
         .arg("--json")
         .output()
         .unwrap();
-    assert_eq!(result.status.code(), Some(69));
-    assert_eq!(json(&result)["outcome"]["code"], "unproven_pipeline_budget");
-    assert!(!output.exists());
+    assert!(result.status.success());
+    assert_eq!(
+        json(&result)["develop_working_set"]["profile"]["geometry_v1"],
+        true
+    );
+    assert!(output.exists());
     assert!(result.stderr.is_empty());
 }
 
@@ -482,7 +489,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     assert!(result.status.success(), "{result:?}");
     assert!(result.stderr.is_empty());
     let report = json(&result);
-    assert_eq!(report["schema_version"], 3);
+    assert_eq!(report["schema_version"], 4);
     assert_eq!(report["output_format"], "heic");
     assert_eq!(report["encoding"]["format"], "heic");
     assert_eq!(report["encoding"]["quality"], 90);
@@ -491,7 +498,8 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     assert_eq!(report["encoding"]["nclx"]["transfer_characteristics"], 13);
     assert_eq!(report["encoding"]["nclx"]["matrix_coefficients"], 1);
     assert_eq!(report["encoding"]["nclx"]["full_range"], true);
-    assert_eq!(report["develop_working_set"]["profile"], "color_spatial_v1");
+    assert_eq!(report["develop_working_set"]["profile"]["color_v1"], true);
+    assert_eq!(report["develop_working_set"]["profile"]["spatial_v1"], true);
     assert!(
         report["encoding"]["encoder"]
             .as_str()

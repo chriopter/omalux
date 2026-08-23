@@ -9,6 +9,7 @@ use crate::develop::{
     orientation::apply_orthogonal_transform,
     settings::{CropRect, GeometrySettings},
 };
+use crate::io::LimitError;
 
 const LANCZOS_RADIUS: i32 = 3;
 
@@ -24,35 +25,46 @@ pub(super) fn apply(
         return Ok(());
     }
 
-    let mut rendered = apply_orthogonal_transform(
-        image,
-        settings.quarter_turns_clockwise,
-        settings.flip_horizontal,
-        settings.flip_vertical,
-    )?;
+    let orthogonal_active =
+        settings.quarter_turns_clockwise != 0 || settings.flip_horizontal || settings.flip_vertical;
+    let mut rendered = if orthogonal_active {
+        Some(apply_orthogonal_transform(
+            image,
+            settings.quarter_turns_clockwise,
+            settings.flip_horizontal,
+            settings.flip_vertical,
+        )?)
+    } else {
+        None
+    };
 
     if settings.straighten_degrees != 0.0
         || settings.perspective_horizontal != 0.0
         || settings.perspective_vertical != 0.0
     {
-        rendered = projective_resample(
-            &rendered,
+        let source = rendered.as_ref().unwrap_or(image);
+        rendered = Some(projective_resample(
+            source,
             settings.straighten_degrees,
             settings.perspective_horizontal,
             settings.perspective_vertical,
-        )?;
+        )?);
     }
 
     if let Some(crop) = &settings.crop {
-        rendered = normalized_crop(&rendered, crop)?;
+        let source = rendered.as_ref().unwrap_or(image);
+        let bounds = crop_bounds(source.width(), source.height(), crop);
+        if bounds != (0, 0, source.width(), source.height()) {
+            rendered = Some(crop_region(source, bounds)?);
+        }
     }
-    *image = rendered;
+    if let Some(rendered) = rendered {
+        *image = rendered;
+    }
     Ok(())
 }
 
-fn normalized_crop(source: &CpuImage, crop: &CropRect) -> Result<CpuImage, PipelineError> {
-    let width = source.width();
-    let height = source.height();
+fn crop_bounds(width: u32, height: u32, crop: &CropRect) -> (u32, u32, u32, u32) {
     let left = normalized_edge(crop.x, width, false);
     let top = normalized_edge(crop.y, height, false);
     let right_edge = (f64::from(crop.x) + f64::from(crop.width)) * f64::from(width);
@@ -61,12 +73,20 @@ fn normalized_crop(source: &CpuImage, crop: &CropRect) -> Result<CpuImage, Pipel
     let bottom = (bottom_edge.ceil() as u32).min(height).max(top + 1);
     let output_width = right.min(width) - left;
     let output_height = bottom.min(height) - top;
-    if left == 0 && top == 0 && output_width == width && output_height == height {
-        return Ok(source.clone());
-    }
-    let mut pixels = Vec::with_capacity(pixel_count(output_width, output_height));
+    (left, top, output_width, output_height)
+}
+
+fn crop_region(
+    source: &CpuImage,
+    (left, top, output_width, output_height): (u32, u32, u32, u32),
+) -> Result<CpuImage, PipelineError> {
+    let count = pixel_count(output_width, output_height);
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(count)
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
     for y in top..top + output_height {
-        let start = index(width, left, y);
+        let start = index(source.width(), left, y);
         pixels.extend_from_slice(&source.pixels()[start..start + output_width as usize]);
     }
     CpuImage::new(output_width, output_height, pixels).map_err(PipelineError::InvalidImage)
@@ -106,7 +126,7 @@ fn projective_resample(
         ],
     ]);
     let inverse = perspective.multiply(rotate).inverse();
-    let pixels = projective_region(source, inverse, 0, 0, source.width(), source.height());
+    let pixels = projective_region(source, inverse, 0, 0, source.width(), source.height())?;
     CpuImage::new(source.width(), source.height(), pixels).map_err(PipelineError::InvalidImage)
 }
 
@@ -119,8 +139,12 @@ fn projective_region(
     output_y: u32,
     width: u32,
     height: u32,
-) -> Vec<RgbaPixel> {
-    let mut pixels = Vec::with_capacity(pixel_count(width, height));
+) -> Result<Vec<RgbaPixel>, PipelineError> {
+    let count = pixel_count(width, height);
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(count)
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
     for y in output_y..output_y + height {
         for x in output_x..output_x + width {
             let destination = [f64::from(x) + 0.5, f64::from(y) + 0.5];
@@ -128,7 +152,60 @@ fn projective_region(
             pixels.push(sample_lanczos3(source, mapped[0], mapped[1]));
         }
     }
-    pixels
+    Ok(pixels)
+}
+
+/// Returns post-geometry dimensions and the maximum simultaneous heap payload
+/// allocated by this stage while the outer transaction image remains live.
+pub(super) fn working_set(
+    width: u32,
+    height: u32,
+    settings: &GeometrySettings,
+) -> Result<(u32, u32, u64), PipelineError> {
+    let image_bytes = u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(16))
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let orthogonal_active =
+        settings.quarter_turns_clockwise != 0 || settings.flip_horizontal || settings.flip_vertical;
+    let projective_active = settings.straighten_degrees != 0.0
+        || settings.perspective_horizontal != 0.0
+        || settings.perspective_vertical != 0.0;
+    let (transformed_width, transformed_height) =
+        if settings.quarter_turns_clockwise.is_multiple_of(2) {
+            (width, height)
+        } else {
+            (height, width)
+        };
+    let mut current_payload = if orthogonal_active { image_bytes } else { 0 };
+    let mut peak = current_payload;
+    if projective_active {
+        peak = peak.max(
+            current_payload
+                .checked_add(image_bytes)
+                .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
+        );
+        current_payload = image_bytes;
+    }
+    let (output_width, output_height, crop_bytes) = if let Some(crop) = &settings.crop {
+        let (_, _, crop_width, crop_height) =
+            crop_bounds(transformed_width, transformed_height, crop);
+        let bytes = u64::from(crop_width)
+            .checked_mul(u64::from(crop_height))
+            .and_then(|pixels| pixels.checked_mul(16))
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+        (crop_width, crop_height, bytes)
+    } else {
+        (transformed_width, transformed_height, image_bytes)
+    };
+    if crop_bytes != image_bytes {
+        peak = peak.max(
+            current_payload
+                .checked_add(crop_bytes)
+                .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
+        );
+    }
+    Ok((output_width, output_height, peak))
 }
 
 #[derive(Clone, Copy)]
@@ -347,11 +424,11 @@ mod tests {
             [-0.04, 1.02, 0.30],
             [0.001, -0.002, 1.0],
         ]);
-        let full = projective_region(&source, inverse, 0, 0, 9, 7);
+        let full = projective_region(&source, inverse, 0, 0, 9, 7).unwrap();
         let mut tiled = Vec::new();
         for y in 0..7 {
-            tiled.extend(projective_region(&source, inverse, 0, y, 4, 1));
-            tiled.extend(projective_region(&source, inverse, 4, y, 5, 1));
+            tiled.extend(projective_region(&source, inverse, 0, y, 4, 1).unwrap());
+            tiled.extend(projective_region(&source, inverse, 4, y, 5, 1).unwrap());
         }
         assert_eq!(tiled, full);
     }

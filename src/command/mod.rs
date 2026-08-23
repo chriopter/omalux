@@ -212,7 +212,10 @@ mod tests {
         assert_eq!(exit, ExitCode::SUCCESS);
         let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
         assert_eq!(report["outcome"]["status"], "published_and_durable");
-        assert_eq!(report["develop_working_set"]["profile"], "pointwise_v1");
+        assert_eq!(
+            report["develop_working_set"]["profile"]["pointwise_v1"],
+            true
+        );
         assert!(output.exists());
         assert!(stderr.is_empty());
     }

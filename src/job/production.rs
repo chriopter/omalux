@@ -300,6 +300,153 @@ mod tests {
         .unwrap();
     }
 
+    fn jpeg_solid(path: &Path, width: u32, height: u32, rgb: [u8; 3]) {
+        let pixels = (0..width * height).flat_map(|_| rgb).collect::<Vec<_>>();
+        image::save_buffer_with_format(
+            path,
+            &pixels,
+            width,
+            height,
+            image::ColorType::Rgb8,
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+    }
+
+    fn geometry_mask_settings() -> crate::develop::DevelopSettings {
+        use crate::develop::{LocalAdjustments, RadialMask};
+        let mut settings = crate::develop::DevelopSettings::default();
+        settings.geometry.quarter_turns_clockwise = 1;
+        settings.geometry.straighten_degrees = 2.0;
+        settings.radial_masks.masks.push(RadialMask {
+            id: "production-budget-mask".to_owned(),
+            enabled: true,
+            center_x: 0.5,
+            center_y: 0.5,
+            radius_x: 0.25,
+            radius_y: 0.25,
+            rotation_degrees: 0.0,
+            feather: 0.5,
+            opacity: 1.0,
+            invert: true,
+            adjustments: LocalAdjustments {
+                brightness: 5.0,
+                sharpness: 10.0,
+                ..LocalAdjustments::default()
+            },
+        });
+        settings
+    }
+
+    fn geometry_mask_job(
+        input: &Path,
+        output: &Path,
+        format: OutputFormat,
+    ) -> crate::job::DevelopJob {
+        use crate::{
+            develop::PresetDocument,
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::{DevelopJob, DevelopOutput, PresetSelection},
+        };
+        DevelopJob {
+            input: input.to_owned(),
+            output: output.to_owned(),
+            decode: DecodeOptions::default(),
+            output_options: DevelopOutput::new(
+                format,
+                90,
+                OutputProfile::Srgb,
+                MetadataPolicy::StripLocation,
+                AlphaPolicy::Flatten([0.0, 0.0, 0.0]),
+                SdrRangePolicy::ClipAndReport,
+            ),
+            overwrite: OverwritePolicy::Forbid,
+            preset: PresetSelection::document(PresetDocument::new(
+                "geometry-mask-job",
+                "Geometry mask job",
+                geometry_mask_settings(),
+            )),
+            overrides: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn raster_jpeg_geometry_mask_job_reports_exact_develop_peak() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("developed.jpg");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &geometry_mask_job(&input, &output, OutputFormat::Jpeg),
+                &ProductionPhotoDecoder::new(),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+        let profile = report.develop_working_set.profile().unwrap();
+        assert!(profile.geometry_v1 && profile.radial_masks_v1);
+        assert_eq!(report.develop_working_set.estimated_peak_bytes(), 768);
+        let decoded = image::open(output).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (3, 4));
+    }
+
+    #[cfg(feature = "heic")]
+    #[test]
+    fn raster_heic_geometry_mask_job_reports_exact_develop_peak() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("developed.heic");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &geometry_mask_job(&input, &output, OutputFormat::Heic),
+                &ProductionPhotoDecoder::new(),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+        let profile = report.develop_working_set.profile().unwrap();
+        assert!(profile.geometry_v1 && profile.radial_masks_v1);
+        assert_eq!(report.develop_working_set.estimated_peak_bytes(), 768);
+        assert!(output.exists());
+    }
+
+    #[test]
+    fn raw_jpeg_geometry_mask_job_reports_develop_over_scene_peak() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.nef");
+        let output = directory.path().join("developed.jpg");
+        stdfs::write(&input, b"synthetic raw source").unwrap();
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &geometry_mask_job(&input, &output, OutputFormat::Jpeg),
+                &ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path())),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+        let profile = report.develop_working_set.profile().unwrap();
+        assert!(profile.geometry_v1 && profile.radial_masks_v1);
+        assert_eq!(report.develop_working_set.estimated_peak_bytes(), 64);
+        assert!(report.scene_render.is_some());
+    }
+
     fn fake_raw_backend(directory: &Path) -> RawExecutionOptions {
         let executable = directory.join("dcraw_emu");
         stdfs::write(
