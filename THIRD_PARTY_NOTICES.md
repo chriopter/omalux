@@ -1,5 +1,15 @@
 # Third-party notices
 
+## Optional HEIC backend
+
+With the `heic` feature Grainroom uses `libheif-sys` 5.3.1+1.23.1 (MIT) as
+generated bindings to the dynamically linked system libheif 1.23.1
+(LGPL-3.0-or-later). HEVC encoding is selected explicitly through the system
+x265 plugin/library (GPL-2.0-or-later). Grainroom does not copy or bundle their
+source or binaries. Their complete license texts accompany their source
+distributions. Codec copyright licenses do not grant patent rights; HEVC
+distribution requires an independent legal review.
+
 ## Ashima Arts webgl-noise
 
 The deterministic film-grain kernel contains a scalar Rust adaptation of the

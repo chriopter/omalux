@@ -3,6 +3,17 @@
 A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
 
+The default core build has no HEIC dependency. Optional production HEIC export
+uses the dynamic system libheif and its x265 encoder:
+
+```bash
+cargo build --features heic
+```
+
+Arch/Omarchy packaging must provide compatible `libheif` and `x265`
+development/runtime files. See [`docs/io-heic-encode.md`](docs/io-heic-encode.md)
+for capability, resource, cancellation, licensing, and HEVC legal constraints.
+
 Implementation boundaries and directory responsibilities are documented in
 [`docs/architecture.md`](docs/architecture.md). The film-grain implementation
 and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
