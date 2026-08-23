@@ -5,7 +5,18 @@ use super::AtomicOutputError;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum OverwritePolicy {
+    /// Refuse to publish when the destination already exists.
+    ///
+    /// This is the required default for future production encoders.
     Forbid,
+    /// Atomically replace an existing regular destination file.
+    ///
+    /// This policy is only suitable when the destination directory is trusted
+    /// and all writers to the destination name cooperate. Holding the parent
+    /// directory descriptor prevents path redirection, but it cannot prevent a
+    /// cooperating-directory violation such as another writer publishing a
+    /// newer file immediately before this rename. `Replace` is therefore an
+    /// explicit opt-in and is not the production default.
     Replace,
 }
 
@@ -27,6 +38,9 @@ pub struct AtomicOutputOptions {
 impl Default for AtomicOutputOptions {
     fn default() -> Self {
         Self {
+            // Future encoder entry points must retain this fail-closed default
+            // unless the caller explicitly opts into the trusted-directory
+            // `Replace` contract above.
             overwrite: OverwritePolicy::Forbid,
             permissions: OutputPermissions::Private,
         }
