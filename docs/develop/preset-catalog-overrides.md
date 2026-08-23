@@ -4,13 +4,16 @@ The built-in catalog is a deterministic, ID-sorted collection of validated
 `PresetDocument` values. Grainroom currently ships only `neutral`: the exact
 canonical `DevelopSettings::default()` document. There is deliberately no
 invented “default look” or reference preset. New built-ins require an explicit,
-reviewed recipe and must be checked in as canonical schema-v2 JSON under
+reviewed recipe and must be checked in as canonical schema-v3 JSON under
 `presets/builtin/`.
 
 Schema v2 adds neutral-default `basics.exposure_ev` and the extended tone-curve
-domain. Valid schema-v1 documents migrate to v2 with zero Exposure EV. V1
-documents that attempt to use v2 fields or extended nodes are rejected rather
-than interpreted silently; unknown fields remain denied at every level.
+domain. Schema v3 adds `radial_masks.masks[].adjustments.exposure_ev`. Valid
+schema-v1 documents migrate with neutral global and local Exposure EV; valid
+schema-v2 documents retain global Exposure EV and gain neutral local Exposure
+EV. V1 documents that attempt to use v2 fields or extended nodes, and v1/v2
+documents that attempt to use the v3 local field, are rejected rather than
+interpreted silently. Unknown fields remain denied at every level.
 
 Built-ins use exactly compact canonical JSON followed by one LF; leading,
 trailing, or additional whitespace is rejected during catalog construction.
