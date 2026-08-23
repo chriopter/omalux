@@ -233,6 +233,15 @@ fn radial_masks_v1_accounts_largest_roi_and_full_invert_without_mask_planes() {
     assert!(roi_estimate.stage_scratch_bytes > 0);
     assert!(roi_estimate.stage_scratch_bytes < 8 * 6 * 16);
 
+    let mut flat = DevelopSettings::default();
+    flat.radial_masks.masks.push(active_mask(false, 0.0));
+    let flat_estimate =
+        estimate_develop_working_set(8, 6, &flat, &ResourceLimits::default()).unwrap();
+    assert_eq!(
+        flat_estimate.stage_scratch_bytes,
+        roi_estimate.stage_scratch_bytes
+    );
+
     let mut full = DevelopSettings::default();
     full.radial_masks.masks.push(active_mask(true, 20.0));
     let exact_peak = 8 * 6 * 48;
