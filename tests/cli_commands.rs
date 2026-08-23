@@ -46,7 +46,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
 }
 
 #[test]
-fn develop_validates_format_ranges_and_keeps_active_settings_unproven() {
+fn develop_validates_format_ranges_and_runs_pointwise_settings() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("input.jpg");
     let output = directory.path().join("output.JPEG");
@@ -75,10 +75,10 @@ fn develop_validates_format_ranges_and_keeps_active_settings_unproven() {
         ])
         .output()
         .unwrap();
-    assert_eq!(valid.status.code(), Some(69));
-    assert!(valid.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&valid.stderr).contains("unproven_pipeline_budget"));
-    assert!(!output.exists());
+    assert!(valid.status.success());
+    assert!(String::from_utf8_lossy(&valid.stdout).contains("develop complete"));
+    assert!(valid.stderr.is_empty());
+    assert!(output.exists());
 
     for arguments in [
         vec!["develop", "--input", "in.jpg", "--output", "out.unknown"],
@@ -107,6 +107,118 @@ fn develop_validates_format_ranges_and_keeps_active_settings_unproven() {
         assert_eq!(invalid.status.code(), Some(2));
         assert!(invalid.stdout.is_empty());
     }
+}
+
+#[test]
+fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("gradient.png");
+    let mut pixels = Vec::new();
+    for y in 0_u8..24 {
+        for x in 0_u8..32 {
+            pixels.extend_from_slice(&[
+                x.saturating_mul(8),
+                y.saturating_mul(10),
+                x.saturating_mul(4).saturating_add(y.saturating_mul(3)),
+            ]);
+        }
+    }
+    image::save_buffer_with_format(
+        &input,
+        &pixels,
+        32,
+        24,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+
+    let develop = |source: &std::path::Path, output: &std::path::Path, setting: Option<&str>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_grainroom"));
+        command
+            .arg("develop")
+            .arg("--input")
+            .arg(source)
+            .arg("--output")
+            .arg(output)
+            .arg("--json");
+        if let Some(setting) = setting {
+            command.arg("--set").arg(setting);
+        }
+        command.output().unwrap()
+    };
+
+    let neutral = directory.path().join("neutral.jpg");
+    let neutral_result = develop(&input, &neutral, None);
+    assert!(neutral_result.status.success());
+    let neutral_pixels = image::open(&neutral).unwrap().to_rgb8().into_raw();
+
+    for (name, setting) in [
+        ("brightness", "basics.brightness=100"),
+        ("contrast", "basics.contrast=80"),
+        ("fade", "effects.fade=80"),
+        ("vignette", "effects.vignette=80"),
+        ("grain", "effects.grain.amount=73"),
+    ] {
+        let output = directory.path().join(format!("{name}.jpg"));
+        let result = develop(&input, &output, Some(setting));
+        assert!(result.status.success(), "{name}: {:?}", result);
+        let report = json(&result);
+        assert_eq!(report["schema_version"], 2);
+        assert_eq!(report["develop_working_set"]["profile"], "pointwise_v1");
+        assert_ne!(
+            image::open(output).unwrap().to_rgb8().into_raw(),
+            neutral_pixels,
+            "{name} did not change the encoded pixels"
+        );
+    }
+
+    let renamed = directory.path().join("same-content-renamed.png");
+    fs::copy(&input, &renamed).unwrap();
+    let grain_a = directory.path().join("grain-a.jpg");
+    let grain_b = directory.path().join("grain-b.jpg");
+    assert!(
+        develop(&input, &grain_a, Some("effects.grain.amount=73"))
+            .status
+            .success()
+    );
+    assert!(
+        develop(&renamed, &grain_b, Some("effects.grain.amount=73"))
+            .status
+            .success()
+    );
+    assert_eq!(fs::read(grain_a).unwrap(), fs::read(grain_b).unwrap());
+}
+
+#[test]
+fn unsupported_cli_setting_fails_before_target_publication() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("input.jpg");
+    let output = directory.path().join("must-not-exist.jpg");
+    image::save_buffer_with_format(
+        &input,
+        &[70_u8, 80, 90],
+        1,
+        1,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Jpeg,
+    )
+    .unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(input)
+        .arg("--output")
+        .arg(&output)
+        .arg("--set")
+        .arg("basics.clarity=10")
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(69));
+    assert_eq!(json(&result)["outcome"]["code"], "unproven_pipeline_budget");
+    assert!(!output.exists());
+    assert!(result.stderr.is_empty());
 }
 
 #[test]

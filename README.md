@@ -91,19 +91,20 @@ Launch the separately packaged desktop sibling explicitly with
 executable and never searches `PATH` for it. Linux launch holds and verifies
 the regular sibling without following symlinks before executing the held file.
 
-Run a real neutral, color-managed JPEG development job through the Qt-free
+Run a real bounded, color-managed JPEG development job through the Qt-free
 core. The decoder opens the source once, output defaults to no-overwrite atomic
 publication, quality defaults to 90, and progress is written to stderr:
 
 ```bash
 grainroom develop --input photo.jpg --output result.jpg \
-  --preset neutral --quality 90 --progress human
+  --preset neutral --set basics.brightness=12 --quality 90 --progress human
 ```
 
 JPEG, PNG, BMP, and supported camera RAW inputs are accepted. V1 exports JPEG;
-HEIC requests exit 69 before touching presets, input, or output. Active presets
-and `--set` overrides also remain fail-closed with exit 69 until their complete
-pipeline working-set budget is proven; the neutral path is production-wired.
+HEIC requests exit 69 before touching presets, input, or output. Estimator-
+approved PointwiseV1 presets and `--set` overrides run in production; settings
+that require an unproven allocation profile remain fail-closed with exit 69
+before development or output publication.
 Use `--json` for the path-free final report and `--progress json` for path-free
 stage events on stderr. SIGINT cancels with exit 130. See
 [`docs/cli.md`](docs/cli.md) for flags, resource limits, exit codes, metadata and

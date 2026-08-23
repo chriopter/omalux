@@ -49,11 +49,13 @@ external preset is opened. `--preset` and `--preset-file` are mutually
 exclusive, duplicate `--set` IDs are rejected, and external preset JSON is read
 through the bounded no-follow loader.
 
-The current job resource proof admits the allocation-free neutral develop path.
-An active preset or any `--set` override remains fail-closed with
-`unproven_pipeline_budget` and exit 69 after decode, before develop mutation or
-output creation. This is deliberate and must not be interpreted as successful
-application of active settings.
+The current job resource proof admits the bounded PointwiseV1 profile:
+pointwise Basics controls except Clarity, plus Fade, Vignette, and Grain. Supported
+presets and `--set` overrides are applied before encoding. The final report is
+schema version 2 and names the profile plus its exact estimated peak. Clarity,
+geometry, curves, color operations, radial masks, Bloom, Halation, and
+Sharpness remain fail-closed with `unproven_pipeline_budget` and exit 69 after
+decode, before develop mutation or output creation.
 
 The destination defaults to no-overwrite atomic publication. `--overwrite`
 permits replacement of an existing regular file, while source/destination inode
@@ -94,8 +96,8 @@ input/output paths.
 - `0`: success, help, or version;
 - `1`: operational input, decode, encode, output, or destination failure;
 - `2`: usage, range, unknown preset, duplicate override, or invalid format;
-- `69`: unavailable codec/backend, missing packaged GUI sibling, or an active
-  develop request whose pipeline working-set proof is not yet complete;
+- `69`: unavailable codec/backend, missing packaged GUI sibling, or a develop
+  request whose pipeline working-set proof is not yet complete;
 - `70`: internal failure.
 - `130`: cancelled by SIGINT before publication.
 

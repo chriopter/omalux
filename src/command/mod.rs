@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn active_override_stays_honestly_unproven_and_creates_no_target() {
+    fn pointwise_override_runs_and_reports_the_bounded_profile() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("input.jpg");
         let output = directory.path().join("output.jpg");
@@ -208,10 +208,11 @@ mod tests {
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
         let exit = run_from(arguments, &mut stdout, &mut stderr);
-        assert_eq!(exit, ExitCode::from(69));
+        assert_eq!(exit, ExitCode::SUCCESS);
         let report: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
-        assert_eq!(report["outcome"]["code"], "unproven_pipeline_budget");
-        assert!(!output.exists());
+        assert_eq!(report["outcome"]["status"], "published_and_durable");
+        assert_eq!(report["develop_working_set"]["profile"], "pointwise_v1");
+        assert!(output.exists());
         assert!(stderr.is_empty());
     }
 

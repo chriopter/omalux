@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn fake_raw_runs_once_through_scene_render_and_publishes_jpeg() {
         use crate::{
-            develop::PresetCatalog,
+            develop::{ParameterOverride, PresetCatalog},
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{
                 DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput, NoProgress,
@@ -290,7 +290,7 @@ mod tests {
             ),
             overwrite: OverwritePolicy::Forbid,
             preset: PresetSelection::CatalogId("neutral".to_owned()),
-            overrides: Vec::new(),
+            overrides: vec![ParameterOverride::scalar("basics.brightness", 35.0)],
         };
         let decoder = ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path()));
         let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
@@ -312,6 +312,10 @@ mod tests {
             Some(ReportSignalRelation::LinearizedDisplayReferred)
         );
         assert!(report.scene_render.is_some());
+        assert_eq!(
+            report.develop_working_set.profile(),
+            Some(crate::job::ReportDevelopWorkingSetProfile::PointwiseV1)
+        );
         assert!(matches!(
             report.outcome,
             DevelopJobOutcome::PublishedAndDurable { bytes_written } if bytes_written > 0
