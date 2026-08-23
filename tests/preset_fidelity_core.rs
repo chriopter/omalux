@@ -167,6 +167,15 @@ fn preset_v1_migrates_explicitly_and_v2_is_strict() {
         PresetDocument::from_json(&illegal_v1),
         Err(PresetError::FieldNotAvailable { version: 1, .. })
     ));
+    let extended_v1 = V1_NEUTRAL.replacen("\"x\":0.0,\"y\":0.0", "\"x\":-0.6,\"y\":0.0", 1);
+    assert!(matches!(
+        PresetDocument::from_json(&extended_v1),
+        Err(PresetError::FieldNotAvailable {
+            version: 1,
+            path: "settings.tone_curves.master"
+        })
+    ));
+    assert!(serde_json::from_str::<PresetDocument>(&extended_v1).is_err());
 
     let missing_v2 = migrated
         .to_canonical_json()

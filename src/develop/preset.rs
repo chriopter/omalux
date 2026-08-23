@@ -143,6 +143,9 @@ impl PresetDocument {
                 path: "settings.basics.exposure_ev",
             });
         }
+        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
+            validate_v1_value_semantics(&value)?;
+        }
         if envelope.schema_version == PRESET_SCHEMA_VERSION
             && value.pointer("/settings/basics/exposure_ev").is_none()
         {
@@ -151,9 +154,6 @@ impl PresetDocument {
             ));
         }
         let document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
-        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
-            validate_v1_semantics(&value, &document)?;
-        }
         document.validate()?;
         Ok(document)
     }
@@ -168,17 +168,52 @@ impl PresetDocument {
     }
 }
 
-fn validate_v1_semantics(
-    value: &serde_json::Value,
-    document: &PresetDocument,
-) -> Result<(), PresetError> {
-    if value.pointer("/settings/basics/exposure_ev").is_some() {
-        return Err(PresetError::FieldNotAvailable {
-            version: LEGACY_PRESET_SCHEMA_VERSION,
-            path: "settings.basics.exposure_ev",
+fn validate_v1_value_semantics(value: &serde_json::Value) -> Result<(), PresetError> {
+    for (path, pointer) in [
+        (
+            "settings.tone_curves.master",
+            "/settings/tone_curves/master/points",
+        ),
+        (
+            "settings.tone_curves.red",
+            "/settings/tone_curves/red/points",
+        ),
+        (
+            "settings.tone_curves.green",
+            "/settings/tone_curves/green/points",
+        ),
+        (
+            "settings.tone_curves.blue",
+            "/settings/tone_curves/blue/points",
+        ),
+    ] {
+        let Some(points) = value.pointer(pointer).and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+        let legacy_range = points.iter().all(|point| {
+            let x = point.get("x").and_then(serde_json::Value::as_f64);
+            let y = point.get("y").and_then(serde_json::Value::as_f64);
+            x.is_none_or(|value| (0.0..=1.0).contains(&value))
+                && y.is_none_or(|value| (0.0..=1.0).contains(&value))
         });
+        let legacy_domain = points
+            .first()
+            .and_then(|point| point.get("x"))
+            .and_then(serde_json::Value::as_f64)
+            .is_none_or(|value| value == 0.0)
+            && points
+                .last()
+                .and_then(|point| point.get("x"))
+                .and_then(serde_json::Value::as_f64)
+                .is_none_or(|value| value == 1.0);
+        if !legacy_range || !legacy_domain {
+            return Err(PresetError::FieldNotAvailable {
+                version: LEGACY_PRESET_SCHEMA_VERSION,
+                path,
+            });
+        }
     }
-    validate_v1_curve_semantics(document)
+    Ok(())
 }
 
 fn validate_v1_curve_semantics(document: &PresetDocument) -> Result<(), PresetError> {
