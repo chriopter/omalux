@@ -15,7 +15,7 @@ mod types;
 
 pub use atomic::{
     AtomicOutputOptions, AtomicOutputOutcome, OutputPermissions, OverwritePolicy,
-    write_atomic_output,
+    SourceFileIdentity, write_atomic_output, write_atomic_output_for_source,
 };
 pub use digest::SourceDigestV1;
 pub use encode::{

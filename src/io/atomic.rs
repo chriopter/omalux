@@ -61,6 +61,34 @@ pub enum AtomicOutputOutcome {
     PublishedAndDurable,
 }
 
+/// Stable identity captured from the decoder's already-open source file.
+///
+/// Publication compares this value with the destination's `lstat` result; it
+/// never resolves the input path again. The decoder should retain its source
+/// handle for the job lifetime when its backend permits that.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceFileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+impl SourceFileIdentity {
+    #[cfg(target_os = "linux")]
+    pub fn from_file(file: &File) -> Result<Self, AtomicOutputError> {
+        let stat =
+            rustix::fs::fstat(file).map_err(|error| AtomicOutputError::Create(std_error(error)))?;
+        Ok(Self {
+            device: stat.st_dev,
+            inode: stat.st_ino,
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn from_file(_file: &File) -> Result<Self, AtomicOutputError> {
+        Err(AtomicOutputError::UnsupportedPlatform)
+    }
+}
+
 /// Atomically writes a new regular file on Linux without following the final
 /// parent or destination symlink. All name operations use one held directory
 /// descriptor, so replacing the path to that directory cannot redirect work.
@@ -76,7 +104,14 @@ pub fn write_atomic_output(
 ) -> Result<AtomicOutputOutcome, AtomicOutputError> {
     #[cfg(target_os = "linux")]
     {
-        write_atomic_linux(destination.as_ref(), input, options, writer, &mut NoFaults)
+        let identity = input.map(source_identity_from_path).transpose()?;
+        write_atomic_linux(
+            destination.as_ref(),
+            identity,
+            options,
+            writer,
+            &mut NoFaults,
+        )
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -85,10 +120,29 @@ pub fn write_atomic_output(
     }
 }
 
+/// Atomically publishes output while comparing against an identity captured
+/// by the decoder, without reopening or resolving the source path.
+pub fn write_atomic_output_for_source(
+    destination: impl AsRef<Path>,
+    source: Option<SourceFileIdentity>,
+    options: AtomicOutputOptions,
+    writer: impl FnOnce(&mut File) -> io::Result<()>,
+) -> Result<AtomicOutputOutcome, AtomicOutputError> {
+    #[cfg(target_os = "linux")]
+    {
+        write_atomic_linux(destination.as_ref(), source, options, writer, &mut NoFaults)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (destination, source, options, writer);
+        Err(AtomicOutputError::UnsupportedPlatform)
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn write_atomic_linux(
     destination: &Path,
-    input: Option<&Path>,
+    source: Option<SourceFileIdentity>,
     options: AtomicOutputOptions,
     writer: impl FnOnce(&mut File) -> io::Result<()>,
     hooks: &mut impl FaultHooks,
@@ -121,8 +175,8 @@ fn write_atomic_linux(
     {
         return Err(AtomicOutputError::InvalidDestinationType);
     }
-    if let (Some(input), Some(output)) = (input, existing.as_ref()) {
-        reject_collision(input, output)?;
+    if let (Some(source), Some(output)) = (source, existing.as_ref()) {
+        reject_collision(source, output)?;
     }
 
     let mode = permission_mode(options.permissions, existing.as_ref().map(|s| s.st_mode))?;
@@ -236,12 +290,19 @@ fn create_temporary_at(
 }
 
 #[cfg(target_os = "linux")]
-fn reject_collision(input: &Path, output: &rustix::fs::Stat) -> Result<(), AtomicOutputError> {
+fn source_identity_from_path(path: &Path) -> Result<SourceFileIdentity, AtomicOutputError> {
     use rustix::fs::{self, Mode, OFlags};
-    let input = fs::open(input, OFlags::PATH | OFlags::CLOEXEC, Mode::empty())
+    let input = fs::open(path, OFlags::PATH | OFlags::CLOEXEC, Mode::empty())
         .map_err(|e| AtomicOutputError::Create(std_error(e)))?;
-    let stat = fs::fstat(input).map_err(|e| AtomicOutputError::Create(std_error(e)))?;
-    if stat.st_dev == output.st_dev && stat.st_ino == output.st_ino {
+    SourceFileIdentity::from_file(&File::from(input))
+}
+
+#[cfg(target_os = "linux")]
+fn reject_collision(
+    source: SourceFileIdentity,
+    output: &rustix::fs::Stat,
+) -> Result<(), AtomicOutputError> {
+    if source.device == output.st_dev && source.inode == output.st_ino {
         return Err(AtomicOutputError::InputOutputCollision);
     }
     Ok(())
@@ -370,6 +431,73 @@ mod tests {
                 .write_all(b"new")),
             Err(AtomicOutputError::InputOutputCollision)
         ));
+    }
+
+    #[test]
+    fn captured_source_identity_rejects_same_file_and_hardlink_without_reopening_source() {
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("input");
+        let hardlink = directory.path().join("hardlink");
+        fs::write(&input, b"source").unwrap();
+        fs::hard_link(&input, &hardlink).unwrap();
+        let held = File::open(&input).unwrap();
+        let identity = SourceFileIdentity::from_file(&held).unwrap();
+
+        for destination in [&input, &hardlink] {
+            assert!(matches!(
+                write_atomic_output_for_source(
+                    destination,
+                    Some(identity),
+                    opts(OverwritePolicy::Forbid),
+                    |file| file.write_all(b"new")
+                ),
+                Err(AtomicOutputError::DestinationExists)
+            ));
+            assert!(matches!(
+                write_atomic_output_for_source(
+                    destination,
+                    Some(identity),
+                    opts(OverwritePolicy::Replace),
+                    |file| file.write_all(b"new")
+                ),
+                Err(AtomicOutputError::InputOutputCollision)
+            ));
+        }
+        assert_eq!(fs::read(input).unwrap(), b"source");
+        assert_eq!(fs::read(hardlink).unwrap(), b"source");
+    }
+
+    #[test]
+    fn captured_source_identity_keeps_symlink_policies_fail_closed() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("input");
+        let link = directory.path().join("link");
+        fs::write(&input, b"source").unwrap();
+        symlink(&input, &link).unwrap();
+        let held = File::open(&input).unwrap();
+        let identity = SourceFileIdentity::from_file(&held).unwrap();
+
+        assert!(matches!(
+            write_atomic_output_for_source(
+                &link,
+                Some(identity),
+                opts(OverwritePolicy::Forbid),
+                |file| file.write_all(b"new")
+            ),
+            Err(AtomicOutputError::DestinationExists)
+        ));
+        assert!(matches!(
+            write_atomic_output_for_source(
+                &link,
+                Some(identity),
+                opts(OverwritePolicy::Replace),
+                |file| file.write_all(b"new")
+            ),
+            Err(AtomicOutputError::InvalidDestinationType)
+        ));
+        assert_eq!(fs::read(input).unwrap(), b"source");
     }
     #[test]
     fn concurrent_forbid_has_exactly_one_winner() {
