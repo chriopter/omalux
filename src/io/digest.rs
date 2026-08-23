@@ -10,6 +10,48 @@ const DOMAIN: &[u8] = b"io.omacom.grainroom/source-digest/v1\0";
 pub struct SourceDigestV1([u8; 32]);
 
 impl SourceDigestV1 {
+    /// Copies and hashes exactly the same bounded byte stream in one pass.
+    pub(crate) fn copy_from_reader(
+        mut reader: impl Read,
+        mut writer: impl std::io::Write,
+        limits: &ResourceLimits,
+        mut cancelled: impl FnMut() -> bool,
+    ) -> Result<(Self, u64), DigestError> {
+        limits.validate().map_err(DigestError::Limit)?;
+        let mut hash = Sha256::new();
+        hash.update(DOMAIN);
+        let mut buffer = [0_u8; 64 * 1024];
+        let mut total = 0_u64;
+        loop {
+            if cancelled() {
+                return Err(DigestError::Read(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    "cancelled",
+                )));
+            }
+            let remaining = limits.max_source_bytes.saturating_sub(total);
+            let request = usize::try_from(remaining.saturating_add(1))
+                .unwrap_or(usize::MAX)
+                .min(buffer.len());
+            let count = reader
+                .read(&mut buffer[..request])
+                .map_err(DigestError::Read)?;
+            if count == 0 {
+                break;
+            }
+            total = total
+                .checked_add(count as u64)
+                .ok_or(DigestError::Limit(LimitError::ArithmeticOverflow))?;
+            limits
+                .check_source_bytes(total)
+                .map_err(DigestError::Limit)?;
+            writer
+                .write_all(&buffer[..count])
+                .map_err(DigestError::Read)?;
+            hash.update(&buffer[..count]);
+        }
+        Ok((Self(hash.finalize().into()), total))
+    }
     /// Streams and hashes at most `limits.max_source_bytes` bytes.
     pub fn from_reader(
         mut reader: impl Read,

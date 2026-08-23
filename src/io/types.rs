@@ -28,6 +28,25 @@ pub enum WhiteBalanceProvenance {
     Explicit,
     Unknown,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum RawBackendName {
+    LibRawDcrawEmu,
+}
+
+/// Exact processing choices used to produce the working-space pixels.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct RawProcessingProvenance {
+    pub backend: RawBackendName,
+    /// `None` means the installed executable exposed no version interface.
+    pub backend_version: Option<String>,
+    pub full_resolution: bool,
+    pub linear_16_bit: bool,
+    pub output_rec2020: bool,
+    pub embedded_matrix_enabled: bool,
+    pub ahd_demosaic: bool,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IccProfileProvenance {
@@ -130,6 +149,7 @@ pub enum ColorProvenance {
     RawMatrix {
         matrix: RawMatrixSource,
         white_balance: WhiteBalanceProvenance,
+        processing: RawProcessingProvenance,
     },
 }
 
@@ -148,6 +168,8 @@ pub enum DiagnosticCode {
     UnknownRawMatrix,
     MetadataDropped,
     OutputRangeClipped,
+    CameraWhiteBalanceFallbackUnknown,
+    BackendVersionUnavailable,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Diagnostic {

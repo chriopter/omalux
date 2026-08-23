@@ -13,6 +13,7 @@ pub enum ErrorCode {
     RawBackend = 15,
     ResourceLimit = 16,
     InvalidOptions = 17,
+    Cancelled = 18,
     Encode = 30,
     OutputIo = 31,
     DestinationConflict = 32,
@@ -139,6 +140,10 @@ pub enum DecodeError {
     RawBackendUnavailable,
     Limit(LimitError),
     InvalidOptions,
+    RawBackendTimedOut,
+    Cancelled,
+    RawBackendOutputLimit,
+    RawBackendFailed { status: Option<i32> },
 }
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -155,6 +160,9 @@ impl StableErrorCode for DecodeError {
             Self::ColorManagement => ErrorCode::ColorManagement,
             Self::Metadata => ErrorCode::Metadata,
             Self::RawBackendUnavailable => ErrorCode::RawBackend,
+            Self::RawBackendTimedOut | Self::RawBackendFailed { .. } => ErrorCode::RawBackend,
+            Self::RawBackendOutputLimit => ErrorCode::ResourceLimit,
+            Self::Cancelled => ErrorCode::Cancelled,
             Self::Limit(_) => ErrorCode::ResourceLimit,
             Self::InvalidOptions => ErrorCode::InvalidOptions,
         }

@@ -9,6 +9,7 @@ pub mod color;
 mod digest;
 mod error;
 mod limits;
+pub mod raw;
 mod types;
 
 pub use atomic::{
@@ -26,6 +27,7 @@ pub use types::{
     DecodedPhotoError, Diagnostic, DiagnosticCode, DiagnosticSeverity, EncodeOptions,
     IccProfileProvenance, MetadataBundle, MetadataPolicy, OutputFormat, OutputProfile,
     PngChrmFields, PngCicpFields, PngColorDeclarationsProvenance, PngSelectedColorSource,
-    RawDecodeOptions, RawMatrixSource, SdrRangePolicy, SignalRelation, UnprofiledPolicy,
-    WhiteBalancePolicy, WhiteBalanceProvenance,
+    RawBackendName, RawDecodeOptions, RawMatrixSource,
+    RawProcessingProvenance, SdrRangePolicy, SignalRelation, UnprofiledPolicy, WhiteBalancePolicy,
+    WhiteBalanceProvenance,
 };

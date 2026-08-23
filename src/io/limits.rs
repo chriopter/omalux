@@ -49,6 +49,8 @@ pub enum DecodeWorkingSetProfile {
     RasterRgba8,
     RasterRgba16,
     RawMosaic16FullResolution,
+    /// dcraw_emu P6 RGB16 output plus demosaic/profile-conversion scratch.
+    RawPpm16FullResolution,
 }
 
 impl DecodeWorkingSetProfile {
@@ -58,6 +60,7 @@ impl DecodeWorkingSetProfile {
             Self::RasterRgba16 => (8, 8),
             // Mosaic plus conservative demosaic/profile-conversion scratch.
             Self::RawMosaic16FullResolution => (2, 32),
+            Self::RawPpm16FullResolution => (6, 32),
         }
     }
 }
