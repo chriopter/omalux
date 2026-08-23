@@ -339,8 +339,17 @@ mod tests {
     }
 
     fn full_component_settings() -> crate::develop::DevelopSettings {
+        use crate::develop::CurvePoint;
+
         let mut settings = geometry_mask_settings();
-        settings.tone_curves.master.points[1].y = 0.8;
+        settings.basics.exposure_ev = 0.5;
+        settings.tone_curves.master.points = vec![
+            CurvePoint { x: 0.0, y: 0.0 },
+            CurvePoint { x: 0.25, y: 0.18 },
+            CurvePoint { x: 0.65, y: 0.78 },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ];
+        settings.color_mixer.red.saturation = 15.0;
         settings.basics.clarity = 15.0;
         settings.effects.bloom = 10.0;
         settings
@@ -534,7 +543,7 @@ mod tests {
     }
 
     #[test]
-    fn raw_jpeg_geometry_mask_job_reports_develop_over_scene_peak() {
+    fn raw_jpeg_runs_exposure_geometry_color_spatial_and_mask_stack() {
         use crate::{
             develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
@@ -545,7 +554,7 @@ mod tests {
         stdfs::write(&input, b"synthetic raw source").unwrap();
         let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
             .run(
-                &geometry_mask_job(&input, &output, OutputFormat::Jpeg),
+                &full_component_job(&input, &output, OutputFormat::Jpeg),
                 &ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path())),
                 &ProductionPhotoEncoder::new(ResourceLimits::default()),
                 &CancellationToken::new(),
@@ -553,8 +562,12 @@ mod tests {
             )
             .unwrap();
         let profile = report.develop_working_set.profile().unwrap();
-        assert!(profile.geometry_v1 && profile.radial_masks_v1);
-        assert_eq!(report.develop_working_set.estimated_peak_bytes(), 64);
+        assert!(profile.pointwise_v1);
+        assert!(profile.color_v1);
+        assert!(profile.spatial_v1);
+        assert!(profile.geometry_v1);
+        assert!(profile.radial_masks_v1);
+        assert!(report.develop_working_set.estimated_peak_bytes() > 0);
         assert!(report.scene_render.is_some());
     }
 

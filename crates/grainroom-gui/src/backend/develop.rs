@@ -293,9 +293,21 @@ mod tests {
     }
 
     fn geometry_radial_settings() -> DevelopSettings {
+        use grainroom::develop::CurvePoint;
+
         let mut settings = DevelopSettings::default();
+        settings.basics.exposure_ev = 0.5;
+        settings.basics.clarity = 12.0;
         settings.geometry.quarter_turns_clockwise = 1;
         settings.geometry.straighten_degrees = 2.0;
+        settings.tone_curves.master.points = vec![
+            CurvePoint { x: 0.0, y: 0.0 },
+            CurvePoint { x: 0.25, y: 0.18 },
+            CurvePoint { x: 0.65, y: 0.78 },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ];
+        settings.color_mixer.red.saturation = 15.0;
+        settings.effects.bloom = 8.0;
         settings.radial_masks.masks.push(RadialMask {
             id: "gui-positive-local-mask".to_owned(),
             enabled: true,
@@ -330,6 +342,7 @@ mod tests {
     #[test]
     fn supported_control_list_is_derived_from_the_bounded_core_profiles() {
         let ids: Vec<String> = serde_json::from_str(&supported_parameters_json().unwrap()).unwrap();
+        assert!(ids.iter().any(|id| id == "basics.exposure_ev"));
         assert!(ids.iter().any(|id| id == "basics.contrast"));
         assert!(ids.iter().any(|id| id == "color_mixer.red.saturation"));
         for spatial in [
@@ -380,6 +393,8 @@ mod tests {
             estimate_develop_working_set(8, 6, &parsed, &ResourceLimits::default()).unwrap();
         assert!(estimate.profile.geometry_v1);
         assert!(estimate.profile.radial_masks_v1);
+        assert!(estimate.profile.color_v1);
+        assert!(estimate.profile.spatial_v1);
 
         let mut negative = parsed;
         negative.radial_masks.masks[0].adjustments.sharpness = -1.0;
@@ -458,6 +473,8 @@ mod tests {
         let preview_profile = preview.report().develop_working_set.profile().unwrap();
         assert!(preview_profile.geometry_v1);
         assert!(preview_profile.radial_masks_v1);
+        assert!(preview_profile.color_v1);
+        assert!(preview_profile.spatial_v1);
         assert_eq!(image::image_dimensions(preview.path()).unwrap(), (6, 8));
 
         let directory = tempfile::tempdir().unwrap();
@@ -474,6 +491,8 @@ mod tests {
         let export_profile = report.develop_working_set.profile().unwrap();
         assert!(export_profile.geometry_v1);
         assert!(export_profile.radial_masks_v1);
+        assert!(export_profile.color_v1);
+        assert!(export_profile.spatial_v1);
         assert_eq!(image::image_dimensions(output).unwrap(), (6, 8));
     }
 
@@ -496,6 +515,8 @@ mod tests {
         let profile = report.develop_working_set.profile().unwrap();
         assert!(profile.geometry_v1);
         assert!(profile.radial_masks_v1);
+        assert!(profile.color_v1);
+        assert!(profile.spatial_v1);
         assert!(output.is_file());
         assert!(fs::metadata(output).unwrap().len() > 0);
     }

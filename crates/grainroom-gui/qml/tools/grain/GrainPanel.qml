@@ -13,7 +13,7 @@ Item {
     required property string settingsJson
     required property string supportedParametersJson
 
-    readonly property int parameterCount: 23
+    readonly property int parameterCount: 24
     property alias grainValue: grainControl.value
     property alias grainSizeValue: grainSizeControl.value
     property alias midtonesValue: midtonesControl.value
@@ -41,7 +41,8 @@ Item {
         } catch (error) {
             return
         }
-        var basicsValues = [settings.basics.brightness, settings.basics.contrast,
+        var basicsValues = [settings.basics.exposure_ev,
+            settings.basics.brightness, settings.basics.contrast,
             settings.basics.clarity, settings.basics.highlights, settings.basics.shadows,
             settings.basics.whites, settings.basics.blacks]
         for (var basicIndex = 0; basicIndex < basicsValues.length; ++basicIndex) {
@@ -76,6 +77,7 @@ Item {
     Component.onCompleted: synchronizeSettings()
 
     readonly property var basics: [
+        { "label": "Exposure", "from": -4, "to": 4, "suffix": " EV" },
         { "label": "Brightness", "from": -100, "to": 100 },
         { "label": "Contrast", "from": -100, "to": 100 },
         { "label": "Clarity", "from": -100, "to": 100 },
@@ -97,18 +99,18 @@ Item {
     ]
 
     function parameterAt(index) {
-        if (index < 7)
+        if (index < 8)
             return basicsRepeater.itemAt(index)
-        if (index < 15)
-            return colorRepeater.itemAt(index - 7)
+        if (index < 16)
+            return colorRepeater.itemAt(index - 8)
         switch (index) {
-        case 15: return bloomControl
-        case 16: return halationControl
-        case 17: return fadeControl
-        case 18: return grainControl
-        case 19: return grainSizeControl
-        case 20: return midtonesControl
-        case 21: return vignetteControl
+        case 16: return bloomControl
+        case 17: return halationControl
+        case 18: return fadeControl
+        case 19: return grainControl
+        case 20: return grainSizeControl
+        case 21: return midtonesControl
+        case 22: return vignetteControl
         default: return sharpnessControl
         }
     }
@@ -116,7 +118,7 @@ Item {
     function navigationOrder() {
         const result = []
         for (let index = 0; index < parameterCount; ++index) {
-            if (advancedExpanded || (index !== 19 && index !== 20))
+            if (advancedExpanded || (index !== 20 && index !== 21))
                 result.push(index)
         }
         return result
@@ -175,15 +177,16 @@ Item {
                     label: modelData.label
                     from: modelData.from
                     to: modelData.to
+                    suffix: modelData.suffix || ""
                     initialValue: 0
                     supported: panel.parameterSupported([
-                        "basics.brightness", "basics.contrast", "basics.clarity",
+                        "basics.exposure_ev", "basics.brightness", "basics.contrast", "basics.clarity",
                         "basics.highlights", "basics.shadows", "basics.whites",
                         "basics.blacks"
                     ][index])
                     onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
                     onValueCommitted: value => panel.parameterCommitted([
-                        "basics.brightness", "basics.contrast", "basics.clarity",
+                        "basics.exposure_ev", "basics.brightness", "basics.contrast", "basics.clarity",
                         "basics.highlights", "basics.shadows", "basics.whites",
                         "basics.blacks"
                     ][index], value)
@@ -203,7 +206,7 @@ Item {
                     theme: panel.theme
                     photoReady: panel.photoReady
                     selectedParameter: panel.selectedParameter
-                    parameterIndex: index + 7
+                    parameterIndex: index + 8
                     label: modelData.label
                     from: modelData.from
                     to: modelData.to
@@ -235,7 +238,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 15
+                parameterIndex: 16
                 label: "Bloom"
                 from: 0
                 to: 100
@@ -251,7 +254,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 16
+                parameterIndex: 17
                 label: "Halation"
                 from: 0
                 to: 100
@@ -267,7 +270,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 17
+                parameterIndex: 18
                 label: "Fade"
                 from: 0
                 to: 100
@@ -283,7 +286,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 18
+                parameterIndex: 19
                 label: "Grain"
                 from: 0
                 to: 100
@@ -316,7 +319,7 @@ Item {
                         theme: panel.theme
                         photoReady: panel.photoReady
                         selectedParameter: panel.selectedParameter
-                        parameterIndex: 19
+                        parameterIndex: 20
                         label: "Size"
                         from: 20
                         to: 6400
@@ -335,7 +338,7 @@ Item {
                         theme: panel.theme
                         photoReady: panel.photoReady
                         selectedParameter: panel.selectedParameter
-                        parameterIndex: 20
+                        parameterIndex: 21
                         label: "Midtones"
                         from: 0
                         to: 100
@@ -353,7 +356,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 21
+                parameterIndex: 22
                 label: "Vignette"
                 from: -100
                 to: 100
@@ -369,7 +372,7 @@ Item {
                 theme: panel.theme
                 photoReady: panel.photoReady
                 selectedParameter: panel.selectedParameter
-                parameterIndex: 22
+                parameterIndex: 23
                 label: "Sharpness"
                 from: 0
                 to: 100
