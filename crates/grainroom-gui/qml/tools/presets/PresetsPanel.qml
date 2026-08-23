@@ -7,13 +7,17 @@ Item {
 
     required property var theme
     required property bool photoReady
-    property int selectedPreset: -1
+    required property string catalogJson
+    required property string selectedPresetId
+    signal presetRequested(string id)
 
-    readonly property var presets: [
-        { "name": "Clean Neutral", "detail": "BALANCED / LOW CONTRAST" },
-        { "name": "Soft Film", "detail": "WARM / FADED / GRAIN" },
-        { "name": "Night Punch", "detail": "COOL / DEEP BLACKS" }
-    ]
+    readonly property var presets: {
+        try {
+            return JSON.parse(catalogJson).presets || []
+        } catch (error) {
+            return []
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -29,7 +33,7 @@ Item {
         }
 
         Text {
-            text: "3 DEMO LOOKS"
+            text: panel.presets.length + " CORE PRESET" + (panel.presets.length === 1 ? "" : "S")
             color: panel.theme.accentColor
             font.family: panel.theme.monoFont
             font.pixelSize: 9
@@ -47,7 +51,7 @@ Item {
                 Layout.preferredHeight: 62
                 enabled: panel.photoReady
                 activeFocusOnTab: false
-                onClicked: panel.selectedPreset = index
+                onClicked: panel.presetRequested(modelData.id)
 
                 contentItem: Column {
                     leftPadding: 14
@@ -56,7 +60,7 @@ Item {
 
                     Text {
                         text: (presetButton.index + 1) + "  " + presetButton.modelData.name.toUpperCase()
-                        color: panel.selectedPreset === presetButton.index
+                        color: panel.selectedPresetId === presetButton.modelData.id
                             ? panel.theme.inkColor : panel.theme.mutedColor
                         font.family: panel.theme.monoFont
                         font.pixelSize: 11
@@ -64,7 +68,7 @@ Item {
                     }
 
                     Text {
-                        text: presetButton.modelData.detail
+                        text: presetButton.modelData.id.toUpperCase()
                         color: panel.theme.mutedColor
                         font.family: panel.theme.monoFont
                         font.pixelSize: 8
@@ -72,11 +76,11 @@ Item {
                 }
 
                 background: Rectangle {
-                    color: panel.selectedPreset === presetButton.index
+                    color: panel.selectedPresetId === presetButton.modelData.id
                         ? panel.theme.selectionColor
                         : presetButton.hovered ? panel.theme.surfaceColor : "transparent"
                     border.width: 1
-                    border.color: panel.selectedPreset === presetButton.index
+                    border.color: panel.selectedPresetId === presetButton.modelData.id
                         ? panel.theme.accentColor : panel.theme.lineColor
                 }
             }

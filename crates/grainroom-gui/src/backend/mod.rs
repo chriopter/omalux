@@ -16,6 +16,9 @@ pub mod qobject {
         #[qproperty(QString, original_format, cxx_name = "originalFormat")]
         #[qproperty(QString, original_file_size, cxx_name = "originalFileSize")]
         #[qproperty(QString, metadata_text, cxx_name = "metadataText")]
+        #[qproperty(QString, preset_catalog_json, cxx_name = "presetCatalogJson")]
+        #[qproperty(QString, selected_preset_id, cxx_name = "selectedPresetId")]
+        #[qproperty(QString, settings_json, cxx_name = "settingsJson")]
         #[qproperty(QString, theme_background, cxx_name = "themeBackground")]
         #[qproperty(QString, theme_foreground, cxx_name = "themeForeground")]
         #[qproperty(QString, theme_accent, cxx_name = "themeAccent")]
@@ -29,24 +32,24 @@ pub mod qobject {
         fn open_photo(self: Pin<&mut Self>, url: &QUrl);
 
         #[qinvokable]
+        #[cxx_name = "cancelDevelop"]
+        fn cancel_develop(self: Pin<&mut Self>);
+
+        #[qinvokable]
+        #[cxx_name = "selectPreset"]
+        fn select_preset(self: Pin<&mut Self>, id: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "setParameter"]
+        fn set_parameter(self: Pin<&mut Self>, id: &QString, value: f64);
+
+        #[qinvokable]
         #[cxx_name = "saveOriginal"]
         fn save_original(self: Pin<&mut Self>, destination: &QUrl);
 
         #[qinvokable]
-        #[cxx_name = "exportRendered"]
-        fn export_rendered(
-            self: Pin<&mut Self>,
-            temporary_png: &QString,
-            destination: &QUrl,
-            format: &QString,
-            quality: i32,
-            width: i32,
-            height: i32,
-        );
-
-        #[qinvokable]
-        #[cxx_name = "reportExportError"]
-        fn report_export_error(self: Pin<&mut Self>, message: &QString);
+        #[cxx_name = "exportPhoto"]
+        fn export_photo(self: Pin<&mut Self>, destination: &QUrl, format: &QString, quality: i32);
 
         #[qinvokable]
         #[cxx_name = "startThemeWatcher"]
@@ -58,16 +61,23 @@ pub mod qobject {
 
 use core::pin::Pin;
 use cxx_qt::{CxxQtType, Threading};
+mod develop;
 mod export;
 mod loader;
 mod metadata;
 mod theme;
 
-use self::export::{display_file_name, encode_rendered_export, local_destination};
-use self::loader::{develop_raw_preview, is_qt_image};
+use self::develop::{
+    PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview, export_photo,
+    settings_json,
+};
+use self::export::{display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
 use self::theme::{ThemeColors, load_omarchy_theme, omarchy_current_theme_path};
 use cxx_qt_lib::{QString, QUrl};
+use grainroom::develop::{DevelopSettings, apply_parameter_overrides, parse_parameter_override};
+use grainroom::io::OutputFormat;
+use grainroom::job::CancellationToken;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -79,6 +89,9 @@ pub struct PhotoBackendRust {
     original_format: QString,
     original_file_size: QString,
     metadata_text: QString,
+    preset_catalog_json: QString,
+    selected_preset_id: QString,
+    settings_json: QString,
     theme_background: QString,
     theme_foreground: QString,
     theme_accent: QString,
@@ -86,20 +99,30 @@ pub struct PhotoBackendRust {
     status: QString,
     loading: bool,
     generation: AtomicU64,
-    generated_preview: Option<PathBuf>,
+    generated_preview: Option<PreviewArtifact>,
     source_path: Option<PathBuf>,
+    settings: DevelopSettings,
+    active_cancellation: Option<CancellationToken>,
     theme_watcher: Option<RecommendedWatcher>,
 }
 
 impl Default for PhotoBackendRust {
     fn default() -> Self {
         let theme = load_omarchy_theme();
+        let settings = built_in_settings("neutral").unwrap_or_default();
         Self {
             preview_url: QUrl::default(),
             file_name: QString::default(),
             original_format: QString::from("—"),
             original_file_size: QString::from("—"),
             metadata_text: QString::from("NO PHOTOGRAPH LOADED"),
+            preset_catalog_json: QString::from(
+                &built_in_catalog_json().unwrap_or_else(|_| "{\"presets\":[]}".to_owned()),
+            ),
+            selected_preset_id: QString::from("neutral"),
+            settings_json: QString::from(
+                &settings_json(&settings).unwrap_or_else(|_| "{}".to_owned()),
+            ),
             theme_background: QString::from(&theme.background),
             theme_foreground: QString::from(&theme.foreground),
             theme_accent: QString::from(&theme.accent),
@@ -109,6 +132,8 @@ impl Default for PhotoBackendRust {
             generation: AtomicU64::new(0),
             generated_preview: None,
             source_path: None,
+            settings,
+            active_cancellation: None,
             theme_watcher: None,
         }
     }
@@ -116,8 +141,8 @@ impl Default for PhotoBackendRust {
 
 impl Drop for PhotoBackendRust {
     fn drop(&mut self) {
-        if let Some(path) = self.generated_preview.take() {
-            let _ = std::fs::remove_file(path);
+        if let Some(cancellation) = self.active_cancellation.take() {
+            cancellation.cancel();
         }
     }
 }
@@ -155,7 +180,7 @@ impl qobject::PhotoBackend {
             .unwrap_or_else(|_| "—".to_owned());
         self.as_mut()
             .set_original_file_size(QString::from(&original_file_size));
-        let generation = self.rust().generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let generation = self.as_mut().begin_operation();
         self.as_mut()
             .set_metadata_text(QString::from("READING METADATA…"));
         self.as_mut().rust_mut().source_path = Some(path.clone());
@@ -170,48 +195,37 @@ impl qobject::PhotoBackend {
             });
         });
 
-        if is_qt_image(&path) {
-            if let Some(old_preview) = self.as_mut().rust_mut().generated_preview.take() {
-                let _ = std::fs::remove_file(old_preview);
-            }
-            self.as_mut().set_preview_url(url.clone());
-            self.as_mut().set_loading(false);
-            self.as_mut().set_status(QString::from("Ready"));
-            return;
-        }
-
         self.as_mut().set_loading(true);
         self.as_mut()
-            .set_status(QString::from("Developing RAW preview…"));
+            .set_status(QString::from("Developing CPU preview…"));
         let qt_thread = self.qt_thread();
+        let settings = self.rust().settings.clone();
+        let cancellation = self
+            .rust()
+            .active_cancellation
+            .as_ref()
+            .expect("operation installed cancellation")
+            .clone();
 
         std::thread::spawn(move || {
-            let result = develop_raw_preview(&path, generation);
+            let result = develop_preview(&path, settings, &cancellation);
             let _ = qt_thread.queue(move |mut backend| {
                 if backend.rust().generation.load(Ordering::SeqCst) != generation {
-                    if let Ok(path) = result {
-                        let _ = std::fs::remove_file(path);
-                    }
                     return;
                 }
 
                 backend.as_mut().set_loading(false);
+                backend.as_mut().rust_mut().active_cancellation = None;
                 match result {
-                    Ok(path) => {
-                        if let Some(old_preview) = backend
-                            .as_mut()
-                            .rust_mut()
-                            .generated_preview
-                            .replace(path.clone())
-                        {
-                            let _ = std::fs::remove_file(old_preview);
-                        }
-                        let preview_url =
-                            QUrl::from_local_file(&QString::from(path.to_string_lossy().as_ref()));
+                    Ok(artifact) => {
+                        let preview_url = QUrl::from_local_file(&QString::from(
+                            artifact.path().to_string_lossy().as_ref(),
+                        ));
+                        backend.as_mut().rust_mut().generated_preview = Some(artifact);
                         backend.as_mut().set_preview_url(preview_url);
                         backend
                             .as_mut()
-                            .set_status(QString::from("Ready · LibRaw preview"));
+                            .set_status(QString::from("Ready · CPU developed preview"));
                     }
                     Err(message) => {
                         backend.as_mut().set_status(QString::from(&message));
@@ -219,6 +233,52 @@ impl qobject::PhotoBackend {
                 }
             });
         });
+    }
+
+    pub fn cancel_develop(mut self: Pin<&mut Self>) {
+        self.as_mut().begin_operation();
+        self.as_mut().rust_mut().active_cancellation = None;
+        self.as_mut().set_loading(false);
+        self.as_mut()
+            .set_status(QString::from("Development cancelled"));
+    }
+
+    pub fn select_preset(mut self: Pin<&mut Self>, id: &QString) {
+        let id = id.to_string();
+        let Ok(settings) = built_in_settings(&id) else {
+            self.as_mut()
+                .set_status(QString::from("Unknown built-in preset"));
+            return;
+        };
+        self.as_mut().rust_mut().settings = settings;
+        self.as_mut().set_selected_preset_id(QString::from(&id));
+        self.as_mut().publish_settings_json();
+        self.as_mut().restart_preview();
+    }
+
+    pub fn set_parameter(mut self: Pin<&mut Self>, id: &QString, value: f64) {
+        if !value.is_finite() {
+            self.as_mut()
+                .set_status(QString::from("Invalid parameter value"));
+            return;
+        }
+        let id = id.to_string();
+        let expression = format!("{id}={value}");
+        let Ok(parameter) = parse_parameter_override(&expression) else {
+            self.as_mut()
+                .set_status(QString::from("Unknown or invalid parameter"));
+            return;
+        };
+        let Ok(settings) = apply_parameter_overrides(&self.rust().settings, &[parameter]) else {
+            self.as_mut()
+                .set_status(QString::from("Parameter combination is invalid"));
+            return;
+        };
+        self.as_mut().rust_mut().settings = settings;
+        self.as_mut()
+            .set_selected_preset_id(QString::from("custom"));
+        self.as_mut().publish_settings_json();
+        self.as_mut().restart_preview();
     }
 
     pub fn save_original(mut self: Pin<&mut Self>, destination: &QUrl) {
@@ -250,57 +310,69 @@ impl qobject::PhotoBackend {
         });
     }
 
-    pub fn export_rendered(
+    pub fn export_photo(
         mut self: Pin<&mut Self>,
-        temporary_png: &QString,
         destination: &QUrl,
         format: &QString,
         quality: i32,
-        width: i32,
-        height: i32,
     ) {
-        let temporary_png = PathBuf::from(temporary_png.to_string());
+        let Some(source) = self.rust().source_path.clone() else {
+            self.as_mut()
+                .set_status(QString::from("Open a photograph before exporting"));
+            return;
+        };
         let Some(destination) = local_destination(destination) else {
-            let _ = std::fs::remove_file(&temporary_png);
             self.as_mut().set_status(QString::from(
                 "Only local export destinations are supported",
             ));
             return;
         };
         let format = format.to_string().to_ascii_uppercase();
-        if !matches!(format.as_str(), "JPEG" | "HEIC") {
-            let _ = std::fs::remove_file(&temporary_png);
-            self.as_mut()
-                .set_status(QString::from("Unsupported export format"));
-            return;
-        }
+        let output_format = match format.as_str() {
+            "JPEG" | "JPG" => OutputFormat::Jpeg,
+            "HEIC" | "HEIF" => OutputFormat::Heic,
+            _ => {
+                self.as_mut()
+                    .set_status(QString::from("Unsupported export format"));
+                return;
+            }
+        };
 
+        let generation = self.as_mut().begin_operation();
         self.as_mut()
             .set_status(QString::from(&format!("Encoding {format}…")));
         let quality = quality.clamp(1, 100);
+        let settings = self.rust().settings.clone();
+        let cancellation = self
+            .rust()
+            .active_cancellation
+            .as_ref()
+            .expect("operation installed cancellation")
+            .clone();
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = encode_rendered_export(
-                &temporary_png,
+            let result = export_photo(
+                &source,
                 &destination,
-                &format,
-                quality,
-                width,
-                height,
+                settings,
+                output_format,
+                quality as u8,
+                &cancellation,
             );
-            let _ = std::fs::remove_file(&temporary_png);
-            let _ = qt_thread.queue(move |mut backend| match result {
-                Ok(()) => backend.as_mut().set_status(QString::from(&format!(
-                    "Saved {format} · {}",
-                    display_file_name(&destination)
-                ))),
-                Err(message) => backend.as_mut().set_status(QString::from(&message)),
+            let _ = qt_thread.queue(move |mut backend| {
+                if backend.rust().generation.load(Ordering::SeqCst) != generation {
+                    return;
+                }
+                backend.as_mut().rust_mut().active_cancellation = None;
+                match result {
+                    Ok(()) => backend.as_mut().set_status(QString::from(&format!(
+                        "Saved {format} · {}",
+                        display_file_name(&destination)
+                    ))),
+                    Err(message) => backend.as_mut().set_status(QString::from(&message)),
+                }
             });
         });
-    }
-
-    pub fn report_export_error(mut self: Pin<&mut Self>, message: &QString) {
-        self.as_mut().set_status(message.clone());
     }
 
     pub fn start_theme_watcher(mut self: Pin<&mut Self>) {
@@ -364,5 +436,28 @@ impl qobject::PhotoBackend {
             self.as_mut()
                 .set_theme_selection(QString::from(&theme.selection));
         }
+    }
+
+    fn begin_operation(mut self: Pin<&mut Self>) -> u64 {
+        if let Some(cancellation) = self.as_mut().rust_mut().active_cancellation.take() {
+            cancellation.cancel();
+        }
+        let generation = self.rust().generation.fetch_add(1, Ordering::SeqCst) + 1;
+        self.as_mut().rust_mut().active_cancellation = Some(CancellationToken::new());
+        generation
+    }
+
+    fn publish_settings_json(mut self: Pin<&mut Self>) {
+        if let Ok(json) = settings_json(&self.rust().settings) {
+            self.as_mut().set_settings_json(QString::from(&json));
+        }
+    }
+
+    fn restart_preview(mut self: Pin<&mut Self>) {
+        let Some(path) = self.rust().source_path.clone() else {
+            return;
+        };
+        let url = QUrl::from_local_file(&QString::from(path.to_string_lossy().as_ref()));
+        self.as_mut().open_photo(&url);
     }
 }

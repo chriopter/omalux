@@ -14,8 +14,7 @@ ApplicationWindow {
     height: 820
     minimumWidth: 800
     minimumHeight: 560
-    // Headless mode uses Qt's offscreen platform but still needs an exposed
-    // scene graph for ShaderEffect and grabToImage.
+    // Headless mode still uses Qt's offscreen platform for the QML event loop.
     visible: true
     title: backend.fileName.length > 0 ? backend.fileName + " — Grainroom" : "Grainroom"
     color: pageColor
@@ -119,6 +118,9 @@ ApplicationWindow {
             numericArgument("--grain-size", 4000)))
         grainPanel.midtonesValue = Math.max(0, Math.min(100,
             numericArgument("--midtones", 100)))
+        backend.setParameter("effects.grain.amount", grainPanel.grainValue)
+        backend.setParameter("effects.grain.size_iso", grainPanel.grainSizeValue)
+        backend.setParameter("effects.grain.midtone_response", grainPanel.midtonesValue)
 
         console.log("grainroom: opening " + cliInput)
         backend.openPhoto(localFileUrl(cliInput))
@@ -136,7 +138,7 @@ ApplicationWindow {
         if (format === "ORIGINAL")
             backend.saveOriginal(destination)
         else
-            exportRendered(format, destination)
+            backend.exportPhoto(destination, format, exportQuality)
     }
 
     Component.onCompleted: {
@@ -354,33 +356,6 @@ ApplicationWindow {
         exportDialog.open()
     }
 
-    function exportRendered(format, destination) {
-        var width = Math.round(sourceImage.sourceSize.width)
-        var height = Math.round(sourceImage.sourceSize.height)
-        if (width < 1 || height < 1) {
-            backend.reportExportError("Could not export: photograph is not ready")
-            return
-        }
-
-        var temporaryPng = "/tmp/grainroom-export-" + Date.now() + ".png"
-        var devicePixelRatio = Math.max(1, grainEffect.Screen.devicePixelRatio)
-        var grabWidth = Math.max(1, Math.round(width / devicePixelRatio))
-        var grabHeight = Math.max(1, Math.round(height / devicePixelRatio))
-        var started = grainEffect.grabToImage(function(result) {
-            if (!result.saveToFile(temporaryPng)) {
-                backend.reportExportError("Could not render export image")
-                return
-            }
-            backend.exportRendered(
-                temporaryPng, destination, format, window.exportQuality,
-                width, height)
-        }, Qt.size(grabWidth, grabHeight))
-
-        if (!started)
-            backend.reportExportError("Could not start export render")
-    }
-
-
     PhotoBackend {
         id: backend
     }
@@ -405,7 +380,8 @@ ApplicationWindow {
             if (window.pendingExportFormat === "ORIGINAL")
                 backend.saveOriginal(selectedFile)
             else
-                window.exportRendered(window.pendingExportFormat, selectedFile)
+                backend.exportPhoto(selectedFile, window.pendingExportFormat,
+                                    window.exportQuality)
         }
     }
 
@@ -766,7 +742,7 @@ ApplicationWindow {
                                 autoTransform: true
                                 asynchronous: true
                                 cache: false
-                                visible: false
+                                visible: status === Image.Ready
                                 onStatusChanged: {
                                     if (status === Image.Ready)
                                         window.continueCliExport()
@@ -774,21 +750,6 @@ ApplicationWindow {
                                              && window.cliInput.length > 0)
                                         window.failCli("Qt could not load the developed image")
                                 }
-                            }
-
-                            GrainEffect {
-                                id: grainEffect
-                                anchors.fill: parent
-                                visible: sourceImage.status === Image.Ready
-                                property var source: sourceImage
-                                property real grainAmount: window.grainEnabled
-                                    ? grainPanel.grainValue / 100.0 : 0.0
-                                property vector2d imageSize: Qt.vector2d(
-                                    sourceImage.sourceSize.width,
-                                    sourceImage.sourceSize.height)
-                                property real grainCoarseness: grainPanel.grainSizeValue
-                                property real midtonesBias: grainPanel.midtonesValue / 100.0
-                                property real grainSeed: window.stableSeed(backend.fileName)
                             }
 
                             Rectangle {
@@ -949,11 +910,16 @@ ApplicationWindow {
                                 advancedExpanded: window.grainAdvancedExpanded
                                 onSelectionRequested: index => window.selectParameter(index)
                                 onAdvancedToggleRequested: window.toggleGrainAdvanced()
+                                onParameterCommitted: (id, value) =>
+                                    backend.setParameter(id, value)
                             }
 
                             PresetsPanel {
                                 theme: window
                                 photoReady: sourceImage.status === Image.Ready
+                                catalogJson: backend.presetCatalogJson
+                                selectedPresetId: backend.selectedPresetId
+                                onPresetRequested: id => backend.selectPreset(id)
                             }
 
                             MetadataPanel {

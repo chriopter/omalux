@@ -688,7 +688,10 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "grainroom",
+ "image 0.25.10",
  "notify",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ Item {
 
     signal selectionRequested(int index)
     signal advancedToggleRequested
+    signal parameterCommitted(string id, real value)
 
     readonly property var basics: [
         { "label": "Brightness", "from": -100, "to": 100 },
@@ -121,6 +122,11 @@ Item {
                     to: modelData.to
                     initialValue: 0
                     onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
+                    onValueCommitted: value => panel.parameterCommitted([
+                        "basics.brightness", "basics.contrast", "basics.clarity",
+                        "basics.highlights", "basics.shadows", "basics.whites",
+                        "basics.blacks"
+                    ][index], value)
                 }
             }
 
@@ -144,6 +150,13 @@ Item {
                     suffix: modelData.suffix
                     initialValue: 0
                     onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
+                    onValueCommitted: value => panel.parameterCommitted([
+                        "basics.saturation", "basics.vibrance", "basics.temperature",
+                        "basics.tint", "color_grading.highlights.saturation",
+                        "color_grading.highlights.hue_degrees",
+                        "color_grading.shadows.saturation",
+                        "color_grading.shadows.hue_degrees"
+                    ][index], value < 0 && (index === 5 || index === 7) ? value + 360 : value)
                 }
             }
 
@@ -161,6 +174,7 @@ Item {
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.bloom", value)
             }
 
             ParameterSlider {
@@ -175,6 +189,7 @@ Item {
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.halation", value)
             }
 
             ParameterSlider {
@@ -189,6 +204,7 @@ Item {
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.fade", value)
             }
 
             ParameterSlider {
@@ -206,6 +222,7 @@ Item {
                 expanded: panel.advancedExpanded
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onExpansionRequested: panel.advancedToggleRequested()
+                onValueCommitted: value => panel.parameterCommitted("effects.grain.amount", value)
             }
 
             Rectangle {
@@ -237,6 +254,7 @@ Item {
                         coarseStep: 500
                         suffix: " ISO"
                         onSelectionRequested: index => panel.selectionRequested(index)
+                        onValueCommitted: value => panel.parameterCommitted("effects.grain.size_iso", value)
                     }
 
                     ParameterSlider {
@@ -251,6 +269,7 @@ Item {
                         to: 100
                         initialValue: 100
                         onSelectionRequested: index => panel.selectionRequested(index)
+                        onValueCommitted: value => panel.parameterCommitted("effects.grain.midtone_response", value)
                     }
                 }
             }
@@ -267,6 +286,7 @@ Item {
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.vignette", value)
             }
 
             ParameterSlider {
@@ -281,6 +301,7 @@ Item {
                 to: 100
                 initialValue: 0
                 onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.sharpness", value)
             }
         }
     }

@@ -23,6 +23,7 @@ Item {
 
     signal expansionRequested
     signal selectionRequested(int index)
+    signal valueCommitted(real value)
 
     implicitHeight: 58
     Accessible.role: Accessible.Slider
@@ -32,10 +33,12 @@ Item {
     function nudge(direction, coarse) {
         const amount = coarse ? coarseStep : stepSize
         slider.value = Math.max(from, Math.min(to, slider.value + direction * amount))
+        valueCommitted(slider.value)
     }
 
     function resetValue() {
         slider.value = initialValue
+        valueCommitted(slider.value)
     }
 
     ColumnLayout {
@@ -104,6 +107,7 @@ Item {
             activeFocusOnTab: false
             onPressedChanged: if (pressed)
                 control.selectionRequested(control.parameterIndex)
+            onMoved: control.valueCommitted(value)
 
             background: Rectangle {
                 x: slider.leftPadding
