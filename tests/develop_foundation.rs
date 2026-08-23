@@ -94,6 +94,26 @@ fn preset_from_before_the_rename_is_imported_and_normalized() {
 }
 
 #[test]
+fn legacy_preset_identity_accepts_every_supported_version_and_emits_omalux_v3() {
+    let current_v3 = PresetDocument::new("neutral", "Neutral", DevelopSettings::default())
+        .to_canonical_json()
+        .unwrap();
+    let current_v2 = current_v3.replacen("\"schema_version\":3", "\"schema_version\":2", 1);
+
+    for current in [NEUTRAL_PRESET.to_owned(), current_v2, current_v3] {
+        let legacy = current.replacen("io.omacom.omalux.preset", "io.omacom.grainroom.preset", 1);
+        let document = PresetDocument::from_json(&legacy).unwrap();
+        assert_eq!(document.schema_version, 3);
+        assert_eq!(document.schema, "io.omacom.omalux.preset");
+
+        let canonical = document.to_canonical_json().unwrap();
+        assert!(canonical.contains("\"schema\":\"io.omacom.omalux.preset\""));
+        assert!(canonical.contains("\"schema_version\":3"));
+        assert!(!canonical.contains("io.omacom.grainroom.preset"));
+    }
+}
+
+#[test]
 fn preset_parser_rejects_unknown_versions_and_fields() {
     let unknown_version = r#"{
         "schema": "io.omacom.omalux.preset",

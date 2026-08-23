@@ -159,8 +159,7 @@ mod backend {
     }
 
     unsafe fn probe_depth(depth: u8) -> Result<bool, EncodeError> {
-        // Stable internal probe payload retained across the product rename.
-        const PROBE_ICC: &[u8] = b"grainroom-heic-capability-probe-v1";
+        const PROBE_ICC: &[u8] = b"omalux-heic-capability-probe-v1";
         let context = unsafe { Context::new()? };
         let encoder = unsafe { Encoder::x265(context.0)? };
         check(unsafe { heif::heif_encoder_set_lossy_quality(encoder.0, 90) })?;
