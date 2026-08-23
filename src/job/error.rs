@@ -19,6 +19,7 @@ pub enum JobErrorCode {
     Encode,
     OutputIo,
     DestinationConflict,
+    UnprovenPipelineBudget,
     Internal,
 }
 
@@ -64,7 +65,7 @@ impl std::error::Error for DevelopJobError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DevelopJobFailure {
     pub error: DevelopJobError,
-    pub report: Box<DevelopJobReport>,
+    pub report: DevelopJobReport,
 }
 
 impl DevelopJobFailure {
@@ -72,7 +73,7 @@ impl DevelopJobFailure {
         report.outcome = DevelopJobOutcome::Failure { stage, code };
         Self {
             error: DevelopJobError { stage, code },
-            report: Box::new(report),
+            report,
         }
     }
 }

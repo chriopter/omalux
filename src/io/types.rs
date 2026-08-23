@@ -359,6 +359,27 @@ impl DecodedPhoto {
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
+
+    /// Consumes a checked decoder result without cloning its bounded payloads.
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        CpuImage,
+        MetadataBundle,
+        SourceDigestV1,
+        ColorProvenance,
+        SignalRelation,
+        Vec<Diagnostic>,
+    ) {
+        (
+            self.image,
+            self.metadata,
+            self.source_digest,
+            self.color,
+            self.signal_relation,
+            self.diagnostics,
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -70,10 +70,6 @@ impl<R: ArtifactRelation> WorkingArtifact<R> {
         &self.image
     }
 
-    pub(crate) fn image_mut(&mut self) -> &mut CpuImage {
-        &mut self.image
-    }
-
     pub fn metadata(&self) -> &MetadataBundle {
         &self.metadata
     }
@@ -108,56 +104,16 @@ impl DecodedArtifact {
         limits: &ResourceLimits,
     ) -> Result<Self, DecodedPhotoError> {
         photo.validate(limits)?;
-        // The canonical pipeline is transactional and therefore needs the
-        // decoded image plus one full working copy. Enforce that actual peak
-        // before this boundary performs its temporary fallible copy.
-        let pixels = u64::from(photo.image().width())
-            .checked_mul(u64::from(photo.image().height()))
-            .ok_or(DecodedPhotoError::Limit(
-                crate::io::LimitError::ArithmeticOverflow,
-            ))?;
-        let peak = pixels.checked_mul(32).ok_or(DecodedPhotoError::Limit(
-            crate::io::LimitError::ArithmeticOverflow,
-        ))?;
-        if peak > limits.max_working_bytes {
-            return Err(DecodedPhotoError::Limit(
-                crate::io::LimitError::WorkingBytes {
-                    requested: peak,
-                    maximum: limits.max_working_bytes,
-                },
-            ));
-        }
-        let mut pixels_copy = Vec::new();
-        pixels_copy
-            .try_reserve_exact(photo.image().pixels().len())
-            .map_err(|_| DecodedPhotoError::Limit(crate::io::LimitError::Allocation))?;
-        pixels_copy.extend_from_slice(photo.image().pixels());
-        let image = CpuImage::new(photo.image().width(), photo.image().height(), pixels_copy)
-            .map_err(DecodedPhotoError::Image)?;
-        let build = || {
-            (
-                image,
-                photo.metadata().clone(),
-                photo.source_digest(),
-                photo.color().clone(),
-                photo.diagnostics().to_vec(),
-            )
-        };
-        match photo.signal_relation() {
-            SignalRelation::SceneRelatedRaw => {
-                let (image, metadata, digest, color, diagnostics) = build();
-                Ok(Self::Scene(
-                    WorkingArtifact::checked(image, metadata, digest, color, diagnostics)
-                        .map_err(DecodedPhotoError::Image)?,
-                ))
-            }
-            SignalRelation::LinearizedDisplayReferred => {
-                let (image, metadata, digest, color, diagnostics) = build();
-                Ok(Self::Display(
-                    WorkingArtifact::checked(image, metadata, digest, color, diagnostics)
-                        .map_err(DecodedPhotoError::Image)?,
-                ))
-            }
+        let (image, metadata, digest, color, relation, diagnostics) = photo.into_parts();
+        match relation {
+            SignalRelation::SceneRelatedRaw => Ok(Self::Scene(
+                WorkingArtifact::checked(image, metadata, digest, color, diagnostics)
+                    .map_err(DecodedPhotoError::Image)?,
+            )),
+            SignalRelation::LinearizedDisplayReferred => Ok(Self::Display(
+                WorkingArtifact::checked(image, metadata, digest, color, diagnostics)
+                    .map_err(DecodedPhotoError::Image)?,
+            )),
         }
     }
 }
@@ -171,6 +127,24 @@ impl WorkingArtifact<SceneRelated> {
     ) -> Result<(WorkingArtifact<DisplayReferred>, SceneRenderReport), SceneRenderError> {
         let width =
             usize::try_from(self.image.width()).map_err(|_| SceneRenderError::Allocation)?;
+        let image_bytes = u64::from(self.image.width())
+            .checked_mul(u64::from(self.image.height()))
+            .and_then(|pixels| pixels.checked_mul(16))
+            .ok_or(crate::io::LimitError::ArithmeticOverflow)?;
+        // One copied source row plus SceneToDisplay's transactional row.
+        let row_scratch = u64::from(self.image.width())
+            .checked_mul(32)
+            .ok_or(crate::io::LimitError::ArithmeticOverflow)?;
+        let peak = image_bytes
+            .checked_add(row_scratch)
+            .ok_or(crate::io::LimitError::ArithmeticOverflow)?;
+        if peak > limits.max_working_bytes {
+            return Err(crate::io::LimitError::WorkingBytes {
+                requested: peak,
+                maximum: limits.max_working_bytes,
+            }
+            .into());
+        }
         let mut total: Option<SceneRenderReport> = None;
         let mut source = Vec::new();
         source
@@ -212,5 +186,96 @@ impl WorkingArtifact<SceneRelated> {
         )
         .map_err(|_| SceneRenderError::Allocation)?;
         Ok((artifact, report))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::io::{
+        Diagnostic, RawBackendName, RawMatrixSource, RawProcessingProvenance,
+        WhiteBalanceProvenance,
+    };
+
+    fn raw_photo(limits: &ResourceLimits) -> DecodedPhoto {
+        let image = CpuImage::new(
+            1,
+            1,
+            vec![crate::develop::RgbaPixel::new(0.18, 0.18, 0.18, 0.5).unwrap()],
+        )
+        .unwrap();
+        DecodedPhoto::new(
+            image,
+            MetadataBundle::default(),
+            SourceDigestV1::from_bytes(b"artifact resource test"),
+            ColorProvenance::RawMatrix {
+                matrix: RawMatrixSource::CameraDatabase,
+                white_balance: WhiteBalanceProvenance::Camera,
+                processing: RawProcessingProvenance {
+                    backend: RawBackendName::LibRawDcrawEmu,
+                    backend_version: Some("test".to_owned()),
+                    full_resolution: true,
+                    linear_16_bit: true,
+                    output_rec2020: true,
+                    embedded_matrix_enabled: true,
+                    ahd_demosaic: true,
+                },
+            },
+            SignalRelation::SceneRelatedRaw,
+            Vec::<Diagnostic>::new(),
+            limits,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn decoded_conversion_moves_the_pixel_allocation_without_cloning() {
+        let limits = ResourceLimits::default();
+        let photo = raw_photo(&limits);
+        let allocation = photo.image().pixels().as_ptr();
+        let DecodedArtifact::Scene(artifact) =
+            DecodedArtifact::try_from_photo(photo, &limits).unwrap()
+        else {
+            panic!("expected scene artifact");
+        };
+        assert_eq!(artifact.image().pixels().as_ptr(), allocation);
+    }
+
+    #[test]
+    fn scene_render_peak_is_exactly_image_plus_two_scanlines() {
+        let exact = ResourceLimits {
+            max_working_bytes: 48,
+            ..ResourceLimits::default()
+        };
+        let DecodedArtifact::Scene(artifact) =
+            DecodedArtifact::try_from_photo(raw_photo(&exact), &exact).unwrap()
+        else {
+            panic!("expected scene artifact");
+        };
+        assert!(
+            artifact
+                .render_to_display(&SceneToDisplayTransform::new(), &exact)
+                .is_ok()
+        );
+
+        let below = ResourceLimits {
+            max_working_bytes: 47,
+            ..ResourceLimits::default()
+        };
+        // Decode validation needs 16 bytes; only scene rendering exceeds 47.
+        let DecodedArtifact::Scene(artifact) =
+            DecodedArtifact::try_from_photo(raw_photo(&below), &below).unwrap()
+        else {
+            panic!("expected scene artifact");
+        };
+        assert!(matches!(
+            artifact.render_to_display(&SceneToDisplayTransform::new(), &below),
+            Err(SceneRenderError::Limit(
+                crate::io::LimitError::WorkingBytes {
+                    requested: 48,
+                    maximum: 47
+                }
+            ))
+        ));
     }
 }

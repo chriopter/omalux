@@ -1,8 +1,5 @@
 use crate::{
-    develop::{
-        DevelopPipeline, DevelopSettings, PipelineError, PresetCatalog, PresetDocument,
-        apply_parameter_overrides,
-    },
+    develop::{DevelopPipeline, DevelopSettings, PipelineError, PresetCatalog, PresetDocument},
     io::{
         LimitError,
         color::{SceneRenderError, SceneToDisplayTransform},
@@ -12,7 +9,8 @@ use crate::{
 use super::{
     CancellationToken, DecodedArtifact, DevelopJob, DevelopJobFailure, DevelopJobOutcome,
     DevelopJobReport, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder, PresetSelection,
-    ProgressSink, ReportSignalRelation, SceneRenderSummary, WorkingArtifact, services::stable_code,
+    ProgressSink, PublicationRequest, PublicationStatus, ReportDigest, ReportSignalRelation,
+    SceneRenderSummary, WorkingArtifact, services::stable_code,
 };
 
 #[derive(Clone, Debug)]
@@ -52,7 +50,6 @@ impl DevelopJobRunner {
         self.check_cancelled(JobStage::Validate, cancellation, &report)?;
         if job.input.as_os_str().is_empty()
             || job.output.as_os_str().is_empty()
-            || job.input == job.output
             || job.decode.validate().is_err()
             || job.output_options.validate().is_err()
         {
@@ -65,14 +62,15 @@ impl DevelopJobRunner {
         progress.stage_completed(JobStage::Validate);
 
         self.check_cancelled(JobStage::Decode, cancellation, &report)?;
-        let photo = decoder
+        let decoded = decoder
             .decode_path_once(&job.input, &job.decode, cancellation)
             .map_err(|error| {
                 DevelopJobFailure::new(JobStage::Decode, stable_code(&error).into(), report.clone())
             })?;
         self.check_cancelled(JobStage::Decode, cancellation, &report)?;
-        let artifact =
-            DecodedArtifact::try_from_photo(photo, &job.decode.limits).map_err(|error| {
+        let source_identity = decoded.source_identity;
+        let artifact = DecodedArtifact::try_from_photo(decoded.photo, &job.decode.limits).map_err(
+            |error| {
                 let code = match error {
                     crate::io::DecodedPhotoError::Limit(_) => JobErrorCode::ResourceLimit,
                     crate::io::DecodedPhotoError::Image(_)
@@ -81,7 +79,8 @@ impl DevelopJobRunner {
                     }
                 };
                 DevelopJobFailure::new(JobStage::Decode, code, report.clone())
-            })?;
+            },
+        )?;
         let digest = match &artifact {
             DecodedArtifact::Scene(value) => value.source_digest(),
             DecodedArtifact::Display(value) => value.source_digest(),
@@ -90,7 +89,7 @@ impl DevelopJobRunner {
             DecodedArtifact::Scene(value) => value.signal_relation(),
             DecodedArtifact::Display(value) => value.signal_relation(),
         };
-        report.source_digest_v1 = Some(hex_digest(digest.as_bytes()));
+        report.source_digest_v1 = Some(ReportDigest(*digest.as_bytes()));
         report.input_signal_relation = Some(input_relation.into());
         progress.stage_completed(JobStage::Decode);
 
@@ -98,17 +97,16 @@ impl DevelopJobRunner {
         let document = self.resolve_preset(&job.preset).map_err(|code| {
             DevelopJobFailure::new(JobStage::ResolveSettings, code, report.clone())
         })?;
-        report.preset_id = Some(document.id.clone());
-        let settings =
-            apply_parameter_overrides(&document.settings, &job.overrides).map_err(|_| {
-                DevelopJobFailure::new(
-                    JobStage::ResolveSettings,
-                    JobErrorCode::InvalidOptions,
-                    report.clone(),
-                )
-            })?;
+        if !job.overrides.is_empty() {
+            return Err(DevelopJobFailure::new(
+                JobStage::ResolveSettings,
+                JobErrorCode::UnprovenPipelineBudget,
+                report,
+            ));
+        }
+        let settings = &document.settings;
         self.pipeline
-            .preflight_with_context(&settings, Some(&digest.develop_render_context()))
+            .preflight_with_context(settings, Some(&digest.develop_render_context()))
             .map_err(|error| {
                 DevelopJobFailure::new(
                     JobStage::ResolveSettings,
@@ -116,13 +114,24 @@ impl DevelopJobRunner {
                     report.clone(),
                 )
             })?;
+        // Current develop stages contain legacy infallible allocations whose
+        // combined peak is not yet covered by a stage-aware estimator. The
+        // job boundary therefore admits only the allocation-free neutral path
+        // instead of claiming an optimistic full-image budget.
+        if !settings.is_neutral() {
+            return Err(DevelopJobFailure::new(
+                JobStage::ResolveSettings,
+                JobErrorCode::UnprovenPipelineBudget,
+                report,
+            ));
+        }
         progress.stage_completed(JobStage::ResolveSettings);
 
         let display = match artifact {
             DecodedArtifact::Scene(mut scene) => {
                 self.process_artifact(
                     &mut scene,
-                    &settings,
+                    settings,
                     digest,
                     cancellation,
                     progress,
@@ -146,7 +155,7 @@ impl DevelopJobRunner {
             DecodedArtifact::Display(mut display) => {
                 self.process_artifact(
                     &mut display,
-                    &settings,
+                    settings,
                     digest,
                     cancellation,
                     progress,
@@ -160,15 +169,32 @@ impl DevelopJobRunner {
         self.check_cancelled(JobStage::Encode, cancellation, &report)?;
         let encode_options = job.output_options.as_encode_options();
         let receipt = encoder
-            .encode_display(&job.output, &display, &encode_options, cancellation)
+            .encode_display(
+                PublicationRequest {
+                    destination: &job.output,
+                    source_identity,
+                    overwrite: job.overwrite,
+                },
+                &display,
+                &encode_options,
+                cancellation,
+            )
             .map_err(|error| {
                 DevelopJobFailure::new(JobStage::Encode, stable_code(&error).into(), report.clone())
             })?;
-        self.check_cancelled(JobStage::Encode, cancellation, &report)?;
+        // Encoder success is the publication commit point. Do not reinterpret
+        // a visible destination as a retryable cancellation afterwards.
         progress.stage_completed(JobStage::Encode);
         progress.stage_completed(JobStage::Complete);
-        report.outcome = DevelopJobOutcome::Success {
-            bytes_written: receipt.bytes_written,
+        report.outcome = match receipt.publication {
+            PublicationStatus::PublishedAndDurable => DevelopJobOutcome::PublishedAndDurable {
+                bytes_written: receipt.bytes_written,
+            },
+            PublicationStatus::PublishedButNotDurable => {
+                DevelopJobOutcome::PublishedButNotDurable {
+                    bytes_written: receipt.bytes_written,
+                }
+            }
         };
         Ok(report)
     }
@@ -183,32 +209,22 @@ impl DevelopJobRunner {
         report: &DevelopJobReport,
     ) -> Result<(), DevelopJobFailure> {
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
-        self.pipeline
-            .process_with_context(
-                artifact.image_mut(),
-                settings,
-                Some(&digest.develop_render_context()),
-            )
-            .map_err(|error| {
-                DevelopJobFailure::new(
-                    JobStage::Develop,
-                    pipeline_error_code(&error),
-                    report.clone(),
-                )
-            })?;
+        debug_assert!(settings.is_neutral());
+        let _ = (artifact, digest);
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
         progress.stage_completed(JobStage::Develop);
         Ok(())
     }
 
-    fn resolve_preset(&self, selection: &PresetSelection) -> Result<PresetDocument, JobErrorCode> {
+    fn resolve_preset<'a>(
+        &'a self,
+        selection: &'a PresetSelection,
+    ) -> Result<&'a PresetDocument, JobErrorCode> {
         let document = match selection {
-            PresetSelection::CatalogId(id) => self
-                .catalog
-                .get(id)
-                .cloned()
-                .ok_or(JobErrorCode::InvalidOptions)?,
-            PresetSelection::Document(document) => document.as_ref().clone(),
+            PresetSelection::CatalogId(id) => {
+                self.catalog.get(id).ok_or(JobErrorCode::InvalidOptions)?
+            }
+            PresetSelection::Document(document) => document.as_ref(),
         };
         document
             .validate()
@@ -263,16 +279,6 @@ fn scene_error_code(error: &SceneRenderError) -> JobErrorCode {
     }
 }
 
-fn hex_digest(bytes: &[u8; 32]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(64);
-    for byte in bytes {
-        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    encoded
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -282,13 +288,14 @@ mod tests {
         io::{
             AlphaPolicy, ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, Diagnostic,
             EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy, OutputFormat,
-            OutputProfile, RawBackendName, RawMatrixSource, RawProcessingProvenance,
-            ResourceLimits, SdrRangePolicy, SignalRelation, SourceDigestV1, WhiteBalanceProvenance,
+            OutputProfile, OverwritePolicy, RawBackendName, RawMatrixSource,
+            RawProcessingProvenance, ResourceLimits, SdrRangePolicy, SignalRelation,
+            SourceDigestV1, SourceFileIdentity, WhiteBalanceProvenance,
         },
         job::{
-            CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, DisplayReferred,
-            EncodeReceipt, NoProgress, PhotoDecoder, PhotoEncoder, PresetSelection,
-            WorkingArtifact,
+            CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
+            DisplayReferred, EncodeReceipt, NoProgress, PhotoDecoder, PhotoEncoder,
+            PresetSelection, PublicationRequest, PublicationStatus, WorkingArtifact,
         },
     };
 
@@ -301,10 +308,10 @@ mod tests {
             _input: &Path,
             _options: &DecodeOptions,
             _cancellation: &CancellationToken,
-        ) -> Result<DecodedPhoto, Self::Error> {
+        ) -> Result<DecodedSource, Self::Error> {
             let image =
                 CpuImage::new(1, 1, vec![RgbaPixel::new(0.18, 0.18, 0.18, 0.37).unwrap()]).unwrap();
-            Ok(DecodedPhoto::new(
+            let photo = DecodedPhoto::new(
                 image,
                 MetadataBundle::default(),
                 SourceDigestV1::from_bytes(b"raw fake"),
@@ -325,7 +332,12 @@ mod tests {
                 Vec::<Diagnostic>::new(),
                 &ResourceLimits::default(),
             )
-            .unwrap())
+            .unwrap();
+            Ok(DecodedSource {
+                photo,
+                source_identity: SourceFileIdentity::from_file(&tempfile::tempfile().unwrap())
+                    .unwrap(),
+            })
         }
     }
 
@@ -335,7 +347,7 @@ mod tests {
 
         fn encode_display(
             &self,
-            _output: &Path,
+            _publication: PublicationRequest<'_>,
             artifact: &WorkingArtifact<DisplayReferred>,
             _options: &EncodeOptions,
             _cancellation: &CancellationToken,
@@ -348,7 +360,10 @@ mod tests {
                 artifact.image().pixels()[0].alpha().to_bits(),
                 0.37_f32.to_bits()
             );
-            Ok(EncodeReceipt { bytes_written: 1 })
+            Ok(EncodeReceipt {
+                bytes_written: 1,
+                publication: PublicationStatus::PublishedAndDurable,
+            })
         }
     }
 
@@ -366,6 +381,7 @@ mod tests {
                 AlphaPolicy::Flatten([0.0, 0.0, 0.0]),
                 SdrRangePolicy::Reject,
             ),
+            overwrite: OverwritePolicy::Forbid,
             preset: PresetSelection::CatalogId("neutral".to_owned()),
             overrides: Vec::new(),
         };

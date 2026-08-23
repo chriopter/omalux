@@ -4,7 +4,7 @@ use crate::{
     develop::{ParameterOverride, PresetDocument},
     io::{
         AlphaPolicy, DecodeOptions, EncodeOptions, MetadataPolicy, OutputFormat, OutputProfile,
-        SdrRangePolicy,
+        OverwritePolicy, SdrRangePolicy,
     },
 };
 
@@ -72,6 +72,7 @@ pub struct DevelopJob {
     pub output: PathBuf,
     pub decode: DecodeOptions,
     pub output_options: DevelopOutput,
+    pub overwrite: OverwritePolicy,
     pub preset: PresetSelection,
     pub overrides: Vec<ParameterOverride>,
 }

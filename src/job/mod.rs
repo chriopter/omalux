@@ -15,8 +15,10 @@ pub use error::{DevelopJobError, DevelopJobFailure, JobErrorCode};
 pub use progress::{CancellationToken, JobStage, NoProgress, ProgressSink};
 pub use report::{
     DEVELOP_JOB_REPORT_SCHEMA, DEVELOP_JOB_REPORT_VERSION, DevelopJobOutcome, DevelopJobReport,
-    ReportSignalRelation, SceneRenderSummary,
+    ReportDigest, ReportSignalRelation, SceneRenderSummary,
 };
 pub use runner::DevelopJobRunner;
-pub use services::{EncodeReceipt, PhotoDecoder, PhotoEncoder};
+pub use services::{
+    DecodedSource, EncodeReceipt, PhotoDecoder, PhotoEncoder, PublicationRequest, PublicationStatus,
+};
 pub use spec::{DevelopJob, DevelopOutput, PresetSelection};

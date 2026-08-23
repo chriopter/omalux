@@ -4,17 +4,20 @@ use std::{
 };
 
 use grainroom::{
-    develop::{CpuImage, ParameterOverride, RgbaPixel},
+    develop::{
+        CpuImage, DevelopSettings, LocalAdjustments, ParameterOverride, PresetDocument, RadialMask,
+        RgbaPixel,
+    },
     io::{
         AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeError, DecodeOptions,
         DecodedPhoto, Diagnostic, EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy,
-        OutputFormat, OutputProfile, ResourceLimits, SdrRangePolicy, SignalRelation,
-        SourceDigestV1,
+        OutputFormat, OutputProfile, OverwritePolicy, ResourceLimits, SdrRangePolicy,
+        SignalRelation, SourceDigestV1, SourceFileIdentity,
     },
     job::{
-        CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, EncodeReceipt,
-        JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder, PresetSelection, ProgressSink,
-        WorkingArtifact,
+        CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
+        EncodeReceipt, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder, PresetSelection,
+        ProgressSink, PublicationRequest, PublicationStatus, WorkingArtifact,
     },
 };
 
@@ -23,6 +26,7 @@ struct FakeDecoder {
     photo: DecodedPhoto,
     cancel_after_decode: bool,
     calls: Arc<Mutex<Vec<&'static str>>>,
+    source_identity: SourceFileIdentity,
 }
 
 impl PhotoDecoder for FakeDecoder {
@@ -33,19 +37,35 @@ impl PhotoDecoder for FakeDecoder {
         _input: &Path,
         _options: &DecodeOptions,
         cancellation: &CancellationToken,
-    ) -> Result<DecodedPhoto, Self::Error> {
+    ) -> Result<DecodedSource, Self::Error> {
         self.calls.lock().unwrap().push("decode");
         if self.cancel_after_decode {
             cancellation.cancel();
         }
-        Ok(self.photo.clone())
+        Ok(DecodedSource {
+            photo: self.photo.clone(),
+            source_identity: self.source_identity,
+        })
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct FakeEncoder {
     calls: Arc<Mutex<Vec<&'static str>>>,
     observed: Arc<Mutex<Vec<(SignalRelation, f32)>>>,
+    publication: PublicationStatus,
+    cancel_on_publish: bool,
+}
+
+impl Default for FakeEncoder {
+    fn default() -> Self {
+        Self {
+            calls: Arc::default(),
+            observed: Arc::default(),
+            publication: PublicationStatus::PublishedAndDurable,
+            cancel_on_publish: false,
+        }
+    }
 }
 
 impl PhotoEncoder for FakeEncoder {
@@ -53,17 +73,23 @@ impl PhotoEncoder for FakeEncoder {
 
     fn encode_display(
         &self,
-        _output: &Path,
+        _publication: PublicationRequest<'_>,
         artifact: &WorkingArtifact<grainroom::job::DisplayReferred>,
         _options: &EncodeOptions,
-        _cancellation: &CancellationToken,
+        cancellation: &CancellationToken,
     ) -> Result<EncodeReceipt, Self::Error> {
         self.calls.lock().unwrap().push("encode");
         self.observed.lock().unwrap().push((
             artifact.signal_relation(),
             artifact.image().pixels()[0].red(),
         ));
-        Ok(EncodeReceipt { bytes_written: 37 })
+        if self.cancel_on_publish {
+            cancellation.cancel();
+        }
+        Ok(EncodeReceipt {
+            bytes_written: 37,
+            publication: self.publication,
+        })
     }
 }
 
@@ -105,6 +131,10 @@ fn decoded() -> DecodedPhoto {
     .unwrap()
 }
 
+fn source_identity() -> SourceFileIdentity {
+    SourceFileIdentity::from_file(&tempfile::tempfile().unwrap()).unwrap()
+}
+
 fn job() -> DevelopJob {
     DevelopJob {
         input: "/virtual/input.raw".into(),
@@ -118,27 +148,26 @@ fn job() -> DevelopJob {
             AlphaPolicy::Flatten([0.0, 0.0, 0.0]),
             SdrRangePolicy::Reject,
         ),
+        overwrite: OverwritePolicy::Forbid,
         preset: PresetSelection::CatalogId("neutral".to_owned()),
         overrides: Vec::new(),
     }
 }
 
 #[test]
-fn display_job_applies_override_and_bypasses_scene_render() {
+fn display_job_bypasses_scene_render() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let decoder = FakeDecoder {
         photo: decoded(),
         cancel_after_decode: false,
         calls: calls.clone(),
+        source_identity: source_identity(),
     };
     let encoder = FakeEncoder {
         calls: calls.clone(),
         ..FakeEncoder::default()
     };
-    let mut request = job();
-    request
-        .overrides
-        .push(ParameterOverride::scalar("basics.brightness", 25.0));
+    let request = job();
     let mut stages = Stages::default();
     let report = DevelopJobRunner::built_in()
         .unwrap()
@@ -152,7 +181,7 @@ fn display_job_applies_override_and_bypasses_scene_render() {
         .unwrap();
 
     assert_eq!(*calls.lock().unwrap(), ["decode", "encode"]);
-    assert!(encoder.observed.lock().unwrap()[0].1 > 0.18);
+    assert_eq!(encoder.observed.lock().unwrap()[0].1, 0.18);
     assert!(report.scene_render.is_none());
     assert_eq!(
         stages.0,
@@ -173,6 +202,7 @@ fn cancellation_after_decoder_prevents_all_later_work() {
         photo: decoded(),
         cancel_after_decode: true,
         calls: Arc::default(),
+        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let failure = DevelopJobRunner::built_in()
@@ -196,6 +226,7 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
+        source_identity: source_identity(),
     };
     let report = DevelopJobRunner::built_in()
         .unwrap()
@@ -220,6 +251,7 @@ fn invalid_preset_fails_after_decode_but_before_develop_or_encode() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
+        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut request = job();
@@ -237,4 +269,116 @@ fn invalid_preset_fails_after_decode_but_before_develop_or_encode() {
     assert_eq!(failure.error.stage, JobStage::ResolveSettings);
     assert_eq!(failure.error.code, JobErrorCode::InvalidOptions);
     assert!(encoder.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn non_neutral_override_is_rejected_until_pipeline_budget_is_proven() {
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+        source_identity: source_identity(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut request = job();
+    request
+        .overrides
+        .push(ParameterOverride::scalar("basics.brightness", 25.0));
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &request,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+    assert!(encoder.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn every_allocating_stage_family_is_fail_closed_without_an_estimator() {
+    let mut clarity = DevelopSettings::default();
+    clarity.basics.clarity = 1.0;
+    let mut effects = DevelopSettings::default();
+    effects.effects.bloom = 1.0;
+    let mut geometry = DevelopSettings::default();
+    geometry.geometry.straighten_degrees = 1.0;
+    let mut radial = DevelopSettings::default();
+    radial.radial_masks.masks.push(RadialMask {
+        id: "resource-test".to_owned(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 0.25,
+        radius_y: 0.25,
+        rotation_degrees: 0.0,
+        feather: 0.5,
+        opacity: 1.0,
+        invert: false,
+        adjustments: LocalAdjustments {
+            brightness: 1.0,
+            ..LocalAdjustments::default()
+        },
+    });
+
+    for (index, settings) in [clarity, effects, geometry, radial].into_iter().enumerate() {
+        let decoder = FakeDecoder {
+            photo: decoded(),
+            cancel_after_decode: false,
+            calls: Arc::default(),
+            source_identity: source_identity(),
+        };
+        let encoder = FakeEncoder::default();
+        let mut request = job();
+        request.preset = PresetSelection::document(PresetDocument::new(
+            format!("resource-test-{index}"),
+            "Resource test",
+            settings,
+        ));
+        let failure = DevelopJobRunner::built_in()
+            .unwrap()
+            .run(
+                &request,
+                &decoder,
+                &encoder,
+                &CancellationToken::new(),
+                &mut Stages::default(),
+            )
+            .unwrap_err();
+        assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+        assert!(encoder.calls.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn publication_commit_is_not_reinterpreted_as_late_cancellation() {
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+        source_identity: source_identity(),
+    };
+    let encoder = FakeEncoder {
+        publication: PublicationStatus::PublishedButNotDurable,
+        cancel_on_publish: true,
+        ..FakeEncoder::default()
+    };
+    let report = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &job(),
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap();
+    assert!(matches!(
+        report.outcome,
+        grainroom::job::DevelopJobOutcome::PublishedButNotDurable { bytes_written: 37 }
+    ));
 }

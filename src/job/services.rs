@@ -1,13 +1,37 @@
 use std::path::Path;
 
 use crate::{
-    io::{DecodeOptions, DecodedPhoto, EncodeOptions, ErrorCode, StableErrorCode},
+    io::{
+        DecodeOptions, DecodedPhoto, EncodeOptions, ErrorCode, OverwritePolicy, SourceFileIdentity,
+        StableErrorCode,
+    },
     job::{CancellationToken, DisplayReferred, WorkingArtifact},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct EncodeReceipt {
     pub bytes_written: u64,
+    pub publication: PublicationStatus,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PublicationStatus {
+    PublishedAndDurable,
+    /// The destination is already visible but its directory sync failed.
+    /// Callers must report this state and must not retry blindly.
+    PublishedButNotDurable,
+}
+
+pub struct DecodedSource {
+    pub photo: DecodedPhoto,
+    pub source_identity: SourceFileIdentity,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct PublicationRequest<'a> {
+    pub destination: &'a Path,
+    pub source_identity: SourceFileIdentity,
+    pub overwrite: OverwritePolicy,
 }
 
 /// Decoder boundary for the Qt-free runner.
@@ -24,7 +48,7 @@ pub trait PhotoDecoder {
         input: &Path,
         options: &DecodeOptions,
         cancellation: &CancellationToken,
-    ) -> Result<DecodedPhoto, Self::Error>;
+    ) -> Result<DecodedSource, Self::Error>;
 }
 
 /// Encoder boundary accepts display-referred artifacts only.
@@ -36,7 +60,7 @@ pub trait PhotoEncoder {
 
     fn encode_display(
         &self,
-        output: &Path,
+        publication: PublicationRequest<'_>,
         artifact: &WorkingArtifact<DisplayReferred>,
         options: &EncodeOptions,
         cancellation: &CancellationToken,
