@@ -1,6 +1,5 @@
-use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range};
+use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range_lazy};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -14,7 +13,7 @@ pub struct LocalAdjustments {
 }
 
 impl LocalAdjustments {
-    fn validate(&self, path: &str) -> Result<(), SettingsError> {
+    fn validate(&self, index: usize) -> Result<(), SettingsError> {
         for (name, value) in [
             ("brightness", self.brightness),
             ("contrast", self.contrast),
@@ -23,7 +22,12 @@ impl LocalAdjustments {
             ("tint", self.tint),
             ("sharpness", self.sharpness),
         ] {
-            validate_range(&format!("{path}.{name}"), value, -100.0, 100.0)?;
+            validate_range_lazy(
+                || format!("radial_masks.masks[{index}].adjustments.{name}"),
+                value,
+                -100.0,
+                100.0,
+            )?;
         }
         Ok(())
     }
@@ -60,36 +64,55 @@ pub struct RadialMask {
 
 impl RadialMask {
     fn validate(&self, index: usize) -> Result<(), SettingsError> {
-        let path = format!("radial_masks.masks[{index}]");
         if self.id.is_empty() || self.id.len() > 64 {
             return Err(SettingsError::new(
-                format!("{path}.id"),
+                format!("radial_masks.masks[{index}].id"),
                 "must contain between 1 and 64 bytes",
             ));
         }
-        validate_range(&format!("{path}.center_x"), self.center_x, 0.0, 1.0)?;
-        validate_range(&format!("{path}.center_y"), self.center_y, 0.0, 1.0)?;
-        validate_range(
-            &format!("{path}.radius_x"),
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].center_x"),
+            self.center_x,
+            0.0,
+            1.0,
+        )?;
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].center_y"),
+            self.center_y,
+            0.0,
+            1.0,
+        )?;
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].radius_x"),
             self.radius_x,
             f32::EPSILON,
             2.0,
         )?;
-        validate_range(
-            &format!("{path}.radius_y"),
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].radius_y"),
             self.radius_y,
             f32::EPSILON,
             2.0,
         )?;
-        validate_range(
-            &format!("{path}.rotation_degrees"),
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].rotation_degrees"),
             self.rotation_degrees,
             -180.0,
             180.0,
         )?;
-        validate_range(&format!("{path}.feather"), self.feather, 0.0, 1.0)?;
-        validate_range(&format!("{path}.opacity"), self.opacity, 0.0, 1.0)?;
-        self.adjustments.validate(&format!("{path}.adjustments"))?;
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].feather"),
+            self.feather,
+            0.0,
+            1.0,
+        )?;
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].opacity"),
+            self.opacity,
+            0.0,
+            1.0,
+        )?;
+        self.adjustments.validate(index)?;
         Ok(())
     }
 
@@ -123,10 +146,12 @@ impl RadialMasksSettings {
                 "must not contain more than 64 masks",
             ));
         }
-        let mut ids = HashSet::new();
         for (index, mask) in self.masks.iter().enumerate() {
             mask.validate(index)?;
-            if !ids.insert(&mask.id) {
+            if self.masks[..index]
+                .iter()
+                .any(|previous| previous.id == mask.id)
+            {
                 return Err(SettingsError::new(
                     format!("radial_masks.masks[{index}].id"),
                     "mask ids must be unique",

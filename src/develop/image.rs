@@ -1,5 +1,10 @@
 use std::fmt;
 
+// Every resource profile charges the concrete pixel payload, not an assumed
+// channel packing. A layout change must fail at compile time and trigger an
+// estimator/version review.
+const _: () = assert!(std::mem::size_of::<RgbaPixel>() == 16);
+
 /// One straight-alpha pixel in Grainroom's normative CPU working space.
 ///
 /// RGB is linear Rec.2020 with a D65 white point. Whether those values are

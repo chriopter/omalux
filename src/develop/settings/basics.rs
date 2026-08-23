@@ -1,4 +1,4 @@
-use super::{SettingsError, canonical_zero, validate_range};
+use super::{SettingsError, canonical_zero, validate_range_lazy};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -32,7 +32,7 @@ impl BasicsSettings {
             ("temperature", self.temperature),
             ("tint", self.tint),
         ] {
-            validate_range(&format!("basics.{name}"), value, -100.0, 100.0)?;
+            validate_range_lazy(|| format!("basics.{name}"), value, -100.0, 100.0)?;
         }
         Ok(())
     }

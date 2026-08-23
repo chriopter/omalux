@@ -106,7 +106,7 @@ impl DevelopPipeline {
         image.validate().map_err(PipelineError::InvalidImage)?;
         self.preflight_with_context(settings, context)?;
         let estimate =
-            estimate_develop_working_set(image.width(), image.height(), settings, limits)?;
+            estimate_validated_working_set(image.width(), image.height(), settings, limits)?;
         let mut rendered = try_clone_image(image)?;
         for stage in CANONICAL_STAGE_ORDER {
             stages::apply(stage, &mut rendered, settings, context)?;
@@ -128,6 +128,15 @@ pub fn estimate_develop_working_set(
     settings
         .validate()
         .map_err(PipelineError::InvalidSettings)?;
+    estimate_validated_working_set(width, height, settings, limits)
+}
+
+fn estimate_validated_working_set(
+    width: u32,
+    height: u32,
+    settings: &DevelopSettings,
+    limits: &ResourceLimits,
+) -> Result<DevelopWorkingSetEstimate, PipelineError> {
     limits.validate().map_err(PipelineError::ResourceLimit)?;
     if width == 0 || height == 0 {
         return Err(PipelineError::ResourceLimit(LimitError::EmptyDimensions));

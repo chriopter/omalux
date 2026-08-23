@@ -1,4 +1,4 @@
-use super::{SettingsError, canonical_zero, validate_range};
+use super::{SettingsError, canonical_zero, validate_range_lazy};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -33,8 +33,8 @@ impl ToneCurve {
         let mut previous_x = -1.0;
         let mut previous_y = -1.0;
         for (index, point) in self.points.iter().enumerate() {
-            validate_range(&format!("{path}.points[{index}].x"), point.x, 0.0, 1.0)?;
-            validate_range(&format!("{path}.points[{index}].y"), point.y, 0.0, 1.0)?;
+            validate_range_lazy(|| format!("{path}.points[{index}].x"), point.x, 0.0, 1.0)?;
+            validate_range_lazy(|| format!("{path}.points[{index}].y"), point.y, 0.0, 1.0)?;
             if point.x <= previous_x {
                 return Err(SettingsError::new(
                     format!("{path}.points[{index}].x"),

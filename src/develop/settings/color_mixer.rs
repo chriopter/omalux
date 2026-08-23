@@ -1,4 +1,4 @@
-use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range};
+use super::{SettingsError, canonical_signed_degrees, canonical_zero, validate_range_lazy};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -11,19 +11,24 @@ pub struct ColorBandAdjustment {
 
 impl ColorBandAdjustment {
     fn validate(&self, path: &str) -> Result<(), SettingsError> {
-        validate_range(
-            &format!("{path}.hue_shift_degrees"),
+        validate_range_lazy(
+            || format!("color_mixer.{path}.hue_shift_degrees"),
             self.hue_shift_degrees,
             -180.0,
             180.0,
         )?;
-        validate_range(
-            &format!("{path}.saturation"),
+        validate_range_lazy(
+            || format!("color_mixer.{path}.saturation"),
             self.saturation,
             -100.0,
             100.0,
         )?;
-        validate_range(&format!("{path}.luminance"), self.luminance, -100.0, 100.0)?;
+        validate_range_lazy(
+            || format!("color_mixer.{path}.luminance"),
+            self.luminance,
+            -100.0,
+            100.0,
+        )?;
         Ok(())
     }
 
@@ -63,7 +68,7 @@ impl ColorMixerSettings {
             ("purple", &self.purple),
             ("magenta", &self.magenta),
         ] {
-            band.validate(&format!("color_mixer.{name}"))?;
+            band.validate(name)?;
         }
         Ok(())
     }

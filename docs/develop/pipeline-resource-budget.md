@@ -12,7 +12,7 @@ masks, Basics with clarity at zero, and Effects containing only fade, vignette,
 and grain. Brightness, contrast, highlights, shadows, whites, blacks,
 saturation, vibrance, temperature, and tint are pointwise and supported.
 
-The exact image-buffer peak is:
+The exact requested image-payload peak is:
 
 ```
 source RGBA-f32 image       16 * width * height
@@ -21,6 +21,18 @@ stage image scratch         0
 ------------------------------------------------
 peak                       32 * width * height bytes
 ```
+
+`RgbaPixel` is compile-time pinned to 16 bytes. The estimate charges Rust heap
+payload requested by this operation. Allocator bookkeeping and size-class
+rounding are implementation-owned and neither observable nor controllable
+through Rust's allocation API; `ResourceLimits` consistently excludes that
+allocator-internal overhead. Existing caller-owned settings, mask IDs, and
+source storage outside `CpuImage` are not newly allocated by this operation.
+
+Successful settings validation is allocation-free: dynamic diagnostic paths
+are built only after a validation failure, and duplicate mask IDs use the
+schema's maximum-64 bounded pairwise scan instead of a `HashSet`. Bounded
+processing validates settings once.
 
 Small fixed stack state is not charged as image working memory. Grain's render
 context is fixed-size and grain does not allocate a noise plane. The source

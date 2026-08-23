@@ -1,4 +1,6 @@
-use super::{SettingsError, canonical_unsigned_degrees, canonical_zero, validate_range};
+use super::{
+    SettingsError, canonical_unsigned_degrees, canonical_zero, validate_range, validate_range_lazy,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -11,9 +13,19 @@ pub struct ColorGradeRange {
 
 impl ColorGradeRange {
     fn validate(&self, path: &str) -> Result<(), SettingsError> {
-        validate_range(&format!("{path}.hue_degrees"), self.hue_degrees, 0.0, 360.0)?;
-        validate_range(&format!("{path}.saturation"), self.saturation, 0.0, 100.0)?;
-        validate_range(&format!("{path}.luminance"), self.luminance, -100.0, 100.0)?;
+        validate_range_lazy(
+            || format!("{path}.hue_degrees"),
+            self.hue_degrees,
+            0.0,
+            360.0,
+        )?;
+        validate_range_lazy(|| format!("{path}.saturation"), self.saturation, 0.0, 100.0)?;
+        validate_range_lazy(
+            || format!("{path}.luminance"),
+            self.luminance,
+            -100.0,
+            100.0,
+        )?;
         Ok(())
     }
 

@@ -169,3 +169,37 @@ fn dimensions_and_checked_arithmetic_are_rejected_before_allocation() {
         }))
     );
 }
+
+#[test]
+fn sixty_four_dormant_masks_keep_the_pointwise_exact_profile() {
+    assert_eq!(std::mem::size_of::<RgbaPixel>(), 16);
+    let mut settings = DevelopSettings::default();
+    for index in 0..64 {
+        settings.radial_masks.masks.push(RadialMask {
+            id: format!("dormant-{index}"),
+            enabled: false,
+            center_x: 0.5,
+            center_y: 0.5,
+            radius_x: 0.25,
+            radius_y: 0.25,
+            rotation_degrees: 0.0,
+            feather: 0.1,
+            opacity: 1.0,
+            invert: false,
+            adjustments: LocalAdjustments {
+                brightness: 1.0,
+                ..LocalAdjustments::default()
+            },
+        });
+    }
+    let limits = ResourceLimits::default().with_max_working_bytes(128);
+    let estimate = estimate_develop_working_set(2, 2, &settings, &limits).unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::PointwiseV1);
+    assert_eq!(estimate.peak_bytes, 128);
+
+    let mut candidate = image(2, 2);
+    DevelopPipeline
+        .process_bounded(&mut candidate, &settings, &limits)
+        .unwrap();
+    assert_eq!(candidate, image(2, 2));
+}

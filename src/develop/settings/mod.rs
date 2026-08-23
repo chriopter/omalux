@@ -116,6 +116,23 @@ pub(crate) fn validate_range(
     Ok(())
 }
 
+/// Builds a dynamic error path only on failure. Settings validation is part of
+/// bounded-render preflight and its successful path must not allocate.
+pub(crate) fn validate_range_lazy<F>(
+    path: F,
+    value: f32,
+    minimum: f32,
+    maximum: f32,
+) -> Result<(), SettingsError>
+where
+    F: FnOnce() -> String,
+{
+    if value.is_finite() && (minimum..=maximum).contains(&value) {
+        return Ok(());
+    }
+    validate_range(&path(), value, minimum, maximum)
+}
+
 pub(crate) fn canonical_zero(value: f32) -> f32 {
     if value == 0.0 { 0.0 } else { value }
 }
