@@ -9,6 +9,10 @@ mod tone_curves;
 
 use super::{CpuImage, DevelopRenderContext, DevelopSettings, DevelopStage, PipelineError};
 
+pub(super) fn color_v1_heap_bytes(settings: &DevelopSettings) -> Result<u64, PipelineError> {
+    tone_curves::prepared_heap_bytes(&settings.tone_curves)
+}
+
 pub(super) fn ensure_supported(
     stage: DevelopStage,
     settings: &DevelopSettings,

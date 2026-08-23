@@ -41,6 +41,32 @@ allocated with `try_reserve_exact`; allocation failure is a typed pipeline
 error. Commit remains a final move, so limit, allocation, stage, or numeric
 failure leaves the caller's image unchanged.
 
+## `ColorV1`
+
+`ColorV1` is `PointwiseV1` plus active master/R/G/B tone curves, the eight-band
+color mixer, and three-way color grading. Curve documents have at most 32
+points per curve. Preparation uses fixed 31/32-element stack arrays for PCHIP
+widths, secants, and slopes, then one fallible, exact-reserve segment vector per
+active non-identity curve. A segment is compile-time pinned to seven `f64`
+values (56 bytes). All four curves are prepared before pixels are touched.
+
+The exact requested peak is:
+
+```
+source + transactional images       32 * width * height
+prepared PCHIP segments             56 * sum(active_curve_points - 1)
+color mixer/grading heap scratch      0
+----------------------------------------------------------------
+peak                                  sum of the rows above
+```
+
+The maximum curve payload is `4 * 31 * 56 = 6,944` bytes. Identity curves do
+not allocate. Mixer and grading preparation consists only of fixed-size stack
+arrays. Allocation failure while preparing any curve is typed and precedes the
+first pixel write; the outer transactional image provides the same atomicity
+for later stage/numeric failures. As for `PointwiseV1`, allocator-internal
+rounding is outside the requested-payload contract.
+
 ## Allocation audit and gates
 
 | Stage | Current variable allocation | Bounded status |
@@ -48,8 +74,8 @@ failure leaves the caller's image unchanged.
 | Geometry | full output/crop/resample image | gated pending geometry profile |
 | Basics point operations | none | `PointwiseV1` |
 | Clarity | three full f32 planes plus bounded f64 tile scratch | gated pending spatial profile |
-| Tone curves | prepared point/slope/segment vectors | gated pending fallible preparation profile |
-| Color mixer/grading | small solver vectors in the per-pixel implementation | gated pending allocation-free solver refactor |
+| Tone curves | fallible exact-reserve segment vectors; fixed stack coefficient work | `ColorV1` |
+| Color mixer/grading | fixed stack arrays only | `ColorV1` |
 | Radial masks | ROI output and optional sharpness halo/scratch | gated pending ROI/mask profile |
 | Bloom/halation | full scalar planes and bounded pyramid levels | gated pending spatial/pyramid profile |
 | Sharpness | full luma/blur planes and spatial scratch | gated pending spatial profile |

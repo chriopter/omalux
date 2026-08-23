@@ -23,10 +23,12 @@ pub(super) fn apply(
         return Ok(());
     }
 
-    let master = PreparedCurve::new(&settings.master);
-    let red = PreparedCurve::new(&settings.red);
-    let green = PreparedCurve::new(&settings.green);
-    let blue = PreparedCurve::new(&settings.blue);
+    // Prepare every curve before touching pixels. A typed allocation failure
+    // therefore leaves even the transactional image unchanged at this stage.
+    let master = PreparedCurve::try_new(&settings.master)?;
+    let red = PreparedCurve::try_new(&settings.red)?;
+    let green = PreparedCurve::try_new(&settings.green)?;
+    let blue = PreparedCurve::try_new(&settings.blue)?;
 
     for pixel in image.pixels_mut() {
         let mut rgb = [
@@ -51,6 +53,37 @@ pub(super) fn apply(
         pixel.blue = rgb[2] as f32;
     }
     Ok(())
+}
+
+pub(super) fn prepared_heap_bytes(settings: &ToneCurvesSettings) -> Result<u64, PipelineError> {
+    [
+        &settings.master,
+        &settings.red,
+        &settings.green,
+        &settings.blue,
+    ]
+    .into_iter()
+    .try_fold(0_u64, |total, curve| {
+        if curve.points.iter().all(|point| point.x == point.y) {
+            return Ok(total);
+        }
+        let segments = curve
+            .points
+            .len()
+            .checked_sub(1)
+            .ok_or(PipelineError::ResourceLimit(
+                crate::io::LimitError::ArithmeticOverflow,
+            ))?;
+        let bytes = segments
+            .checked_mul(std::mem::size_of::<PchipSegment>())
+            .and_then(|bytes| u64::try_from(bytes).ok())
+            .ok_or(PipelineError::ResourceLimit(
+                crate::io::LimitError::ArithmeticOverflow,
+            ))?;
+        total.checked_add(bytes).ok_or(PipelineError::ResourceLimit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))
+    })
 }
 
 fn luminance(rgb: [f64; 3]) -> f64 {
@@ -117,7 +150,7 @@ fn smooth_range_weight(value: f64, start: f64, end: f64) -> f64 {
 enum PreparedCurve {
     Identity,
     Pchip {
-        segments: Box<[PchipSegment]>,
+        segments: Vec<PchipSegment>,
         first_y: f64,
         first_slope: f64,
         last_y: f64,
@@ -135,45 +168,47 @@ struct PchipSegment {
     linear: f64,
 }
 
+// ColorV1's public memory proof relies on this stable, padding-free payload.
+const _: [(); 56] = [(); std::mem::size_of::<PchipSegment>()];
+
 impl PreparedCurve {
-    fn new(curve: &ToneCurve) -> Self {
+    fn try_new(curve: &ToneCurve) -> Result<Self, PipelineError> {
         if curve.points.iter().all(|point| point.x == point.y) {
-            return Self::Identity;
+            return Ok(Self::Identity);
         }
 
-        let points: Vec<(f64, f64)> = curve
-            .points
-            .iter()
-            .map(|point| (f64::from(point.x), f64::from(point.y)))
-            .collect();
-        let slopes = pchip_slopes(&points);
-        let segments = points
-            .windows(2)
-            .enumerate()
-            .map(|(index, pair)| {
-                let (x0, y0) = pair[0];
-                let (x1, y1) = pair[1];
-                let width = x1 - x0;
-                let first_tangent = width * slopes[index];
-                let second_tangent = width * slopes[index + 1];
-                PchipSegment {
-                    x0,
-                    x1,
-                    y0,
-                    y1,
-                    cubic: 2.0 * (y0 - y1) + first_tangent + second_tangent,
-                    quadratic: 3.0 * (y1 - y0) - 2.0 * first_tangent - second_tangent,
-                    linear: first_tangent,
-                }
-            })
-            .collect();
-        Self::Pchip {
-            segments,
-            first_y: points[0].1,
-            first_slope: slopes[0],
-            last_y: points[points.len() - 1].1,
-            last_slope: slopes[slopes.len() - 1],
+        let slopes = pchip_slopes(curve);
+        let segment_count = curve.points.len() - 1;
+        let mut segments = Vec::new();
+        fail_test_allocation()?;
+        segments
+            .try_reserve_exact(segment_count)
+            .map_err(|_| PipelineError::ResourceLimit(crate::io::LimitError::Allocation))?;
+        for (index, pair) in curve.points.windows(2).enumerate() {
+            let x0 = f64::from(pair[0].x);
+            let y0 = f64::from(pair[0].y);
+            let x1 = f64::from(pair[1].x);
+            let y1 = f64::from(pair[1].y);
+            let width = x1 - x0;
+            let first_tangent = width * slopes[index];
+            let second_tangent = width * slopes[index + 1];
+            segments.push(PchipSegment {
+                x0,
+                x1,
+                y0,
+                y1,
+                cubic: 2.0 * (y0 - y1) + first_tangent + second_tangent,
+                quadratic: 3.0 * (y1 - y0) - 2.0 * first_tangent - second_tangent,
+                linear: first_tangent,
+            });
         }
+        Ok(Self::Pchip {
+            segments,
+            first_y: f64::from(curve.points[0].y),
+            first_slope: slopes[0],
+            last_y: f64::from(curve.points[curve.points.len() - 1].y),
+            last_slope: slopes[curve.points.len() - 1],
+        })
     }
 
     fn is_identity(&self) -> bool {
@@ -213,22 +248,21 @@ impl PreparedCurve {
     }
 }
 
-fn pchip_slopes(points: &[(f64, f64)]) -> Vec<f64> {
-    let segment_count = points.len() - 1;
-    let widths: Vec<f64> = points
-        .windows(2)
-        .map(|pair| pair[1].0 - pair[0].0)
-        .collect();
-    let secants: Vec<f64> = points
-        .windows(2)
-        .zip(&widths)
-        .map(|(pair, width)| (pair[1].1 - pair[0].1) / width)
-        .collect();
+fn pchip_slopes(curve: &ToneCurve) -> [f64; 32] {
+    let segment_count = curve.points.len() - 1;
+    let mut widths = [0.0_f64; 31];
+    let mut secants = [0.0_f64; 31];
+    for (index, pair) in curve.points.windows(2).enumerate() {
+        widths[index] = f64::from(pair[1].x) - f64::from(pair[0].x);
+        secants[index] = (f64::from(pair[1].y) - f64::from(pair[0].y)) / widths[index];
+    }
+    let mut slopes = [0.0_f64; 32];
     if segment_count == 1 {
-        return vec![secants[0], secants[0]];
+        slopes[0] = secants[0];
+        slopes[1] = secants[0];
+        return slopes;
     }
 
-    let mut slopes = vec![0.0; points.len()];
     for index in 1..segment_count {
         let before = secants[index - 1];
         let after = secants[index];
@@ -251,6 +285,21 @@ fn pchip_slopes(points: &[(f64, f64)]) -> Vec<f64> {
     slopes
 }
 
+#[cfg(test)]
+thread_local! {
+    static FORCE_ALLOCATION_FAILURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn fail_test_allocation() -> Result<(), PipelineError> {
+    #[cfg(test)]
+    if FORCE_ALLOCATION_FAILURE.with(std::cell::Cell::get) {
+        return Err(PipelineError::ResourceLimit(
+            crate::io::LimitError::Allocation,
+        ));
+    }
+    Ok(())
+}
+
 fn endpoint_slope(width: f64, adjacent_width: f64, secant: f64, adjacent_secant: f64) -> f64 {
     let mut slope = ((2.0 * width + adjacent_width) * secant - width * adjacent_secant)
         / (width + adjacent_width);
@@ -260,4 +309,35 @@ fn endpoint_slope(width: f64, adjacent_width: f64, secant: f64, adjacent_secant:
         slope = 3.0 * secant;
     }
     slope
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+    use crate::develop::{CurvePoint, RgbaPixel};
+
+    #[test]
+    fn allocation_failure_happens_before_the_first_pixel_change() {
+        let mut settings = ToneCurvesSettings::default();
+        settings.master.points = vec![
+            CurvePoint { x: 0.0, y: 0.0 },
+            CurvePoint { x: 0.5, y: 0.7 },
+            CurvePoint { x: 1.0, y: 1.0 },
+        ];
+        let pixel = RgbaPixel::new(0.2, 0.4, 0.8, 0.5).unwrap();
+        let mut image = CpuImage::new(2, 1, vec![pixel; 2]).unwrap();
+        let original = image.clone();
+
+        FORCE_ALLOCATION_FAILURE.with(|flag| flag.set(true));
+        let result = apply(&mut image, &settings);
+        FORCE_ALLOCATION_FAILURE.with(|flag| flag.set(false));
+
+        assert_eq!(
+            result,
+            Err(PipelineError::ResourceLimit(
+                crate::io::LimitError::Allocation
+            ))
+        );
+        assert_eq!(image, original);
+    }
 }

@@ -1,5 +1,5 @@
 use grainroom::develop::{
-    CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopStage,
+    CpuImage, CurvePoint, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopStage,
     DevelopWorkingSetProfile, LocalAdjustments, PipelineError, RadialMask, RgbaPixel,
     estimate_develop_working_set,
 };
@@ -78,7 +78,7 @@ fn bounded_render_is_transactional_and_matches_unbounded_render() {
 }
 
 #[test]
-fn every_unproven_allocation_family_fails_closed_before_rendering() {
+fn every_unproven_spatial_family_fails_closed_before_rendering() {
     let limits = ResourceLimits::default();
 
     let mut clarity = DevelopSettings::default();
@@ -88,18 +88,6 @@ fn every_unproven_allocation_family_fails_closed_before_rendering() {
     let mut geometry = DevelopSettings::default();
     geometry.geometry.quarter_turns_clockwise = 1;
     assert_unproven(&geometry, DevelopStage::Geometry, &limits);
-
-    let mut curves = DevelopSettings::default();
-    curves.tone_curves.master.points[1].y = 0.75;
-    assert_unproven(&curves, DevelopStage::ToneCurves, &limits);
-
-    let mut mixer = DevelopSettings::default();
-    mixer.color_mixer.red.saturation = 1.0;
-    assert_unproven(&mixer, DevelopStage::ColorMixer, &limits);
-
-    let mut grading = DevelopSettings::default();
-    grading.color_grading.midtones.saturation = 1.0;
-    assert_unproven(&grading, DevelopStage::ColorGrading, &limits);
 
     let mut radial = DevelopSettings::default();
     radial.radial_masks.masks.push(RadialMask {
@@ -129,6 +117,98 @@ fn every_unproven_allocation_family_fails_closed_before_rendering() {
         configure(&mut effects);
         assert_unproven(&effects, DevelopStage::Effects, &limits);
     }
+}
+
+fn max_curve(offset: f32) -> Vec<CurvePoint> {
+    (0..32)
+        .map(|index| {
+            let x = index as f32 / 31.0;
+            CurvePoint {
+                x,
+                y: (x * (1.0 - offset) + offset * x * x).clamp(0.0, 1.0),
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn color_v1_max_curves_have_an_exact_peak_and_apply_all_color_stages() {
+    let mut settings = pointwise_settings();
+    settings.tone_curves.master.points = max_curve(0.10);
+    settings.tone_curves.red.points = max_curve(0.20);
+    settings.tone_curves.green.points = max_curve(0.30);
+    settings.tone_curves.blue.points = max_curve(0.40);
+    settings.color_mixer.blue.saturation = 17.0;
+    settings.color_grading.midtones.hue_degrees = 210.0;
+    settings.color_grading.midtones.saturation = 12.0;
+
+    // Four 31-segment curves, each segment is seven f64 coefficients.
+    let curve_payload = 4 * 31 * 7 * 8;
+    let exact_peak = 2 * 2 * 32 + curve_payload;
+    let exact = ResourceLimits::default().with_max_working_bytes(exact_peak);
+    let estimate = estimate_develop_working_set(2, 2, &settings, &exact).unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::ColorV1);
+    assert_eq!(estimate.stage_scratch_bytes, curve_payload);
+    assert_eq!(estimate.peak_bytes, exact_peak);
+
+    let original = image(2, 2);
+    let mut rendered = original.clone();
+    let context = DevelopRenderContext::from_source_digest([0x25; 32]);
+    DevelopPipeline
+        .process_bounded_with_context(&mut rendered, &settings, Some(&context), &exact)
+        .unwrap();
+    assert_ne!(rendered, original);
+
+    let below = ResourceLimits::default().with_max_working_bytes(exact_peak - 1);
+    let mut unchanged = original.clone();
+    assert_eq!(
+        DevelopPipeline.process_bounded_with_context(
+            &mut unchanged,
+            &settings,
+            Some(&context),
+            &below
+        ),
+        Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
+            requested: exact_peak,
+            maximum: exact_peak - 1,
+        }))
+    );
+    assert_eq!(unchanged, original);
+}
+
+#[test]
+fn mixer_and_grading_add_no_heap_scratch() {
+    let mut settings = DevelopSettings::default();
+    settings.color_mixer.red.hue_shift_degrees = 15.0;
+    settings.color_grading.highlights.saturation = 20.0;
+    let estimate = estimate_develop_working_set(
+        2,
+        2,
+        &settings,
+        &ResourceLimits::default().with_max_working_bytes(128),
+    )
+    .unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::ColorV1);
+    assert_eq!(estimate.stage_scratch_bytes, 0);
+    assert_eq!(estimate.peak_bytes, 128);
+}
+
+#[test]
+fn malformed_curve_is_rejected_before_clone_or_mutation() {
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.8 },
+        CurvePoint { x: 0.5, y: 0.9 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    let mut candidate = image(2, 2);
+    let original = candidate.clone();
+    assert!(matches!(
+        DevelopPipeline.process_bounded(&mut candidate, &settings, &ResourceLimits::default()),
+        Err(PipelineError::InvalidSettings(_))
+    ));
+    assert_eq!(candidate, original);
 }
 
 fn assert_unproven(settings: &DevelopSettings, stage: DevelopStage, limits: &ResourceLimits) {

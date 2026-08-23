@@ -11,6 +11,9 @@ use std::fmt;
 pub enum DevelopWorkingSetProfile {
     /// Transactional image copy plus allocation-free pointwise stages.
     PointwiseV1,
+    /// PointwiseV1 plus bounded prepared tone curves and allocation-free
+    /// color mixer/grading state.
+    ColorV1,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -158,8 +161,17 @@ fn estimate_validated_working_set(
         .checked_mul(16)
         .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
     let transactional_image_bytes = source_image_bytes;
+    let color_active = !settings.tone_curves.is_neutral()
+        || !settings.color_mixer.is_neutral()
+        || !settings.color_grading.is_neutral();
+    let stage_scratch_bytes = if color_active {
+        stages::color_v1_heap_bytes(settings)?
+    } else {
+        0
+    };
     let peak_bytes = source_image_bytes
         .checked_add(transactional_image_bytes)
+        .and_then(|bytes| bytes.checked_add(stage_scratch_bytes))
         .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
     if peak_bytes > limits.max_working_bytes {
         return Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
@@ -168,11 +180,15 @@ fn estimate_validated_working_set(
         }));
     }
     Ok(DevelopWorkingSetEstimate {
-        profile: DevelopWorkingSetProfile::PointwiseV1,
+        profile: if color_active {
+            DevelopWorkingSetProfile::ColorV1
+        } else {
+            DevelopWorkingSetProfile::PointwiseV1
+        },
         pixels,
         source_image_bytes,
         transactional_image_bytes,
-        stage_scratch_bytes: 0,
+        stage_scratch_bytes,
         peak_bytes,
     })
 }
@@ -183,15 +199,6 @@ fn unproven_stage(settings: &DevelopSettings) -> Option<DevelopStage> {
     }
     if settings.basics.clarity != 0.0 {
         return Some(DevelopStage::Basics);
-    }
-    if !settings.tone_curves.is_neutral() {
-        return Some(DevelopStage::ToneCurves);
-    }
-    if !settings.color_mixer.is_neutral() {
-        return Some(DevelopStage::ColorMixer);
-    }
-    if !settings.color_grading.is_neutral() {
-        return Some(DevelopStage::ColorGrading);
     }
     if !settings.radial_masks.is_neutral() {
         return Some(DevelopStage::RadialMasks);
