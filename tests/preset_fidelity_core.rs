@@ -1,6 +1,7 @@
 use grainroom::develop::{
-    CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, ParameterOverride, PresetDocument,
-    PresetError, RgbaPixel, ToneCurve, apply_parameter_overrides, parameter_registry,
+    CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, LocalAdjustments, ParameterOverride,
+    PresetDocument, PresetError, RadialMask, RgbaPixel, ToneCurve, apply_parameter_overrides,
+    parameter_registry,
 };
 
 const V1_NEUTRAL: &str = include_str!("fixtures/preset-v1-neutral.json");
@@ -196,6 +197,71 @@ fn preset_v1_migrates_explicitly_and_v2_is_strict() {
     assert_eq!(direct_v2, migrated);
 }
 
+fn preset_with_local_exposure(exposure_ev: f32) -> PresetDocument {
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(RadialMask {
+        id: "schema-mask".to_owned(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 0.25,
+        radius_y: 0.25,
+        rotation_degrees: 0.0,
+        feather: 0.5,
+        opacity: 1.0,
+        invert: false,
+        adjustments: LocalAdjustments {
+            exposure_ev,
+            ..LocalAdjustments::default()
+        },
+    });
+    PresetDocument::new("local-schema", "Local schema", settings)
+}
+
+#[test]
+fn local_exposure_is_required_in_v2_and_migrated_only_from_v1() {
+    let v2 = preset_with_local_exposure(0.0).to_canonical_json().unwrap();
+    let missing_v2 = v2.replacen(
+        "\"adjustments\":{\"exposure_ev\":0.0,",
+        "\"adjustments\":{",
+        1,
+    );
+    assert!(matches!(
+        PresetDocument::from_json(&missing_v2),
+        Err(PresetError::MissingRequiredField(
+            "settings.radial_masks.masks[].adjustments.exposure_ev"
+        ))
+    ));
+    assert!(serde_json::from_str::<PresetDocument>(&missing_v2).is_err());
+
+    let v1 = missing_v2
+        .replacen("\"schema_version\":2", "\"schema_version\":1", 1)
+        .replacen("\"exposure_ev\":0.0,", "", 1);
+    let migrated = PresetDocument::from_json(&v1).unwrap();
+    assert_eq!(
+        migrated.settings.radial_masks.masks[0]
+            .adjustments
+            .exposure_ev,
+        0.0
+    );
+    let direct: PresetDocument = serde_json::from_str(&v1).unwrap();
+    assert_eq!(direct, migrated);
+
+    let illegal_v1 = v1.replacen(
+        "\"adjustments\":{",
+        "\"adjustments\":{\"exposure_ev\":1.0,",
+        1,
+    );
+    assert!(matches!(
+        PresetDocument::from_json(&illegal_v1),
+        Err(PresetError::FieldNotAvailable {
+            version: 1,
+            path: "settings.radial_masks.masks[].adjustments.exposure_ev"
+        })
+    ));
+    assert!(serde_json::from_str::<PresetDocument>(&illegal_v1).is_err());
+}
+
 #[test]
 fn registry_and_override_expose_typed_stops() {
     let registry = parameter_registry();
@@ -223,4 +289,9 @@ fn registry_and_override_expose_typed_stops() {
     )
     .unwrap();
     assert_eq!(settings.basics.exposure_ev, 1.5);
+    let local = registry
+        .iter()
+        .find(|definition| definition.id == "radial_masks[].adjustments.exposure_ev")
+        .unwrap();
+    assert_eq!((local.minimum, local.maximum, local.step), (-4.0, 4.0, 0.1));
 }

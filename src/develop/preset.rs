@@ -5,6 +5,7 @@ use std::fmt;
 pub const PRESET_SCHEMA_VERSION: u32 = 2;
 const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
 pub const PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
+const LOCAL_EXPOSURE_PATH: &str = "settings.radial_masks.masks[].adjustments.exposure_ev";
 
 #[derive(Deserialize)]
 struct PresetEnvelope {
@@ -61,11 +62,14 @@ impl<'de> Deserialize<'de> for PresetDocument {
                     ));
                 }
                 basics.insert("exposure_ev".to_owned(), serde_json::Value::from(0.0));
+                migrate_v1_local_exposure(&mut settings_value).map_err(D::Error::custom)?;
             }
             PRESET_SCHEMA_VERSION if !has_exposure => {
                 return Err(D::Error::missing_field("settings.basics.exposure_ev"));
             }
-            PRESET_SCHEMA_VERSION => {}
+            PRESET_SCHEMA_VERSION => {
+                require_v2_local_exposure(&settings_value).map_err(D::Error::custom)?;
+            }
             _ => unreachable!("version checked above"),
         }
 
@@ -143,6 +147,13 @@ impl PresetDocument {
                 path: "settings.basics.exposure_ev",
             });
         }
+        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION && has_any_local_exposure(&value)
+        {
+            return Err(PresetError::FieldNotAvailable {
+                version: LEGACY_PRESET_SCHEMA_VERSION,
+                path: LOCAL_EXPOSURE_PATH,
+            });
+        }
         if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
             validate_v1_value_semantics(&value)?;
         }
@@ -152,6 +163,9 @@ impl PresetDocument {
             return Err(PresetError::MissingRequiredField(
                 "settings.basics.exposure_ev",
             ));
+        }
+        if envelope.schema_version == PRESET_SCHEMA_VERSION && has_missing_local_exposure(&value) {
+            return Err(PresetError::MissingRequiredField(LOCAL_EXPOSURE_PATH));
         }
         let document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
         document.validate()?;
@@ -166,6 +180,67 @@ impl PresetDocument {
         canonical.settings.canonicalize();
         serde_json::to_string(&canonical).map_err(PresetError::Json)
     }
+}
+
+fn local_adjustments(
+    value: &serde_json::Value,
+) -> impl Iterator<Item = &serde_json::Map<String, serde_json::Value>> {
+    value
+        .pointer("/settings/radial_masks/masks")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|mask| mask.get("adjustments"))
+        .filter_map(serde_json::Value::as_object)
+}
+
+fn has_any_local_exposure(value: &serde_json::Value) -> bool {
+    local_adjustments(value).any(|adjustments| adjustments.contains_key("exposure_ev"))
+}
+
+fn has_missing_local_exposure(value: &serde_json::Value) -> bool {
+    local_adjustments(value).any(|adjustments| !adjustments.contains_key("exposure_ev"))
+}
+
+fn migrate_v1_local_exposure(value: &mut serde_json::Value) -> Result<(), &'static str> {
+    let Some(masks) = value
+        .pointer_mut("/radial_masks/masks")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return Ok(());
+    };
+    for mask in masks {
+        let Some(adjustments) = mask
+            .get_mut("adjustments")
+            .and_then(serde_json::Value::as_object_mut)
+        else {
+            continue;
+        };
+        if adjustments.contains_key("exposure_ev") {
+            return Err("local exposure is unavailable in schema v1");
+        }
+        adjustments.insert("exposure_ev".to_owned(), serde_json::Value::from(0.0));
+    }
+    Ok(())
+}
+
+fn require_v2_local_exposure(value: &serde_json::Value) -> Result<(), &'static str> {
+    if has_missing_local_exposure_in_settings(value) {
+        Err("missing field settings.radial_masks.masks[].adjustments.exposure_ev")
+    } else {
+        Ok(())
+    }
+}
+
+fn has_missing_local_exposure_in_settings(value: &serde_json::Value) -> bool {
+    value
+        .pointer("/radial_masks/masks")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|mask| mask.get("adjustments"))
+        .filter_map(serde_json::Value::as_object)
+        .any(|adjustments| !adjustments.contains_key("exposure_ev"))
 }
 
 fn validate_v1_value_semantics(value: &serde_json::Value) -> Result<(), PresetError> {

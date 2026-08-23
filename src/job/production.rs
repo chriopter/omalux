@@ -330,6 +330,7 @@ mod tests {
             opacity: 1.0,
             invert: true,
             adjustments: LocalAdjustments {
+                exposure_ev: 0.75,
                 brightness: 5.0,
                 sharpness: 10.0,
                 ..LocalAdjustments::default()

@@ -25,6 +25,7 @@ fn mask(id: &str) -> RadialMask {
         opacity: 0.8,
         invert: false,
         adjustments: LocalAdjustments {
+            exposure_ev: 0.0,
             brightness: 20.0,
             contrast: -10.0,
             saturation: 15.0,
@@ -118,6 +119,7 @@ fn invert_changes_outside_instead_of_inside() {
 #[test]
 fn every_local_point_slider_is_bit_exact_to_wp1_global_math() {
     for field in [
+        "exposure_ev",
         "brightness",
         "contrast",
         "saturation",
@@ -141,6 +143,10 @@ fn every_local_point_slider_is_bit_exact_to_wp1_global_math() {
         let mut global_settings = DevelopSettings::default();
         let mut adjustments = LocalAdjustments::default();
         match field {
+            "exposure_ev" => {
+                global_settings.basics.exposure_ev = 1.75;
+                adjustments.exposure_ev = 1.75;
+            }
             "brightness" => {
                 global_settings.basics.brightness = 37.0;
                 adjustments.brightness = 37.0;
@@ -176,6 +182,119 @@ fn every_local_point_slider_is_bit_exact_to_wp1_global_math() {
             .unwrap();
         assert_eq!(local, global, "local {field} diverged from WP1");
     }
+}
+
+#[test]
+fn local_exposure_precedes_brightness_and_contrast_exactly_like_global_basics() {
+    let source = CpuImage::new(
+        5,
+        1,
+        [-0.5, 0.0, 0.18, 1.0, 3.0]
+            .into_iter()
+            .map(|value| RgbaPixel::new(value, value * 0.7, value * 1.3, 0.42).unwrap())
+            .collect(),
+    )
+    .unwrap();
+    let mut global = source.clone();
+    let mut local = source;
+    let mut global_settings = DevelopSettings::default();
+    global_settings.basics.exposure_ev = -1.25;
+    global_settings.basics.brightness = 37.0;
+    global_settings.basics.contrast = 62.0;
+    let adjustments = LocalAdjustments {
+        exposure_ev: -1.25,
+        brightness: 37.0,
+        contrast: 62.0,
+        ..LocalAdjustments::default()
+    };
+    let mut local_settings = DevelopSettings::default();
+    local_settings
+        .radial_masks
+        .masks
+        .push(full_mask(adjustments));
+    DevelopPipeline
+        .process(&mut global, &global_settings)
+        .unwrap();
+    DevelopPipeline
+        .process(&mut local, &local_settings)
+        .unwrap();
+    assert_eq!(local, global);
+}
+
+#[test]
+fn local_exposure_feather_invert_and_two_mask_order_are_deterministic() {
+    let source = CpuImage::new(
+        19,
+        13,
+        (0..247)
+            .map(|index| {
+                let value = -0.3 + index as f32 / 53.0;
+                RgbaPixel::new(value, value * 0.8, value * 1.4, 0.31).unwrap()
+            })
+            .collect(),
+    )
+    .unwrap();
+    let mut first = mask("first");
+    first.adjustments = LocalAdjustments {
+        exposure_ev: 1.25,
+        contrast: 18.0,
+        ..LocalAdjustments::default()
+    };
+    first.feather = 0.7;
+    let mut second = mask("second");
+    second.adjustments = LocalAdjustments {
+        exposure_ev: -0.75,
+        brightness: 21.0,
+        ..LocalAdjustments::default()
+    };
+    second.center_x = 0.68;
+    second.invert = true;
+    let render = |masks: Vec<RadialMask>| {
+        let mut rendered = source.clone();
+        let mut settings = DevelopSettings::default();
+        settings.radial_masks.masks = masks;
+        DevelopPipeline.process(&mut rendered, &settings).unwrap();
+        rendered
+    };
+    let forward = render(vec![first.clone(), second.clone()]);
+    assert_eq!(forward, render(vec![first.clone(), second.clone()]));
+    let reverse = render(vec![second, first]);
+    assert_ne!(
+        forward, reverse,
+        "mask layers must preserve persisted order"
+    );
+    assert!(forward.pixels().iter().all(|pixel| pixel.alpha() == 0.31));
+    assert!(forward.pixels().iter().all(|pixel| {
+        pixel.red().is_finite() && pixel.green().is_finite() && pixel.blue().is_finite()
+    }));
+}
+
+#[test]
+fn two_local_exposure_masks_shape_a_synthetic_lit_scene() {
+    let mut rendered = CpuImage::new(
+        25,
+        25,
+        vec![RgbaPixel::new(0.12, 0.1, 0.08, 1.0).unwrap(); 625],
+    )
+    .unwrap();
+    let mut settings = DevelopSettings::default();
+    for (id, center_x, exposure_ev) in [("left", 0.32, 2.0), ("right", 0.72, -1.0)] {
+        let mut radial = full_mask(LocalAdjustments {
+            exposure_ev,
+            ..LocalAdjustments::default()
+        });
+        radial.id = id.to_owned();
+        radial.center_x = center_x;
+        radial.radius_x = 0.22;
+        radial.radius_y = 0.4;
+        radial.feather = 0.65;
+        settings.radial_masks.masks.push(radial);
+    }
+    DevelopPipeline.process(&mut rendered, &settings).unwrap();
+    let left = rendered.pixels()[12 * 25 + 8].red();
+    let right = rendered.pixels()[12 * 25 + 18].red();
+    assert!(left > 0.12);
+    assert!(right < left);
 }
 
 #[test]
@@ -273,5 +392,45 @@ fn negative_local_sharpness_is_loudly_unsupported_and_atomic() {
             DevelopStage::RadialMasks
         ))
     );
+    assert_eq!(rendered, original);
+}
+
+#[test]
+fn local_exposure_range_and_overflow_fail_atomically() {
+    for exposure_ev in [-4.0, 4.0] {
+        let mut settings = DevelopSettings::default();
+        settings
+            .radial_masks
+            .masks
+            .push(full_mask(LocalAdjustments {
+                exposure_ev,
+                ..LocalAdjustments::default()
+            }));
+        settings.validate().unwrap();
+    }
+    for exposure_ev in [-4.01, 4.01, f32::NAN, f32::INFINITY] {
+        let mut settings = DevelopSettings::default();
+        settings
+            .radial_masks
+            .masks
+            .push(full_mask(LocalAdjustments {
+                exposure_ev,
+                ..LocalAdjustments::default()
+            }));
+        assert!(settings.validate().is_err());
+    }
+
+    let mut rendered =
+        CpuImage::new(1, 1, vec![RgbaPixel::new(f32::MAX, 1.0, 1.0, 0.8).unwrap()]).unwrap();
+    let original = rendered.clone();
+    let mut settings = DevelopSettings::default();
+    settings
+        .radial_masks
+        .masks
+        .push(full_mask(LocalAdjustments {
+            exposure_ev: 4.0,
+            ..LocalAdjustments::default()
+        }));
+    assert!(DevelopPipeline.process(&mut rendered, &settings).is_err());
     assert_eq!(rendered, original);
 }

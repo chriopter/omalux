@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LocalAdjustments {
+    pub exposure_ev: f32,
     pub brightness: f32,
     pub contrast: f32,
     pub saturation: f32,
@@ -14,6 +15,12 @@ pub struct LocalAdjustments {
 
 impl LocalAdjustments {
     fn validate(&self, index: usize) -> Result<(), SettingsError> {
+        validate_range_lazy(
+            || format!("radial_masks.masks[{index}].adjustments.exposure_ev"),
+            self.exposure_ev,
+            -4.0,
+            4.0,
+        )?;
         for (name, value) in [
             ("brightness", self.brightness),
             ("contrast", self.contrast),
@@ -37,6 +44,7 @@ impl LocalAdjustments {
     }
 
     fn canonicalize(&mut self) {
+        self.exposure_ev = canonical_zero(self.exposure_ev);
         self.brightness = canonical_zero(self.brightness);
         self.contrast = canonical_zero(self.contrast);
         self.saturation = canonical_zero(self.saturation);

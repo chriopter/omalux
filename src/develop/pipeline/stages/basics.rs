@@ -71,7 +71,7 @@ impl PreparedBasics {
     pub(super) fn from_local(settings: &LocalAdjustments) -> Self {
         Self {
             white_balance: prepare_temperature_tint_matrix(settings.temperature, settings.tint),
-            exposure_ev: 0.0,
+            exposure_ev: f64::from(settings.exposure_ev),
             brightness_ev: f64::from(settings.brightness) / 100.0,
             whites: 0.0,
             blacks: 0.0,

@@ -320,6 +320,7 @@ mod tests {
             opacity: 0.8,
             invert: false,
             adjustments: LocalAdjustments {
+                exposure_ev: 0.75,
                 brightness: 8.0,
                 sharpness: 12.0,
                 ..LocalAdjustments::default()
@@ -375,6 +376,10 @@ mod tests {
             !ids.iter()
                 .any(|id| id == "radial_masks[].adjustments.sharpness")
         );
+        assert!(
+            !ids.iter()
+                .any(|id| id == "radial_masks[].adjustments.exposure_ev")
+        );
         let clarity = parse_parameter_override("basics.clarity=100").unwrap();
         let clarity = apply_parameter_overrides(&DevelopSettings::default(), &[clarity]).unwrap();
         assert_eq!(
@@ -389,6 +394,7 @@ mod tests {
         let parsed: DevelopSettings =
             serde_json::from_str(&settings_json(&settings).unwrap()).unwrap();
         assert_eq!(parsed, settings);
+        assert_eq!(parsed.radial_masks.masks[0].adjustments.exposure_ev, 0.75);
         let estimate =
             estimate_develop_working_set(8, 6, &parsed, &ResourceLimits::default()).unwrap();
         assert!(estimate.profile.geometry_v1);

@@ -136,7 +136,8 @@ RGBA-f32 output. Non-inverted masks use their clipped rotated-ellipse bound;
 inverted masks use the full frame. The normative seven-tap local-sharpness
 kernel and its seven-value horizontal scratch are fixed stack arrays. Thus the
 heap scratch is exactly `16 * max(active ROI pixels)`. Negative local sharpness
-remains unsupported and fails before mutation.
+remains unsupported and fails before mutation. Local Exposure EV is a heap-free
+point operation and does not change the ROI estimate.
 
 ## Allocation audit and gates
 

@@ -51,7 +51,8 @@ bloom, halation, and sharpness with a conservative full-plane/tile peak.
 Color and spatial families use the larger sequential scratch peak. GeometryV1
 adds fallible orthogonal/projective/crop images. RadialMasksV1 adds one exact
 largest-ROI output while analytic coverage and its local-sharpness kernel stay
-on the stack. Negative local sharpness remains fail-closed before mutation.
+on the stack. Local Exposure EV shares the global scene-linear exposure kernel
+and adds no scratch. Negative local sharpness remains fail-closed before mutation.
 
 The develop peak is the resident source image plus its exact transactional
 copy. For RAW, scene-to-display follows after that copy has committed and been

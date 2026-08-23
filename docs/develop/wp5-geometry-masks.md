@@ -41,11 +41,12 @@ Using global coordinates makes a full-frame evaluation invariant to how a
 future scheduler divides the image into tiles.
 
 Local edits are generated through a processor trait, then straight-RGB
-composited by analytic coverage while alpha remains unchanged. Brightness,
-contrast, saturation, temperature, and tint use the same prepared WP1 kernels
-and order as global Basics. Positive sharpness uses the same WP3 Gaussian,
+composited by analytic coverage while alpha remains unchanged. Scene-linear
+Exposure EV, brightness, contrast, saturation, temperature, and tint use the
+same prepared WP1 kernels and order as global Basics; Exposure EV runs before
+the other local point controls. Positive sharpness uses the same WP3 Gaussian,
 threshold, luma coefficients, strength, Reflect101 halo, and finite conversion
-as global USM. The version-1 local schema permits negative sharpness although
+as global USM. The RadialMasksV1 local model permits negative sharpness although
 WP3 does not define it; active negative local sharpness therefore fails loudly
 at preflight instead of inventing blur semantics.
 

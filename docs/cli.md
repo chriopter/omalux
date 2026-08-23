@@ -55,7 +55,7 @@ SpatialV1, GeometryV1, and RadialMasksV1 components. These cover pointwise Basic
 Exposure EV, Fade, Vignette, Grain, structured extended-domain tone curves,
 scalar Color Mixer/Color Grading,
 global Clarity, Bloom, Halation, Sharpness, crop/rotate/projective geometry, and
-analytic radial masks with non-negative local sharpness. Supported presets and
+analytic radial masks with local Exposure EV and non-negative local sharpness. Supported presets and
 `--set` overrides are applied before encoding. The schema-version-4 report names
 the output format, codec provenance, explicit profile components, and estimated
 peak. Negative local sharpness remains fail-closed before develop mutation or

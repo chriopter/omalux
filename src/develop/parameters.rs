@@ -430,6 +430,15 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         "Mask invert",
         RadialMasks,
     ));
+    definitions.push(ParameterDefinition::scalar(
+        "radial_masks[].adjustments.exposure_ev",
+        "Mask exposure",
+        RadialMasks,
+        Stops,
+        (-4.0, 4.0),
+        0.0,
+        0.1,
+    ));
     for name in [
         "brightness",
         "contrast",
