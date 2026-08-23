@@ -9,6 +9,10 @@ const REC2020_LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const SCENE_MIDDLE_GREY: f64 = 0.18;
 const DISPLAY_MIDDLE_GREY: f64 = 0.18;
 const LOG_CONTRAST: f64 = 1.7;
+// Keeps chromatic target boundaries away from small differences between the
+// documented matrix and LCMS' generated profiles. The local bounds always
+// include neutral black/white, so neutral endpoints are not lifted or lowered.
+const TARGET_GAMUT_INSET: f64 = 2.0e-4;
 // D65 linear-light matrices. They are kept here, rather than delegated to an
 // encoded ICC transform, because gamut compression operates in target-linear
 // coordinates before the existing LCMS output transform applies the sRGB TRC.
@@ -135,18 +139,21 @@ fn compress_to_srgb_gamut(rec2020: [f64; 4]) -> ([f64; 4], bool) {
     let rgb = [rec2020[0], rec2020[1], rec2020[2]];
     let neutral = dot(rgb, REC2020_LUMA).clamp(0.0, 1.0);
     let target = multiply_matrix(REC2020_TO_SRGB, rgb);
+    let lower_bound = neutral.min(TARGET_GAMUT_INSET);
+    let upper_bound = neutral.max(1.0 - TARGET_GAMUT_INSET);
     let mut chroma_scale = 1.0_f64;
     for sample in target {
         let delta = sample - neutral;
-        if sample < 0.0 && delta < 0.0 {
-            chroma_scale = chroma_scale.min(neutral / -delta);
-        } else if sample > 1.0 && delta > 0.0 {
-            chroma_scale = chroma_scale.min((1.0 - neutral) / delta);
+        if sample < lower_bound && delta < 0.0 {
+            chroma_scale = chroma_scale.min((neutral - lower_bound) / -delta);
+        } else if sample > upper_bound && delta > 0.0 {
+            chroma_scale = chroma_scale.min((upper_bound - neutral) / delta);
         }
     }
     chroma_scale = chroma_scale.clamp(0.0, 1.0);
-    let mapped_target =
-        target.map(|sample| (neutral + chroma_scale * (sample - neutral)).clamp(0.0, 1.0));
+    let mapped_target = target.map(|sample| {
+        (neutral + chroma_scale * (sample - neutral)).clamp(lower_bound, upper_bound)
+    });
     let mapped = multiply_matrix(SRGB_TO_REC2020, mapped_target);
     (
         [mapped[0], mapped[1], mapped[2], rec2020[3]],
