@@ -26,7 +26,10 @@ pub use overrides::{
 pub use parameters::{
     NeutralRepresentation, ParameterDefinition, ParameterKind, ParameterUnit, parameter_registry,
 };
-pub use pipeline::{DevelopPipeline, PipelineError};
+pub use pipeline::{
+    DevelopPipeline, DevelopWorkingSetEstimate, DevelopWorkingSetProfile, PipelineError,
+    estimate_develop_working_set,
+};
 pub use preset::{PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
 pub use settings::{
     BasicsSettings, ColorBandAdjustment, ColorGradeRange, ColorGradingSettings, ColorMixerSettings,
