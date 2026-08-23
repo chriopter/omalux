@@ -282,12 +282,38 @@ fn run_job(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grainroom::develop::{ParameterOverrideValue, parse_parameter_override};
+    use grainroom::develop::{
+        LocalAdjustments, ParameterOverrideValue, RadialMask, parse_parameter_override,
+    };
     use std::fs;
 
     fn jpeg_fixture(path: &Path) {
-        let image = image::RgbImage::from_pixel(2, 2, image::Rgb([80, 120, 160]));
+        let image = image::RgbImage::from_pixel(8, 6, image::Rgb([80, 120, 160]));
         image.save(path).unwrap();
+    }
+
+    fn geometry_radial_settings() -> DevelopSettings {
+        let mut settings = DevelopSettings::default();
+        settings.geometry.quarter_turns_clockwise = 1;
+        settings.geometry.straighten_degrees = 2.0;
+        settings.radial_masks.masks.push(RadialMask {
+            id: "gui-positive-local-mask".to_owned(),
+            enabled: true,
+            center_x: 0.5,
+            center_y: 0.5,
+            radius_x: 0.35,
+            radius_y: 0.3,
+            rotation_degrees: 15.0,
+            feather: 0.5,
+            opacity: 0.8,
+            invert: false,
+            adjustments: LocalAdjustments {
+                brightness: 8.0,
+                sharpness: 12.0,
+                ..LocalAdjustments::default()
+            },
+        });
+        settings
     }
 
     #[test]
@@ -314,11 +340,51 @@ mod tests {
         ] {
             assert!(ids.iter().any(|id| id == spatial));
         }
+        for geometry in [
+            "geometry.quarter_turns_clockwise",
+            "geometry.straighten_degrees",
+            "geometry.perspective_horizontal",
+            "geometry.perspective_vertical",
+            "geometry.crop.width",
+            "geometry.crop.height",
+        ] {
+            assert!(ids.iter().any(|id| id == geometry));
+        }
+        // Crop origins require a compatible extent and therefore travel as a
+        // complete settingsJson transaction, not as an isolated scalar.
+        assert!(!ids.iter().any(|id| id == "geometry.crop.x"));
+        assert!(!ids.iter().any(|id| id == "geometry.crop.y"));
+        // Structured mask controls are transported by settingsJson rather
+        // than the scalar setParameter bridge. In particular, the bridge must
+        // never advertise local sharpness as an unrestricted -100..100
+        // scalar while the bounded pipeline intentionally rejects negatives.
+        assert!(
+            !ids.iter()
+                .any(|id| id == "radial_masks[].adjustments.sharpness")
+        );
         let clarity = parse_parameter_override("basics.clarity=100").unwrap();
         let clarity = apply_parameter_overrides(&DevelopSettings::default(), &[clarity]).unwrap();
         assert_eq!(
             ids.iter().any(|id| id == "basics.clarity"),
             estimate_develop_working_set(64, 64, &clarity, &ResourceLimits::default()).is_ok()
+        );
+    }
+
+    #[test]
+    fn settings_json_preserves_geometry_and_positive_radial_profiles() {
+        let settings = geometry_radial_settings();
+        let parsed: DevelopSettings =
+            serde_json::from_str(&settings_json(&settings).unwrap()).unwrap();
+        assert_eq!(parsed, settings);
+        let estimate =
+            estimate_develop_working_set(8, 6, &parsed, &ResourceLimits::default()).unwrap();
+        assert!(estimate.profile.geometry_v1);
+        assert!(estimate.profile.radial_masks_v1);
+
+        let mut negative = parsed;
+        negative.radial_masks.masks[0].adjustments.sharpness = -1.0;
+        assert!(
+            estimate_develop_working_set(8, 6, &negative, &ResourceLimits::default(),).is_err()
         );
     }
 
@@ -379,6 +445,59 @@ mod tests {
             preview.report().develop_working_set.profile(),
             Some(ReportDevelopWorkingSetProfile::ColorSpatialV1)
         );
+    }
+
+    #[test]
+    fn geometry_radial_settings_reach_preview_and_jpeg_export() {
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        jpeg_fixture(input.path());
+        let settings = geometry_radial_settings();
+
+        let preview =
+            develop_preview(input.path(), settings.clone(), &CancellationToken::new()).unwrap();
+        let preview_profile = preview.report().develop_working_set.profile().unwrap();
+        assert!(preview_profile.geometry_v1);
+        assert!(preview_profile.radial_masks_v1);
+        assert_eq!(image::image_dimensions(preview.path()).unwrap(), (6, 8));
+
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("geometry-radial.jpg");
+        let report = export_photo(
+            input.path(),
+            &output,
+            settings,
+            OutputFormat::Jpeg,
+            90,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let export_profile = report.develop_working_set.profile().unwrap();
+        assert!(export_profile.geometry_v1);
+        assert!(export_profile.radial_masks_v1);
+        assert_eq!(image::image_dimensions(output).unwrap(), (6, 8));
+    }
+
+    #[cfg(feature = "heic")]
+    #[test]
+    fn geometry_radial_settings_reach_heic_export() {
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        jpeg_fixture(input.path());
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("geometry-radial.heic");
+        let report = export_photo(
+            input.path(),
+            &output,
+            geometry_radial_settings(),
+            OutputFormat::Heic,
+            90,
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let profile = report.develop_working_set.profile().unwrap();
+        assert!(profile.geometry_v1);
+        assert!(profile.radial_masks_v1);
+        assert!(output.is_file());
+        assert!(fs::metadata(output).unwrap().len() > 0);
     }
 
     #[test]
