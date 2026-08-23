@@ -1,14 +1,59 @@
 use grainroom::develop::{
-    DevelopSettings, DevelopWorkingSetProfile, PresetCatalog, PresetCatalogError, PresetDocument,
-    estimate_develop_working_set, load_preset_file,
+    CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopWorkingSetProfile,
+    PresetCatalog, PresetCatalogError, PresetDocument, RgbaPixel, estimate_develop_working_set,
+    load_preset_file,
 };
 use grainroom::io::ResourceLimits;
 use std::{fs, io::Write};
 
 #[test]
-fn built_in_catalog_is_canonical_neutral_and_searchable() {
+fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     let catalog = PresetCatalog::built_in().unwrap();
-    assert_eq!(catalog.documents().len(), 1);
+    assert_eq!(catalog.documents().len(), 28);
+    let ids = catalog
+        .documents()
+        .iter()
+        .map(|document| document.id.as_str())
+        .collect::<Vec<_>>();
+    assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
+    assert_eq!(ids.first(), Some(&"community-amber-grain"));
+    assert_eq!(ids.last(), Some(&"series-cedar-fade"));
+    assert_eq!(
+        ids.iter().filter(|id| id.starts_with("personal-")).count(),
+        13
+    );
+    assert_eq!(
+        ids.iter().filter(|id| id.starts_with("community-")).count(),
+        9
+    );
+    assert_eq!(ids.iter().filter(|id| id.starts_with("series-")).count(), 5);
+    for document in catalog.documents() {
+        let canonical = document.to_canonical_json().unwrap();
+        assert_eq!(PresetDocument::from_json(&canonical).unwrap(), *document);
+        let estimate =
+            estimate_develop_working_set(64, 48, &document.settings, &ResourceLimits::default())
+                .unwrap_or_else(|error| {
+                    panic!("built-in {} has no bounded profile: {error}", document.id)
+                });
+        assert_eq!(estimate.output_width, 64);
+        assert_eq!(estimate.output_height, 48);
+        let pixels = (0..64 * 48)
+            .map(|index| {
+                let x = (index % 64) as f32 / 63.0;
+                let y = (index / 64) as f32 / 47.0;
+                RgbaPixel::new(x, y, (x + y) * 0.5, 1.0).unwrap()
+            })
+            .collect();
+        let mut image = CpuImage::new(64, 48, pixels).unwrap();
+        DevelopPipeline
+            .process_bounded_with_context(
+                &mut image,
+                &document.settings,
+                Some(&DevelopRenderContext::from_source_digest([0x73; 32])),
+                &ResourceLimits::default(),
+            )
+            .unwrap_or_else(|error| panic!("built-in {} cannot render: {error}", document.id));
+    }
     let neutral = catalog.get("neutral").unwrap();
     assert_eq!(neutral.name, "Neutral");
     assert!(neutral.settings.is_neutral());

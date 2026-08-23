@@ -354,7 +354,15 @@ mod tests {
     fn catalog_and_settings_are_core_owned_json() {
         let catalog: serde_json::Value =
             serde_json::from_str(&built_in_catalog_json().unwrap()).unwrap();
-        assert_eq!(catalog["presets"][0]["id"], "neutral");
+        assert_eq!(catalog["presets"].as_array().unwrap().len(), 28);
+        assert_eq!(catalog["presets"][0]["id"], "community-amber-grain");
+        assert!(
+            catalog["presets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|entry| entry["id"] == "neutral")
+        );
         let settings = built_in_settings("neutral").unwrap();
         let parsed: DevelopSettings =
             serde_json::from_str(&settings_json(&settings).unwrap()).unwrap();
@@ -493,6 +501,28 @@ mod tests {
                 .map(|resolved| settings = resolved)
                 .unwrap();
             develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
+        }
+    }
+
+    #[test]
+    fn representative_built_ins_reach_the_gui_preview_job_adapter() {
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        jpeg_fixture(input.path());
+        for id in [
+            "personal-verbania",
+            "personal-blume",
+            "series-alpine-cross",
+            "community-honey-hour",
+            "personal-lampe-1",
+        ] {
+            let preview = develop_preview(
+                input.path(),
+                built_in_settings(id).unwrap(),
+                &CancellationToken::new(),
+            )
+            .unwrap_or_else(|error| panic!("built-in {id} failed in GUI preview: {error}"));
+            assert!(preview.path().is_file(), "{id}");
+            assert_eq!(image::image_dimensions(preview.path()).unwrap(), (8, 6));
         }
     }
 

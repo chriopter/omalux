@@ -21,7 +21,16 @@ fn json(output: &Output) -> Value {
 fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     let presets = run(&["presets", "list", "--json"]);
     assert!(presets.status.success());
-    assert_eq!(json(&presets)["presets"][0]["id"], "neutral");
+    let listed = json(&presets);
+    assert_eq!(listed["presets"].as_array().unwrap().len(), 28);
+    assert_eq!(listed["presets"][0]["id"], "community-amber-grain");
+    assert!(
+        listed["presets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["id"] == "neutral")
+    );
 
     let preset = run(&["presets", "show", "neutral", "--json"]);
     assert!(preset.status.success());
@@ -195,6 +204,66 @@ fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
             .success()
     );
     assert_eq!(fs::read(grain_a).unwrap(), fs::read(grain_b).unwrap());
+}
+
+#[test]
+fn representative_built_ins_run_through_real_jpeg_profiles() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("catalog-gradient.png");
+    let mut pixels = Vec::new();
+    for y in 0_u8..24 {
+        for x in 0_u8..32 {
+            pixels.extend_from_slice(&[
+                x.saturating_mul(8),
+                y.saturating_mul(10),
+                x.saturating_mul(4).saturating_add(y.saturating_mul(3)),
+            ]);
+        }
+    }
+    image::save_buffer_with_format(
+        &input,
+        &pixels,
+        32,
+        24,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+
+    for (id, color, spatial, radial) in [
+        ("personal-verbania", false, false, false),
+        ("personal-blume", true, true, false),
+        ("series-alpine-cross", true, false, false),
+        ("community-honey-hour", true, false, false),
+        ("personal-lampe-1", false, true, true),
+    ] {
+        let output = directory.path().join(format!("{id}.jpg"));
+        let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+            .args(["develop", "--input"])
+            .arg(&input)
+            .arg("--output")
+            .arg(&output)
+            .args(["--preset", id, "--json"])
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{id}: {result:?}");
+        assert!(result.stderr.is_empty(), "{id}");
+        let report = json(&result);
+        assert_eq!(report["output_format"], "jpeg", "{id}");
+        assert_eq!(
+            report["develop_working_set"]["profile"]["color_v1"], color,
+            "{id}"
+        );
+        assert_eq!(
+            report["develop_working_set"]["profile"]["spatial_v1"], spatial,
+            "{id}"
+        );
+        assert_eq!(
+            report["develop_working_set"]["profile"]["radial_masks_v1"], radial,
+            "{id}"
+        );
+        assert_eq!(image::image_dimensions(&output).unwrap(), (32, 24));
+    }
 }
 
 #[test]
@@ -441,7 +510,6 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("gradient.png");
     let output = directory.path().join("developed.heic");
-    let preset_path = directory.path().join("color.json");
     let mut pixels = Vec::new();
     for y in 0_u8..3 {
         for x in 0_u8..5 {
@@ -457,22 +525,13 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
         image::ImageFormat::Png,
     )
     .unwrap();
-    let mut settings = DevelopSettings::default();
-    settings.tone_curves.master.points = vec![
-        CurvePoint { x: 0.0, y: 0.0 },
-        CurvePoint { x: 0.5, y: 0.65 },
-        CurvePoint { x: 1.0, y: 1.0 },
-    ];
-    let preset = PresetDocument::new("color-v1-heic", "Color V1 HEIC", settings);
-    fs::write(&preset_path, preset.to_canonical_json().unwrap()).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
         .arg(&output)
         .args(["--format", "heic", "--quality", "90"])
-        .arg("--preset-file")
-        .arg(&preset_path)
+        .args(["--preset", "community-honey-hour"])
         .args([
             "--set",
             "color_mixer.blue.saturation=25",
@@ -521,6 +580,23 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     let bytes = fs::read(&output).unwrap();
     assert!(bytes.windows(4).any(|window| window == b"ftyp"));
     unsafe { assert_heic_dimensions_and_depth(&bytes, 5, 3, 10) };
+
+    let mask_output = directory.path().join("mask.heic");
+    let mask = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&mask_output)
+        .args(["--format", "heic", "--preset", "personal-lampe-1", "--json"])
+        .output()
+        .unwrap();
+    assert!(mask.status.success(), "{mask:?}");
+    assert_eq!(
+        json(&mask)["develop_working_set"]["profile"]["radial_masks_v1"],
+        true
+    );
+    let mask_bytes = fs::read(mask_output).unwrap();
+    unsafe { assert_heic_dimensions_and_depth(&mask_bytes, 5, 3, 10) };
 }
 
 #[cfg(feature = "heic")]

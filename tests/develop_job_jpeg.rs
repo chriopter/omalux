@@ -196,6 +196,51 @@ fn display_and_raw_jobs_reach_real_atomic_jpeg_with_the_captured_identity() {
 }
 
 #[test]
+fn built_in_mask_preset_reaches_the_real_raw_signal_and_jpeg_path() {
+    let directory = tempfile::tempdir().unwrap();
+    let limits = ResourceLimits::default();
+    let runner = DevelopJobRunner::built_in().unwrap();
+    let input = directory.path().join("synthetic.raw");
+    let output = directory.path().join("mask-preset.jpg");
+    fs::write(&input, b"synthetic raw source identity").unwrap();
+    let decoder = HeldSyntheticDecoder {
+        source: File::open(&input).unwrap(),
+        photo: photo(SignalRelation::SceneRelatedRaw),
+    };
+    let mut request = job(&input, &output, OverwritePolicy::Forbid);
+    request.preset = PresetSelection::CatalogId("personal-lampe-1".to_owned());
+    request.output_options = DevelopOutput::new(
+        OutputFormat::Jpeg,
+        90,
+        OutputProfile::Srgb,
+        MetadataPolicy::StripLocation,
+        AlphaPolicy::Flatten([0.0, 0.0, 0.0]),
+        SdrRangePolicy::ClipAndReport,
+    );
+    let report = runner
+        .run(
+            &request,
+            &decoder,
+            &AtomicJpegEncoder {
+                limits: &limits,
+                reported_publication: None,
+            },
+            &CancellationToken::new(),
+            &mut NoProgress,
+        )
+        .unwrap();
+    assert!(report.scene_render.is_some());
+    assert!(
+        report
+            .develop_working_set
+            .profile()
+            .unwrap()
+            .radial_masks_v1
+    );
+    assert_eq!(dimensions(&output), (3, 1));
+}
+
+#[test]
 fn hardlink_collision_is_atomic_and_degraded_durability_stays_typed() {
     let directory = tempfile::tempdir().unwrap();
     let limits = ResourceLimits::default();

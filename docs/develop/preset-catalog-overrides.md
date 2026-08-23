@@ -1,11 +1,12 @@
 # Preset catalog and command-line overrides
 
 The built-in catalog is a deterministic, ID-sorted collection of validated
-`PresetDocument` values. Grainroom currently ships only `neutral`: the exact
-canonical `DevelopSettings::default()` document. There is deliberately no
-invented “default look” or reference preset. New built-ins require an explicit,
-reviewed recipe and must be checked in as canonical schema-v3 JSON under
-`presets/builtin/`.
+`PresetDocument` values. It includes `neutral`, the exact canonical
+`DevelopSettings::default()` document, plus independently recreated parameter
+documents maintained for Grainroom. These documents describe only Grainroom's
+own public schema and names; they make no claim of upstream provenance or
+endorsement. New built-ins require an explicit, reviewed recipe and must be
+checked in as canonical schema-v3 JSON under `presets/builtin/`.
 
 Schema v2 adds neutral-default `basics.exposure_ev` and the extended tone-curve
 domain. Schema v3 adds `radial_masks.masks[].adjustments.exposure_ev`. Valid

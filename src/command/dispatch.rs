@@ -864,7 +864,8 @@ mod tests {
         );
         assert_eq!(exit, CommandExit::Success);
         let output: serde_json::Value = serde_json::from_slice(&stdout).unwrap();
-        assert_eq!(output["presets"][0]["id"], "neutral");
+        assert_eq!(output["presets"].as_array().unwrap().len(), 28);
+        assert_eq!(output["presets"][0]["id"], "community-amber-grain");
         assert!(!String::from_utf8(stdout).unwrap().contains('/'));
     }
 }
