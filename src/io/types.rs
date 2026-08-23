@@ -49,7 +49,7 @@ pub struct RawProcessingProvenance {
 }
 
 impl RawProcessingProvenance {
-    /// Processing contract of Grainroom's full-resolution `dcraw_emu` path.
+    /// Processing contract of Omalux's full-resolution `dcraw_emu` path.
     pub fn libraw_dcraw_emu(backend_version: Option<String>) -> Self {
         Self {
             backend: RawBackendName::LibRawDcrawEmu,

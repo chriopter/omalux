@@ -86,7 +86,7 @@ RAW matrix with `SceneRelatedRaw`.
 
 ## Independent design and comparative provenance
 
-The formula and constants above are an independently specified Grainroom V1
+The formula and constants above are an independently specified Omalux V1
 policy. No upstream implementation or parameter set is copied. The separation
 of scene-referred creative work, a display-rendering tone operator, gamut
 mapping, and output encoding was conceptually compared with these public
@@ -98,5 +98,5 @@ GPL-3.0-or-later implementations:
 - RawTherapee snapshot `498f623784e33fd9a7077fcd8937fe0734033366`,
   [`rtengine/iplab2rgb.cc`](https://github.com/RawTherapee/RawTherapee/blob/498f623784e33fd9a7077fcd8937fe0734033366/rtengine/iplab2rgb.cc).
 
-Those sources are comparative provenance only. Grainroom's implementation is
+Those sources are comparative provenance only. Omalux's implementation is
 the small formula documented in this file.

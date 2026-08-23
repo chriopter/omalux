@@ -1,4 +1,4 @@
-use grainroom::develop::{
+use omalux::develop::{
     CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, LocalAdjustments, PipelineError,
     RadialMask, RgbaPixel,
 };

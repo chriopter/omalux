@@ -1,10 +1,10 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use grainroom::develop::{ParameterOverride, parse_parameter_override};
+use omalux::develop::{ParameterOverride, parse_parameter_override};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "grainroom",
+    name = "omalux",
     version,
     about = "Qt-free photo development tools",
     subcommand_required = true,

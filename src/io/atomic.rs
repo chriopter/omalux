@@ -264,7 +264,7 @@ fn permission_mode(
 fn random_temporary_name() -> Result<String, AtomicOutputError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|e| AtomicOutputError::Create(io::Error::other(e)))?;
-    let mut name = String::from(".grainroom-output-");
+    let mut name = String::from(".omalux-output-");
     for byte in bytes {
         use std::fmt::Write as _;
         write!(&mut name, "{byte:02x}").expect("string writes cannot fail");

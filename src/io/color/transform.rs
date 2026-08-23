@@ -65,7 +65,7 @@ pub fn estimate_color_working_set(
     })
 }
 
-/// Converts normalized, encoded straight-alpha raster samples to Grainroom's
+/// Converts normalized, encoded straight-alpha raster samples to Omalux's
 /// linearized display-referred Rec.2020/D65 working space.
 pub struct RasterToWorkingTransform {
     transform: RgbaFloatTransform,

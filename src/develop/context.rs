@@ -3,6 +3,8 @@
 
 use std::fmt;
 
+// This is an algorithm identifier, not display branding. Changing it would
+// change every deterministic grain seed produced before the Omalux rename.
 const GRAIN_SEED_DOMAIN: &[u8] = b"io.omacom.grainroom/grain-seed/v1\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;

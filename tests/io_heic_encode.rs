@@ -6,7 +6,7 @@ use std::fs;
 #[cfg(feature = "heic")]
 use sha2::{Digest, Sha256};
 
-use grainroom::{
+use omalux::{
     develop::{CpuImage, RgbaPixel},
     io::{
         AtomicOutputOptions, EncodeCancellation, EncodeError, EncodeOptions,
@@ -115,14 +115,14 @@ fn production_file_reads_back_pixels_icc_nclx_and_sanitized_exif() {
     .unwrap();
     assert_eq!(report.bit_depth, 10);
     assert!(!report.libheif_version.is_empty());
-    assert_eq!(report.nclx, grainroom::io::HeicNclx::SRGB_FULL_RANGE);
+    assert_eq!(report.nclx, omalux::io::HeicNclx::SRGB_FULL_RANGE);
     assert!(report.metadata.gps_removed);
     let bytes = fs::read(output).unwrap();
     unsafe { assert_libheif_readback(&bytes, &report) };
 }
 
 #[cfg(feature = "heic")]
-unsafe fn assert_libheif_readback(bytes: &[u8], report: &grainroom::io::HeicEncodeReport) {
+unsafe fn assert_libheif_readback(bytes: &[u8], report: &omalux::io::HeicEncodeReport) {
     use libheif_sys as heif;
     use std::ptr;
 

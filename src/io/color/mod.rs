@@ -1,7 +1,7 @@
 //! Bounded ICC color management based on the safe `lcms2` Rust wrapper.
 //!
 //! Profiles and transforms are created per operation. There is no global
-//! mutable profile or transform cache in Grainroom.
+//! mutable profile or transform cache in Omalux.
 
 mod error;
 mod png;

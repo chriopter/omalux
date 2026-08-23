@@ -4,8 +4,12 @@ This phase exposes a bounded library decoder contract. It is not yet wired to
 the GUI loader or CLI/export job path; those integrations must call this API
 explicitly and preserve the checked `DecodedPhoto` color/signal invariants.
 
-Grainroom stages the source once while computing its content digest, then gives
+Omalux stages the source once while computing its content digest, then gives
 that private immutable copy to the installed LibRaw `dcraw_emu`. Production
+keeps the versioned `io.omacom.grainroom/source-digest/v1` domain as a stable
+algorithm identifier: the Omalux rename must not change existing content
+identities, grain seeds, or rendered output for identical source bytes.
+Production
 and capability probing share one resolver and bounded behavior handshake over
 the fixed `/usr/bin/dcraw_emu` and `/usr/local/bin/dcraw_emu` candidates; they
 never search `PATH`. The fixed
@@ -28,7 +32,7 @@ blocking read. All staging objects have RAII cleanup on every return path.
 The decoder is launched without a shell through the absolute `/usr/bin/prlimit`
 and fails closed when that limiter is unavailable. Address-space, data, output
 file-size, and CPU limits derive from the audited `ResourceLimits` and timeout.
-Grainroom still treats the external LibRaw process as untrusted: the process
+Omalux still treats the external LibRaw process as untrusted: the process
 group is monitored until both its leader exit is observed without reaping and
 the bounded stderr pipe reaches EOF; cancellation, timeout, capture failure, or overflow kills the
 whole group. Even apparent success is followed by a process-group existence

@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use grainroom::{
+use omalux::{
     develop::{
         CpuImage, CurvePoint, DevelopSettings, DevelopWorkingSetProfile, LocalAdjustments,
         ParameterOverride, PresetDocument, RadialMask, RgbaPixel, estimate_develop_working_set,
@@ -73,7 +73,7 @@ impl PhotoEncoder for FakeEncoder {
     fn encode_display(
         &self,
         _publication: PublicationRequest<'_>,
-        artifact: &WorkingArtifact<grainroom::job::DisplayReferred>,
+        artifact: &WorkingArtifact<omalux::job::DisplayReferred>,
         _options: &EncodeOptions,
         cancellation: &CancellationToken,
     ) -> Result<EncodeReceipt, Self::Error> {
@@ -246,7 +246,7 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         )
         .unwrap();
     let json = serde_json::to_string(&report).unwrap();
-    assert!(json.contains("io.omacom.grainroom.develop-job-report"));
+    assert!(json.contains("io.omacom.omalux.develop-job-report"));
     assert!(json.contains("\"schema_version\":4"));
     assert!(json.contains("\"pointwise_v1\":true"));
     assert!(json.contains("\"estimated_peak_bytes\":64"));
@@ -307,7 +307,7 @@ fn pointwise_override_is_applied_to_the_encoded_artifact() {
     assert_eq!(encoder.observed.lock().unwrap()[0].1, expected as f32);
     assert_eq!(
         report.develop_working_set.profile(),
-        Some(grainroom::job::ReportDevelopWorkingSetProfile::PointwiseV1)
+        Some(omalux::job::ReportDevelopWorkingSetProfile::PointwiseV1)
     );
 }
 
@@ -392,7 +392,7 @@ fn structured_curve_preset_and_scalar_color_overrides_run_as_color_v1() {
         .unwrap();
     assert_eq!(
         report.develop_working_set.profile(),
-        Some(grainroom::job::ReportDevelopWorkingSetProfile::ColorV1)
+        Some(omalux::job::ReportDevelopWorkingSetProfile::ColorV1)
     );
     assert_eq!(report.develop_working_set.estimated_peak_bytes(), 176);
     assert_ne!(encoder.observed.lock().unwrap()[0].1, 0.18);
@@ -492,7 +492,7 @@ fn color_spatial_job_reports_json_profile_and_rejects_peak_minus_one_before_deve
     assert_eq!(report.develop_working_set.estimated_peak_bytes(), 632);
     assert_eq!(
         report.develop_working_set.profile(),
-        Some(grainroom::job::ReportDevelopWorkingSetProfile::ColorSpatialV1)
+        Some(omalux::job::ReportDevelopWorkingSetProfile::ColorSpatialV1)
     );
     let json = serde_json::to_string(&report).unwrap();
     assert!(json.contains("\"color_v1\":true"));
@@ -631,6 +631,6 @@ fn publication_commit_is_not_reinterpreted_as_late_cancellation() {
         .unwrap();
     assert!(matches!(
         report.outcome,
-        grainroom::job::DevelopJobOutcome::PublishedButNotDurable { bytes_written: 37 }
+        omalux::job::DevelopJobOutcome::PublishedButNotDurable { bytes_written: 37 }
     ));
 }

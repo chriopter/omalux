@@ -1,6 +1,6 @@
 # JPEG encode boundary
 
-Grainroom's first production encoder accepts only finite, linear Rec.2020/D65
+Omalux's first production encoder accepts only finite, linear Rec.2020/D65
 pixels whose `SignalRelation` is `LinearizedDisplayReferred`. Scene-related RAW
 is rejected before allocation or destination creation; it must first pass the
 separate scene-to-display renderer. The only current output profile is sRGB.
@@ -16,7 +16,7 @@ quantized with `floor(sample * 255 + 0.5)`. The default JPEG quality is 90.
 Dimensions, pixel count and the resident image are gated before metadata is
 inspected. EXIF then uses an allocation-free first pass over a fixed-size
 allowlist to compute the exact rebuilt TIFF size. Only after the full peak is
-accepted are EXIF, generated profiles and RGB output allocated; Grainroom-owned
+accepted are EXIF, generated profiles and RGB output allocated; Omalux-owned
 buffers use checked arithmetic and fallible reservations.
 
 The named `JpegRgb8` working-set profile accounts for the resident image,
@@ -31,7 +31,7 @@ before and immediately after it, and a cancelled result is never published.
 
 ## Color and metadata
 
-Every file embeds Grainroom's canonical generated sRGB ICC profile. EXIF is
+Every file embeds Omalux's canonical generated sRGB ICC profile. EXIF is
 never copied opaquely. A bounded TIFF reader extracts a small numeric technical
 allowlist and constructs a fresh TIFF tree. GPS, orientation, MakerNote,
 UserComment, camera or lens serial numbers, free text, thumbnails and unknown
@@ -39,7 +39,7 @@ tags are omitted. XMP and IPTC are omitted in this phase because both can carry
 free-form location or path data. Malformed EXIF is dropped and reported.
 
 JPEG APP1 has a 65,533-byte payload limit. After the six-byte `Exif\0\0`
-identifier, Grainroom permits at most 65,527 TIFF bytes and validates this
+identifier, Omalux permits at most 65,527 TIFF bytes and validates this
 before calling the codec.
 
 ## Publication and errors

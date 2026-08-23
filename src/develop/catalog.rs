@@ -47,7 +47,7 @@ pub struct PresetCatalog {
 }
 
 impl PresetCatalog {
-    /// Parses and validates the preset documents shipped with Grainroom.
+    /// Parses and validates the preset documents shipped with Omalux.
     ///
     /// Built-ins must already be canonical JSON. This prevents a checked-in
     /// document from changing identity when it is later serialized.
@@ -134,7 +134,7 @@ fn load_preset_file_with_limit(
 
     #[cfg(not(target_os = "linux"))]
     let (mut file, advertised) = {
-        // Grainroom targets Omarchy/Linux. Other platforms fail closed until
+        // Omalux targets Omarchy/Linux. Other platforms fail closed until
         // an equivalent atomic NOFOLLOW open is implemented.
         let _ = path;
         return Err(PresetCatalogError::NoFollowUnsupported);

@@ -1,6 +1,6 @@
 # Develop pipeline resource budgets
 
-The bounded pipeline is fail-closed. A caller selects settings; Grainroom
+The bounded pipeline is fail-closed. A caller selects settings; Omalux
 derives a named, reviewed allocation profile from those settings and checks the
 entire peak before creating the transactional image. There is no caller-supplied
 scratch estimate.

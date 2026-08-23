@@ -1,6 +1,6 @@
 # Develop job boundary
 
-`grainroom::job` is the Qt-free orchestration contract shared by a future CLI
+`omalux::job` is the Qt-free orchestration contract shared by a future CLI
 and GUI adapter. Its fixed order is:
 
 1. validate options and cancellation;
@@ -66,3 +66,8 @@ only stable stage/error categories, content identity, signal relations,
 bounded profile/byte estimates, deterministic processing counters, output
 format, and path-free codec provenance. The explicit component profile advances
 the report schema to version 4.
+
+New reports use `io.omacom.omalux.develop-job-report`. The exported
+`LEGACY_DEVELOP_JOB_REPORT_SCHEMA` constant names the pre-rename identifier so
+downstream readers can continue to recognize archived reports; Omalux does not
+rewrite historical report bytes.

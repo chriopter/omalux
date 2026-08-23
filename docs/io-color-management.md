@@ -1,6 +1,6 @@
 # Color-management contract
 
-Grainroom uses the safe `lcms2` Rust wrapper over the system Little CMS 2
+Omalux uses the safe `lcms2` Rust wrapper over the system Little CMS 2
 library. The current build resolves `lcms2` through `pkg-config`; packaging
 must provide the shared `lcms2` library and verify the final binary dependency.
 No handwritten unsafe FFI or external profile asset is part of this module.
@@ -31,7 +31,7 @@ scene-to-display rendering stage exists.
   fallback is returned only by the explicit `assumed_srgb_profile` API and
   always carries `AssumedSrgb` provenance plus a warning diagnostic.
 - Every generated ICC uses the fixed valid header creation time
-  `2000-01-01T00:00:00` and an unset (all-zero) optional profile ID. Grainroom
+  `2000-01-01T00:00:00` and an unset (all-zero) optional profile ID. Omalux
   reopens and validates those exact canonical bytes, stores them in the
   `RgbProfile`, and hashes/exports the same bytes. This removes LCMS's wall-clock
   timestamp from generated sRGB, Rec.2020, cICP, and gAMA/cHRM provenance.
@@ -43,7 +43,7 @@ The numerical constants follow ITU-R BT.2020-2 for Rec.2020/D65 and IEC
 ## Transform behavior
 
 Transforms use relative colorimetric intent and the fixed flags `NO_CACHE`,
-`NO_OPTIMIZE`, and `COPY_ALPHA`. Grainroom owns no global mutable profile or
+`NO_OPTIMIZE`, and `COPY_ALPHA`. Omalux owns no global mutable profile or
 transform cache, and constructs each transform from explicit profile inputs.
 `NO_OPTIMIZE` prevents LCMS from replacing the declared profile pipeline with
 a machine-dependent optimized approximation.

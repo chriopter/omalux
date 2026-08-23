@@ -1,14 +1,14 @@
 # Qt-free command line
 
-`grainroom` is the Qt-free process interface. Argument parsing completes before
+`omalux` is the Qt-free process interface. Argument parsing completes before
 any command is dispatched. Help, version, syntax errors, range errors, and the
 legacy `--headless` option therefore cannot launch the desktop application.
 
 ## Commands
 
 ```text
-grainroom gui [--input PATH]
-grainroom develop --input PATH --output PATH
+omalux gui [--input PATH]
+omalux develop --input PATH --output PATH
                   [--format jpeg|jpg|heic|heif] [--quality 1..100]
                   [--preset ID | --preset-file PATH] [--set ID=VALUE]...
                   [--unprofiled assume-srgb|reject]
@@ -17,14 +17,14 @@ grainroom develop --input PATH --output PATH
                   [--max-source-bytes BYTES] [--max-pixels COUNT]
                   [--max-working-bytes BYTES] [--max-output-bytes BYTES]
                   [--overwrite] [--json] [--progress none|human|json]
-grainroom presets list [--json]
-grainroom presets show ID [--json]
-grainroom parameters list [--json]
-grainroom probe [--json]
+omalux presets list [--json]
+omalux presets show ID [--json]
+omalux parameters list [--json]
+omalux probe [--json]
 ```
 
-`gui` is the sole GUI-launching command. It derives `grainroom-gui` from the
-directory of the running `grainroom` executable and passes an input path as the
+`gui` is the sole GUI-launching command. It derives `omalux-gui` from the
+directory of the running `omalux` executable and passes an input path as the
 two arguments `--input`, `PATH`. It never resolves the GUI through `PATH`.
 On Linux it holds the executable directory, opens the sibling with
 `O_NOFOLLOW`, verifies a regular executable, and launches that held file via

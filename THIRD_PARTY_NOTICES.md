@@ -2,10 +2,10 @@
 
 ## Optional HEIC backend
 
-With the `heic` feature Grainroom uses `libheif-sys` 5.3.1+1.23.1 (MIT) as
+With the `heic` feature Omalux uses `libheif-sys` 5.3.1+1.23.1 (MIT) as
 generated bindings to the dynamically linked system libheif 1.23.1
 (LGPL-3.0-or-later). HEVC encoding is selected explicitly through the system
-x265 plugin/library (GPL-2.0-or-later). Grainroom does not copy or bundle their
+x265 plugin/library (GPL-2.0-or-later). Omalux does not copy or bundle their
 source or binaries. Their complete license texts accompany their source
 distributions. Codec copyright licenses do not grant patent rights; HEVC
 distribution requires an independent legal review.
@@ -38,7 +38,7 @@ THE SOFTWARE.
 
 ## rust-lcms2 safe Rust wrapper
 
-Grainroom uses `lcms2` 6.1.1, Copyright (c) Kornel Lesiński, under the MIT
+Omalux uses `lcms2` 6.1.1, Copyright (c) Kornel Lesiński, under the MIT
 License:
 
 ```
@@ -69,8 +69,8 @@ The dynamically linked Little CMS 2 library is MIT licensed, Copyright (c)
 
 ## Raster codec crates
 
-Grainroom uses the following Rust crates through their public APIs for bounded
-JPEG, PNG, and BMP decoding and JPEG encoding. Grainroom does not copy their
+Omalux uses the following Rust crates through their public APIs for bounded
+JPEG, PNG, and BMP decoding and JPEG encoding. Omalux does not copy their
 codec source:
 
 - `image` 0.25.10 — MIT OR Apache-2.0
@@ -93,7 +93,7 @@ codec source:
 - `cfg-if` 1.0.4, Copyright (c) 2014 Alex Crichton — MIT OR Apache-2.0
 
 The MIT license text is reproduced above. The Apache-2.0 and Zlib alternatives
-are available in each crate's published source distribution; Grainroom selects
+are available in each crate's published source distribution; Omalux selects
 the MIT option where offered and BSD-3-Clause for `moxcms` and `pxfm`.
 
 ### moxcms and pxfm BSD-3-Clause license
@@ -139,7 +139,7 @@ and platform-specific transitive crates are:
   MIT OR Apache-2.0 (Windows targets only).
 
 `bitflags` and `cfg-if`, also used by these crates, are already listed in the
-raster-codec dependency notice. Grainroom selects the MIT option wherever it
+raster-codec dependency notice. Omalux selects the MIT option wherever it
 is offered; the complete MIT terms are reproduced in the rust-lcms2 section
 above. Alternative Apache-2.0 and Zlib terms remain in the published crate
 source distributions.

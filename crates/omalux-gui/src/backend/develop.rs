@@ -1,4 +1,4 @@
-use grainroom::{
+use omalux::{
     develop::{
         DevelopSettings, ParameterKind, PresetCatalog, PresetDocument, apply_parameter_overrides,
         estimate_develop_working_set, parameter_registry, parse_parameter_override,
@@ -123,7 +123,7 @@ pub(super) fn develop_preview(
     cancellation: &CancellationToken,
 ) -> Result<PreviewArtifact, GuiJobError> {
     let directory = tempfile::Builder::new()
-        .prefix("grainroom-preview-")
+        .prefix("omalux-preview-")
         .tempdir()
         .map_err(|error| {
             GuiJobError::Setup(format!("Could not create private preview storage: {error}"))
@@ -282,7 +282,7 @@ fn run_job(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use grainroom::develop::{
+    use omalux::develop::{
         LocalAdjustments, ParameterOverrideValue, RadialMask, parse_parameter_override,
     };
     use std::fs;
@@ -293,7 +293,7 @@ mod tests {
     }
 
     fn geometry_radial_settings() -> DevelopSettings {
-        use grainroom::develop::CurvePoint;
+        use omalux::develop::CurvePoint;
 
         let mut settings = DevelopSettings::default();
         settings.basics.exposure_ev = 0.5;
@@ -497,7 +497,7 @@ mod tests {
             let mut settings = DevelopSettings::default();
             let value = parse_parameter_override(expression).unwrap();
             assert!(matches!(value.value(), ParameterOverrideValue::Scalar(_)));
-            grainroom::develop::apply_parameter_overrides(&settings, &[value])
+            omalux::develop::apply_parameter_overrides(&settings, &[value])
                 .map(|resolved| settings = resolved)
                 .unwrap();
             develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn combined_color_spatial_settings_reach_preview_and_report_the_real_profile() {
-        use grainroom::job::ReportDevelopWorkingSetProfile;
+        use omalux::job::ReportDevelopWorkingSetProfile;
 
         let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
         jpeg_fixture(input.path());

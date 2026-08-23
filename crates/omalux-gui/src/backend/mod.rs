@@ -87,10 +87,10 @@ use self::export::{absolute_local_path, display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
 use self::theme::{ThemeColors, load_omarchy_theme, omarchy_current_theme_path};
 use cxx_qt_lib::{QString, QUrl};
-use grainroom::develop::{DevelopSettings, apply_parameter_overrides, parse_parameter_override};
-use grainroom::io::OutputFormat;
-use grainroom::job::{CancellationToken, DevelopJobOutcome, DevelopJobReport};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use omalux::develop::{DevelopSettings, apply_parameter_overrides, parse_parameter_override};
+use omalux::io::OutputFormat;
+use omalux::job::{CancellationToken, DevelopJobOutcome, DevelopJobReport};
 use serde::Serialize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -295,16 +295,16 @@ fn preview_completion(
 }
 
 fn original_completion(
-    result: Result<grainroom::io::AtomicOutputOutcome, String>,
+    result: Result<omalux::io::AtomicOutputOutcome, String>,
     destination: &str,
 ) -> (&'static str, bool, String) {
     match result {
-        Ok(grainroom::io::AtomicOutputOutcome::PublishedAndDurable) => (
+        Ok(omalux::io::AtomicOutputOutcome::PublishedAndDurable) => (
             "published_and_durable",
             false,
             format!("Saved original · {destination}"),
         ),
-        Ok(grainroom::io::AtomicOutputOutcome::PublishedButNotDurable) => (
+        Ok(omalux::io::AtomicOutputOutcome::PublishedButNotDurable) => (
             "published_but_not_durable",
             true,
             format!(
@@ -761,8 +761,8 @@ mod preview_queue_tests {
         export_completion, original_completion,
     };
     use crate::backend::develop::develop_preview;
-    use grainroom::develop::DevelopSettings;
-    use grainroom::{
+    use omalux::develop::DevelopSettings;
+    use omalux::{
         io::AtomicOutputOutcome,
         job::{CancellationToken, DevelopJobOutcome},
     };

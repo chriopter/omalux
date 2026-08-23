@@ -1,6 +1,7 @@
 use std::{fs, io::Cursor, path::Path};
 
-use grainroom::{
+use image::ImageDecoder;
+use omalux::{
     develop::{CpuImage, RgbaPixel},
     io::{
         AtomicOutputError, AtomicOutputOptions, ColorProvenance, DecodedPhoto, EncodeCancellation,
@@ -9,7 +10,6 @@ use grainroom::{
         color::SceneToDisplayTransform, encode_jpeg,
     },
 };
-use image::ImageDecoder;
 
 fn options() -> EncodeOptions {
     let mut options = EncodeOptions::default();

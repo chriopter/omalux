@@ -1,9 +1,9 @@
-use grainroom::develop::{
+use omalux::develop::{
     CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopWorkingSetProfile,
     PresetCatalog, PresetCatalogError, PresetDocument, RgbaPixel, estimate_develop_working_set,
     load_preset_file,
 };
-use grainroom::io::ResourceLimits;
+use omalux::io::ResourceLimits;
 use std::{fs, io::Write};
 
 #[test]

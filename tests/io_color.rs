@@ -1,4 +1,4 @@
-use grainroom::{
+use omalux::{
     develop::RgbaPixel,
     io::{
         ResourceLimits, SdrRangePolicy, SignalRelation,
@@ -128,7 +128,7 @@ fn roundtrip_is_close_and_alpha_is_bit_exact_including_subnormal() {
         report.working_signal_relation,
         SignalRelation::LinearizedDisplayReferred
     );
-    assert_eq!(report.lcms_version, grainroom::io::color::lcms_version());
+    assert_eq!(report.lcms_version, omalux::io::color::lcms_version());
     for (actual, expected) in encoded.into_iter().zip(source) {
         for (actual, expected) in actual.into_iter().zip(expected).take(3) {
             assert_close(actual, expected, 2.5e-4);
@@ -256,7 +256,7 @@ fn transforms_are_deterministic_and_resource_estimates_are_enforced() {
             &constrained
         ),
         Err(ColorError::Limit(
-            grainroom::io::LimitError::WorkingBytes { .. }
+            omalux::io::LimitError::WorkingBytes { .. }
         ))
     ));
 }

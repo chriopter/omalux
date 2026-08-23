@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import io.omacom.grainroom
+import io.omacom.omalux
 
 Item {
     id: panel

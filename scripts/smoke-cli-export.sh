@@ -2,23 +2,23 @@
 set -euo pipefail
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "usage: $0 INPUT_IMAGE [GRAINROOM_BINARY]" >&2
+  echo "usage: $0 INPUT_IMAGE [OMALUX_BINARY]" >&2
   exit 2
 fi
 
 input=$1
-binary=${2:-./target/debug/grainroom-gui}
+binary=${2:-./target/debug/omalux-gui}
 
 if [[ ! -f $input ]]; then
   echo "input does not exist: $input" >&2
   exit 2
 fi
 if [[ ! -x $binary ]]; then
-  echo "grainroom binary is not executable: $binary" >&2
+  echo "omalux binary is not executable: $binary" >&2
   exit 2
 fi
 
-test_dir=$(mktemp -d /tmp/grainroom-smoke.XXXXXX)
+test_dir=$(mktemp -d /tmp/omalux-smoke.XXXXXX)
 trap 'rm -rf -- "$test_dir"' EXIT
 output=$test_dir/export.heic
 

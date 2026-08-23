@@ -1,6 +1,7 @@
 use std::{fs, fs::File, io::Cursor, path::Path};
 
-use grainroom::{
+use image::ImageDecoder;
+use omalux::{
     develop::{CpuImage, RgbaPixel},
     io::{
         AlphaPolicy, AssumedProfileReason, AtomicOutputOptions, ColorProvenance, DecodeError,
@@ -16,7 +17,6 @@ use grainroom::{
         WorkingArtifact,
     },
 };
-use image::ImageDecoder;
 
 struct HeldSyntheticDecoder {
     source: File,
@@ -59,8 +59,8 @@ impl PhotoEncoder for AtomicJpegEncoder<'_> {
             return Err(EncodeError::Cancelled);
         }
         let codec_cancellation = EncodeCancellation::default();
-        let report = encode_jpeg(grainroom::io::JpegEncodeRequest {
-            input: grainroom::io::JpegEncodeInput {
+        let report = encode_jpeg(omalux::io::JpegEncodeRequest {
+            input: omalux::io::JpegEncodeInput {
                 image: artifact.image(),
                 signal_relation: artifact.signal_relation(),
                 metadata: artifact.metadata(),

@@ -1,4 +1,4 @@
-use grainroom::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
+use omalux::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 

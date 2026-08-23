@@ -3,9 +3,9 @@
 The built-in catalog is a deterministic, ID-sorted collection of validated
 `PresetDocument` values. It includes `neutral`, the exact canonical
 `DevelopSettings::default()` document, plus independently recreated parameter
-documents maintained for Grainroom. Personal entries preserve names owned and
-approved by the user; community and series entries use independent Grainroom
-names. These documents describe only Grainroom's public schema and make no
+documents maintained for Omalux. Personal entries preserve names owned and
+approved by the user; community and series entries use independent Omalux
+names. These documents describe only Omalux's public schema and make no
 claim of upstream provenance or endorsement. New built-ins require an explicit,
 reviewed recipe and must be checked in as canonical schema-v3 JSON under
 `presets/builtin/`.
@@ -17,6 +17,11 @@ schema-v2 documents retain global Exposure EV and gain neutral local Exposure
 EV. V1 documents that attempt to use v2 fields or extended nodes, and v1/v2
 documents that attempt to use the v3 local field, are rejected rather than
 interpreted silently. Unknown fields remain denied at every level.
+
+New documents use `io.omacom.omalux.preset`. Imports also accept the legacy
+`io.omacom.grainroom.preset` identity and normalize it to the current identity
+in memory, so the next canonical serialization is an Omalux document without
+altering any develop settings.
 
 Built-ins use exactly compact canonical JSON followed by one LF; leading,
 trailing, or additional whitespace is rejected during catalog construction.

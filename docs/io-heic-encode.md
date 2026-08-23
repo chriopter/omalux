@@ -22,7 +22,7 @@ image, handle, and encoding options are RAII-owned.
 
 libheif writes synchronously through a callback into AtomicOutput's private
 file. Each append checks `max_output_bytes` before writing, so no complete
-encoded-byte buffer exists in Grainroom. libheif/x265 necessarily retain their
+encoded-byte buffer exists in Omalux. libheif/x265 necessarily retain their
 own internal coded-image and container state until `heif_context_write`.
 Writer, codec, cancellation, resource, publication,
 and post-publication durability errors retain their distinct semantics.
@@ -40,7 +40,7 @@ Atomic publication still prevents a partial destination.
 
 HEVC distribution may implicate patents or royalties depending on jurisdiction
 and distribution model. Copyright licenses do not grant patent rights.
-Distributors must perform their own legal review; Grainroom bundles neither
+Distributors must perform their own legal review; Omalux bundles neither
 x265 nor libheif.
 
 All libheif calls are serialized behind a process-global Rust mutex spanning

@@ -1,6 +1,6 @@
 # WP2 color math
 
-This document records the normative CPU behavior of Grainroom's color mixer
+This document records the normative CPU behavior of Omalux's color mixer
 and three-way color-grading stages. It distinguishes the formulas implemented
 here from the public references that informed the design.
 
@@ -20,13 +20,13 @@ high-precision linear transforms.
 
 ## Rec.2020 and OKLab
 
-Grainroom converts Rec.2020 to XYZ, then uses Björn Ottosson's published OKLab
+Omalux converts Rec.2020 to XYZ, then uses Björn Ottosson's published OKLab
 XYZ/LMS and opponent transforms. The primary source is
 [A perceptual color space for image processing](https://bottosson.github.io/posts/oklab/)
 (retrieved 2026-08-23).
 
 The published model assumes ordinary non-negative colorimetric values.
-Grainroom deliberately extends it to its unbounded scene-linear contract by
+Omalux deliberately extends it to its unbounded scene-linear contract by
 using a signed real cube root for every LMS component. The inverse cubes the
 signed components normally. Tests pin Rec.2020 primary values and round trips
 for positive, negative, and HDR samples.
@@ -41,7 +41,7 @@ Y(L) = wy_l (L + dl)^3 + wy_m (L + dm)^3 + wy_s (L + ds)^3
 ```
 
 The offsets are the inverse-OKLab contributions of `(a, b)`, and the three
-weights are the Y row of the LMS-to-XYZ matrix. Grainroom subtracts the target
+weights are the Y row of the LMS-to-XYZ matrix. Omalux subtracts the target
 Y, splits the cubic at its real stationary points, brackets every real root,
 and applies safeguarded Newton iterations inside each monotone bracket. If the
 cubic has multiple roots, the root nearest the incoming L is selected to avoid
@@ -50,7 +50,7 @@ an unnecessary lightness branch jump.
 Source Y and the exposure-scaled target Y are calculated in f64. A target that
 is non-finite or whose absolute value is strictly larger than `f32::MAX` is
 rejected before the pixel is changed, including values inside the cast-to-max
-rounding interval. Grainroom also has an explicit flush-to-zero boundary:
+rounding interval. Omalux also has an explicit flush-to-zero boundary:
 every non-zero target with `abs(Y) < f32::MIN_POSITIVE` is rejected rather than
 silently rounded to zero; `±f32::MIN_POSITIVE` are accepted. After conversion
 back to f32 RGB, the residual is checked in f64 against
@@ -81,7 +81,7 @@ a cubic smoothstep kernel produces non-negative normalized weights.
 - Exact and near-neutral pixels are gated out because their hue is undefined;
   this prevents an arbitrary band from changing gray pixels.
 
-These weighting and parameter mappings are Grainroom formulas, not copied
+These weighting and parameter mappings are Omalux formulas, not copied
 from another application.
 
 ## Three-way color grading
@@ -96,7 +96,7 @@ The conceptual separation into smooth shadows/midtones/highlights masks and a
 scene-referred color-grading stage was cross-checked against darktable's public
 `colorbalancergb.c` at the pinned repository snapshot
 [`943d74a50e5baeecee26005cf20309e32f487949`](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/iop/colorbalancergb.c).
-Grainroom does not reproduce darktable's UCS, gamut mapping, masks, parameter
+Omalux does not reproduce darktable's UCS, gamut mapping, masks, parameter
 scales, or implementation; the OKLab model and all formulas above are local.
 darktable is licensed GPL-3.0-or-later. Its file is cited for conceptual and
 comparative provenance only; no darktable implementation is incorporated here.

@@ -1,4 +1,4 @@
-use grainroom::develop::{
+use omalux::develop::{
     DevelopSettings, ParameterKind, ParameterOverride, ParameterOverrideError,
     ParameterOverrideValue, apply_parameter_overrides, parameter_registry,
     parse_parameter_override,
@@ -79,14 +79,14 @@ fn every_registry_scalar_and_toggle_is_mapped_or_typed_structured() {
             let parsed = parsed.unwrap_or_else(|error| panic!("{}: {error}", definition.id));
             let mut base = DevelopSettings::default();
             if definition.id == "geometry.crop.x" {
-                base.geometry.crop = Some(grainroom::develop::CropRect {
+                base.geometry.crop = Some(omalux::develop::CropRect {
                     x: 0.0,
                     y: 0.0,
                     width: 0.5,
                     height: 1.0,
                 });
             } else if definition.id == "geometry.crop.y" {
-                base.geometry.crop = Some(grainroom::develop::CropRect {
+                base.geometry.crop = Some(omalux::develop::CropRect {
                     x: 0.0,
                     y: 0.0,
                     width: 1.0,

@@ -30,7 +30,9 @@ pub use pipeline::{
     DevelopPipeline, DevelopWorkingSetEstimate, DevelopWorkingSetProfile, PipelineError,
     estimate_develop_working_set,
 };
-pub use preset::{PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
+pub use preset::{
+    LEGACY_PRESET_SCHEMA_ID, PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError,
+};
 pub use settings::{
     BasicsSettings, ColorBandAdjustment, ColorGradeRange, ColorGradingSettings, ColorMixerSettings,
     CropRect, CurvePoint, DevelopSettings, EffectsSettings, GeometrySettings, GrainSettings,

@@ -3,9 +3,11 @@ use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::fmt;
 
 pub const PRESET_SCHEMA_VERSION: u32 = 3;
+/// Accepted when importing documents written before the Omalux rename.
+pub const LEGACY_PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
 const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
 const PREVIOUS_PRESET_SCHEMA_VERSION: u32 = 2;
-pub const PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
+pub const PRESET_SCHEMA_ID: &str = "io.omacom.omalux.preset";
 const LOCAL_EXPOSURE_PATH: &str = "settings.radial_masks.masks[].adjustments.exposure_ev";
 
 #[derive(Deserialize)]
@@ -39,7 +41,7 @@ impl<'de> Deserialize<'de> for PresetDocument {
         D: Deserializer<'de>,
     {
         let wire = PresetDocumentWire::deserialize(deserializer)?;
-        if wire.schema != PRESET_SCHEMA_ID {
+        if !is_supported_schema(&wire.schema) {
             return Err(D::Error::custom("unsupported preset schema"));
         }
         if !matches!(
@@ -82,7 +84,9 @@ impl<'de> Deserialize<'de> for PresetDocument {
         let settings: DevelopSettings =
             serde_json::from_value(settings_value).map_err(D::Error::custom)?;
         let document = Self {
-            schema: wire.schema,
+            // Imports are normalized so all newly serialized documents use the
+            // current identity, including documents read through the legacy alias.
+            schema: PRESET_SCHEMA_ID.to_owned(),
             schema_version: PRESET_SCHEMA_VERSION,
             id: wire.id,
             name: wire.name,
@@ -135,7 +139,7 @@ impl PresetDocument {
 
     pub fn from_json(json: &str) -> Result<Self, PresetError> {
         let envelope: PresetEnvelope = serde_json::from_str(json).map_err(PresetError::Json)?;
-        if envelope.schema != PRESET_SCHEMA_ID {
+        if !is_supported_schema(&envelope.schema) {
             return Err(PresetError::UnsupportedSchema(envelope.schema));
         }
         if !matches!(
@@ -191,6 +195,10 @@ impl PresetDocument {
         canonical.settings.canonicalize();
         serde_json::to_string(&canonical).map_err(PresetError::Json)
     }
+}
+
+fn is_supported_schema(schema: &str) -> bool {
+    matches!(schema, PRESET_SCHEMA_ID | LEGACY_PRESET_SCHEMA_ID)
 }
 
 fn local_adjustments(

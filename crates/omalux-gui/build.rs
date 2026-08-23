@@ -1,7 +1,7 @@
 use cxx_qt_build::{CxxQtBuilder, QmlModule};
 
 fn main() {
-    let qml_module = QmlModule::new("io.omacom.grainroom").qml_files([
+    let qml_module = QmlModule::new("io.omacom.omalux").qml_files([
         "qml/Main.qml",
         "qml/components/ParameterSlider.qml",
         "qml/components/ToolTabButton.qml",

@@ -1,4 +1,4 @@
-use grainroom::{
+use omalux::{
     develop::RgbaPixel,
     io::{
         ResourceLimits, SdrRangePolicy, SignalRelation,

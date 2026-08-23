@@ -1,4 +1,4 @@
-use grainroom::develop::{
+use omalux::develop::{
     CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, LocalAdjustments, ParameterOverride,
     PresetDocument, PresetError, RadialMask, RgbaPixel, ToneCurve, apply_parameter_overrides,
     parameter_registry,

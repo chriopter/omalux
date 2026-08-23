@@ -1,5 +1,5 @@
-use grainroom::develop::settings::CurvePoint;
-use grainroom::develop::{
+use omalux::develop::settings::CurvePoint;
+use omalux::develop::{
     CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, LocalAdjustments, RadialMask,
     RgbaPixel,
 };

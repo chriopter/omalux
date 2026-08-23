@@ -155,7 +155,7 @@ This is the Foundation transaction contract applied explicitly to HDR overflow.
 
 ## Provenance and upstream reading
 
-These are Grainroom-owned formulas and code, not source ports. The following
+These are Omalux-owned formulas and code, not source ports. The following
 pinned upstream files were read for terminology, pipeline context, and examples
 of production raw-processing behavior:
 
@@ -171,7 +171,7 @@ and [bilat.c](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee
 plus RawTherapee snapshot `498f623`
 [guidedfilter.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623784e33fd9a7077fcd8937fe0734033366/rtengine/guidedfilter.cc)
 and [iplocalcontrast.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623784e33fd9a7077fcd8937fe0734033366/rtengine/iplocalcontrast.cc).
-These GPL implementations supplied concepts only; Grainroom's signed guide,
+These GPL implementations supplied concepts only; Omalux's signed guide,
 constants, bounded-detail mapping, tile contract, and Rust implementation are
 independent and retain no copied code or coefficients.
 

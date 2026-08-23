@@ -3,6 +3,8 @@ use crate::develop::DevelopRenderContext;
 use sha2::{Digest, Sha256};
 use std::{fs::File, io::Read, path::Path};
 
+// This is an algorithm identifier, not display branding. Preserve it so the
+// same source bytes retain their established content identity after renaming.
 const DOMAIN: &[u8] = b"io.omacom.grainroom/source-digest/v1\0";
 
 /// Versioned content identity. File names and paths never enter the hash.

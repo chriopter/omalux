@@ -1,6 +1,6 @@
 use std::{fs, path::Path};
 
-use grainroom::{
+use omalux::{
     develop::{CpuImage, RgbaPixel},
     io::{
         AtomicOutputError, AtomicOutputOptions, EncodeCancellation, EncodeError, EncodeOptions,
@@ -221,7 +221,7 @@ fn source_output_hardlink_collision_is_preserved() {
     let mut request = request(&source, &metadata, &output, &limits, &cancellation);
     let held_source = fs::File::open(&source_path).unwrap();
     request.source_identity =
-        Some(grainroom::io::SourceFileIdentity::from_file(&held_source).unwrap());
+        Some(omalux::io::SourceFileIdentity::from_file(&held_source).unwrap());
     request.atomic = AtomicOutputOptions::default().with_overwrite(OverwritePolicy::Replace);
     assert!(matches!(
         encode_jpeg(request),
@@ -297,7 +297,7 @@ fn assert_clean(directory: &Path, output: &Path) {
             .unwrap()
             .file_name()
             .to_string_lossy()
-            .starts_with(".grainroom-output-")
+            .starts_with(".omalux-output-")
     }));
 }
 

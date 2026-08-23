@@ -5,11 +5,11 @@ use super::{
         PresetsCommand, ProgressArg, UnprofiledArg,
     },
 };
-use grainroom::develop::{
+use omalux::develop::{
     DevelopStage, ParameterKind, ParameterOverrideError, ParameterUnit, PresetCatalog,
     apply_parameter_overrides, load_preset_file, parameter_registry,
 };
-use grainroom::{
+use omalux::{
     io::{
         AlphaPolicy, DecodeOptions, MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy,
         ResourceLimits, SdrRangePolicy, UnprofiledPolicy,
@@ -81,7 +81,7 @@ fn resolve_gui_sibling(core_executable: &Path) -> io::Result<HeldGuiExecutable> 
     .map_err(io::Error::from)?;
     let sibling = fs::openat(
         &directory,
-        "grainroom-gui",
+        "omalux-gui",
         // The descriptor deliberately survives exec: script interpreters and
         // `/proc/self/fd` launch both need the held object after pathname
         // resolution. The GUI receives only this read-only executable fd.
@@ -281,7 +281,7 @@ fn validate_develop(
     #[cfg(feature = "heic")]
     if format == DevelopFormat::Heic
         && !matches!(
-            grainroom::io::probe_heic_capability(),
+            omalux::io::probe_heic_capability(),
             Ok(capability) if capability.ten_bit
         )
     {
@@ -584,7 +584,7 @@ fn show_preset(
     let output = if json_output {
         preset.to_canonical_json()
     } else {
-        serde_json::to_string_pretty(preset).map_err(grainroom::develop::PresetError::Json)
+        serde_json::to_string_pretty(preset).map_err(omalux::develop::PresetError::Json)
     };
     match output {
         Ok(output) if writeln!(stdout, "{output}").is_ok() => CommandExit::Success,
@@ -637,11 +637,11 @@ fn list_parameters(
 }
 
 fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
-    let raw_available = grainroom::io::raw::trusted_dcraw_execution().is_ok();
+    let raw_available = omalux::io::raw::trusted_dcraw_execution().is_ok();
     #[cfg(feature = "heic")]
-    let heic = grainroom::io::probe_heic_capability().ok();
+    let heic = omalux::io::probe_heic_capability().ok();
     #[cfg(not(feature = "heic"))]
-    let heic: Option<grainroom::io::HeicCapability> = None;
+    let heic: Option<omalux::io::HeicCapability> = None;
     if json_output {
         write_json(
             stdout,
@@ -701,7 +701,7 @@ fn write_json<T: serde::Serialize + ?Sized>(
 }
 
 fn human_error(stderr: &mut dyn Write, message: &str) {
-    let _ = writeln!(stderr, "grainroom: {message}");
+    let _ = writeln!(stderr, "omalux: {message}");
 }
 
 fn stage_name(value: DevelopStage) -> &'static str {
@@ -783,7 +783,7 @@ mod tests {
     #[test]
     fn gui_uses_only_resolved_sibling_and_preserves_os_input() {
         let directory = tempdir().unwrap();
-        let sibling = directory.path().join("grainroom-gui");
+        let sibling = directory.path().join("omalux-gui");
         fs::write(&sibling, b"held executable").unwrap();
         let input = PathBuf::from(std::ffi::OsString::from_vec(b"photo-\xff.jpg".to_vec()));
         let mut process = Process::default();
@@ -811,9 +811,9 @@ mod tests {
     #[test]
     fn secure_gui_resolution_rejects_symlinks_and_non_executables() {
         let directory = tempdir().unwrap();
-        let core = directory.path().join("grainroom");
+        let core = directory.path().join("omalux");
         fs::write(&core, b"core").unwrap();
-        let sibling = directory.path().join("grainroom-gui");
+        let sibling = directory.path().join("omalux-gui");
         std::os::unix::fs::symlink("/bin/true", &sibling).unwrap();
         assert!(resolve_gui_sibling(&core).is_err());
 
@@ -832,9 +832,9 @@ mod tests {
     #[test]
     fn system_gui_process_executes_the_held_file() {
         let directory = tempdir().unwrap();
-        let core = directory.path().join("grainroom");
+        let core = directory.path().join("omalux");
         fs::write(&core, b"core").unwrap();
-        let sibling = directory.path().join("grainroom-gui");
+        let sibling = directory.path().join("omalux-gui");
         fs::write(&sibling, b"#!/bin/sh\nexit 23\n").unwrap();
         fs::set_permissions(&sibling, fs::Permissions::from_mode(0o700)).unwrap();
         let held = resolve_gui_sibling(&core).unwrap();

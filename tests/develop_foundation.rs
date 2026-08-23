@@ -1,5 +1,5 @@
-use grainroom::develop::settings::{CurvePoint, RadialMask, ToneCurve};
-use grainroom::develop::{
+use omalux::develop::settings::{CurvePoint, RadialMask, ToneCurve};
+use omalux::develop::{
     CANONICAL_STAGE_ORDER, CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, ImageError,
     LocalAdjustments, NeutralRepresentation, ParameterKind, PipelineError, PixelChannel,
     PixelError, PresetDocument, PresetError, RgbaPixel, parameter_registry,
@@ -83,9 +83,20 @@ fn preset_v1_has_a_canonical_roundtrip() {
 }
 
 #[test]
+fn preset_from_before_the_rename_is_imported_and_normalized() {
+    let legacy =
+        NEUTRAL_PRESET.replacen("io.omacom.omalux.preset", "io.omacom.grainroom.preset", 1);
+    let document = PresetDocument::from_json(&legacy).unwrap();
+    assert_eq!(document.schema, "io.omacom.omalux.preset");
+    let canonical = document.to_canonical_json().unwrap();
+    assert!(canonical.contains("\"schema\":\"io.omacom.omalux.preset\""));
+    assert!(!canonical.contains("io.omacom.grainroom.preset"));
+}
+
+#[test]
 fn preset_parser_rejects_unknown_versions_and_fields() {
     let unknown_version = r#"{
-        "schema": "io.omacom.grainroom.preset",
+        "schema": "io.omacom.omalux.preset",
         "schema_version": 99,
         "future_payload": { "completely": ["different"] }
     }"#;
@@ -95,7 +106,7 @@ fn preset_parser_rejects_unknown_versions_and_fields() {
     ));
 
     let unknown_schema = NEUTRAL_PRESET.replacen(
-        "io.omacom.grainroom.preset",
+        "io.omacom.omalux.preset",
         "example.invalid.future-preset",
         1,
     );
@@ -263,7 +274,7 @@ fn implemented_stages_preflight_and_process_non_neutral_settings() {
     settings.geometry.quarter_turns_clockwise = 1;
     settings.geometry.perspective_horizontal = 10.0;
     settings.geometry.perspective_vertical = -5.0;
-    settings.geometry.crop = Some(grainroom::develop::CropRect {
+    settings.geometry.crop = Some(omalux::develop::CropRect {
         x: 0.0,
         y: 0.0,
         width: 1.0,

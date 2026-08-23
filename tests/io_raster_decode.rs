@@ -1,16 +1,16 @@
 use std::{fs, io::Write, path::Path};
 
 use flate2::{Compression, write::ZlibEncoder};
-use grainroom::io::{
+use image::{
+    ExtendedColorType, ImageEncoder,
+    codecs::{bmp::BmpEncoder, jpeg::JpegEncoder},
+};
+use omalux::io::{
     ColorProvenance, DecodeError, DecodeOptions, DiagnosticCode, ErrorCode, LimitError,
     PngSelectedColorSource, ResourceLimits, SignalRelation, SourceDigestV1, StableErrorCode,
     UnprofiledPolicy,
     color::srgb_profile,
     raster::{RasterCancellation, decode_raster},
-};
-use image::{
-    ExtendedColorType, ImageEncoder,
-    codecs::{bmp::BmpEncoder, jpeg::JpegEncoder},
 };
 use tempfile::TempDir;
 
@@ -172,7 +172,7 @@ fn set_jpeg_sof_components(jpeg: &mut [u8], components: u8) {
     }
 }
 
-fn decode(path: &Path) -> grainroom::io::DecodedPhoto {
+fn decode(path: &Path) -> omalux::io::DecodedPhoto {
     decode_raster(
         path,
         &DecodeOptions::default(),
@@ -674,7 +674,7 @@ fn raster_uses_shared_streaming_digest_and_coexists_with_raw_errors() {
         ErrorCode::RawBackend
     );
     assert_eq!(DecodeError::Cancelled.error_code(), ErrorCode::Cancelled);
-    let _raw_cancellation = grainroom::io::raw::RawCancellation::default();
+    let _raw_cancellation = omalux::io::raw::RawCancellation::default();
     let _raster_cancellation = RasterCancellation::default();
 }
 

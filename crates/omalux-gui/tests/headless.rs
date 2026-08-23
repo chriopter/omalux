@@ -26,7 +26,7 @@ fn corrupt_jpeg_exits_nonzero_without_publishing_or_hanging() {
     let input = directory.path().join("corrupt.jpg");
     let output = directory.path().join("output.jpg");
     fs::write(&input, b"not a jpeg").unwrap();
-    let child = Command::new(env!("CARGO_BIN_EXE_grainroom-gui"))
+    let child = Command::new(env!("CARGO_BIN_EXE_omalux-gui"))
         .env("QT_QPA_PLATFORM", "offscreen")
         .args(["--headless", "--input"])
         .arg(&input)
@@ -48,7 +48,7 @@ fn relative_jpeg_paths_resolve_against_the_process_working_directory() {
     image::RgbImage::from_pixel(2, 2, image::Rgb([80, 120, 160]))
         .save(&input)
         .unwrap();
-    let child = Command::new(env!("CARGO_BIN_EXE_grainroom-gui"))
+    let child = Command::new(env!("CARGO_BIN_EXE_omalux-gui"))
         .current_dir(directory.path())
         .env("QT_QPA_PLATFORM", "offscreen")
         .args([

@@ -5,7 +5,7 @@ use crate::develop::{
 
 mod clarity;
 
-// Grainroom's independent WP1 formulas and reference material are documented
+// Omalux's independent WP1 formulas and reference material are documented
 // in docs/develop/wp1-math.md.
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];

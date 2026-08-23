@@ -1,16 +1,16 @@
 [workspace]
-members = ["crates/grainroom-gui"]
+members = ["crates/omalux-gui"]
 default-members = ["."]
 resolver = "2"
 
 [package]
-name = "grainroom"
+name = "omalux"
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "A focused photo developer for Omarchy"
-homepage = "https://github.com/chriopter/grainroom"
-repository = "https://github.com/chriopter/grainroom"
+homepage = "https://github.com/chriopter/omalux"
+repository = "https://github.com/chriopter/omalux"
 
 [features]
 default = []

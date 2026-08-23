@@ -11,7 +11,7 @@ pub(crate) fn prepare() -> bool {
         .iter()
         .any(|argument| argument == "--version" || argument == "-V")
     {
-        println!("grainroom-gui {}", env!("CARGO_PKG_VERSION"));
+        println!("omalux-gui {}", env!("CARGO_PKG_VERSION"));
         return false;
     }
     if arguments.iter().any(|argument| argument == "--headless")
@@ -25,10 +25,10 @@ pub(crate) fn prepare() -> bool {
 
 fn print_help() {
     println!(
-        "Grainroom — Omarchy photo developer\n\n\
-Usage:\n  grainroom-gui [OPTIONS]\n\n\
+        "Omalux — Omarchy photo developer\n\n\
+Usage:\n  omalux-gui [OPTIONS]\n\n\
 Options:\n  --input PATH         Open JPEG, PNG, BMP, or camera RAW\n  --output PATH        Export without a save dialog\n  --format FORMAT      original, jpeg/jpg, or heic/heif (default: inferred)\n  --quality 1..100     JPEG/HEIC quality (default: 90)\n  --grain 0..100       Grain amount (default: 24)\n  --grain-size ISO     Grain size, 20..6400 (default: 4000)\n  --midtones 0..100    Midtone grain response (default: 100)\n  --headless           Run export without showing a window\n  -h, --help           Show this help\n  -V, --version        Show the version\n\n\
-Examples:\n  grainroom-gui --input photo.jpg\n  grainroom-gui --headless --input photo.jpg --output out.heic \\
+Examples:\n  omalux-gui --input photo.jpg\n  omalux-gui --headless --input photo.jpg --output out.heic \\
     --format heic --quality 90 --grain 24 --grain-size 4000"
     );
 }

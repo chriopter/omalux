@@ -1,8 +1,8 @@
 # Grain model and provenance
 
-Grainroom's normative CPU grain is an adaptation of the film-grain model shared
+Omalux's normative CPU grain is an adaptation of the film-grain model shared
 by darktable and RawTherapee. Preview and production export both execute this
-same CPU implementation; Grainroom contains no alternate grain renderer.
+same CPU implementation; Omalux contains no alternate grain renderer.
 
 Primary references:
 
@@ -76,7 +76,9 @@ the adapted grain-model files remain in place.
 
 `DevelopRenderContext::from_source_digest` accepts an already computed 32-byte
 source-content digest and derives a grain seed with the fixed domain
-`io.omacom.grainroom/grain-seed/v1`. The API performs no IO and has no filename,
+`io.omacom.grainroom/grain-seed/v1`. This legacy algorithm identifier is
+intentionally retained after the Omalux rename so identical inputs keep identical
+rendered grain. The API performs no IO and has no filename,
 path, mtime, or global-default input. Tests and golden fixtures may explicitly
 construct `ResolvedGrainSeed::fixed_for_tests`; production callers should
 prefer the content-digest constructor. Active grain without a context fails at

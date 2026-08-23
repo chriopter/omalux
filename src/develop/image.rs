@@ -5,7 +5,7 @@ use std::fmt;
 // estimator/version review.
 const _: () = assert!(std::mem::size_of::<RgbaPixel>() == 16);
 
-/// One straight-alpha pixel in Grainroom's normative CPU working space.
+/// One straight-alpha pixel in Omalux's normative CPU working space.
 ///
 /// RGB is linear Rec.2020 with a D65 white point. Whether those values are
 /// scene-referred (for example, RAW) or linearized display-referred (for

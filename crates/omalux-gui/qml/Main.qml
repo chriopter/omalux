@@ -6,7 +6,7 @@ import QtCore
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
-import io.omacom.grainroom 1.0
+import io.omacom.omalux 1.0
 
 ApplicationWindow {
     id: window
@@ -16,7 +16,7 @@ ApplicationWindow {
     minimumHeight: 560
     // Headless mode still uses Qt's offscreen platform for the QML event loop.
     visible: true
-    title: backend.fileName.length > 0 ? backend.fileName + " — Grainroom" : "Grainroom"
+    title: backend.fileName.length > 0 ? backend.fileName + " — Omalux" : "Omalux"
     color: pageColor
 
     readonly property color pageColor: backend.themeBackground
@@ -89,7 +89,7 @@ ApplicationWindow {
     }
 
     function failCli(message) {
-        console.error("grainroom: " + message)
+        console.error("omalux: " + message)
         Qt.callLater(function() { Qt.exit(1) })
     }
 
@@ -121,7 +121,7 @@ ApplicationWindow {
         backend.setParameter("effects.grain.size_iso", grainPanel.grainSizeValue)
         backend.setParameter("effects.grain.midtone_response", grainPanel.midtonesValue)
 
-        console.log("grainroom: opening " + cliInput)
+        console.log("omalux: opening " + cliInput)
         backend.openPhoto(localFileUrl(cliInput))
     }
 
@@ -132,7 +132,7 @@ ApplicationWindow {
         cliExportStarted = true
         var format = normalizedCliFormat()
         var destination = localFileUrl(cliOutput)
-        console.log("grainroom: exporting " + format + " at "
+        console.log("omalux: exporting " + format + " at "
                     + exportQuality + "% to " + cliOutput)
         if (format === "ORIGINAL")
             backend.saveOriginal(destination)
@@ -331,13 +331,13 @@ ApplicationWindow {
             exportDialog.defaultSuffix = "jpg"
             exportDialog.nameFilters = ["JPEG image (*.jpg *.jpeg)"]
             exportDialog.selectedFile = exportDialog.currentFolder + "/"
-                    + exportBaseName() + "-grainroom.jpg"
+                    + exportBaseName() + "-omalux.jpg"
         } else {
             exportDialog.title = "Export HEIC"
             exportDialog.defaultSuffix = "heic"
             exportDialog.nameFilters = ["HEIC image (*.heic)"]
             exportDialog.selectedFile = exportDialog.currentFolder + "/"
-                    + exportBaseName() + "-grainroom.heic"
+                    + exportBaseName() + "-omalux.heic"
         }
         exportDialog.open()
     }
@@ -412,13 +412,13 @@ ApplicationWindow {
             if (window.cliInput.length === 0)
                 return
             var status = backend.status
-            console.log("grainroom: " + status)
+            console.log("omalux: " + status)
             if (window.cliExportStarted
                     && status.indexOf("Published with durability warning:") === 0) {
-                console.warn("grainroom: export complete with durability warning")
+                console.warn("omalux: export complete with durability warning")
                 Qt.exit(0)
             } else if (window.cliExportStarted && status.indexOf("Saved ") === 0) {
-                console.log("grainroom: export complete")
+                console.log("omalux: export complete")
                 Qt.exit(0)
             } else if (status.indexOf("Could not") === 0
                        || status.indexOf("Development failed") === 0
@@ -1169,7 +1169,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
 
                         Text {
-                            text: "KEYBOARD / GRAINROOM"
+                            text: "KEYBOARD / OMALUX"
                             color: window.inkColor
                             font.family: window.monoFont
                             font.pixelSize: 15

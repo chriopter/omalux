@@ -107,7 +107,7 @@ pub(super) fn stage_source_file(
     )
     .map_err(|e| DecodeError::Input(std_error(e)))?;
     for _ in 0..16 {
-        let directory_name = format!(".grainroom-raw-{}", random_hex()?);
+        let directory_name = format!(".omalux-raw-{}", random_hex()?);
         match fs::mkdirat(&base, directory_name.as_str(), Mode::RWXU) {
             Ok(()) => {}
             Err(error) if error == rustix::io::Errno::EXIST => continue,
@@ -396,7 +396,7 @@ mod tests {
                 .filter(|entry| entry
                     .file_name()
                     .to_string_lossy()
-                    .starts_with(".grainroom-raw-"))
+                    .starts_with(".omalux-raw-"))
                 .count(),
             0
         );
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn restrictive_umask_child() {
-        if std::env::var_os("GRAINROOM_RAW_UMASK_CHILD").is_none() {
+        if std::env::var_os("OMALUX_RAW_UMASK_CHILD").is_none() {
             return;
         }
         let root = tempdir().unwrap();
@@ -440,7 +440,7 @@ mod tests {
     fn restrictive_umask_still_produces_exact_private_modes() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "io::raw::stage::tests::restrictive_umask_child"])
-            .env("GRAINROOM_RAW_UMASK_CHILD", "1")
+            .env("OMALUX_RAW_UMASK_CHILD", "1")
             .output()
             .unwrap();
         assert!(

@@ -1,9 +1,9 @@
-use grainroom::develop::{
+use omalux::develop::{
     CpuImage, CropRect, CurvePoint, DevelopPipeline, DevelopRenderContext, DevelopSettings,
     DevelopStage, DevelopWorkingSetProfile, LocalAdjustments, PipelineError, RadialMask, RgbaPixel,
     estimate_develop_working_set,
 };
-use grainroom::io::{LimitError, ResourceLimits};
+use omalux::io::{LimitError, ResourceLimits};
 
 fn image(width: u32, height: u32) -> CpuImage {
     let pixel = RgbaPixel::new(0.25, 0.5, 1.25, 0.75).unwrap();

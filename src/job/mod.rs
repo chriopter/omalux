@@ -17,8 +17,9 @@ pub use production::{ProductionJpegEncoder, ProductionPhotoDecoder, ProductionPh
 pub use progress::{CancellationToken, JobStage, NoProgress, ProgressSink};
 pub use report::{
     DEVELOP_JOB_REPORT_SCHEMA, DEVELOP_JOB_REPORT_VERSION, DevelopJobOutcome, DevelopJobReport,
-    DevelopWorkingSetSummary, EncodeSummary, HeicNclxSummary, ReportDevelopWorkingSetProfile,
-    ReportDigest, ReportOutputFormat, ReportSignalRelation, SceneRenderSummary,
+    DevelopWorkingSetSummary, EncodeSummary, HeicNclxSummary, LEGACY_DEVELOP_JOB_REPORT_SCHEMA,
+    ReportDevelopWorkingSetProfile, ReportDigest, ReportOutputFormat, ReportSignalRelation,
+    SceneRenderSummary,
 };
 pub use runner::DevelopJobRunner;
 pub use services::{

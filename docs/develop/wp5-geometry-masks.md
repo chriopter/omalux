@@ -66,13 +66,13 @@ temporary memory. Flat masks deliberately remain sequential layers.
 Soft-coverage Replace, Union, Intersect, and Subtract algebra is implemented and
 unit tested. Foundation F0 does **not** persist a group identifier or combine
 operator, so public preset masks are applied only as independent sequential
-layers. Grainroom deliberately does not infer grouping from consecutive IDs or
+layers. Omalux deliberately does not infer grouping from consecutive IDs or
 array position. Persisted grouping requires a future schema version plus the
 corresponding parameter-registry additions.
 
 ## Provenance
 
-The implementation and formulas are original Grainroom code. Architectural
+The implementation and formulas are original Omalux code. Architectural
 behavior was compared conceptually with these pinned public sources:
 
 - darktable `clipping.c` at

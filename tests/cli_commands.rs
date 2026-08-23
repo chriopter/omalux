@@ -1,4 +1,4 @@
-use grainroom::develop::{CurvePoint, DevelopSettings, PresetDocument};
+use omalux::develop::{CurvePoint, DevelopSettings, PresetDocument};
 use serde_json::Value;
 use std::{
     fs,
@@ -7,7 +7,7 @@ use std::{
 };
 
 fn run(arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(arguments)
         .output()
         .unwrap()
@@ -70,7 +70,7 @@ fn develop_validates_format_ranges_and_runs_pointwise_settings() {
         image::ImageFormat::Jpeg,
     )
     .unwrap();
-    let valid = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let valid = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(&input)
@@ -147,7 +147,7 @@ fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
     .unwrap();
 
     let develop = |source: &std::path::Path, output: &std::path::Path, setting: Option<&str>| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_grainroom"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_omalux"));
         command
             .arg("develop")
             .arg("--input")
@@ -238,7 +238,7 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
         ("personal-lampe-1", false, true, true),
     ] {
         let output = directory.path().join(format!("{id}.jpg"));
-        let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
             .args(["develop", "--input"])
             .arg(&input)
             .arg("--output")
@@ -291,7 +291,7 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
     let preset = PresetDocument::new("color-v1-cli", "Color V1 CLI", settings);
     fs::write(&preset_path, preset.to_canonical_json().unwrap()).unwrap();
 
-    let neutral = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let neutral = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(&input)
@@ -301,7 +301,7 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
         .unwrap();
     assert!(neutral.status.success());
 
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(&input)
@@ -351,7 +351,7 @@ fn geometry_cli_setting_runs_with_the_bounded_profile() {
         image::ImageFormat::Jpeg,
     )
     .unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(input)
@@ -435,7 +435,7 @@ fn unavailable_heic_does_not_open_or_create_any_requested_file() {
     let input = directory.path().join("does-not-exist.raw");
     let preset = directory.path().join("does-not-exist.json");
     let output = directory.path().join("must-not-exist.heic");
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(&input)
@@ -463,7 +463,7 @@ fn unavailable_heic_still_reports_option_usage_before_any_file_io() {
     let preset = directory.path().join("preset.json");
     rustix::fs::mkfifoat(rustix::fs::CWD, &preset, Mode::RUSR | Mode::WUSR).unwrap();
     let output = directory.path().join("must-not-exist.heic");
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(directory.path().join("missing.png"))
         .arg("--output")
@@ -487,7 +487,7 @@ fn invalid_resource_limits_precede_external_preset_io() {
     let preset_fifo = directory.path().join("preset.json");
     rustix::fs::mkfifoat(rustix::fs::CWD, &preset_fifo, Mode::RUSR | Mode::WUSR).unwrap();
     let output = directory.path().join("must-not-exist.jpg");
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .arg("develop")
         .arg("--input")
         .arg(directory.path().join("missing.jpg"))
@@ -525,7 +525,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
         image::ImageFormat::Png,
     )
     .unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
@@ -582,7 +582,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     unsafe { assert_heic_dimensions_and_depth(&bytes, 5, 3, 10) };
 
     let mask_output = directory.path().join("mask.heic");
-    let mask = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let mask = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
@@ -652,7 +652,7 @@ fn heic_collision_and_output_limit_are_transactional() {
     .unwrap();
     let alias = directory.path().join("alias.heic");
     fs::hard_link(&input, &alias).unwrap();
-    let collision = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let collision = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
@@ -665,7 +665,7 @@ fn heic_collision_and_output_limit_are_transactional() {
     assert_eq!(fs::read(&alias).unwrap(), fs::read(&input).unwrap());
 
     let limited = directory.path().join("limited.heic");
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
@@ -680,10 +680,7 @@ fn heic_collision_and_output_limit_are_transactional() {
         !fs::read_dir(directory.path())
             .unwrap()
             .flatten()
-            .any(|entry| entry
-                .file_name()
-                .to_string_lossy()
-                .contains("grainroom-tmp"))
+            .any(|entry| entry.file_name().to_string_lossy().contains("omalux-tmp"))
     );
 }
 
@@ -695,7 +692,7 @@ fn invalid_heic_options_precede_preset_fifo_and_input_io() {
     let directory = tempfile::tempdir().unwrap();
     let preset = directory.path().join("preset.json");
     rustix::fs::mkfifoat(rustix::fs::CWD, &preset, Mode::RUSR | Mode::WUSR).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(directory.path().join("missing.png"))
         .arg("--output")
@@ -713,9 +710,9 @@ fn invalid_heic_options_precede_preset_fifo_and_input_io() {
 #[test]
 fn gui_command_rejects_a_sibling_symlink_and_accepts_a_regular_held_sibling() {
     let directory = tempfile::tempdir().unwrap();
-    let core = directory.path().join("grainroom");
-    let sibling = directory.path().join("grainroom-gui");
-    fs::copy(env!("CARGO_BIN_EXE_grainroom"), &core).unwrap();
+    let core = directory.path().join("omalux");
+    let sibling = directory.path().join("omalux-gui");
+    fs::copy(env!("CARGO_BIN_EXE_omalux"), &core).unwrap();
 
     symlink("/bin/true", &sibling).unwrap();
     assert_eq!(

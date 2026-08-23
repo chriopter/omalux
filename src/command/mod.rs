@@ -60,17 +60,17 @@ mod tests {
 
     #[test]
     fn help_version_and_usage_errors_stop_before_dispatch() {
-        let (code, stdout, stderr) = invoke(&["grainroom", "--help"]);
+        let (code, stdout, stderr) = invoke(&["omalux", "--help"]);
         assert_eq!(code, ExitCode::SUCCESS);
         assert!(stdout.contains("Qt-free photo development tools"));
         assert!(stderr.is_empty());
 
-        let (code, stdout, stderr) = invoke(&["grainroom", "--version"]);
+        let (code, stdout, stderr) = invoke(&["omalux", "--version"]);
         assert_eq!(code, ExitCode::SUCCESS);
-        assert!(stdout.starts_with("grainroom "));
+        assert!(stdout.starts_with("omalux "));
         assert!(stderr.is_empty());
 
-        let (code, stdout, stderr) = invoke(&["grainroom", "--headless"]);
+        let (code, stdout, stderr) = invoke(&["omalux", "--headless"]);
         assert_eq!(code, ExitCode::from(2));
         assert!(stdout.is_empty());
         assert!(stderr.contains("unexpected argument '--headless'"));
@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn unavailable_heic_emits_no_progress_stream_or_file_io() {
         let base = [
-            "grainroom",
+            "omalux",
             "develop",
             "--input",
             "source.raw",
@@ -119,7 +119,7 @@ mod tests {
         )
         .unwrap();
         let arguments = vec![
-            OsString::from("grainroom"),
+            OsString::from("omalux"),
             OsString::from("develop"),
             OsString::from("--input"),
             input.clone().into_os_string(),
@@ -159,7 +159,7 @@ mod tests {
         std::fs::hard_link(&input, &output).unwrap();
         let before = std::fs::read(&input).unwrap();
         let arguments = vec![
-            OsString::from("grainroom"),
+            OsString::from("omalux"),
             OsString::from("develop"),
             OsString::from("--input"),
             input.into_os_string(),
@@ -196,7 +196,7 @@ mod tests {
         )
         .unwrap();
         let arguments = vec![
-            OsString::from("grainroom"),
+            OsString::from("omalux"),
             OsString::from("develop"),
             OsString::from("--input"),
             input.into_os_string(),
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn list_help_describes_default_tsv_output() {
-        let (code, stdout, stderr) = invoke(&["grainroom", "presets", "list", "--help"]);
+        let (code, stdout, stderr) = invoke(&["omalux", "presets", "list", "--help"]);
         assert_eq!(code, ExitCode::SUCCESS);
         assert!(stdout.contains("TSV, or JSON"));
         assert!(stderr.is_empty());

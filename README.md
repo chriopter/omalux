@@ -1,4 +1,4 @@
-# Grainroom
+# Omalux
 
 A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
@@ -50,15 +50,15 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 Open a photograph directly:
 
 ```bash
-grainroom-gui --input ~/Pictures/photo.jpg
+omalux-gui --input ~/Pictures/photo.jpg
 ```
 
 Run the same CPU development and HEIC export path without dialogs:
 
 ```bash
-grainroom-gui --headless \
+omalux-gui --headless \
   --input ~/Pictures/photo.jpg \
-  --output /tmp/photo-grainroom.heic \
+  --output /tmp/photo-omalux.heic \
   --format heic \
   --quality 90 \
   --grain 24 \
@@ -80,15 +80,15 @@ The Qt-free core executable exposes machine-testable catalog, parameter, and
 backend commands without loading Qt:
 
 ```bash
-grainroom --help
-grainroom presets list --json
-grainroom presets show neutral --json
-grainroom parameters list --json
-grainroom probe --json
+omalux --help
+omalux presets list --json
+omalux presets show neutral --json
+omalux parameters list --json
+omalux probe --json
 ```
 
 Launch the separately packaged desktop sibling explicitly with
-`grainroom gui [--input PATH]`. The core resolves `grainroom-gui` beside its own
+`omalux gui [--input PATH]`. The core resolves `omalux-gui` beside its own
 executable and never searches `PATH` for it. Linux launch holds and verifies
 the regular sibling without following symlinks before executing the held file.
 
@@ -97,7 +97,7 @@ core. The decoder opens the source once, output defaults to no-overwrite atomic
 publication, quality defaults to 90, and progress is written to stderr:
 
 ```bash
-grainroom develop --input photo.jpg --output result.jpg \
+omalux develop --input photo.jpg --output result.jpg \
   --preset neutral --set basics.brightness=12 --quality 90 --progress human
 ```
 
@@ -130,11 +130,11 @@ Desktop GUI additionally requires:
 ## Run
 
 ```bash
-cargo run --release -p grainroom-gui
+cargo run --release -p omalux-gui
 ```
 
-Build or test the Qt-free core alone with `cargo build -p grainroom` and
-`cargo test -p grainroom`. The GUI embeds QML only; photo decoding,
+Build or test the Qt-free core alone with `cargo build -p omalux` and
+`cargo test -p omalux`. The GUI embeds QML only; photo decoding,
 development, and encoding remain in the shared Rust core.
 
 ## Install and package
@@ -143,23 +143,23 @@ Install both executables from a checkout with matching package versions:
 
 ```bash
 cargo install --path . --locked
-cargo install --path crates/grainroom-gui --locked
+cargo install --path crates/omalux-gui --locked
 ```
 
-The first command installs the Qt-free `grainroom` core/CLI; the second installs
-the `grainroom-gui` desktop application and therefore requires Qt. Install and
+The first command installs the Qt-free `omalux` core/CLI; the second installs
+the `omalux-gui` desktop application and therefore requires Qt. Install and
 validate the desktop entry separately, for example for the current user:
 
 ```bash
-install -Dm644 packaging/arch/grainroom.desktop \
-  ~/.local/share/applications/grainroom.desktop
-desktop-file-validate ~/.local/share/applications/grainroom.desktop
+install -Dm644 packaging/arch/omalux.desktop \
+  ~/.local/share/applications/omalux.desktop
+desktop-file-validate ~/.local/share/applications/omalux.desktop
 ```
 
 Distribution packages must ship both binaries in the executable search path
-and install `packaging/arch/grainroom.desktop` under
-`share/applications/grainroom.desktop`. The desktop entry passes one selected
-photo to `grainroom-gui` through `%f`.
+and install `packaging/arch/omalux.desktop` under
+`share/applications/omalux.desktop`. The desktop entry passes one selected
+photo to `omalux-gui` through `%f`.
 
 Before publishing source packages, validate both Cargo package manifests and
 their included files:
@@ -168,7 +168,7 @@ their included files:
 cargo package --allow-dirty --workspace
 ```
 
-The GUI dependency pins the exact matching `grainroom` core version while also
+The GUI dependency pins the exact matching `omalux` core version while also
 retaining its workspace path for local builds. Packaging the workspace together
 lets Cargo build and fully verify both archives against its temporary local
 registry before either package has been published. Release the core package
