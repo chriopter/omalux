@@ -4,8 +4,8 @@ HEIC output is an optional Linux system-codec integration. Build the core with
 `--features heic`; this enables the shipped `libheif-sys 5.3.1+1.23.1`
 pre-generated v1.23 bindings and dynamically links the installed libheif.
 No bindgen/libclang toolchain is required. Packaging must provide a compatible
-libheif runtime and the x265 HEVC encoder. Without the feature, the public API returns
-`HeicBackendNotBuilt` without opening an output.
+libheif runtime and the x265 HEVC encoder. Without the feature, the public API
+returns `HeicBackendNotBuilt` without opening an output.
 
 The capability probe selects the encoder whose stable ID is exactly `x265`.
 It performs fresh synthetic 3x2 encodes at 8 and 10 bits and reads each result
@@ -14,7 +14,8 @@ survive. Merely finding an HEVC descriptor is not considered capability.
 
 Production preparation is shared with JPEG: input must already be linearized
 display-referred Rec.2020, scene-related RAW fails before allocation, LCMS
-produces encoded sRGB, quality defaults to 90, alpha follows the explicit
+produces encoded sRGB, which is deterministically expanded into a 10-bit RGB
+libheif input plane. Quality defaults to 90, alpha follows the explicit
 reject/flatten policy, and only sanitized EXIF enters libheif. ICC and NCLX are
 both written. The C boundary is confined to `encode/heic.rs`; context, encoder,
 image, handle, and encoding options are RAII-owned.

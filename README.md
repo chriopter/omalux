@@ -91,7 +91,7 @@ Launch the separately packaged desktop sibling explicitly with
 executable and never searches `PATH` for it. Linux launch holds and verifies
 the regular sibling without following symlinks before executing the held file.
 
-Run a real bounded, color-managed JPEG development job through the Qt-free
+Run a real bounded, color-managed development job through the Qt-free
 core. The decoder opens the source once, output defaults to no-overwrite atomic
 publication, quality defaults to 90, and progress is written to stderr:
 
@@ -100,8 +100,9 @@ grainroom develop --input photo.jpg --output result.jpg \
   --preset neutral --set basics.brightness=12 --quality 90 --progress human
 ```
 
-JPEG, PNG, BMP, and supported camera RAW inputs are accepted. V1 exports JPEG;
-HEIC requests exit 69 before touching presets, input, or output. Estimator-
+JPEG, PNG, BMP, and supported camera RAW inputs are accepted. The default build
+exports JPEG and rejects HEIC before requested-file I/O; `--features heic` adds
+10-bit libheif/x265 HEIC export with the same atomic publication contract. Estimator-
 approved PointwiseV1 presets and `--set` overrides run in production; settings
 that require an unproven allocation profile remain fail-closed with exit 69
 before development or output publication.

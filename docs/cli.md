@@ -36,15 +36,16 @@ Paths remain native `PathBuf`/`OsString` values, so non-UTF-8 Linux filenames
 are not converted or logged.
 
 `develop` runs the production decoder, relation-typed develop job, and atomic
-JPEG encoder. JPEG, PNG, BMP, and camera RAW inputs are signature-routed after
+codec dispatcher. JPEG, PNG, BMP, and camera RAW inputs are signature-routed after
 one `O_NOFOLLOW` source open; the digest, source identity, and decoded bytes all
 come from that same descriptor. RAW additionally requires a trusted functional
 `dcraw_emu` at `/usr/bin/dcraw_emu` or `/usr/local/bin/dcraw_emu`.
 
 Output format is inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or
-`.heif` when `--format` is absent. V1 produces real JPEG only. HEIC is rejected
-with exit 69 before preset, input, or destination I/O and cannot leave an
-output file. Options and resource limits are likewise validated before an
+`.heif` when `--format` is absent. The default build rejects HEIC with exit 69
+before preset, input, or destination I/O. A build with `--features heic`
+validates a 10-bit libheif/x265 backend and publishes real HEIC through the same
+atomic boundary as JPEG. Options and resource limits are validated before an
 external preset is opened. `--preset` and `--preset-file` are mutually
 exclusive, duplicate `--set` IDs are rejected, and external preset JSON is read
 through the bounded no-follow loader.
@@ -52,15 +53,18 @@ through the bounded no-follow loader.
 The current job resource proof admits the bounded PointwiseV1 profile:
 pointwise Basics controls except Clarity, plus Fade, Vignette, and Grain. Supported
 presets and `--set` overrides are applied before encoding. The final report is
-schema version 2 and names the profile plus its exact estimated peak. Clarity,
+schema version 3 and names the output format, codec provenance, profile, and
+its exact estimated peak. Clarity,
 geometry, curves, color operations, radial masks, Bloom, Halation, and
 Sharpness remain fail-closed with `unproven_pipeline_budget` and exit 69 after
 decode, before develop mutation or output creation.
 
 The destination defaults to no-overwrite atomic publication. `--overwrite`
 permits replacement of an existing regular file, while source/destination inode
-collisions and symlinks remain rejected. JPEG is sRGB with an embedded profile;
-quality defaults to 90. Safe metadata policy, alpha handling, SDR clipping, and
+collisions and symlinks remain rejected. The same-open source descriptor is
+leased through the encoder commit point. JPEG and HEIC are sRGB with an embedded
+profile; HEIC additionally writes NCLX 1/13/1/full. Quality defaults to 90. Safe
+metadata policy, alpha handling, SDR clipping, and
 the supplied resource limits are applied at the encoder boundary.
 
 `--progress human` writes completed stage names to stderr. `--progress json`
