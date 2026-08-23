@@ -3,8 +3,6 @@ use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::fmt;
 
 pub const PRESET_SCHEMA_VERSION: u32 = 3;
-/// Accepted when importing documents written before the Omalux rename.
-pub const LEGACY_PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
 const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
 const PREVIOUS_PRESET_SCHEMA_VERSION: u32 = 2;
 pub const PRESET_SCHEMA_ID: &str = "io.omacom.omalux.preset";
@@ -198,7 +196,7 @@ impl PresetDocument {
 }
 
 fn is_supported_schema(schema: &str) -> bool {
-    matches!(schema, PRESET_SCHEMA_ID | LEGACY_PRESET_SCHEMA_ID)
+    schema == PRESET_SCHEMA_ID
 }
 
 fn local_adjustments(

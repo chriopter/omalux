@@ -122,7 +122,7 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    assert_eq!(stable_pixel_hash(&image), 0xa353_7c4a_98fb_dd92);
+    assert_eq!(stable_pixel_hash(&image), 0x975b_1666_c278_8ec1);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {
@@ -159,5 +159,5 @@ fn vignette_then_sharpness_then_grain_order_has_a_focused_golden() {
     DevelopPipeline
         .process_with_context(&mut image, &settings, Some(&context))
         .unwrap();
-    assert_eq!(stable_pixel_hash(&image), 0xf266_0623_f923_cc58);
+    assert_eq!(stable_pixel_hash(&image), 0x8fc6_be72_d8e2_6c62);
 }

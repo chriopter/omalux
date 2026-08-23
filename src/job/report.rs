@@ -8,9 +8,6 @@ use crate::{
 use super::{JobErrorCode, JobStage};
 
 pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.omalux.develop-job-report";
-/// Schema identifier emitted before the Omalux rename. Consumers that retain
-/// historical reports can recognize this alias without changing new output.
-pub const LEGACY_DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.grainroom.develop-job-report";
 pub const DEVELOP_JOB_REPORT_VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

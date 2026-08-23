@@ -19,7 +19,7 @@ documents that attempt to use the v3 local field, are rejected rather than
 interpreted silently. Unknown fields remain denied at every level.
 
 New documents use `io.omacom.omalux.preset`. Imports also accept the legacy
-`io.omacom.grainroom.preset` identity and normalize it to the current identity
+the current `io.omacom.omalux.preset` identity and normalize documents to it
 in memory, so the next canonical serialization is an Omalux document without
 altering any develop settings.
 

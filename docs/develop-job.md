@@ -67,7 +67,4 @@ bounded profile/byte estimates, deterministic processing counters, output
 format, and path-free codec provenance. The explicit component profile advances
 the report schema to version 4.
 
-New reports use `io.omacom.omalux.develop-job-report`. The exported
-`LEGACY_DEVELOP_JOB_REPORT_SCHEMA` constant names the pre-rename identifier so
-downstream readers can continue to recognize archived reports; Omalux does not
-rewrite historical report bytes.
+Reports use `io.omacom.omalux.develop-job-report`.

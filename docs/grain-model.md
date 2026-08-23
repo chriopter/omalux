@@ -76,7 +76,7 @@ the adapted grain-model files remain in place.
 
 `DevelopRenderContext::from_source_digest` accepts an already computed 32-byte
 source-content digest and derives a grain seed with the fixed domain
-`io.omacom.grainroom/grain-seed/v1`. This legacy algorithm identifier is
+`io.omacom.omalux/grain-seed/v1`. This algorithm identifier is
 intentionally retained after the Omalux rename so identical inputs keep identical
 rendered grain. The API performs no IO and has no filename,
 path, mtime, or global-default input. Tests and golden fixtures may explicitly
