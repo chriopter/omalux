@@ -88,6 +88,49 @@ fn signed_hdr_extremes_are_finite_bounded_and_alpha_exact() {
 }
 
 #[test]
+fn extreme_neutral_white_and_target_edges_survive_lcms_reject() {
+    let source = [
+        pixel(f32::MAX, f32::MAX, f32::MAX, 1.0),
+        pixel(1.0e30, 1.0e30, 1.0e30, 0.9),
+        pixel(f32::MAX, 0.0, 0.0, 0.8),
+        pixel(0.0, f32::MAX, 0.0, 0.7),
+        pixel(0.0, 0.0, f32::MAX, 0.6),
+        pixel(1.0, 1.0, 0.0, 0.5),
+        pixel(1.0, 0.0, 1.0, 0.4),
+        pixel(0.0, 1.0, 1.0, 0.3),
+    ];
+    let limits = ResourceLimits::default();
+    let mut rendered = blank(source.len());
+    let report = SceneToDisplayTransform::new()
+        .transform_scanline(
+            &source,
+            &mut rendered,
+            SignalRelation::SceneRelatedRaw,
+            &limits,
+        )
+        .unwrap();
+    for channel in [rendered[0].red(), rendered[0].green(), rendered[0].blue()] {
+        assert_close(channel, 0.9998, 2.0e-7);
+    }
+    let mut encoded = vec![[0.0; 4]; source.len()];
+    WorkingToSrgbTransform::new(&limits)
+        .unwrap()
+        .transform_scanline(
+            &rendered,
+            &mut encoded,
+            report.output_signal_relation,
+            SdrRangePolicy::Reject,
+            &limits,
+        )
+        .unwrap();
+    assert!(
+        encoded
+            .iter()
+            .all(|pixel| pixel[..3].iter().all(|sample| (0.0..=1.0).contains(sample)))
+    );
+}
+
+#[test]
 fn rendered_scene_is_accepted_by_the_existing_lcms_srgb_boundary() {
     let source = [
         pixel(0.18, 0.18, 0.18, 0.125),

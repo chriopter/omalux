@@ -30,11 +30,13 @@ Yout = sigmoid(z)
 
 where sigmoid is evaluated with separate positive and negative branches to
 avoid exponential overflow. The curve maps scene middle gray 0.18 exactly to
-display middle gray 0.18, is monotone, and approaches one without a hard
-highlight clip. RGB is initially scaled by `Yout / Y`, preserving channel
-ratios. Non-positive luminance has no meaningful logarithmic exposure and is
-mapped to display black; the report counts those pixels. All math uses `f64`,
-so finite signed/HDR `f32` inputs cannot overflow the calculation.
+display middle gray 0.18 and is monotone. A versioned technical display-white
+ceiling of `0.9998` keeps even neutral extreme HDR inside the generated LCMS
+sRGB transform's accepted range. RGB is initially scaled by `Yout / Y`,
+preserving channel ratios. Non-positive luminance has no meaningful
+logarithmic exposure and is mapped to display black; the report counts those
+pixels. All math uses `f64`, so finite signed/HDR `f32` inputs cannot overflow
+the calculation.
 
 Creative exposure is upstream. In particular, the existing exposure control
 changes the scene value presented to this curve. V1 has no auto-exposure,
@@ -47,10 +49,10 @@ The toned Rec.2020 RGB is converted by the fixed D65 linear-light
 Rec.2020-to-sRGB matrix. If a target channel lies outside `[0, 1]`, chroma is
 scaled toward the neutral point `[Yout, Yout, Yout]` by the greatest scalar in
 `[0, 1]` that puts every target channel on or inside the cube. Chromatic
-boundaries use a fixed `2e-4` inset to cover numerical differences between the
-documented matrix and generated LCMS profiles. The local interval always
-includes the neutral coordinate, so neutral black and white are not lifted or
-lowered. This preserves neutral luminance and hue direction while avoiding
+boundaries and display white use a fixed `2e-4` inset to cover numerical
+differences between the documented matrix and generated LCMS profiles. Neutral
+black remains exact; neutral display white is consequently `0.9998`. This
+preserves neutral luminance and hue direction while avoiding
 independent RGB clipping. The bounded target value is converted back to linear
 Rec.2020. The inverse matrix has positive coefficients, so the returned
 Rec.2020 channels are also bounded. The existing LCMS sRGB output transform can

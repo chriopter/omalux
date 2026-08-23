@@ -10,9 +10,10 @@ const SCENE_MIDDLE_GREY: f64 = 0.18;
 const DISPLAY_MIDDLE_GREY: f64 = 0.18;
 const LOG_CONTRAST: f64 = 1.7;
 // Keeps chromatic target boundaries away from small differences between the
-// documented matrix and LCMS' generated profiles. The local bounds always
-// include neutral black/white, so neutral endpoints are not lifted or lowered.
+// documented matrix and LCMS' generated profiles. Black remains exact; the
+// display-white cap is part of the versioned V1 output contract.
 const TARGET_GAMUT_INSET: f64 = 2.0e-4;
+const DISPLAY_WHITE: f64 = 1.0 - TARGET_GAMUT_INSET;
 // D65 linear-light matrices. They are kept here, rather than delegated to an
 // encoded ICC transform, because gamut compression operates in target-linear
 // coordinates before the existing LCMS output transform applies the sRGB TRC.
@@ -140,7 +141,7 @@ fn compress_to_srgb_gamut(rec2020: [f64; 4]) -> ([f64; 4], bool) {
     let neutral = dot(rgb, REC2020_LUMA).clamp(0.0, 1.0);
     let target = multiply_matrix(REC2020_TO_SRGB, rgb);
     let lower_bound = neutral.min(TARGET_GAMUT_INSET);
-    let upper_bound = neutral.max(1.0 - TARGET_GAMUT_INSET);
+    let upper_bound = DISPLAY_WHITE;
     let mut chroma_scale = 1.0_f64;
     for sample in target {
         let delta = sample - neutral;
@@ -171,7 +172,7 @@ fn render_tone(pixel: &RgbaPixel) -> ([f64; 4], bool, bool) {
     if luminance <= 0.0 {
         return ([0.0, 0.0, 0.0, f64::from(pixel.alpha())], true, true);
     }
-    let mapped_luminance = log_logistic_luminance(luminance);
+    let mapped_luminance = log_logistic_luminance(luminance).min(DISPLAY_WHITE);
     let scale = mapped_luminance / luminance;
     (
         [
