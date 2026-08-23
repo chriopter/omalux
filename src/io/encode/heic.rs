@@ -55,6 +55,7 @@ mod backend {
         fs::File,
         io::{self, Write},
         ptr,
+        sync::{Mutex, MutexGuard, OnceLock},
     };
 
     use libheif_sys as heif;
@@ -203,7 +204,60 @@ mod backend {
                 && (*nclx).full_range_flag == 1
         };
         unsafe { heif::heif_nclx_color_profile_free(nclx) };
-        Ok(bits == i32::from(depth) && icc == PROBE_ICC && nclx_ok)
+        let decoded_samples_ok = unsafe { decoded_probe_samples(handle.0, depth) };
+        Ok(bits == i32::from(depth) && icc == PROBE_ICC && nclx_ok && decoded_samples_ok)
+    }
+
+    unsafe fn decoded_probe_samples(handle: *mut heif::heif_image_handle, depth: u8) -> bool {
+        let chroma = if depth == 8 {
+            heif::heif_chroma_heif_chroma_interleaved_RGB
+        } else {
+            heif::heif_chroma_heif_chroma_interleaved_RRGGBB_LE
+        };
+        let mut decoded = ptr::null_mut();
+        let result = unsafe {
+            heif::heif_decode_image(
+                handle,
+                &mut decoded,
+                heif::heif_colorspace_heif_colorspace_RGB,
+                chroma,
+                ptr::null(),
+            )
+        };
+        if result.code != heif::heif_error_code_heif_error_Ok || decoded.is_null() {
+            return false;
+        }
+        let decoded = Image(decoded);
+        let mut stride = 0usize;
+        let plane = unsafe {
+            heif::heif_image_get_plane_readonly2(
+                decoded.0,
+                heif::heif_channel_heif_channel_interleaved,
+                &mut stride,
+            )
+        };
+        let bytes_per_sample = if depth == 8 { 1 } else { 2 };
+        let row_bytes = 3 * 3 * bytes_per_sample;
+        if plane.is_null() || stride < row_bytes {
+            return false;
+        }
+        let mut minimum = u16::MAX;
+        let mut maximum = 0_u16;
+        for y in 0..2usize {
+            for sample in 0..9usize {
+                let offset = y * stride + sample * bytes_per_sample;
+                let value = if depth == 8 {
+                    u16::from(unsafe { *plane.add(offset) })
+                } else {
+                    u16::from_le_bytes([unsafe { *plane.add(offset) }, unsafe {
+                        *plane.add(offset + 1)
+                    }])
+                };
+                minimum = minimum.min(value);
+                maximum = maximum.max(value);
+            }
+        }
+        maximum <= ((1_u16 << depth) - 1) && minimum < maximum
     }
 
     unsafe extern "C" fn vec_write_callback(
@@ -212,7 +266,13 @@ mod backend {
         size: usize,
         userdata: *mut c_void,
     ) -> heif::heif_error {
-        if userdata.is_null() || (data.is_null() && size != 0) {
+        if userdata.is_null() {
+            return callback_error();
+        }
+        if size == 0 {
+            return ok();
+        }
+        if data.is_null() {
             return callback_error();
         }
         let bytes = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), size) };
@@ -315,7 +375,7 @@ mod backend {
         // libheif's writer contract invokes this synchronously and does not
         // retain userdata. `WriterState` therefore remains live and uniquely
         // borrowed for the complete `heif_context_write` call.
-        if userdata.is_null() || (data.is_null() && size != 0) {
+        if userdata.is_null() {
             return callback_error();
         }
         let state = unsafe { &mut *userdata.cast::<WriterState<'_>>() };
@@ -324,6 +384,13 @@ mod backend {
         }
         if state.cancellation.cancelled() {
             state.failure = Some(InnerFailure::Cancelled);
+            return callback_error();
+        }
+        if size == 0 {
+            return ok();
+        }
+        if data.is_null() {
+            state.failure = Some(InnerFailure::Io);
             return callback_error();
         }
         let requested = state.written.saturating_add(size as u64);
@@ -390,11 +457,22 @@ mod backend {
 
     struct Context(*mut heif::heif_context);
 
-    struct LibraryGuard;
+    static LIBHEIF_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    struct LibraryGuard {
+        _lock: MutexGuard<'static, ()>,
+    }
     impl LibraryGuard {
         unsafe fn new() -> Result<Self, EncodeError> {
+            // Serialize init, every context operation, callbacks, and deinit.
+            // This is deliberately stronger than libheif's optional build-time
+            // multithreading contract and also protects plugin lifecycle state.
+            let lock = LIBHEIF_LOCK
+                .get_or_init(|| Mutex::new(()))
+                .lock()
+                .map_err(|_| EncodeError::HeicBackendUnavailable)?;
             check(unsafe { heif::heif_init(ptr::null_mut()) })?;
-            Ok(Self)
+            Ok(Self { _lock: lock })
         }
     }
     impl Drop for LibraryGuard {
@@ -666,6 +744,43 @@ mod backend {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn callbacks_accept_null_with_zero_size_without_forming_a_slice() {
+            let mut output = Vec::<u8>::new();
+            let vector_result = unsafe {
+                vec_write_callback(
+                    ptr::null_mut(),
+                    ptr::null(),
+                    0,
+                    (&mut output as *mut Vec<u8>).cast(),
+                )
+            };
+            assert_eq!(vector_result.code, heif::heif_error_code_heif_error_Ok);
+
+            let directory = tempfile::tempdir().unwrap();
+            let mut file = File::create(directory.path().join("empty.bin")).unwrap();
+            let cancellation = EncodeCancellation::default();
+            let mut state = WriterState {
+                file: &mut file,
+                maximum: 0,
+                written: 0,
+                attempted: 0,
+                cancellation: &cancellation,
+                failure: None,
+            };
+            let file_result = unsafe {
+                write_callback(
+                    ptr::null_mut(),
+                    ptr::null(),
+                    0,
+                    (&mut state as *mut WriterState<'_>).cast(),
+                )
+            };
+            assert_eq!(file_result.code, heif::heif_error_code_heif_error_Ok);
+            assert_eq!(state.written, 0);
+            assert!(state.failure.is_none());
+        }
 
         #[test]
         fn writer_callback_appends_chunks_and_rejects_the_first_byte_over_limit() {

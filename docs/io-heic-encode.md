@@ -1,9 +1,10 @@
 # HEIC encoding
 
 HEIC output is an optional Linux system-codec integration. Build the core with
-`--features heic`; this enables `libheif-sys 5.3.1+1.23.1` and dynamically
-links the installed libheif. Packaging must provide a compatible libheif
-runtime and the x265 HEVC encoder. Without the feature, the public API returns
+`--features heic`; this enables the shipped `libheif-sys 5.3.1+1.23.1`
+pre-generated v1.23 bindings and dynamically links the installed libheif.
+No bindgen/libclang toolchain is required. Packaging must provide a compatible
+libheif runtime and the x265 HEVC encoder. Without the feature, the public API returns
 `HeicBackendNotBuilt` without opening an output.
 
 The capability probe selects the encoder whose stable ID is exactly `x265`.
@@ -20,7 +21,9 @@ image, handle, and encoding options are RAII-owned.
 
 libheif writes synchronously through a callback into AtomicOutput's private
 file. Each append checks `max_output_bytes` before writing, so no complete
-encoded-byte buffer exists. Writer, codec, cancellation, resource, publication,
+encoded-byte buffer exists in Grainroom. libheif/x265 necessarily retain their
+own internal coded-image and container state until `heif_context_write`.
+Writer, codec, cancellation, resource, publication,
 and post-publication durability errors retain their distinct semantics.
 
 The estimator charges resident image, prepared RGB8, metadata, and a
@@ -38,3 +41,8 @@ HEVC distribution may implicate patents or royalties depending on jurisdiction
 and distribution model. Copyright licenses do not grant patent rights.
 Distributors must perform their own legal review; Grainroom bundles neither
 x265 nor libheif.
+
+All libheif calls are serialized behind a process-global Rust mutex spanning
+`heif_init`, context/codec work, callbacks, and `heif_deinit`. Correctness does
+not depend on the system library having been built with optional multithreading
+support. Independent Rust preparation remains parallelizable.
