@@ -3,7 +3,7 @@ use crate::{
     io::{EncodeError, EncodeOptions, MetadataBundle, ResourceLimits, SignalRelation},
 };
 
-use super::{EncodeCancellation, MetadataWriteReport, metadata::sanitize_metadata};
+use super::{EncodeCancellation, MetadataWriteReport};
 
 pub struct JpegEncodeInput<'a> {
     pub image: &'a CpuImage,
@@ -30,6 +30,6 @@ pub fn prepare_display_rgb8(
     limits: &ResourceLimits,
     cancellation: &EncodeCancellation,
 ) -> Result<PreparedDisplayRgb, EncodeError> {
-    let _ = (input, options, limits, cancellation, sanitize_metadata);
+    let _ = (input, options, limits, cancellation);
     Err(EncodeError::Encode)
 }
