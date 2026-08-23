@@ -245,7 +245,11 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
         .output()
         .unwrap();
     assert!(result.status.success(), "{result:?}");
-    assert_eq!(json(&result)["develop_working_set"]["profile"], "color_v1");
+    let report = json(&result);
+    assert_eq!(report["schema_version"], 3);
+    assert_eq!(report["output_format"], "jpeg");
+    assert_eq!(report["encoding"]["format"], "jpeg");
+    assert_eq!(report["develop_working_set"]["profile"], "color_v1");
     assert!(output.exists());
     assert_ne!(
         image::open(&output).unwrap().to_rgb8(),
@@ -255,7 +259,7 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
 }
 
 #[test]
-fn unsupported_cli_setting_fails_before_target_publication() {
+fn unsupported_spatial_cli_setting_fails_before_target_publication() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("input.jpg");
     let output = directory.path().join("must-not-exist.jpg");
@@ -275,7 +279,7 @@ fn unsupported_cli_setting_fails_before_target_publication() {
         .arg("--output")
         .arg(&output)
         .arg("--set")
-        .arg("basics.clarity=10")
+        .arg("geometry.straighten_degrees=1")
         .arg("--json")
         .output()
         .unwrap();
@@ -424,6 +428,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("gradient.png");
     let output = directory.path().join("developed.heic");
+    let preset_path = directory.path().join("color.json");
     let mut pixels = Vec::new();
     for y in 0_u8..3 {
         for x in 0_u8..5 {
@@ -439,18 +444,29 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
         image::ImageFormat::Png,
     )
     .unwrap();
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.65 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    let preset = PresetDocument::new("color-v1-heic", "Color V1 HEIC", settings);
+    fs::write(&preset_path, preset.to_canonical_json().unwrap()).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
         .arg(&output)
+        .args(["--format", "heic", "--quality", "90"])
+        .arg("--preset-file")
+        .arg(&preset_path)
         .args([
-            "--format",
-            "heic",
-            "--quality",
-            "90",
             "--set",
-            "basics.brightness=10",
+            "color_mixer.blue.saturation=25",
+            "--set",
+            "color_grading.midtones.hue_degrees=215",
+            "--set",
+            "color_grading.midtones.saturation=20",
             "--json",
         ])
         .output()
@@ -467,6 +483,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     assert_eq!(report["encoding"]["nclx"]["transfer_characteristics"], 13);
     assert_eq!(report["encoding"]["nclx"]["matrix_coefficients"], 1);
     assert_eq!(report["encoding"]["nclx"]["full_range"], true);
+    assert_eq!(report["develop_working_set"]["profile"], "color_v1");
     assert!(
         report["encoding"]["encoder"]
             .as_str()

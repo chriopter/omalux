@@ -364,7 +364,6 @@ fn structured_curve_preset_and_scalar_color_overrides_run_as_color_v1() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut request = job();
