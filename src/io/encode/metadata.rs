@@ -28,20 +28,49 @@ enum Endian {
     Big,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct RetainedEntry {
     tag: u16,
     kind: u16,
     count: u32,
-    bytes: Vec<u8>,
+    source_offset: usize,
+    byte_len: usize,
 }
 
+struct ParsedEntries {
+    endian: Endian,
+    retained: [Option<RetainedEntry>; MAX_RETAINED_ENTRIES],
+    retained_len: usize,
+}
+
+const MAX_RETAINED_ENTRIES: usize = 32;
+
+pub(crate) struct MetadataPlan {
+    endian: Option<Endian>,
+    retained: [Option<RetainedEntry>; MAX_RETAINED_ENTRIES],
+    retained_len: usize,
+    output_bytes: usize,
+    report: MetadataWriteReport,
+}
+
+#[cfg(test)]
 pub(crate) fn sanitize_metadata(
     metadata: &MetadataBundle,
     policy: MetadataPolicy,
     limits: &ResourceLimits,
     cancelled: impl Fn() -> bool,
 ) -> Result<SanitizedMetadata, EncodeError> {
+    let plan = plan_metadata(metadata, policy, limits, &cancelled)?;
+    materialize_metadata(metadata, plan, &cancelled)
+}
+
+/// First pass: validates and sizes the allowlisted TIFF without allocating.
+pub(crate) fn plan_metadata(
+    metadata: &MetadataBundle,
+    policy: MetadataPolicy,
+    limits: &ResourceLimits,
+    cancelled: &impl Fn() -> bool,
+) -> Result<MetadataPlan, EncodeError> {
     limits.validate().map_err(EncodeError::Limit)?;
     if cancelled() {
         return Err(EncodeError::Cancelled);
@@ -54,49 +83,98 @@ pub(crate) fn sanitize_metadata(
     };
     if policy == MetadataPolicy::StripAll {
         report.unsafe_tags_removed = u32::from(metadata.exif().is_some());
-        return Ok(SanitizedMetadata { exif: None, report });
+        return Ok(empty_plan(report));
     }
     let Some(raw) = metadata.exif() else {
-        return Ok(SanitizedMetadata { exif: None, report });
+        return Ok(empty_plan(report));
     };
     limits
         .check_metadata_component(MetadataKind::Exif, raw.len())
         .map_err(EncodeError::Limit)?;
-    let parsed = match parse_safe_entries(raw, &mut report, &cancelled) {
+    let parsed = match parse_safe_entries(raw, &mut report, cancelled) {
         Ok(value) => value,
         Err(EncodeError::Metadata) => None,
         Err(error) => return Err(error),
     };
-    let Some((endian, retained)) = parsed else {
+    let Some(ParsedEntries {
+        endian,
+        retained,
+        retained_len,
+    }) = parsed
+    else {
         report.malformed_exif_dropped = true;
-        return Ok(SanitizedMetadata { exif: None, report });
+        return Ok(empty_plan(report));
     };
     if cancelled() {
         return Err(EncodeError::Cancelled);
     }
-    let exif = build_exif(endian, retained).ok_or(EncodeError::Metadata)?;
-    if exif.len() > MAX_JPEG_EXIF_TIFF_BYTES {
+    let output_bytes = exif_output_size(&retained[..retained_len]).ok_or(EncodeError::Metadata)?;
+    if output_bytes > MAX_JPEG_EXIF_TIFF_BYTES {
         return Err(EncodeError::Limit(crate::io::LimitError::MetadataBytes {
             kind: MetadataKind::Exif,
-            requested: exif.len() as u64,
+            requested: output_bytes as u64,
             maximum: MAX_JPEG_EXIF_TIFF_BYTES as u64,
         }));
     }
     limits
-        .check_metadata_component(MetadataKind::Exif, exif.len())
+        .check_metadata_component(MetadataKind::Exif, output_bytes)
         .map_err(EncodeError::Limit)?;
-    report.exif_output_bytes = exif.len() as u64;
-    Ok(SanitizedMetadata {
-        exif: (!exif.is_empty()).then_some(exif),
+    report.exif_output_bytes = output_bytes as u64;
+    Ok(MetadataPlan {
+        endian: Some(endian),
+        retained,
+        retained_len,
+        output_bytes,
         report,
     })
+}
+
+pub(crate) fn materialize_metadata(
+    metadata: &MetadataBundle,
+    plan: MetadataPlan,
+    cancelled: &impl Fn() -> bool,
+) -> Result<SanitizedMetadata, EncodeError> {
+    if cancelled() {
+        return Err(EncodeError::Cancelled);
+    }
+    let exif = match (plan.endian, metadata.exif(), plan.output_bytes) {
+        (_, _, 0) => None,
+        (Some(endian), Some(raw), output_bytes) => Some(build_exif(
+            endian,
+            &plan.retained[..plan.retained_len],
+            raw,
+            output_bytes,
+            cancelled,
+        )?),
+        _ => return Err(EncodeError::Metadata),
+    };
+    Ok(SanitizedMetadata {
+        exif,
+        report: plan.report,
+    })
+}
+
+impl MetadataPlan {
+    pub(crate) fn output_bytes(&self) -> u64 {
+        self.output_bytes as u64
+    }
+}
+
+fn empty_plan(report: MetadataWriteReport) -> MetadataPlan {
+    MetadataPlan {
+        endian: None,
+        retained: [None; MAX_RETAINED_ENTRIES],
+        retained_len: 0,
+        output_bytes: 0,
+        report,
+    }
 }
 
 fn parse_safe_entries(
     bytes: &[u8],
     report: &mut MetadataWriteReport,
     cancelled: &impl Fn() -> bool,
-) -> Result<Option<(Endian, Vec<RetainedEntry>)>, EncodeError> {
+) -> Result<Option<ParsedEntries>, EncodeError> {
     if bytes.len() < 8 {
         return Ok(None);
     }
@@ -112,129 +190,141 @@ fn parse_safe_entries(
     else {
         return Ok(None);
     };
-    let Some(root) = parse_ifd(bytes, ifd0, endian, cancelled)? else {
-        return Ok(None);
-    };
-    let mut retained = Vec::new();
-    let mut exif_offset = None;
-    collect_entries(
+    let mut collector = EntryCollector {
         bytes,
-        &root,
         endian,
-        &mut retained,
-        &mut exif_offset,
+        retained: [None; MAX_RETAINED_ENTRIES],
+        retained_len: 0,
         report,
-    )?;
-    if let Some(offset) = exif_offset {
-        let Some(exif_ifd) = parse_ifd(bytes, offset, endian, cancelled)? else {
-            return Ok(None);
-        };
-        collect_entries(bytes, &exif_ifd, endian, &mut retained, &mut None, report)?;
-    }
-    retained.sort_by_key(|entry| entry.tag);
-    if retained.windows(2).any(|pair| pair[0].tag == pair[1].tag) {
+        cancelled,
+    };
+    let mut exif_offset = None;
+    if !collector.collect_entries(ifd0, &mut exif_offset)? {
         return Ok(None);
     }
-    Ok(Some((endian, retained)))
+    if let Some(offset) = exif_offset
+        && !collector.collect_entries(offset, &mut None)?
+    {
+        return Ok(None);
+    }
+    if cancelled() {
+        return Err(EncodeError::Cancelled);
+    }
+    collector.retained[..collector.retained_len]
+        .sort_unstable_by_key(|entry| entry.expect("retained prefix is populated").tag);
+    if cancelled() {
+        return Err(EncodeError::Cancelled);
+    }
+    Ok(Some(ParsedEntries {
+        endian,
+        retained: collector.retained,
+        retained_len: collector.retained_len,
+    }))
 }
 
-struct IfdEntry {
-    tag: u16,
-    kind: u16,
-    count: u32,
-    value_field: usize,
-}
-
-fn parse_ifd(
-    bytes: &[u8],
-    offset: usize,
-    endian: Endian,
-    cancelled: &impl Fn() -> bool,
-) -> Result<Option<Vec<IfdEntry>>, EncodeError> {
-    let Some(count) = read_u16(bytes, offset, endian).map(usize::from) else {
-        return Ok(None);
-    };
-    let Some(start) = offset.checked_add(2) else {
-        return Ok(None);
-    };
-    let Some(end) = count
+fn ifd_bounds(bytes: &[u8], offset: usize, endian: Endian) -> Option<(usize, usize)> {
+    let count = read_u16(bytes, offset, endian).map(usize::from)?;
+    let start = offset.checked_add(2)?;
+    let end = count
         .checked_mul(12)
         .and_then(|size| start.checked_add(size))
-        .and_then(|value| value.checked_add(4))
-    else {
-        return Ok(None);
-    };
+        .and_then(|value| value.checked_add(4))?;
     if end > bytes.len() {
-        return Ok(None);
+        return None;
     }
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(count)
-        .map_err(|_| EncodeError::Limit(crate::io::LimitError::Allocation))?;
-    for index in 0..count {
-        if index % 256 == 0 && cancelled() {
-            return Err(EncodeError::Cancelled);
-        }
-        let at = start + index * 12;
-        entries.push(IfdEntry {
-            tag: read_u16(bytes, at, endian).expect("validated IFD entry"),
-            kind: read_u16(bytes, at + 2, endian).expect("validated IFD entry"),
-            count: read_u32(bytes, at + 4, endian).expect("validated IFD entry"),
-            value_field: at + 8,
-        });
-    }
-    Ok(Some(entries))
+    Some((start, count))
 }
 
-fn collect_entries(
-    bytes: &[u8],
-    entries: &[IfdEntry],
+struct EntryCollector<'a> {
+    bytes: &'a [u8],
     endian: Endian,
-    retained: &mut Vec<RetainedEntry>,
-    exif_offset: &mut Option<usize>,
-    report: &mut MetadataWriteReport,
-) -> Result<(), EncodeError> {
-    for entry in entries {
-        match entry.tag {
-            0x0112 => {
-                report.orientation_removed = true;
-                report.unsafe_tags_removed = report.unsafe_tags_removed.saturating_add(1);
+    retained: [Option<RetainedEntry>; MAX_RETAINED_ENTRIES],
+    retained_len: usize,
+    report: &'a mut MetadataWriteReport,
+    cancelled: &'a dyn Fn() -> bool,
+}
+
+impl EntryCollector<'_> {
+    fn collect_entries(
+        &mut self,
+        offset: usize,
+        exif_offset: &mut Option<usize>,
+    ) -> Result<bool, EncodeError> {
+        let Some((start, count)) = ifd_bounds(self.bytes, offset, self.endian) else {
+            return Ok(false);
+        };
+        for index in 0..count {
+            if index % 64 == 0 && (self.cancelled)() {
+                return Err(EncodeError::Cancelled);
             }
-            0x8825 => {
-                report.gps_removed = true;
-                report.unsafe_tags_removed = report.unsafe_tags_removed.saturating_add(1);
-            }
-            0x8769 if exif_offset.is_none() && entry.kind == 4 && entry.count == 1 => {
-                *exif_offset = read_u32(bytes, entry.value_field, endian)
-                    .and_then(|value| usize::try_from(value).ok());
-                if exif_offset.is_none() {
-                    return Err(EncodeError::Metadata);
+            let value_field = start + index * 12 + 8;
+            let tag =
+                read_u16(self.bytes, value_field - 8, self.endian).expect("validated IFD entry");
+            let kind =
+                read_u16(self.bytes, value_field - 6, self.endian).expect("validated IFD entry");
+            let value_count =
+                read_u32(self.bytes, value_field - 4, self.endian).expect("validated IFD entry");
+            match tag {
+                0x0112 => {
+                    self.report.orientation_removed = true;
+                    self.report.unsafe_tags_removed =
+                        self.report.unsafe_tags_removed.saturating_add(1);
                 }
-            }
-            tag if allowed_shape(tag, entry.kind, entry.count) => {
-                let Some(value) = entry_bytes(bytes, entry, endian) else {
-                    return Err(EncodeError::Metadata);
-                };
-                if matches!(entry.kind, 5 | 10)
-                    && value.chunks_exact(8).any(|rational| {
-                        read_u32(rational, 4, endian).is_none_or(|denominator| denominator == 0)
-                    })
-                {
-                    return Err(EncodeError::Metadata);
+                0x8825 => {
+                    self.report.gps_removed = true;
+                    self.report.unsafe_tags_removed =
+                        self.report.unsafe_tags_removed.saturating_add(1);
                 }
-                retained.push(RetainedEntry {
-                    tag,
-                    kind: entry.kind,
-                    count: entry.count,
-                    bytes: value.to_vec(),
-                });
-            }
-            _ => {
-                report.unsafe_tags_removed = report.unsafe_tags_removed.saturating_add(1);
+                0x8769 if exif_offset.is_none() && kind == 4 && value_count == 1 => {
+                    *exif_offset = read_u32(self.bytes, value_field, self.endian)
+                        .and_then(|value| usize::try_from(value).ok());
+                    if exif_offset.is_none() {
+                        return Err(EncodeError::Metadata);
+                    }
+                }
+                tag if allowed_shape(tag, kind, value_count) => {
+                    let Some((source_offset, byte_len)) =
+                        entry_range(self.bytes, kind, value_count, value_field, self.endian)
+                    else {
+                        return Err(EncodeError::Metadata);
+                    };
+                    let value = &self.bytes[source_offset..source_offset + byte_len];
+                    if matches!(kind, 5 | 10)
+                        && value.chunks_exact(8).any(|rational| {
+                            read_u32(rational, 4, self.endian)
+                                .is_none_or(|denominator| denominator == 0)
+                        })
+                    {
+                        return Err(EncodeError::Metadata);
+                    }
+                    if self.retained_len == MAX_RETAINED_ENTRIES
+                        || self.retained[..self.retained_len]
+                            .iter()
+                            .flatten()
+                            .any(|existing| existing.tag == tag)
+                    {
+                        return Ok(false);
+                    }
+                    self.retained[self.retained_len] = Some(RetainedEntry {
+                        tag,
+                        kind,
+                        count: value_count,
+                        source_offset,
+                        byte_len,
+                    });
+                    self.retained_len += 1;
+                }
+                _ => {
+                    self.report.unsafe_tags_removed =
+                        self.report.unsafe_tags_removed.saturating_add(1);
+                }
             }
         }
+        if (self.cancelled)() {
+            return Err(EncodeError::Cancelled);
+        }
+        Ok(true)
     }
-    Ok(())
 }
 
 fn allowed_shape(tag: u16, kind: u16, count: u32) -> bool {
@@ -251,83 +341,135 @@ fn allowed_shape(tag: u16, kind: u16, count: u32) -> bool {
     }
 }
 
-fn entry_bytes<'a>(bytes: &'a [u8], entry: &IfdEntry, endian: Endian) -> Option<&'a [u8]> {
-    let element = match entry.kind {
+fn entry_range(
+    bytes: &[u8],
+    kind: u16,
+    count: u32,
+    value_field: usize,
+    endian: Endian,
+) -> Option<(usize, usize)> {
+    let element = match kind {
         1 | 2 | 7 => 1_usize,
         3 => 2,
         4 | 9 => 4,
         5 | 10 => 8,
         _ => return None,
     };
-    let size = element.checked_mul(usize::try_from(entry.count).ok()?)?;
+    let size = element.checked_mul(usize::try_from(count).ok()?)?;
     let start = if size <= 4 {
-        entry.value_field
+        value_field
     } else {
-        usize::try_from(read_u32(bytes, entry.value_field, endian)?).ok()?
+        usize::try_from(read_u32(bytes, value_field, endian)?).ok()?
     };
-    bytes.get(start..start.checked_add(size)?)
+    bytes.get(start..start.checked_add(size)?)?;
+    Some((start, size))
 }
 
-fn build_exif(endian: Endian, entries: Vec<RetainedEntry>) -> Option<Vec<u8>> {
+fn exif_output_size(entries: &[Option<RetainedEntry>]) -> Option<usize> {
     if entries.is_empty() {
-        return Some(Vec::new());
+        return Some(0);
     }
     let ifd0_size = 2 + 12 + 4;
     let exif_ifd_offset = 8_usize.checked_add(ifd0_size)?;
     let exif_ifd_size = 2_usize
         .checked_add(entries.len().checked_mul(12)?)?
         .checked_add(4)?;
-    let mut data_offset = exif_ifd_offset.checked_add(exif_ifd_size)?;
+    let data_offset = exif_ifd_offset.checked_add(exif_ifd_size)?;
     let external_bytes = entries.iter().try_fold(0_usize, |total, entry| {
-        if entry.bytes.len() > 4 {
-            total.checked_add(entry.bytes.len())
+        let entry = entry.as_ref()?;
+        if entry.byte_len > 4 {
+            total.checked_add(entry.byte_len)
         } else {
             Some(total)
         }
     })?;
-    let total = data_offset.checked_add(external_bytes)?;
-    let mut output = vec![0_u8; total];
+    data_offset.checked_add(external_bytes)
+}
+
+fn build_exif(
+    endian: Endian,
+    entries: &[Option<RetainedEntry>],
+    source: &[u8],
+    total: usize,
+    cancelled: &impl Fn() -> bool,
+) -> Result<Vec<u8>, EncodeError> {
+    if entries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ifd0_size = 2 + 12 + 4;
+    let exif_ifd_offset = 8_usize
+        .checked_add(ifd0_size)
+        .ok_or(EncodeError::Metadata)?;
+    let exif_ifd_size = 2_usize
+        .checked_add(entries.len().checked_mul(12).ok_or(EncodeError::Metadata)?)
+        .and_then(|value| value.checked_add(4))
+        .ok_or(EncodeError::Metadata)?;
+    let mut data_offset = exif_ifd_offset
+        .checked_add(exif_ifd_size)
+        .ok_or(EncodeError::Metadata)?;
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(total)
+        .map_err(|_| EncodeError::Limit(crate::io::LimitError::Allocation))?;
+    output.resize(total, 0);
     output[..2].copy_from_slice(match endian {
         Endian::Little => b"II",
         Endian::Big => b"MM",
     });
-    write_u16(&mut output, 2, 42, endian)?;
-    write_u32(&mut output, 4, 8, endian)?;
-    write_u16(&mut output, 8, 1, endian)?;
-    write_u16(&mut output, 10, 0x8769, endian)?;
-    write_u16(&mut output, 12, 4, endian)?;
-    write_u32(&mut output, 14, 1, endian)?;
+    write_u16(&mut output, 2, 42, endian).ok_or(EncodeError::Metadata)?;
+    write_u32(&mut output, 4, 8, endian).ok_or(EncodeError::Metadata)?;
+    write_u16(&mut output, 8, 1, endian).ok_or(EncodeError::Metadata)?;
+    write_u16(&mut output, 10, 0x8769, endian).ok_or(EncodeError::Metadata)?;
+    write_u16(&mut output, 12, 4, endian).ok_or(EncodeError::Metadata)?;
+    write_u32(&mut output, 14, 1, endian).ok_or(EncodeError::Metadata)?;
     write_u32(
         &mut output,
         18,
-        u32::try_from(exif_ifd_offset).ok()?,
+        u32::try_from(exif_ifd_offset).map_err(|_| EncodeError::Metadata)?,
         endian,
-    )?;
+    )
+    .ok_or(EncodeError::Metadata)?;
     write_u16(
         &mut output,
         exif_ifd_offset,
-        u16::try_from(entries.len()).ok()?,
+        u16::try_from(entries.len()).map_err(|_| EncodeError::Metadata)?,
         endian,
-    )?;
+    )
+    .ok_or(EncodeError::Metadata)?;
     for (index, entry) in entries.iter().enumerate() {
+        if cancelled() {
+            return Err(EncodeError::Cancelled);
+        }
+        let entry = entry.as_ref().ok_or(EncodeError::Metadata)?;
         let at = exif_ifd_offset + 2 + index * 12;
-        write_u16(&mut output, at, entry.tag, endian)?;
-        write_u16(&mut output, at + 2, entry.kind, endian)?;
-        write_u32(&mut output, at + 4, entry.count, endian)?;
-        if entry.bytes.len() <= 4 {
-            output[at + 8..at + 8 + entry.bytes.len()].copy_from_slice(&entry.bytes);
+        write_u16(&mut output, at, entry.tag, endian).ok_or(EncodeError::Metadata)?;
+        write_u16(&mut output, at + 2, entry.kind, endian).ok_or(EncodeError::Metadata)?;
+        write_u32(&mut output, at + 4, entry.count, endian).ok_or(EncodeError::Metadata)?;
+        let value_end = entry
+            .source_offset
+            .checked_add(entry.byte_len)
+            .ok_or(EncodeError::Metadata)?;
+        let value = source
+            .get(entry.source_offset..value_end)
+            .ok_or(EncodeError::Metadata)?;
+        if entry.byte_len <= 4 {
+            output[at + 8..at + 8 + entry.byte_len].copy_from_slice(value);
         } else {
             write_u32(
                 &mut output,
                 at + 8,
-                u32::try_from(data_offset).ok()?,
+                u32::try_from(data_offset).map_err(|_| EncodeError::Metadata)?,
                 endian,
-            )?;
-            output[data_offset..data_offset + entry.bytes.len()].copy_from_slice(&entry.bytes);
-            data_offset += entry.bytes.len();
+            )
+            .ok_or(EncodeError::Metadata)?;
+            output[data_offset..data_offset + entry.byte_len].copy_from_slice(value);
+            data_offset += entry.byte_len;
+        }
+        if cancelled() {
+            return Err(EncodeError::Cancelled);
         }
     }
-    Some(output)
+    Ok(output)
 }
 
 fn read_u16(bytes: &[u8], offset: usize, endian: Endian) -> Option<u16> {
@@ -371,6 +513,13 @@ fn write_u32(bytes: &mut [u8], offset: usize, value: u32, endian: Endian) -> Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+        },
+        thread,
+    };
 
     fn source_exif() -> Vec<u8> {
         // IFD0: orientation, GPS, Exif pointer, camera serial. Exif IFD:
@@ -432,12 +581,19 @@ mod tests {
         assert!(!exif.windows(4).any(|window| window == b"MAKE"));
         assert!(!exif.windows(4).any(|window| window == b"USER"));
         assert!(!exif.windows(3).any(|window| window == b"SER"));
-        let (_, retained) =
-            parse_safe_entries(&exif, &mut MetadataWriteReport::default(), &|| false)
-                .unwrap()
-                .unwrap();
+        let ParsedEntries {
+            retained,
+            retained_len,
+            ..
+        } = parse_safe_entries(&exif, &mut MetadataWriteReport::default(), &|| false)
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            retained.iter().map(|entry| entry.tag).collect::<Vec<_>>(),
+            retained[..retained_len]
+                .iter()
+                .flatten()
+                .map(|entry| entry.tag)
+                .collect::<Vec<_>>(),
             [0x829a, 0x8827]
         );
         assert!(sanitized.report.gps_removed);
@@ -445,6 +601,45 @@ mod tests {
         assert!(sanitized.report.xmp_dropped);
         assert!(sanitized.report.iptc_dropped);
         assert_eq!(sanitized.report.unsafe_tags_removed, 5);
+    }
+
+    #[test]
+    fn concurrent_cancellation_preempts_a_large_ifd_scan() {
+        let count = u16::MAX;
+        let mut source = vec![0_u8; 8 + 2 + usize::from(count) * 12 + 4];
+        source[..8].copy_from_slice(b"II*\0\x08\0\0\0");
+        write_u16(&mut source, 8, count, Endian::Little).unwrap();
+        for index in 0..usize::from(count) {
+            let at = 10 + index * 12;
+            write_u16(&mut source, at, 0xc000, Endian::Little).unwrap();
+            write_u16(&mut source, at + 2, 3, Endian::Little).unwrap();
+            write_u32(&mut source, at + 4, 1, Endian::Little).unwrap();
+        }
+        let metadata =
+            MetadataBundle::try_new(Some(source), None, None, true, &ResourceLimits::default())
+                .unwrap();
+        let polls = Arc::new(AtomicUsize::new(0));
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let worker_polls = Arc::clone(&polls);
+        let worker_cancelled = Arc::clone(&cancelled);
+        let worker = thread::spawn(move || {
+            while worker_polls.load(Ordering::Acquire) < 2 {
+                thread::yield_now();
+            }
+            worker_cancelled.store(true, Ordering::Release);
+        });
+        let result = sanitize_metadata(
+            &metadata,
+            MetadataPolicy::StripLocation,
+            &ResourceLimits::default(),
+            || {
+                polls.fetch_add(1, Ordering::AcqRel);
+                cancelled.load(Ordering::Acquire)
+            },
+        );
+        worker.join().unwrap();
+        assert!(matches!(result, Err(EncodeError::Cancelled)));
+        assert!(polls.load(Ordering::Acquire) >= 3);
     }
 
     #[test]

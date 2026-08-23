@@ -13,9 +13,19 @@ each affected RGB sample. Straight alpha is either rejected or composited over
 an explicit linear-Rec.2020 background before color conversion. Encoded sRGB is
 quantized with `floor(sample * 255 + 0.5)`. The default JPEG quality is 90.
 
-The preparation buffer and transform scratch are checked with the named
-`JpegRgb8` working-set profile. Codec writes pass through a counting writer and
-stop at `max_output_bytes`. The `image` JPEG compression call itself is
+Dimensions, pixel count and the resident image are gated before metadata is
+inspected. EXIF then uses an allocation-free first pass over a fixed-size
+allowlist to compute the exact rebuilt TIFF size. Only after the full peak is
+accepted are EXIF, generated profiles and RGB output allocated; Grainroom-owned
+buffers use checked arithmetic and fallible reservations.
+
+The named `JpegRgb8` working-set profile accounts for the resident image,
+input metadata, RGB preparation, scanline transform scratch, canonical sRGB
+and Rec.2020 profiles, and the audited `image` 0.25.10 encoder transients. The
+latter include encoder-owned ICC/EXIF copies, the six-byte APP1 identifier, the
+14-byte ICC chunk header, and its fixed tables/header buffer. The canonical
+profile byte sizes are pinned by tests and a mismatch fails closed. Codec writes
+pass through a counting writer and stop at `max_output_bytes`. The `image` JPEG compression call itself is
 synchronous and cannot be interrupted internally; cancellation is checked
 before and immediately after it, and a cancelled result is never published.
 

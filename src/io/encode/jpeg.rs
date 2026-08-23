@@ -83,8 +83,13 @@ pub fn encode_jpeg(request: JpegEncodeRequest<'_>) -> Result<JpegEncodeReport, E
                 // callers must retain the transaction/retry semantics.
                 return Err(failure.into_io_error());
             }
-            if codec_result.is_err() {
-                inner_failure = Some(InnerFailure::Codec);
+            if let Err(failure) = codec_result {
+                inner_failure = Some(match failure {
+                    CodecFailure::Allocation => {
+                        InnerFailure::Limit(crate::io::LimitError::Allocation)
+                    }
+                    CodecFailure::Codec => InnerFailure::Codec,
+                });
                 return Err(io::Error::other("JPEG codec failed"));
             }
             if request.cancellation.cancelled() {
@@ -116,22 +121,40 @@ fn encode_prepared(
     prepared: &super::PreparedDisplayRgb,
     quality: u8,
     writer: &mut impl Write,
-) -> image::ImageResult<()> {
+) -> Result<(), CodecFailure> {
     let mut encoder = JpegEncoder::new_with_quality(writer, quality);
+    let icc = try_clone_bytes(&prepared.icc)?;
     encoder
-        .set_icc_profile(prepared.icc.clone())
-        .map_err(image::ImageError::Unsupported)?;
+        .set_icc_profile(icc)
+        .map_err(|_| CodecFailure::Codec)?;
     if let Some(exif) = &prepared.exif {
+        let exif = try_clone_bytes(exif)?;
         encoder
-            .set_exif_metadata(exif.clone())
-            .map_err(image::ImageError::Unsupported)?;
+            .set_exif_metadata(exif)
+            .map_err(|_| CodecFailure::Codec)?;
     }
-    encoder.encode(
-        &prepared.rgb8,
-        prepared.width,
-        prepared.height,
-        ExtendedColorType::Rgb8,
-    )
+    encoder
+        .encode(
+            &prepared.rgb8,
+            prepared.width,
+            prepared.height,
+            ExtendedColorType::Rgb8,
+        )
+        .map_err(|_| CodecFailure::Codec)
+}
+
+fn try_clone_bytes(source: &[u8]) -> Result<Vec<u8>, CodecFailure> {
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(source.len())
+        .map_err(|_| CodecFailure::Allocation)?;
+    output.extend_from_slice(source);
+    Ok(output)
+}
+
+enum CodecFailure {
+    Allocation,
+    Codec,
 }
 
 enum InnerFailure {

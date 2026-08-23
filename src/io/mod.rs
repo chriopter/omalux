@@ -27,8 +27,8 @@ pub use error::{
     StableErrorCode,
 };
 pub use limits::{
-    DecodeWorkingSetProfile, EncodeWorkingSetEstimate, EncodeWorkingSetProfile, ResourceLimits,
-    WorkingSetEstimate,
+    DecodeWorkingSetProfile, EncodeWorkingSetEstimate, EncodeWorkingSetProfile,
+    JpegMetadataFootprint, ResourceLimits, WorkingSetEstimate,
 };
 pub use types::{
     AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeOptions, DecodedPhoto,

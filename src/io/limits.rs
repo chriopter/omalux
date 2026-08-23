@@ -52,6 +52,15 @@ pub enum EncodeWorkingSetProfile {
     JpegRgb8,
 }
 
+/// Exact bounded variable-size inputs to the audited JPEG memory model.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct JpegMetadataFootprint {
+    pub input_metadata_bytes: u64,
+    pub output_exif_bytes: u64,
+    pub output_icc_bytes: u64,
+    pub transform_profile_bytes: u64,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct EncodeWorkingSetEstimate {
@@ -59,7 +68,13 @@ pub struct EncodeWorkingSetEstimate {
     pub resident_image_bytes: u64,
     pub encoded_rgb_bytes: u64,
     pub scanline_scratch_bytes: u64,
-    pub profile_metadata_bytes: u64,
+    pub input_metadata_bytes: u64,
+    pub output_exif_bytes: u64,
+    pub output_icc_bytes: u64,
+    pub transform_profile_bytes: u64,
+    pub codec_metadata_scratch_bytes: u64,
+    pub preparation_peak_bytes: u64,
+    pub codec_peak_bytes: u64,
     pub peak_bytes: u64,
 }
 
@@ -91,6 +106,39 @@ impl ResourceLimits {
     pub fn with_max_output_bytes(mut self, maximum: u64) -> Self {
         self.max_output_bytes = maximum;
         self
+    }
+
+    pub fn with_max_working_bytes(mut self, maximum: u64) -> Self {
+        self.max_working_bytes = maximum;
+        self
+    }
+
+    /// Allocation-free dimension and resident-image gate used before metadata
+    /// inspection or profile generation.
+    pub fn preflight_encode_dimensions(&self, width: u32, height: u32) -> Result<u64, LimitError> {
+        self.validate()?;
+        if width == 0 || height == 0 {
+            return Err(LimitError::EmptyDimensions);
+        }
+        let pixels = u64::from(width)
+            .checked_mul(u64::from(height))
+            .ok_or(LimitError::ArithmeticOverflow)?;
+        if pixels > self.max_pixels {
+            return Err(LimitError::PixelCount {
+                requested: pixels,
+                maximum: self.max_pixels,
+            });
+        }
+        let resident = pixels
+            .checked_mul(16)
+            .ok_or(LimitError::ArithmeticOverflow)?;
+        if resident > self.max_working_bytes {
+            return Err(LimitError::WorkingBytes {
+                requested: resident,
+                maximum: self.max_working_bytes,
+            });
+        }
+        Ok(pixels)
     }
 
     /// Estimates decode storage plus two 16-byte RGBA f32 buffers and caller
@@ -184,7 +232,7 @@ impl ResourceLimits {
         width: u32,
         height: u32,
         profile: EncodeWorkingSetProfile,
-        profile_metadata_bytes: u64,
+        metadata: JpegMetadataFootprint,
     ) -> Result<EncodeWorkingSetEstimate, LimitError> {
         self.validate()?;
         if width == 0 || height == 0 {
@@ -212,16 +260,64 @@ impl ResourceLimits {
         let scanline_scratch_bytes = u64::from(width)
             .checked_mul(64)
             .ok_or(LimitError::ArithmeticOverflow)?;
-        // Prepared metadata and the image encoder each own a copy while the
-        // codec is active.
-        let duplicated_profile_metadata = profile_metadata_bytes
-            .checked_mul(2)
-            .ok_or(LimitError::ArithmeticOverflow)?;
-        let peak_bytes = resident_image_bytes
+        // image 0.25.10's JPEG encoder owns three Components (12 bytes each)
+        // and two 64-byte quantization tables. Its reusable header Vec reaches
+        // 14 bytes for JFIF and later 179 bytes for the AC Huffman segment.
+        // The 14-byte JFIF capacity remains live while EXIF/ICC is emitted.
+        // EXIF formatting owns `Exif\0\0`
+        // plus the TIFF, while ICC chunking owns a 14-byte header plus at most
+        // one 65,519-byte chunk; these temporaries do not overlap.
+        const JPEG_ENCODER_FIXED_HEAP: u64 = 3 * 12 + 2 * 64;
+        const JPEG_JFIF_BUFFER: u64 = 14;
+        const JPEG_HEADER_BUFFER: u64 = 179;
+        const ICC_CHUNK_BYTES: u64 = 65_519;
+        let exif_segment = if metadata.output_exif_bytes == 0 {
+            0
+        } else {
+            metadata
+                .output_exif_bytes
+                .checked_add(6)
+                .ok_or(LimitError::ArithmeticOverflow)?
+                .max(12)
+        };
+        let icc_segment = if metadata.output_icc_bytes == 0 {
+            0
+        } else {
+            metadata
+                .output_icc_bytes
+                .min(ICC_CHUNK_BYTES)
+                .checked_add(14)
+                .ok_or(LimitError::ArithmeticOverflow)?
+        };
+        let codec_metadata_scratch_bytes = JPEG_HEADER_BUFFER
+            .max(
+                JPEG_JFIF_BUFFER
+                    .checked_add(exif_segment)
+                    .ok_or(LimitError::ArithmeticOverflow)?,
+            )
+            .max(
+                JPEG_JFIF_BUFFER
+                    .checked_add(icc_segment)
+                    .ok_or(LimitError::ArithmeticOverflow)?,
+            );
+        let preparation_peak_bytes = resident_image_bytes
             .checked_add(encoded_rgb_bytes)
             .and_then(|value| value.checked_add(scanline_scratch_bytes))
-            .and_then(|value| value.checked_add(duplicated_profile_metadata))
+            .and_then(|value| value.checked_add(metadata.input_metadata_bytes))
+            .and_then(|value| value.checked_add(metadata.output_exif_bytes))
+            .and_then(|value| value.checked_add(metadata.output_icc_bytes))
+            .and_then(|value| value.checked_add(metadata.transform_profile_bytes))
             .ok_or(LimitError::ArithmeticOverflow)?;
+        let codec_peak_bytes = resident_image_bytes
+            .checked_add(encoded_rgb_bytes)
+            .and_then(|value| value.checked_add(metadata.input_metadata_bytes))
+            // Prepared buffers plus the encoder-owned copies.
+            .and_then(|value| value.checked_add(metadata.output_exif_bytes.checked_mul(2)?))
+            .and_then(|value| value.checked_add(metadata.output_icc_bytes.checked_mul(2)?))
+            .and_then(|value| value.checked_add(JPEG_ENCODER_FIXED_HEAP))
+            .and_then(|value| value.checked_add(codec_metadata_scratch_bytes))
+            .ok_or(LimitError::ArithmeticOverflow)?;
+        let peak_bytes = preparation_peak_bytes.max(codec_peak_bytes);
         if peak_bytes > self.max_working_bytes {
             return Err(LimitError::WorkingBytes {
                 requested: peak_bytes,
@@ -233,7 +329,13 @@ impl ResourceLimits {
             resident_image_bytes,
             encoded_rgb_bytes,
             scanline_scratch_bytes,
-            profile_metadata_bytes,
+            input_metadata_bytes: metadata.input_metadata_bytes,
+            output_exif_bytes: metadata.output_exif_bytes,
+            output_icc_bytes: metadata.output_icc_bytes,
+            transform_profile_bytes: metadata.transform_profile_bytes,
+            codec_metadata_scratch_bytes,
+            preparation_peak_bytes,
+            codec_peak_bytes,
             peak_bytes,
         })
     }
@@ -338,13 +440,29 @@ mod tests {
     fn jpeg_encode_estimate_and_output_are_bounded() {
         let limits = ResourceLimits::default();
         let estimate = limits
-            .estimate_encode_working_set(10, 20, EncodeWorkingSetProfile::JpegRgb8, 128)
+            .estimate_encode_working_set(
+                10,
+                20,
+                EncodeWorkingSetProfile::JpegRgb8,
+                JpegMetadataFootprint {
+                    input_metadata_bytes: 0,
+                    output_exif_bytes: 40,
+                    output_icc_bytes: 88,
+                    transform_profile_bytes: 0,
+                },
+            )
             .unwrap();
         assert_eq!(estimate.pixels, 200);
         assert_eq!(estimate.resident_image_bytes, 3_200);
         assert_eq!(estimate.encoded_rgb_bytes, 600);
         assert_eq!(estimate.scanline_scratch_bytes, 640);
-        assert_eq!(estimate.peak_bytes, 4_696);
+        assert_eq!(estimate.input_metadata_bytes, 0);
+        assert_eq!(estimate.output_exif_bytes, 40);
+        assert_eq!(estimate.output_icc_bytes, 88);
+        assert_eq!(estimate.codec_metadata_scratch_bytes, 179);
+        assert_eq!(estimate.preparation_peak_bytes, 4_568);
+        assert_eq!(estimate.codec_peak_bytes, 4_399);
+        assert_eq!(estimate.peak_bytes, 4_568);
         assert!(matches!(
             limits.check_output_bytes(limits.max_output_bytes + 1),
             Err(LimitError::OutputBytes { .. })
