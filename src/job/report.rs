@@ -81,7 +81,7 @@ impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
     }
 }
 
-/// Exact requested image-payload peak for the selected bounded profile.
+/// Reviewed requested image-payload upper bound for the selected profile.
 /// For RAW this is the maximum of develop and later scene-render phases.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DevelopWorkingSetSummary {

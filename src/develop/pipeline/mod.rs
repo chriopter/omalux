@@ -124,8 +124,8 @@ impl DevelopPipeline {
     }
 }
 
-/// Exact peak for currently proven stage combinations. Unsupported spatial or
-/// dynamically allocating stages fail before any image allocation or mutation.
+/// Reviewed requested-payload upper bound for proven stage combinations.
+/// Unsupported allocation families fail before any image allocation or mutation.
 pub fn estimate_develop_working_set(
     width: u32,
     height: u32,
