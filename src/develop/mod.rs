@@ -7,7 +7,7 @@
 mod color;
 mod context;
 mod image;
-mod orientation;
+pub(crate) mod orientation;
 pub mod parameters;
 pub mod pipeline;
 pub mod preset;
