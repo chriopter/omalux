@@ -49,6 +49,8 @@ pub struct DevelopWorkingSetEstimate {
     pub pixels: u64,
     pub source_image_bytes: u64,
     pub transactional_image_bytes: u64,
+    pub output_width: u32,
+    pub output_height: u32,
     pub stage_scratch_bytes: u64,
     pub peak_bytes: u64,
 }
@@ -265,6 +267,8 @@ fn estimate_validated_working_set(
         pixels,
         source_image_bytes,
         transactional_image_bytes,
+        output_width: develop_width,
+        output_height: develop_height,
         stage_scratch_bytes,
         peak_bytes,
     })

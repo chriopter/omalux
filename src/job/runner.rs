@@ -285,12 +285,15 @@ fn estimate_job_working_set(
     let estimate =
         estimate_develop_working_set(dimensions.0, dimensions.1, settings, &estimate_limits)?;
     let post_develop_scene_peak_bytes = if relation == crate::io::SignalRelation::SceneRelatedRaw {
-        let two_rows = u64::from(dimensions.0)
+        let developed_image_bytes = u64::from(estimate.output_width)
+            .checked_mul(u64::from(estimate.output_height))
+            .and_then(|pixels| pixels.checked_mul(16))
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+        let two_rows = u64::from(estimate.output_width)
             .checked_mul(32)
             .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
         Some(
-            estimate
-                .source_image_bytes
+            developed_image_bytes
                 .checked_add(two_rows)
                 .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
         )
@@ -514,5 +517,39 @@ mod tests {
         assert_eq!(rejected.error.stage, super::JobStage::ResolveSettings);
         assert_eq!(rejected.error.code, super::JobErrorCode::ResourceLimit);
         assert_eq!(calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn raw_scene_peak_uses_post_geometry_width_and_pixels() {
+        let mut settings = DevelopSettings::default();
+        settings.geometry.quarter_turns_clockwise = 1;
+        let limits = ResourceLimits::default();
+        let summary = super::estimate_job_working_set(
+            (2, 10),
+            SignalRelation::SceneRelatedRaw,
+            &settings,
+            &limits,
+        )
+        .unwrap();
+        // Develop geometry peak is 960 bytes. The post-rotate scene phase is
+        // 20*16 + 10*32 = 640, not the pre-rotate 20*16 + 2*32 = 384.
+        assert_eq!(summary.estimated_peak_bytes(), 960);
+
+        settings.geometry.crop = Some(crate::develop::CropRect {
+            x: 0.0,
+            y: 0.0,
+            width: 0.1,
+            height: 1.0,
+        });
+        let cropped = super::estimate_job_working_set(
+            (2, 10),
+            SignalRelation::SceneRelatedRaw,
+            &settings,
+            &limits,
+        )
+        .unwrap();
+        // The estimator shares geometry's f32-to-f64 edge rounding; persisted
+        // 0.1 rounds the right edge just above one pixel, producing a 2x2 ROI.
+        assert_eq!(cropped.estimated_peak_bytes(), 1_024);
     }
 }
