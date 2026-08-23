@@ -32,7 +32,7 @@ fn request<'a>(
             metadata,
         },
         destination,
-        source_path: None,
+        source_identity: None,
         encode: options(),
         atomic: AtomicOutputOptions::default(),
         limits,

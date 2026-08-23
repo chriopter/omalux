@@ -12,14 +12,17 @@ use super::{
 };
 use crate::io::{
     AtomicOutputError, AtomicOutputOptions, EncodeError, EncodeOptions, ResourceLimits,
-    write_atomic_output,
+    SourceFileIdentity, write_atomic_output_for_source,
 };
 
 pub struct JpegEncodeRequest<'a> {
     pub input: JpegEncodeInput<'a>,
     pub destination: &'a Path,
-    /// Used only for inode-collision protection; it is never persisted.
-    pub source_path: Option<&'a Path>,
+    /// Identity captured from the decoder's already-open source file.
+    ///
+    /// It is used only for inode-collision protection and is never persisted;
+    /// the encoder never reopens or resolves the source path.
+    pub source_identity: Option<SourceFileIdentity>,
     pub encode: EncodeOptions,
     pub atomic: AtomicOutputOptions,
     pub limits: &'a ResourceLimits,
@@ -52,9 +55,9 @@ pub fn encode_jpeg(request: JpegEncodeRequest<'_>) -> Result<JpegEncodeReport, E
 
     let mut inner_failure = None;
     let mut output_bytes = 0_u64;
-    let outcome = write_atomic_output(
+    let outcome = write_atomic_output_for_source(
         request.destination,
-        request.source_path,
+        request.source_identity,
         request.atomic,
         |file| {
             if request.cancellation.cancelled() {

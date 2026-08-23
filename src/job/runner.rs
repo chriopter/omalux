@@ -269,6 +269,7 @@ fn scene_error_code(error: &SceneRenderError) -> JobErrorCode {
         | SceneRenderError::Limit(LimitError::EmptyDimensions)
         | SceneRenderError::Limit(LimitError::InvalidConfiguration)
         | SceneRenderError::Limit(LimitError::MetadataBytes { .. })
+        | SceneRenderError::Limit(LimitError::OutputBytes { .. })
         | SceneRenderError::Limit(LimitError::PixelCount { .. })
         | SceneRenderError::Limit(LimitError::SourceBytes { .. })
         | SceneRenderError::Limit(LimitError::WorkingBytes { .. })

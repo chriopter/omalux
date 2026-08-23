@@ -7,9 +7,12 @@ mod stage;
 
 use crate::io::{
     ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic,
-    DiagnosticCode, DiagnosticSeverity, MetadataBundle, RawBackendName, RawMatrixSource,
-    RawProcessingProvenance, SignalRelation, WhiteBalancePolicy, WhiteBalanceProvenance,
+    DiagnosticCode, DiagnosticSeverity, MetadataBundle, RawMatrixSource, RawProcessingProvenance,
+    SignalRelation, WhiteBalancePolicy, WhiteBalanceProvenance,
 };
+
+#[cfg(test)]
+use super::RawBackendName;
 pub use process::{RawCancellation, RawCapability, RawExecutionOptions, probe_dcraw_emu};
 use std::path::Path;
 
@@ -75,15 +78,7 @@ pub fn decode_raw(
         ColorProvenance::RawMatrix {
             matrix: RawMatrixSource::Unknown,
             white_balance,
-            processing: RawProcessingProvenance {
-                backend: RawBackendName::LibRawDcrawEmu,
-                backend_version: None,
-                full_resolution: true,
-                linear_16_bit: true,
-                output_rec2020: true,
-                embedded_matrix_enabled: true,
-                ahd_demosaic: true,
-            },
+            processing: RawProcessingProvenance::libraw_dcraw_emu(None),
         },
         SignalRelation::SceneRelatedRaw,
         diagnostics,

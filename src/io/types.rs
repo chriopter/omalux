@@ -48,6 +48,21 @@ pub struct RawProcessingProvenance {
     pub ahd_demosaic: bool,
 }
 
+impl RawProcessingProvenance {
+    /// Processing contract of Grainroom's full-resolution `dcraw_emu` path.
+    pub fn libraw_dcraw_emu(backend_version: Option<String>) -> Self {
+        Self {
+            backend: RawBackendName::LibRawDcrawEmu,
+            backend_version,
+            full_resolution: true,
+            linear_16_bit: true,
+            output_rec2020: true,
+            embedded_matrix_enabled: true,
+            ahd_demosaic: true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct IccProfileProvenance {
     pub sha256: [u8; 32],

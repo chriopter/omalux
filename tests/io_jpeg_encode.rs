@@ -39,7 +39,7 @@ fn request<'a>(
             metadata,
         },
         destination: output,
-        source_path: None,
+        source_identity: None,
         encode: EncodeOptions::default(),
         atomic: AtomicOutputOptions::default(),
         limits,
@@ -106,7 +106,7 @@ fn failures_never_publish_or_leave_temporary_names() {
             metadata: &MetadataBundle::default(),
         },
         destination: &output,
-        source_path: None,
+        source_identity: None,
         encode: EncodeOptions::default(),
         atomic: AtomicOutputOptions::default(),
         limits: &ResourceLimits::default(),
@@ -219,7 +219,9 @@ fn source_output_hardlink_collision_is_preserved() {
     let limits = ResourceLimits::default();
     let cancellation = EncodeCancellation::default();
     let mut request = request(&source, &metadata, &output, &limits, &cancellation);
-    request.source_path = Some(&source_path);
+    let held_source = fs::File::open(&source_path).unwrap();
+    request.source_identity =
+        Some(grainroom::io::SourceFileIdentity::from_file(&held_source).unwrap());
     request.atomic = AtomicOutputOptions::default().with_overwrite(OverwritePolicy::Replace);
     assert!(matches!(
         encode_jpeg(request),
