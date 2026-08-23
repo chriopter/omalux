@@ -205,6 +205,17 @@ fn scan_markers(bytes: &[u8], options: &DecodeOptions) -> Result<JpegMarkers, De
     } else {
         None
     };
+    let metadata_total = icc
+        .as_ref()
+        .map_or(0_u64, |value| value.len() as u64)
+        .checked_add(exif.as_ref().map_or(0_u64, |value| value.len() as u64))
+        .ok_or(DecodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    options
+        .limits
+        .check_metadata_total(metadata_total)
+        .map_err(DecodeError::Limit)?;
     Ok(JpegMarkers {
         components,
         icc,

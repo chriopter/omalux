@@ -13,6 +13,19 @@ pub(super) fn decode(
     cancellation: &RasterCancellation,
 ) -> Result<RasterPayload, DecodeError> {
     let raw = scan_chunks(bytes, options)?;
+    let metadata_total = raw
+        .iccp
+        .value
+        .as_ref()
+        .map_or(0_u64, |value| value.len() as u64)
+        .checked_add(raw.exif.as_ref().map_or(0_u64, |value| value.len() as u64))
+        .ok_or(DecodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    options
+        .limits
+        .check_metadata_total(metadata_total)
+        .map_err(DecodeError::Limit)?;
     let sixteen = raw.bit_depth == 16;
     let pixels = validate_dimensions(raw.width, raw.height, sixteen, &options.limits)?;
     let gray = raw.color_type == 0;

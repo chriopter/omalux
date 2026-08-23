@@ -6,7 +6,7 @@
 
 - The path is opened once with `O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK`. The descriptor must identify a regular file.
 - The complete source is read once into a buffer under `max_source_bytes`. Signature sniffing, metadata scanning, digesting, and codec decode all consume that same immutable buffer. A rename cannot change identity and no decoder reopens the path.
-- PNG dimensions are checked before compressed ICC metadata is expanded. All formats select an audited `RasterRgba8` or `RasterRgba16` working-set profile before pixel allocation.
+- PNG dimensions are checked before compressed ICC metadata is expanded. ICC plus retained EXIF must also fit the aggregate metadata limit. All formats select an audited `RasterRgba8` or `RasterRgba16` working-set profile before pixel allocation.
 - Cancellation is checked while reading source chunks, before and after codec work, and for every color-transform scanline. The third-party frame decode itself is synchronous and cannot be interrupted inside a codec call.
 
 ## Supported encodings

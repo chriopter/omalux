@@ -237,6 +237,22 @@ fn png_icc_has_priority_and_grayscale_has_explicit_policy() {
         }
     ));
 
+    let exif_bytes = exif(1, false);
+    let mut combined_metadata = rgb.clone();
+    insert_before_idat(&mut combined_metadata, b"eXIf", &exif_bytes);
+    let mut total_limited = DecodeOptions::default();
+    total_limited.limits.max_icc_bytes = icc.len() as u64;
+    total_limited.limits.max_metadata_component_bytes = icc.len() as u64;
+    total_limited.limits.max_total_metadata_bytes = icc.len() as u64;
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "metadata-total.png", &combined_metadata),
+            &total_limited,
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::Limit(_))
+    ));
+
     let gray = png_bytes(
         1,
         1,
