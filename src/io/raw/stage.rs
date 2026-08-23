@@ -261,7 +261,7 @@ fn std_error(error: rustix::io::Errno) -> io::Error {
 fn set_and_verify_mode(fd: &OwnedFd, expected: Mode) -> Result<(), DecodeError> {
     fs::fchmod(fd, expected).map_err(|e| DecodeError::Input(std_error(e)))?;
     let actual = fs::fstat(fd).map_err(|e| DecodeError::Input(std_error(e)))?;
-    if actual.st_mode & 0o777 != expected.bits() {
+    if actual.st_mode & 0o7777 != expected.bits() {
         return Err(DecodeError::Input(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "private staging mode could not be established",
@@ -344,7 +344,7 @@ mod tests {
         assert_eq!(bytes, b"immutable source bytes");
         let session = moved.join(&staged.directory_name);
         assert_eq!(
-            stdfs::metadata(&session).unwrap().permissions().mode() & 0o777,
+            stdfs::metadata(&session).unwrap().permissions().mode() & 0o7777,
             0o700
         );
         for name in [&staged.input_name, &staged.output_name] {
@@ -353,7 +353,7 @@ mod tests {
                     .unwrap()
                     .permissions()
                     .mode()
-                    & 0o777,
+                    & 0o7777,
                 0o600
             );
         }
@@ -405,7 +405,7 @@ mod tests {
         .unwrap();
         let session = root.path().join(&staged.directory_name);
         assert_eq!(
-            stdfs::metadata(&session).unwrap().permissions().mode() & 0o777,
+            stdfs::metadata(&session).unwrap().permissions().mode() & 0o7777,
             0o700
         );
         for name in [&staged.input_name, &staged.output_name] {
@@ -414,7 +414,7 @@ mod tests {
                     .unwrap()
                     .permissions()
                     .mode()
-                    & 0o777,
+                    & 0o7777,
                 0o600
             );
         }

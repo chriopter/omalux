@@ -122,6 +122,15 @@ pub(super) fn run_dcraw(
         }
     })?;
     let pgid = child.id();
+    let leader = match rustix::process::Pid::from_raw(pgid as i32) {
+        Some(leader) => leader,
+        None => {
+            kill_group_and_wait(pgid, &mut child);
+            return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
+                "invalid decoder process id",
+            )));
+        }
+    };
     let mut stderr = match child.stderr.take() {
         Some(stderr) => stderr,
         None => {
@@ -143,7 +152,7 @@ pub(super) fn run_dcraw(
         return Err(DecodeError::RawBackendCaptureIo(std_error(error)));
     }
     let started = Instant::now();
-    let mut status = None;
+    let mut observed_exit = None;
     let mut eof = false;
     let mut stderr_bytes = 0_u64;
     let mut buffer = [0_u8; 8192];
@@ -158,16 +167,16 @@ pub(super) fn run_dcraw(
         .inspect_err(|_| {
             kill_group_and_wait(pgid, &mut child);
         })?;
-        if status.is_none() {
-            status = match child.try_wait() {
+        if observed_exit.is_none() {
+            observed_exit = match observe_exit_without_reaping(leader) {
                 Ok(status) => status,
                 Err(error) => {
                     kill_group_and_wait(pgid, &mut child);
-                    return Err(DecodeError::RawBackendCaptureIo(error));
+                    return Err(error);
                 }
             };
         }
-        if status.is_some() && eof {
+        if observed_exit.is_some() && eof {
             break;
         }
         if cancellation.cancelled() {
@@ -182,59 +191,102 @@ pub(super) fn run_dcraw(
         }
         std::thread::sleep(Duration::from_millis(5));
     }
-    let status = status.expect("leader status exists when monitor completes");
-    if !status.success() {
-        let xfsz = rustix::process::Signal::XFSZ.as_raw();
-        let xcpu = rustix::process::Signal::XCPU.as_raw();
-        if status.signal() == Some(xfsz) || status.code() == Some(128 + xfsz) {
-            return Err(DecodeError::RawBackendOutputLimit);
-        }
-        if status.signal() == Some(xcpu) || status.code() == Some(128 + xcpu) {
-            return Err(DecodeError::RawBackendTimedOut);
-        }
-        return Err(DecodeError::RawBackendFailed {
-            status: status.code(),
-        });
+    let observed_exit = observed_exit.expect("leader exit observed when monitor completes");
+    if !observed_exit.success() {
+        kill_group(pgid);
+        let status = child.wait().map_err(DecodeError::RawBackendCaptureIo)?;
+        return map_exit_status(status);
     }
-    terminate_success_survivors(pgid)?;
-    Ok(())
+    if let Err(error) = terminate_success_survivors_while_leader_is_pinned(leader) {
+        kill_group(pgid);
+        let _ = child.wait();
+        return Err(error);
+    }
+    let status = child.wait().map_err(DecodeError::RawBackendCaptureIo)?;
+    map_exit_status(status)
 }
 
-fn terminate_success_survivors(pgid: u32) -> Result<(), DecodeError> {
-    let Some(group) = rustix::process::Pid::from_raw(pgid as i32) else {
+#[derive(Clone, Copy)]
+struct ObservedExit {
+    code: Option<i32>,
+}
+impl ObservedExit {
+    fn success(self) -> bool {
+        self.code == Some(0)
+    }
+}
+
+fn observe_exit_without_reaping(
+    leader: rustix::process::Pid,
+) -> Result<Option<ObservedExit>, DecodeError> {
+    rustix::process::waitid(
+        rustix::process::WaitId::Pid(leader),
+        rustix::process::WaitIdOptions::EXITED
+            | rustix::process::WaitIdOptions::NOHANG
+            | rustix::process::WaitIdOptions::NOWAIT,
+    )
+    .map(|status| {
+        status.map(|status| ObservedExit {
+            code: status.exit_status(),
+        })
+    })
+    .map_err(|error| DecodeError::RawBackendCaptureIo(std_error(error)))
+}
+
+fn terminate_success_survivors_while_leader_is_pinned(
+    leader: rustix::process::Pid,
+) -> Result<(), DecodeError> {
+    // WNOWAIT must still observe the leader here. Its unreaped zombie pins the
+    // numeric PID/PGID, so the following group signal cannot target a reused ID.
+    if observe_exit_without_reaping(leader)?.is_none() {
         return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
-            "invalid decoder process group",
+            "decoder leader was reaped before process-group cleanup",
         )));
-    };
+    }
+    #[cfg(test)]
+    PINNED_LEADER_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let group = leader;
     match rustix::process::test_kill_process_group(group) {
-        Err(rustix::io::Errno::SRCH) => return Ok(()),
+        Err(rustix::io::Errno::SRCH) => {
+            return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
+                "pinned decoder process group unexpectedly disappeared",
+            )));
+        }
         Err(error) => return Err(DecodeError::RawBackendCaptureIo(std_error(error))),
         Ok(()) => {}
     }
     rustix::process::kill_process_group(group, rustix::process::Signal::KILL)
         .map_err(|error| DecodeError::RawBackendCaptureIo(std_error(error)))?;
-    let deadline = Instant::now() + Duration::from_millis(250);
-    loop {
-        loop {
-            match rustix::process::waitpgid(group, rustix::process::WaitOptions::NOHANG) {
-                Ok(Some(_)) => continue,
-                Ok(None) | Err(rustix::io::Errno::CHILD) => break,
-                Err(error) => {
-                    return Err(DecodeError::RawBackendCaptureIo(std_error(error)));
-                }
-            }
-        }
-        match rustix::process::test_kill_process_group(group) {
-            Err(rustix::io::Errno::SRCH) => return Ok(()),
-            Err(error) => return Err(DecodeError::RawBackendCaptureIo(std_error(error))),
-            Ok(()) if Instant::now() < deadline => {
-                std::thread::sleep(Duration::from_millis(5));
-            }
-            // A non-child zombie can remain visible until the host reaper runs,
-            // but SIGKILL guarantees it is no longer executing.
-            Ok(()) => return Ok(()),
-        }
+    std::thread::sleep(Duration::from_millis(10));
+    if observe_exit_without_reaping(leader)?.is_none() {
+        return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
+            "decoder leader lost before exact reap",
+        )));
     }
+    #[cfg(test)]
+    PINNED_LEADER_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
+
+#[cfg(test)]
+static PINNED_LEADER_CHECKS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+fn map_exit_status(status: std::process::ExitStatus) -> Result<(), DecodeError> {
+    if status.success() {
+        return Ok(());
+    }
+    let xfsz = rustix::process::Signal::XFSZ.as_raw();
+    let xcpu = rustix::process::Signal::XCPU.as_raw();
+    if status.signal() == Some(xfsz) || status.code() == Some(128 + xfsz) {
+        return Err(DecodeError::RawBackendOutputLimit);
+    }
+    if status.signal() == Some(xcpu) || status.code() == Some(128 + xcpu) {
+        return Err(DecodeError::RawBackendTimedOut);
+    }
+    Err(DecodeError::RawBackendFailed {
+        status: status.code(),
+    })
 }
 
 fn drain_stderr(
@@ -306,13 +358,16 @@ fn dcraw_args(
     args
 }
 fn kill_group_and_wait(pgid: u32, child: &mut std::process::Child) {
+    kill_group(pgid);
+    #[cfg(not(target_os = "linux"))]
+    let _ = child.kill();
+    let _ = child.wait();
+}
+fn kill_group(pgid: u32) {
     #[cfg(target_os = "linux")]
     if let Some(pid) = rustix::process::Pid::from_raw(pgid as i32) {
         let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
     }
-    #[cfg(not(target_os = "linux"))]
-    let _ = child.kill();
-    let _ = child.wait();
 }
 fn resolve_executable(requested: &Path) -> Result<PathBuf, DecodeError> {
     let candidate = if requested.components().count() > 1 || requested.is_absolute() {
@@ -467,6 +522,7 @@ mod tests {
                 pidfile.display()
             ),
         );
+        let checks_before = PINNED_LEADER_CHECKS.load(std::sync::atomic::Ordering::Relaxed);
         run_dcraw(
             &staged,
             WhiteBalancePolicy::Daylight,
@@ -475,6 +531,9 @@ mod tests {
             &RawCancellation::default(),
         )
         .unwrap();
+        assert!(
+            PINNED_LEADER_CHECKS.load(std::sync::atomic::Ordering::Relaxed) >= checks_before + 2
+        );
         assert_not_running(&fs::read_to_string(pidfile).unwrap());
     }
     #[test]

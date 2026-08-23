@@ -22,11 +22,14 @@ The decoder is launched without a shell through the absolute `/usr/bin/prlimit`
 and fails closed when that limiter is unavailable. Address-space, data, output
 file-size, and CPU limits derive from the audited `ResourceLimits` and timeout.
 Grainroom still treats the external LibRaw process as untrusted: the process
-group is monitored until both its leader is reaped and the bounded stderr pipe
-reaches EOF; cancellation, timeout, capture failure, or overflow kills the
+group is monitored until both its leader exit is observed without reaping and
+the bounded stderr pipe reaches EOF; cancellation, timeout, capture failure, or overflow kills the
 whole group. Even apparent success is followed by a process-group existence
-check; any descendant that closed the capture pipe is terminated and waitable
-members are reaped within a bounded grace period. A successful output is
+check while `waitid(..., WNOWAIT)` deliberately leaves the exited leader
+unreaped. That zombie pins the numeric PID/PGID, excluding ID reuse and
+collateral group signalling. Any descendant that closed the capture pipe is
+terminated during a bounded grace period, then the pinned leader is reaped
+exactly once. A successful output is
 stream-parsed: its bounded PPM header and
 dimensions are validated before pixel allocation, the exact payload is read,
 and trailing data is rejected. Cancellation is polled per scanline and within
