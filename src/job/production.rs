@@ -261,6 +261,66 @@ mod tests {
     }
 
     #[test]
+    fn fake_raw_runs_once_through_scene_render_and_publishes_jpeg() {
+        use crate::{
+            develop::PresetCatalog,
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::{
+                DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput, NoProgress,
+                PresetSelection, ReportSignalRelation,
+            },
+        };
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.nef");
+        let output = directory.path().join("developed.jpg");
+        stdfs::write(&input, b"synthetic raw source").unwrap();
+        let limits = ResourceLimits::default();
+        let job = DevelopJob {
+            input,
+            output: output.clone(),
+            decode: DecodeOptions::default(),
+            output_options: DevelopOutput::new(
+                OutputFormat::Jpeg,
+                90,
+                OutputProfile::Srgb,
+                MetadataPolicy::StripLocation,
+                AlphaPolicy::Reject,
+                SdrRangePolicy::ClipAndReport,
+            ),
+            overwrite: OverwritePolicy::Forbid,
+            preset: PresetSelection::CatalogId("neutral".to_owned()),
+            overrides: Vec::new(),
+        };
+        let decoder = ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path()));
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &job,
+                &decoder,
+                &ProductionJpegEncoder::new(limits),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+
+        assert_eq!(
+            report.input_signal_relation,
+            Some(ReportSignalRelation::SceneRelatedRaw)
+        );
+        assert_eq!(
+            report.output_signal_relation,
+            Some(ReportSignalRelation::LinearizedDisplayReferred)
+        );
+        assert!(report.scene_render.is_some());
+        assert!(matches!(
+            report.outcome,
+            DevelopJobOutcome::PublishedAndDurable { bytes_written } if bytes_written > 0
+        ));
+        let decoded = image::open(&output).unwrap().to_rgb8();
+        assert_eq!(decoded.dimensions(), (1, 1));
+    }
+
+    #[test]
     fn corrupt_raster_magic_never_falls_back_to_raw() {
         let directory = tempdir().unwrap();
         let source = directory.path().join("corrupt.nef");
