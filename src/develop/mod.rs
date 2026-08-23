@@ -9,6 +9,7 @@ mod color;
 mod context;
 mod image;
 mod orientation;
+pub mod overrides;
 pub mod parameters;
 pub mod pipeline;
 pub mod preset;
@@ -18,6 +19,10 @@ mod stage;
 pub use catalog::{MAX_EXTERNAL_PRESET_BYTES, PresetCatalog, PresetCatalogError, load_preset_file};
 pub use context::{DevelopRenderContext, ResolvedGrainSeed};
 pub use image::{CpuImage, ImageError, PixelChannel, PixelError, RgbaPixel};
+pub use overrides::{
+    ParameterOverride, ParameterOverrideError, ParameterOverrideValue, apply_parameter_overrides,
+    parse_parameter_override,
+};
 pub use parameters::{
     NeutralRepresentation, ParameterDefinition, ParameterKind, ParameterUnit, parameter_registry,
 };
