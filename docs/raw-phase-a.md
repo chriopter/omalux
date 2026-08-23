@@ -10,7 +10,9 @@ Rec.2020, and a private PPM output file:
 On Linux, the original is opened once with `O_NONBLOCK|O_NOFOLLOW`, verified as
 a regular file, and copied through that descriptor. A CSPRNG-named `0700`
 session directory and its `0600` files are created exclusively with operations
-relative to held directory descriptors. The decoder receives only
+relative to held directory descriptors. Their exact modes are re-applied and
+verified after creation, including under a restrictive process umask. The
+decoder receives only
 `/proc/self/fd/<dirfd>/<basename>` paths through an inherited directory
 descriptor. Renaming or replacing the staging parent therefore cannot redirect
 the decoder. FIFOs, sockets, devices, and source symlinks are rejected before a
@@ -22,10 +24,14 @@ file-size, and CPU limits derive from the audited `ResourceLimits` and timeout.
 Grainroom still treats the external LibRaw process as untrusted: the process
 group is monitored until both its leader is reaped and the bounded stderr pipe
 reaches EOF; cancellation, timeout, capture failure, or overflow kills the
-whole group. A successful output is stream-parsed: its bounded PPM header and
+whole group. Even apparent success is followed by a process-group existence
+check; any descendant that closed the capture pipe is terminated and waitable
+members are reaped within a bounded grace period. A successful output is
+stream-parsed: its bounded PPM header and
 dimensions are validated before pixel allocation, the exact payload is read,
-and trailing data is rejected. OS resource limits reduce risk but are not a
-general syscall sandbox.
+and trailing data is rejected. Cancellation is polled per scanline and within
+wide scanlines so partial conversion is dropped with the private staging tree.
+OS resource limits reduce risk but are not a general syscall sandbox.
 
 Orientation is intentionally left to LibRaw: neither `-t` nor `-j` is passed.
 The resulting metadata marks orientation consumed. `dcraw_emu` on the target

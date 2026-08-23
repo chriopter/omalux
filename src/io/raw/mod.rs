@@ -39,7 +39,7 @@ pub fn decode_raw(
         execution,
         cancellation,
     )?;
-    let image = ppm::parse_ppm16(staged.open_output()?, &options.limits)?;
+    let image = ppm::parse_ppm16(staged.open_output()?, &options.limits, cancellation.flag())?;
     let (white_balance, mut diagnostics) = match options.raw.white_balance {
         WhiteBalancePolicy::CameraThenDaylight => (
             WhiteBalanceProvenance::Unknown,

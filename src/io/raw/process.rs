@@ -196,7 +196,45 @@ pub(super) fn run_dcraw(
             status: status.code(),
         });
     }
+    terminate_success_survivors(pgid)?;
     Ok(())
+}
+
+fn terminate_success_survivors(pgid: u32) -> Result<(), DecodeError> {
+    let Some(group) = rustix::process::Pid::from_raw(pgid as i32) else {
+        return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
+            "invalid decoder process group",
+        )));
+    };
+    match rustix::process::test_kill_process_group(group) {
+        Err(rustix::io::Errno::SRCH) => return Ok(()),
+        Err(error) => return Err(DecodeError::RawBackendCaptureIo(std_error(error))),
+        Ok(()) => {}
+    }
+    rustix::process::kill_process_group(group, rustix::process::Signal::KILL)
+        .map_err(|error| DecodeError::RawBackendCaptureIo(std_error(error)))?;
+    let deadline = Instant::now() + Duration::from_millis(250);
+    loop {
+        loop {
+            match rustix::process::waitpgid(group, rustix::process::WaitOptions::NOHANG) {
+                Ok(Some(_)) => continue,
+                Ok(None) | Err(rustix::io::Errno::CHILD) => break,
+                Err(error) => {
+                    return Err(DecodeError::RawBackendCaptureIo(std_error(error)));
+                }
+            }
+        }
+        match rustix::process::test_kill_process_group(group) {
+            Err(rustix::io::Errno::SRCH) => return Ok(()),
+            Err(error) => return Err(DecodeError::RawBackendCaptureIo(std_error(error))),
+            Ok(()) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            // A non-child zombie can remain visible until the host reaper runs,
+            // but SIGKILL guarantees it is no longer executing.
+            Ok(()) => return Ok(()),
+        }
+    }
 }
 
 fn drain_stderr(
@@ -416,6 +454,28 @@ mod tests {
         )
         .unwrap();
         assert!(start.elapsed() >= Duration::from_millis(20));
+    }
+    #[test]
+    fn apparent_success_kills_descendant_that_closed_capture_pipe() {
+        let d = tempdir().unwrap();
+        let staged = staged(&d);
+        let pidfile = d.path().join("detached-pid");
+        let exe = script(
+            d.path(),
+            &format!(
+                "sleep 5 2>/dev/null & echo $! > '{}'; exit 0",
+                pidfile.display()
+            ),
+        );
+        run_dcraw(
+            &staged,
+            WhiteBalancePolicy::Daylight,
+            &ResourceLimits::default(),
+            &RawExecutionOptions::new(exe).unwrap(),
+            &RawCancellation::default(),
+        )
+        .unwrap();
+        assert_not_running(&fs::read_to_string(pidfile).unwrap());
     }
     #[test]
     fn cancel_kills_descendant_without_survivor() {

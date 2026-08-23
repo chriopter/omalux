@@ -105,6 +105,19 @@ pub(super) fn stage_source(
             directory_name: &directory_name,
             armed: true,
         };
+        let directory_path_fd = fs::openat(
+            &base,
+            directory_name.as_str(),
+            OFlags::PATH | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| DecodeError::Input(std_error(e)))?;
+        std::fs::set_permissions(
+            format!("/proc/self/fd/{}", directory_path_fd.as_raw_fd()),
+            <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o700),
+        )
+        .map_err(DecodeError::Input)?;
+        drop(directory_path_fd);
         let directory = fs::openat(
             &base,
             directory_name.as_str(),
@@ -112,6 +125,7 @@ pub(super) fn stage_source(
             Mode::empty(),
         )
         .map_err(|e| DecodeError::Input(std_error(e)))?;
+        set_and_verify_mode(&directory, Mode::RWXU)?;
         rustix::io::fcntl_setfd(&directory, rustix::io::FdFlags::empty())
             .map_err(|e| DecodeError::Input(std_error(e)))?;
         setup.armed = false;
@@ -159,6 +173,7 @@ fn finish_stage(
         Mode::RUSR | Mode::WUSR,
     )
     .map_err(|e| DecodeError::Input(std_error(e)))?;
+    set_and_verify_mode(&input, Mode::RUSR | Mode::WUSR)?;
     let output = fs::openat(
         &directory,
         output_name.as_str(),
@@ -167,6 +182,7 @@ fn finish_stage(
     )
     .map_err(|e| DecodeError::Input(std_error(e)))?;
     guard.output = Some(&output_name);
+    set_and_verify_mode(&output, Mode::RUSR | Mode::WUSR)?;
     drop(output);
     let mut source = File::from(source);
     let mut input = File::from(input);
@@ -241,6 +257,17 @@ fn random_hex() -> Result<String, DecodeError> {
 }
 fn std_error(error: rustix::io::Errno) -> io::Error {
     io::Error::from_raw_os_error(error.raw_os_error())
+}
+fn set_and_verify_mode(fd: &OwnedFd, expected: Mode) -> Result<(), DecodeError> {
+    fs::fchmod(fd, expected).map_err(|e| DecodeError::Input(std_error(e)))?;
+    let actual = fs::fstat(fd).map_err(|e| DecodeError::Input(std_error(e)))?;
+    if actual.st_mode & 0o777 != expected.bits() {
+        return Err(DecodeError::Input(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "private staging mode could not be established",
+        )));
+    }
+    Ok(())
 }
 fn map_source_open(error: rustix::io::Errno) -> DecodeError {
     if error == rustix::io::Errno::LOOP {
@@ -357,6 +384,55 @@ mod tests {
                     .starts_with(".grainroom-raw-"))
                 .count(),
             0
+        );
+    }
+
+    #[test]
+    fn restrictive_umask_child() {
+        if std::env::var_os("GRAINROOM_RAW_UMASK_CHILD").is_none() {
+            return;
+        }
+        let root = tempdir().unwrap();
+        let source = root.path().join("source.raw");
+        stdfs::write(&source, b"raw").unwrap();
+        let old = rustix::process::umask(Mode::from_bits_retain(0o777));
+        let staged = stage_source(
+            &source,
+            root.path(),
+            &ResourceLimits::default(),
+            &cancellation(),
+        )
+        .unwrap();
+        let session = root.path().join(&staged.directory_name);
+        assert_eq!(
+            stdfs::metadata(&session).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        for name in [&staged.input_name, &staged.output_name] {
+            assert_eq!(
+                stdfs::metadata(session.join(name))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        rustix::process::umask(old);
+    }
+
+    #[test]
+    fn restrictive_umask_still_produces_exact_private_modes() {
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "io::raw::stage::tests::restrictive_umask_child"])
+            .env("GRAINROOM_RAW_UMASK_CHILD", "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 }

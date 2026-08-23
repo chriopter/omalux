@@ -2,13 +2,23 @@ use crate::{
     develop::{CpuImage, RgbaPixel},
     io::{DecodeError, DecodeWorkingSetProfile, ResourceLimits},
 };
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 const HEADER_LIMIT: usize = 64 * 1024;
 
 pub(super) fn parse_ppm16(
     reader: impl Read,
     limits: &ResourceLimits,
+    cancelled: &Arc<AtomicBool>,
 ) -> Result<CpuImage, DecodeError> {
+    if cancelled.load(Ordering::Acquire) {
+        return Err(DecodeError::Cancelled);
+    }
     let mut header = HeaderReader::new(reader);
     let magic = header.token()?;
     if magic != b"P6" {
@@ -36,10 +46,21 @@ pub(super) fn parse_ppm16(
     let mut payload = header.into_payload()?;
     let mut pixels = Vec::with_capacity(capacity);
     let mut rgb = [0_u8; 6];
-    for _ in 0..count {
-        payload.read_exact(&mut rgb).map_err(map_payload_io)?;
-        let c = |i| f32::from(u16::from_be_bytes([rgb[i], rgb[i + 1]])) / 65_535.0;
-        pixels.push(RgbaPixel::new(c(0), c(2), c(4), 1.0).map_err(|_| DecodeError::CorruptInput)?);
+    for y in 0..height {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(DecodeError::Cancelled);
+        }
+        for x in 0..width {
+            if x % 4096 == 0 && cancelled.load(Ordering::Acquire) {
+                return Err(DecodeError::Cancelled);
+            }
+            payload.read_exact(&mut rgb).map_err(map_payload_io)?;
+            let c = |i| f32::from(u16::from_be_bytes([rgb[i], rgb[i + 1]])) / 65_535.0;
+            pixels.push(
+                RgbaPixel::new(c(0), c(2), c(4), 1.0).map_err(|_| DecodeError::CorruptInput)?,
+            );
+        }
+        debug_assert_eq!(pixels.len() as u64, u64::from(y + 1) * u64::from(width));
     }
     let mut trailing = [0_u8; 1];
     match payload.read(&mut trailing) {
@@ -163,11 +184,15 @@ mod tests {
     fn ppm(h: &[u8], p: &[u8]) -> Vec<u8> {
         [h, p].concat()
     }
+    fn active() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
     #[test]
     fn parses_stream_big_endian() {
         let image = parse_ppm16(
             Cursor::new(ppm(b"P6\n# c\n1 1\n65535\n", &[0xff, 0xff, 0x80, 0, 0, 1])),
             &ResourceLimits::default(),
+            &active(),
         )
         .unwrap();
         let p = image.pixels()[0];
@@ -176,6 +201,7 @@ mod tests {
         let crlf = parse_ppm16(
             Cursor::new(ppm(b"P6\r\n1 1\r\n65535\r\n", &[0, 1, 0, 2, 0, 3])),
             &ResourceLimits::default(),
+            &active(),
         )
         .unwrap();
         assert_eq!(crlf.pixels()[0].blue(), 3.0 / 65535.0);
@@ -188,7 +214,7 @@ mod tests {
             ppm(b"P6 1 1 65535\n", &[0; 7]),
         ] {
             assert!(matches!(
-                parse_ppm16(Cursor::new(b), &ResourceLimits::default()),
+                parse_ppm16(Cursor::new(b), &ResourceLimits::default(), &active()),
                 Err(DecodeError::CorruptInput)
             ));
         }
@@ -201,7 +227,7 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            parse_ppm16(Cursor::new(b), &l),
+            parse_ppm16(Cursor::new(b), &l, &active()),
             Err(DecodeError::Limit(crate::io::LimitError::PixelCount { .. }))
         ));
     }
@@ -213,8 +239,40 @@ mod tests {
         }
         bytes.extend_from_slice(b"1 1\n65535\n");
         assert!(matches!(
-            parse_ppm16(Cursor::new(bytes), &ResourceLimits::default()),
+            parse_ppm16(Cursor::new(bytes), &ResourceLimits::default(), &active()),
             Err(DecodeError::CorruptInput)
+        ));
+    }
+
+    struct CancellingReader {
+        inner: Cursor<Vec<u8>>,
+        flag: Arc<AtomicBool>,
+        trigger_after: u64,
+    }
+    impl Read for CancellingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            let count = self.inner.read(buffer)?;
+            if self.inner.position() >= self.trigger_after {
+                self.flag.store(true, Ordering::Release);
+            }
+            Ok(count)
+        }
+    }
+    #[test]
+    fn cancellation_is_polled_during_pixel_conversion() {
+        let width = 10_000_u32;
+        let mut bytes = format!("P6\n{width} 2\n65535\n").into_bytes();
+        let header_len = bytes.len() as u64;
+        bytes.resize(bytes.len() + width as usize * 2 * 6, 0);
+        let flag = active();
+        let reader = CancellingReader {
+            inner: Cursor::new(bytes),
+            flag: flag.clone(),
+            trigger_after: header_len + 5000 * 6,
+        };
+        assert!(matches!(
+            parse_ppm16(reader, &ResourceLimits::default(), &flag),
+            Err(DecodeError::Cancelled)
         ));
     }
 }
