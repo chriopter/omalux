@@ -50,6 +50,11 @@ Catalog, registry, and probe commands produce human-readable stdout by default
 (`list` output is TSV) and compact JSON with `--json`. Probe considers only
 fixed system/package paths owned by root and not group/world writable, then
 runs a bounded `dcraw_emu` behavior handshake. It never searches `PATH`.
+That ownership/mode check is the executable trust boundary; the handshake is
+not a sandbox for arbitrary programs. Capture pipes are nonblocking and
+bounded, the original process-group leader stays unreaped while same-group
+survivors are killed, and even a detached process holding a pipe cannot delay
+the probe beyond its deadline.
 Probe JSON reports only the backend name and functional availability, never
 executable paths. A JSON-mode unavailable develop result is
 also path-free JSON on stdout. Other diagnostics are human-readable on stderr

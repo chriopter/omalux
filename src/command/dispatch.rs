@@ -11,7 +11,7 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     fs::File,
-    io::{self, Write},
+    io::{self, Read, Write},
     os::{
         fd::AsRawFd,
         unix::{
@@ -21,7 +21,6 @@ use std::{
     },
     path::{Path, PathBuf},
     process::{Command as ProcessCommand, ExitStatus, Stdio},
-    thread,
     time::{Duration, Instant},
 };
 
@@ -424,80 +423,126 @@ fn functional_dcraw_handshake(executable: &Path) -> bool {
         Err(_) => return false,
     };
     let process_group = child.id();
-    let (Some(stdout), Some(stderr)) = (child.stdout.take(), child.stderr.take()) else {
-        let _ = child.kill();
+    let Some(leader) = rustix::process::Pid::from_raw(process_group as i32) else {
+        kill_probe_group(process_group);
         let _ = child.wait();
         return false;
     };
-    let (send_output, receive_output) = std::sync::mpsc::sync_channel(2);
-    let stdout_reader = capture_probe_stream(stdout, send_output.clone());
-    let stderr_reader = capture_probe_stream(stderr, send_output);
-    let deadline = Instant::now() + Duration::from_millis(750);
-    let mut status = None;
-    let mut output = Vec::new();
-    let mut captures = 0;
-    while Instant::now() < deadline && (status.is_none() || captures != 2) {
-        if status.is_none() {
-            match child.try_wait() {
-                Ok(value) => status = value,
-                Err(_) => break,
-            }
-        }
-        while let Ok(value) = receive_output.try_recv() {
-            captures += 1;
-            if let Some(value) = value {
-                output.extend_from_slice(&value);
-            }
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
-    if status.is_none() || captures != 2 {
+    let (Some(mut stdout), Some(mut stderr)) = (child.stdout.take(), child.stderr.take()) else {
         kill_probe_group(process_group);
         let _ = child.wait();
-        while captures != 2 {
-            match receive_output.recv_timeout(Duration::from_millis(100)) {
-                Ok(value) => {
-                    captures += 1;
-                    if let Some(value) = value {
-                        output.extend_from_slice(&value);
-                    }
-                }
-                Err(_) => break,
+        return false;
+    };
+    if !set_nonblocking(&stdout) || !set_nonblocking(&stderr) {
+        kill_probe_group(process_group);
+        let _ = child.wait();
+        return false;
+    }
+    let deadline = Instant::now() + Duration::from_millis(750);
+    let mut observed_exit = None;
+    let mut stdout_eof = false;
+    let mut stderr_eof = false;
+    let mut stdout_bytes = Vec::new();
+    let mut stderr_bytes = Vec::new();
+    let completed = loop {
+        if !drain_probe_stream(&mut stdout, &mut stdout_bytes, &mut stdout_eof)
+            || !drain_probe_stream(&mut stderr, &mut stderr_bytes, &mut stderr_eof)
+        {
+            break false;
+        }
+        if observed_exit.is_none() {
+            match observe_probe_exit(leader) {
+                Ok(value) => observed_exit = value,
+                Err(()) => break false,
             }
         }
+        if observed_exit.is_some() && stdout_eof && stderr_eof {
+            break true;
+        }
+        if Instant::now() >= deadline {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    if !completed {
+        kill_probe_group(process_group);
+        let _ = child.wait();
+        return false;
     }
-    let _ = stdout_reader.join();
-    let _ = stderr_reader.join();
+    let Some(exit_code) = observed_exit else {
+        kill_probe_group(process_group);
+        let _ = child.wait();
+        return false;
+    };
+    // Keep the exited leader unreaped until all same-group survivors are
+    // terminated. This pins the numeric PID/PGID against reuse.
+    if observe_probe_exit(leader).ok().flatten().is_none() {
+        kill_probe_group(process_group);
+        let _ = child.wait();
+        return false;
+    }
+    kill_probe_group(process_group);
+    std::thread::sleep(Duration::from_millis(10));
+    if observe_probe_exit(leader).ok().flatten().is_none() {
+        let _ = child.wait();
+        return false;
+    }
+    let status = match child.wait() {
+        Ok(status) => status,
+        Err(_) => return false,
+    };
+    if status.code() != Some(exit_code) {
+        return false;
+    }
+    let mut output = stdout_bytes;
+    output.extend_from_slice(&stderr_bytes);
     let output = String::from_utf8_lossy(&output);
-    status.and_then(|status| status.code()) == Some(2)
+    exit_code == 2
         && output.contains("Using ")
         && output.contains(" threads")
         && output.contains(&format!("Processing file {RAW_PROBE_SENTINEL}"))
         && output.contains("Cannot open")
 }
 
-fn capture_probe_stream(
-    mut stream: impl std::io::Read + Send + 'static,
-    send_output: std::sync::mpsc::SyncSender<Option<Vec<u8>>>,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let mut retained = Vec::new();
-        let mut chunk = [0_u8; 1024];
-        loop {
-            match stream.read(&mut chunk) {
-                Ok(0) => break,
-                Ok(count) => {
-                    let remaining = RAW_PROBE_CAPTURE_BYTES.saturating_sub(retained.len());
-                    retained.extend_from_slice(&chunk[..count.min(remaining)]);
-                }
-                Err(_) => {
-                    let _ = send_output.send(None);
-                    return;
-                }
+fn set_nonblocking(file: &impl std::os::fd::AsFd) -> bool {
+    let Ok(flags) = rustix::fs::fcntl_getfl(file) else {
+        return false;
+    };
+    rustix::fs::fcntl_setfl(file, flags | rustix::fs::OFlags::NONBLOCK).is_ok()
+}
+
+fn drain_probe_stream(stream: &mut impl Read, retained: &mut Vec<u8>, eof: &mut bool) -> bool {
+    let mut chunk = [0_u8; 1024];
+    loop {
+        match stream.read(&mut chunk) {
+            Ok(0) => {
+                *eof = true;
+                return true;
             }
+            Ok(count) => {
+                let Some(new_len) = retained.len().checked_add(count) else {
+                    return false;
+                };
+                if new_len > RAW_PROBE_CAPTURE_BYTES {
+                    return false;
+                }
+                retained.extend_from_slice(&chunk[..count]);
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return true,
+            Err(_) => return false,
         }
-        let _ = send_output.send(Some(retained));
-    })
+    }
+}
+
+fn observe_probe_exit(leader: rustix::process::Pid) -> Result<Option<i32>, ()> {
+    rustix::process::waitid(
+        rustix::process::WaitId::Pid(leader),
+        rustix::process::WaitIdOptions::EXITED
+            | rustix::process::WaitIdOptions::NOHANG
+            | rustix::process::WaitIdOptions::NOWAIT,
+    )
+    .map(|status| status.and_then(|status| status.exit_status()))
+    .map_err(|_| ())
 }
 
 fn kill_probe_group(process_group: u32) {
@@ -685,12 +730,48 @@ mod tests {
         assert!(!functional_dcraw_handshake(&impostor));
         assert!(!trusted_raw_probe(&[impostor.to_str().unwrap()]));
 
-        let hanging = directory.path().join("hanging");
-        fs::write(&hanging, "#!/bin/sh\nsleep 5 &\nexit 0\n").unwrap();
-        fs::set_permissions(&hanging, fs::Permissions::from_mode(0o700)).unwrap();
+        let survivor_pid = directory.path().join("survivor-pid");
+        let same_group = directory.path().join("same-group");
+        fs::write(
+            &same_group,
+            format!(
+                "#!/bin/sh\nprintf 'Using 4 threads\\nProcessing file {RAW_PROBE_SENTINEL}\\nCannot open {RAW_PROBE_SENTINEL}\\n'\nsleep 5 >/dev/null 2>&1 & echo $! > '{}'\nexit 2\n",
+                survivor_pid.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&same_group, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(functional_dcraw_handshake(&same_group));
+        assert_not_running(fs::read_to_string(&survivor_pid).unwrap().trim());
+
+        let detached_pid = directory.path().join("detached-pid");
+        let detached = directory.path().join("detached");
+        fs::write(
+            &detached,
+            format!(
+                "#!/bin/sh\nsetsid sh -c 'echo $$ > \"{}\"; sleep 5' &\nexit 0\n",
+                detached_pid.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&detached, fs::Permissions::from_mode(0o700)).unwrap();
         let started = Instant::now();
-        assert!(!functional_dcraw_handshake(&hanging));
+        assert!(!functional_dcraw_handshake(&detached));
         assert!(started.elapsed() < Duration::from_millis(1_200));
+        if let Ok(pid) = fs::read_to_string(detached_pid)
+            && let Ok(pid) = pid.trim().parse::<i32>()
+            && let Some(pid) = rustix::process::Pid::from_raw(pid)
+        {
+            let _ = rustix::process::kill_process(pid, rustix::process::Signal::KILL);
+        }
+    }
+
+    fn assert_not_running(pid: &str) {
+        let status = fs::read_to_string(format!("/proc/{pid}/stat"));
+        if let Ok(status) = status {
+            let state = status.rsplit_once(") ").unwrap().1.as_bytes()[0];
+            assert_eq!(state, b'Z', "probe survivor {pid} is still running");
+        }
     }
 
     #[test]
