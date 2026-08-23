@@ -444,10 +444,6 @@ fn unsupported_settings_by_stage() -> Vec<(DevelopStage, DevelopSettings)> {
     settings.radial_masks.masks.push(mask);
     cases.push((DevelopStage::RadialMasks, settings));
 
-    let mut settings = DevelopSettings::default();
-    settings.effects.grain.amount = 1.0;
-    cases.push((DevelopStage::Effects, settings));
-
     cases
 }
 

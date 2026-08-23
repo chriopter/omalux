@@ -5,6 +5,7 @@
 //! owner of edit state.
 
 mod color;
+mod context;
 mod image;
 mod orientation;
 pub mod parameters;
@@ -13,6 +14,7 @@ pub mod preset;
 pub mod settings;
 mod stage;
 
+pub use context::{DevelopRenderContext, ResolvedGrainSeed};
 pub use image::{CpuImage, ImageError, PixelChannel, PixelError, RgbaPixel};
 pub use parameters::{
     NeutralRepresentation, ParameterDefinition, ParameterKind, ParameterUnit, parameter_registry,

@@ -3,7 +3,7 @@ use grainroom::develop::{
 };
 
 #[test]
-fn zero_amounts_are_bit_exact_and_grain_remains_loudly_unsupported() {
+fn zero_grain_is_bit_exact_and_active_grain_requires_context() {
     let original = patterned_image(9, 7);
     let mut rendered = original.clone();
     let mut settings = DevelopSettings::default();
@@ -15,7 +15,7 @@ fn zero_amounts_are_bit_exact_and_grain_remains_loudly_unsupported() {
     settings.effects.grain.amount = 1.0;
     assert_eq!(
         DevelopPipeline.process(&mut rendered, &settings),
-        Err(PipelineError::StageNotImplemented(DevelopStage::Effects))
+        Err(PipelineError::MissingRenderContext(DevelopStage::Effects))
     );
     assert_eq!(rendered, original);
 }

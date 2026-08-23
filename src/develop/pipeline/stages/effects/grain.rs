@@ -7,7 +7,7 @@
 //! recorded in `docs/grain-model.md`; the complete MIT notice is retained in
 //! `THIRD_PARTY_NOTICES.md`.
 
-use crate::develop::{CpuImage, RgbaPixel, settings::GrainSettings};
+use crate::develop::{CpuImage, ResolvedGrainSeed, RgbaPixel, settings::GrainSettings};
 
 const REC2020_LUMA: [f32; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const FREQUENCIES: [f32; 3] = [0.4910, 0.9441, 1.7280];
@@ -26,24 +26,6 @@ pub(super) enum GrainError {
     RegionOutOfBounds,
     BufferLengthMismatch { expected: usize, actual: usize },
     NonFiniteOutput { pixel_index: usize },
-}
-
-/// A seed already resolved from stable image identity by the render context.
-///
-/// This type deliberately has no filename/path constructor. Renames must not
-/// change an edit once the caller has resolved the image identity.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct ResolvedGrainSeed(u64);
-
-impl ResolvedGrainSeed {
-    pub(super) const fn from_image_identity(value: u64) -> Self {
-        Self(value)
-    }
-
-    #[cfg(test)]
-    const fn fixed(value: u64) -> Self {
-        Self(value)
-    }
 }
 
 /// One tightly packed output region located in a larger full image.
@@ -97,26 +79,32 @@ impl GrainRegion {
         })
     }
 
+    #[cfg(test)]
     pub(super) const fn full_width(self) -> usize {
         self.full_width
     }
 
+    #[cfg(test)]
     pub(super) const fn full_height(self) -> usize {
         self.full_height
     }
 
+    #[cfg(test)]
     pub(super) const fn origin_x(self) -> usize {
         self.origin_x
     }
 
+    #[cfg(test)]
     pub(super) const fn origin_y(self) -> usize {
         self.origin_y
     }
 
+    #[cfg(test)]
     pub(super) const fn width(self) -> usize {
         self.width
     }
 
+    #[cfg(test)]
     pub(super) const fn height(self) -> usize {
         self.height
     }
@@ -265,7 +253,7 @@ fn octave_point(
 }
 
 fn octave_phases(seed: ResolvedGrainSeed) -> [[f32; 2]; 3] {
-    let mut state = seed.0;
+    let mut state = seed.value();
     let mut phases = [[0.0; 2]; 3];
     for phase in &mut phases {
         phase[0] = phase_component(splitmix64(&mut state));
@@ -290,6 +278,7 @@ fn splitmix64(state: &mut u64) -> u64 {
 // Scalar f32 port of Ashima Arts' 2-D simplex noise at pinned commit
 // 6abed1e77ed1e18b181627c35f688eb30c9fe75e. Constants, the +10 permutation,
 // and operation ordering follow noise2D.glsl for a direct CPU/GPU parity path.
+#[cfg(test)]
 fn simplex_noise(point: [f32; 2]) -> f32 {
     const C_X: f32 = 0.211_324_87;
     const C_Y: f32 = 0.366_025_42;
@@ -412,7 +401,7 @@ mod tests {
             &mut pixels,
             region(2, 1, 0, 0, 2, 1),
             &settings(0.0, 4000.0, 100.0),
-            ResolvedGrainSeed::fixed(7),
+            ResolvedGrainSeed::fixed_for_tests(7),
         )
         .unwrap();
         assert_eq!(pixels, original);
@@ -443,7 +432,7 @@ mod tests {
         apply_full_image(
             &mut image,
             &settings(0.0, 4000.0, 100.0),
-            ResolvedGrainSeed::fixed(7),
+            ResolvedGrainSeed::fixed_for_tests(7),
         )
         .unwrap();
         assert_eq!(image, original);
@@ -454,7 +443,7 @@ mod tests {
         let mut state = 0;
         assert_eq!(splitmix64(&mut state), 0xe220_a839_7b1d_cdaf);
         assert_eq!(splitmix64(&mut state), 0x6e78_9e6a_a1b9_65f4);
-        let bits = octave_phases(ResolvedGrainSeed::fixed(0x1234_5678_9abc_def0))
+        let bits = octave_phases(ResolvedGrainSeed::fixed_for_tests(0x1234_5678_9abc_def0))
             .map(|phase| phase.map(f32::to_bits));
         assert_eq!(
             bits,
@@ -509,7 +498,7 @@ mod tests {
 
     #[test]
     fn three_octave_noise_matches_golden() {
-        let phases = octave_phases(ResolvedGrainSeed::fixed(42));
+        let phases = octave_phases(ResolvedGrainSeed::fixed_for_tests(42));
         assert_eq!(
             film_noise_at_pixel(0, 1, 2, iso_scale(4000.0), phases).to_bits(),
             3_211_355_459
@@ -548,7 +537,7 @@ mod tests {
                 &mut wrong_length,
                 valid,
                 &settings(0.0, 4000.0, 50.0),
-                ResolvedGrainSeed::fixed(1),
+                ResolvedGrainSeed::fixed_for_tests(1),
             ),
             Err(GrainError::BufferLengthMismatch {
                 expected: 20,
@@ -560,7 +549,7 @@ mod tests {
     #[test]
     fn f64_coordinates_keep_adjacent_supported_pixels_distinct_without_wrapping() {
         let scale = iso_scale(6400.0);
-        let phases = octave_phases(ResolvedGrainSeed::fixed(u64::MAX));
+        let phases = octave_phases(ResolvedGrainSeed::fixed_for_tests(u64::MAX));
         for octave in 0..3 {
             let before = octave_point(
                 MAX_GRAIN_DIMENSION - 2,
@@ -694,7 +683,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let grain = settings(73.0, 4000.0, 80.0);
-        let seed = ResolvedGrainSeed::fixed(0xdead_beef);
+        let seed = ResolvedGrainSeed::fixed_for_tests(0xdead_beef);
         let mut full = source.clone();
         apply_region(
             &mut full,
@@ -746,7 +735,7 @@ mod tests {
             .unwrap();
             pixels
         }
-        let resolved = ResolvedGrainSeed::fixed(1234);
+        let resolved = ResolvedGrainSeed::fixed_for_tests(1234);
         assert_eq!(
             render_named("before.raw", resolved),
             render_named("renamed.raw", resolved)
@@ -756,7 +745,7 @@ mod tests {
     #[test]
     fn normalized_coordinates_are_export_resolution_independent() {
         let grain = settings(80.0, 4000.0, 70.0);
-        let seed = ResolvedGrainSeed::fixed(2026);
+        let seed = ResolvedGrainSeed::fixed_for_tests(2026);
         let mut low = vec![pixel([0.18; 3], 1.0); 33 * 33];
         let mut high = vec![pixel([0.18; 3], 1.0); 99 * 99];
         apply_region(&mut low, region(33, 33, 0, 0, 33, 33), &grain, seed).unwrap();
@@ -776,7 +765,7 @@ mod tests {
             &mut pixels,
             region(1, 1, 0, 0, 1, 1),
             &settings(100.0, 4000.0, 100.0),
-            ResolvedGrainSeed::fixed(9),
+            ResolvedGrainSeed::fixed_for_tests(9),
         )
         .unwrap();
         let changed = pixels[0];
@@ -801,7 +790,7 @@ mod tests {
             &mut pixels,
             region(source.len(), 1, 0, 0, source.len(), 1),
             &settings(100.0, 6400.0, 100.0),
-            ResolvedGrainSeed::fixed(0xfeed_face),
+            ResolvedGrainSeed::fixed_for_tests(0xfeed_face),
         )
         .unwrap();
         for output in pixels {
@@ -852,7 +841,7 @@ mod tests {
     // horizontal/vertical angular-sector energy ratio from a true 2-D DFT.
     fn psd_metrics(seed: u64) -> [f64; 6] {
         const SIZE: usize = 32;
-        let phases = octave_phases(ResolvedGrainSeed::fixed(seed));
+        let phases = octave_phases(ResolvedGrainSeed::fixed_for_tests(seed));
         let scale = iso_scale(4000.0);
         let field = (0..SIZE * SIZE)
             .map(|index| {

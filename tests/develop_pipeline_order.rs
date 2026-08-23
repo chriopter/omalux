@@ -1,5 +1,8 @@
 use grainroom::develop::settings::CurvePoint;
-use grainroom::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
+use grainroom::develop::{
+    CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, LocalAdjustments, RadialMask,
+    ResolvedGrainSeed, RgbaPixel,
+};
 
 #[test]
 fn wp1_wp2_wp3_canonical_order_matches_the_combined_golden() {
@@ -43,4 +46,95 @@ fn assert_close(actual: f32, expected: f32) {
         (actual - expected).abs() <= 2.0e-6,
         "expected {expected}, got {actual}"
     );
+}
+
+#[test]
+fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
+    let pixels = (0..6)
+        .map(|index| {
+            let index = index as f32;
+            RgbaPixel::new(
+                0.08 + index * 0.05,
+                0.2 + index * 0.03,
+                0.65 - index * 0.04,
+                0.1 * (index + 1.0),
+            )
+            .unwrap()
+        })
+        .collect();
+    let mut image = CpuImage::new(3, 2, pixels).unwrap();
+    let mut settings = DevelopSettings::default();
+    settings.geometry.quarter_turns_clockwise = 1;
+    settings.basics.brightness = 12.0;
+    settings.basics.contrast = 8.0;
+    settings.basics.saturation = 5.0;
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.56 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    settings.color_mixer.blue.hue_shift_degrees = 7.0;
+    settings.color_mixer.blue.saturation = 8.0;
+    settings.color_grading.midtones.hue_degrees = 25.0;
+    settings.color_grading.midtones.saturation = 6.0;
+    settings.color_grading.midtones.luminance = 3.0;
+    settings.radial_masks.masks.push(RadialMask {
+        id: "order".into(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 2.0,
+        radius_y: 2.0,
+        rotation_degrees: 0.0,
+        feather: 0.0,
+        opacity: 1.0,
+        invert: false,
+        adjustments: LocalAdjustments {
+            brightness: 5.0,
+            sharpness: 25.0,
+            ..LocalAdjustments::default()
+        },
+    });
+    settings.effects.fade = 4.0;
+    settings.effects.grain.amount = 37.0;
+    settings.effects.grain.size_iso = 4000.0;
+    settings.effects.grain.midtone_response = 80.0;
+    let context = DevelopRenderContext::from_resolved_grain_seed(
+        ResolvedGrainSeed::fixed_for_tests(0x1234_5678_9abc_def0),
+    );
+
+    DevelopPipeline
+        .process_with_context(&mut image, &settings, Some(&context))
+        .unwrap();
+
+    assert_eq!((image.width(), image.height()), (2, 3));
+    assert_eq!(
+        image
+            .pixels()
+            .iter()
+            .map(|pixel| pixel.alpha().to_bits())
+            .collect::<Vec<_>>(),
+        vec![
+            0.4_f32.to_bits(),
+            0.1_f32.to_bits(),
+            0.5_f32.to_bits(),
+            0.2_f32.to_bits(),
+            0.6_f32.to_bits(),
+            0.3_f32.to_bits(),
+        ]
+    );
+    assert_eq!(stable_pixel_hash(&image), 0x0942_28ff_fafa_98b6);
+}
+
+fn stable_pixel_hash(image: &CpuImage) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for pixel in image.pixels() {
+        for channel in [pixel.red(), pixel.green(), pixel.blue(), pixel.alpha()] {
+            for byte in channel.to_bits().to_le_bytes() {
+                hash ^= u64::from(byte);
+                hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+    }
+    hash
 }

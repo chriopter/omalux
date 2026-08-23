@@ -6,11 +6,12 @@ mod geometry;
 mod radial_masks;
 mod tone_curves;
 
-use super::{CpuImage, DevelopSettings, DevelopStage, PipelineError};
+use super::{CpuImage, DevelopRenderContext, DevelopSettings, DevelopStage, PipelineError};
 
 pub(super) fn ensure_supported(
     stage: DevelopStage,
     settings: &DevelopSettings,
+    context: Option<&DevelopRenderContext>,
 ) -> Result<(), PipelineError> {
     let supported = match stage {
         DevelopStage::Geometry => geometry::supports(&settings.geometry),
@@ -23,13 +24,18 @@ pub(super) fn ensure_supported(
     };
     supported
         .then_some(())
-        .ok_or(PipelineError::StageNotImplemented(stage))
+        .ok_or(PipelineError::StageNotImplemented(stage))?;
+    if stage == DevelopStage::Effects {
+        effects::ensure_context(&settings.effects, context)?;
+    }
+    Ok(())
 }
 
 pub(super) fn apply(
     stage: DevelopStage,
     image: &mut CpuImage,
     settings: &DevelopSettings,
+    context: Option<&DevelopRenderContext>,
 ) -> Result<(), PipelineError> {
     match stage {
         DevelopStage::Geometry => geometry::apply(image, &settings.geometry),
@@ -38,6 +44,6 @@ pub(super) fn apply(
         DevelopStage::ColorMixer => color_mixer::apply(image, &settings.color_mixer),
         DevelopStage::ColorGrading => color_grading::apply(image, &settings.color_grading),
         DevelopStage::RadialMasks => radial_masks::apply(image, &settings.radial_masks),
-        DevelopStage::Effects => effects::apply(image, &settings.effects),
+        DevelopStage::Effects => effects::apply(image, &settings.effects, context),
     }
 }

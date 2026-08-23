@@ -1,31 +1,73 @@
-use crate::develop::{CpuImage, DevelopStage, PipelineError, settings::EffectsSettings};
+use crate::develop::{
+    CpuImage, DevelopRenderContext, DevelopStage, PipelineError, settings::EffectsSettings,
+};
 
+mod grain;
 mod optical;
 mod spatial;
 mod tonal;
-// The grain kernel is ready, but Foundation has no render context from which a
-// resolved image-stable seed can be obtained. Keep it compiled and tested while
-// the Effects stage continues to reject non-zero grain rather than inventing a
-// path- or filename-based seed here.
-#[allow(dead_code)]
-mod grain;
 
-pub(super) fn supports(settings: &EffectsSettings) -> bool {
-    settings.grain.amount == 0.0
+pub(super) fn supports(_settings: &EffectsSettings) -> bool {
+    true
 }
 
-pub(super) fn apply(image: &mut CpuImage, settings: &EffectsSettings) -> Result<(), PipelineError> {
-    if !supports(settings) {
-        return Err(PipelineError::StageNotImplemented(DevelopStage::Effects));
+pub(super) fn ensure_context(
+    settings: &EffectsSettings,
+    context: Option<&DevelopRenderContext>,
+) -> Result<(), PipelineError> {
+    if settings.grain.amount > 0.0 && context.is_none() {
+        return Err(PipelineError::MissingRenderContext(DevelopStage::Effects));
     }
+    Ok(())
+}
+
+pub(super) fn apply(
+    image: &mut CpuImage,
+    settings: &EffectsSettings,
+    context: Option<&DevelopRenderContext>,
+) -> Result<(), PipelineError> {
+    ensure_context(settings, context)?;
     // Persisted effect order. Keep this stable because the operations do not
     // generally commute and preset rendering depends on it.
-    optical::apply_bloom(image, settings.bloom);
-    optical::apply_halation(image, settings.halation);
-    tonal::apply_fade(image, settings.fade);
-    tonal::apply_vignette(image, settings.vignette);
-    tonal::apply_sharpness(image, settings.sharpness);
+    if settings.bloom != 0.0 {
+        optical::apply_bloom(image, settings.bloom);
+    }
+    if settings.halation != 0.0 {
+        optical::apply_halation(image, settings.halation);
+    }
+    if settings.fade != 0.0 {
+        tonal::apply_fade(image, settings.fade);
+    }
+    if settings.vignette != 0.0 {
+        tonal::apply_vignette(image, settings.vignette);
+    }
+    if settings.sharpness != 0.0 {
+        tonal::apply_sharpness(image, settings.sharpness);
+    }
+    if settings.grain.amount != 0.0 {
+        let seed = context
+            .expect("active grain context was checked before rendering")
+            .grain_seed();
+        grain::apply_full_image(image, &settings.grain, seed).map_err(map_grain_error)?;
+    }
     Ok(())
+}
+
+fn map_grain_error(error: grain::GrainError) -> PipelineError {
+    let reason = match error {
+        grain::GrainError::EmptyExtent => "grain extent must be non-empty",
+        grain::GrainError::DimensionTooLarge => "grain extent exceeds the supported dimension",
+        grain::GrainError::DimensionOverflow => "grain extent arithmetic overflowed",
+        grain::GrainError::RegionOutOfBounds => "grain region is outside the full image",
+        grain::GrainError::BufferLengthMismatch { .. } => {
+            "grain region does not match its pixel buffer"
+        }
+        grain::GrainError::NonFiniteOutput { .. } => "grain produced a non-finite RGB value",
+    };
+    PipelineError::NumericFailure {
+        stage: DevelopStage::Effects,
+        reason,
+    }
 }
 
 pub(super) fn local_sharpness_delta<F>(

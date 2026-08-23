@@ -39,7 +39,7 @@ the adapted grain-model files remain in place.
 
 ## Normative CPU contract
 
-- `ResolvedGrainSeed` is a resolved 64-bit identity value. SplitMix64 expands it
+- `ResolvedGrainSeed` is an opaque resolved 64-bit identity value. SplitMix64 expands it
   into six independent 24-bit-exact f32 phase coordinates in the simplex period
   `[0, 289)`. Evaluation has no shared mutable state.
 - Pixel centers use global full-image coordinates divided by the full image's
@@ -69,18 +69,26 @@ the adapted grain-model files remain in place.
 - Amount zero returns before full-image region/dimension validation, pixel
   buffer access, seed, coordinate, luminance, or response work. It allocates
   nothing and is bit-exact, including for shapes outside the active kernel's
-  supported dimension contract. Non-zero grain remains gated by the Effects
-  integration until a render context supplies `ResolvedGrainSeed`.
+  supported dimension contract. Non-zero grain requires an explicit
+  `DevelopRenderContext` and is the final operation in the Effects order:
+  Bloom, Halation, Fade, Vignette, Sharpness, Grain.
 
-## Foundation integration gap
+## Render-context integration
 
-The current Foundation `DevelopPipeline::process` has no render context and
-therefore cannot carry a resolved image-stable grain seed. WP4 deliberately
-keeps non-zero grain unsupported in the Effects stage instead of deriving a
-seed from a filename/path or installing a universal placeholder. Integration
-must add an explicit render context containing `ResolvedGrainSeed`, thread it
-through preflight/process, and only then call the already implemented
-`grain::apply_full_image`. Tests may use `ResolvedGrainSeed::fixed` directly.
+`DevelopRenderContext::from_source_digest` accepts an already computed 32-byte
+source-content digest and derives a grain seed with the fixed domain
+`io.omacom.grainroom/grain-seed/v1`. The API performs no IO and has no filename,
+path, mtime, or global-default input. Tests and golden fixtures may explicitly
+construct `ResolvedGrainSeed::fixed_for_tests`; production callers should
+prefer the content-digest constructor. Active grain without a context fails at
+preflight with `MissingRenderContext(Effects)` before caller-visible mutation.
+
+The current QML/LibRaw preview does not yet produce the normative scene-linear
+`CpuImage`, so it is deliberately not wired to this CPU pipeline. The actual
+source SHA-256 resolver and CPU decode/export bridge remain packaging/runtime
+TODOs. They must compute the source digest once, retain it across renames, and
+pass the resulting context to `process_with_context`; they must not derive it
+from display names or filesystem timestamps.
 
 The legacy preview shader is explicitly non-normative. In addition to
 attenuating procedural detail according to the on-screen source-pixel

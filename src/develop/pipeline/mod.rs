@@ -1,7 +1,8 @@
 mod stages;
 
 use super::{
-    CANONICAL_STAGE_ORDER, CpuImage, DevelopSettings, DevelopStage, ImageError, SettingsError,
+    CANONICAL_STAGE_ORDER, CpuImage, DevelopRenderContext, DevelopSettings, DevelopStage,
+    ImageError, SettingsError,
 };
 use std::fmt;
 
@@ -16,11 +17,21 @@ impl DevelopPipeline {
     /// Validates the document and verifies that every non-neutral stage is
     /// supported before rendering begins.
     pub fn preflight(&self, settings: &DevelopSettings) -> Result<(), PipelineError> {
+        self.preflight_with_context(settings, None)
+    }
+
+    /// Validates settings, stage capabilities, and required non-persisted
+    /// render inputs before any pixel processing begins.
+    pub fn preflight_with_context(
+        &self,
+        settings: &DevelopSettings,
+        context: Option<&DevelopRenderContext>,
+    ) -> Result<(), PipelineError> {
         settings
             .validate()
             .map_err(PipelineError::InvalidSettings)?;
         for stage in CANONICAL_STAGE_ORDER {
-            stages::ensure_supported(stage, settings)?;
+            stages::ensure_supported(stage, settings, context)?;
         }
         Ok(())
     }
@@ -34,12 +45,23 @@ impl DevelopPipeline {
         image: &mut CpuImage,
         settings: &DevelopSettings,
     ) -> Result<(), PipelineError> {
+        self.process_with_context(image, settings, None)
+    }
+
+    /// Applies a settings document transactionally using explicit render
+    /// inputs such as the source-content-derived grain seed.
+    pub fn process_with_context(
+        &self,
+        image: &mut CpuImage,
+        settings: &DevelopSettings,
+        context: Option<&DevelopRenderContext>,
+    ) -> Result<(), PipelineError> {
         image.validate().map_err(PipelineError::InvalidImage)?;
-        self.preflight(settings)?;
+        self.preflight_with_context(settings, context)?;
 
         let mut rendered = image.clone();
         for stage in CANONICAL_STAGE_ORDER {
-            stages::apply(stage, &mut rendered, settings)?;
+            stages::apply(stage, &mut rendered, settings, context)?;
         }
         rendered.validate().map_err(PipelineError::InvalidImage)?;
         *image = rendered;
@@ -52,6 +74,7 @@ pub enum PipelineError {
     InvalidImage(ImageError),
     InvalidSettings(SettingsError),
     StageNotImplemented(DevelopStage),
+    MissingRenderContext(DevelopStage),
     NumericFailure {
         stage: DevelopStage,
         reason: &'static str,
@@ -66,6 +89,12 @@ impl fmt::Display for PipelineError {
             Self::StageNotImplemented(stage) => {
                 write!(formatter, "non-neutral {stage:?} stage is not implemented")
             }
+            Self::MissingRenderContext(stage) => {
+                write!(
+                    formatter,
+                    "non-neutral {stage:?} stage requires a render context"
+                )
+            }
             Self::NumericFailure { stage, reason } => {
                 write!(formatter, "numerical failure in {stage:?}: {reason}")
             }
@@ -78,7 +107,9 @@ impl std::error::Error for PipelineError {
         match self {
             Self::InvalidImage(error) => Some(error),
             Self::InvalidSettings(error) => Some(error),
-            Self::StageNotImplemented(_) | Self::NumericFailure { .. } => None,
+            Self::StageNotImplemented(_)
+            | Self::MissingRenderContext(_)
+            | Self::NumericFailure { .. } => None,
         }
     }
 }
