@@ -10,6 +10,8 @@ Item {
     required property bool photoReady
     required property int selectedParameter
     required property bool advancedExpanded
+    required property string settingsJson
+    required property string supportedParametersJson
 
     readonly property int parameterCount: 23
     property alias grainValue: grainControl.value
@@ -19,6 +21,59 @@ Item {
     signal selectionRequested(int index)
     signal advancedToggleRequested
     signal parameterCommitted(string id, real value)
+
+    readonly property var supportedParameterIds: {
+        try {
+            return JSON.parse(supportedParametersJson)
+        } catch (error) {
+            return []
+        }
+    }
+
+    function parameterSupported(id) {
+        return supportedParameterIds.indexOf(id) >= 0
+    }
+
+    function synchronizeSettings() {
+        var settings
+        try {
+            settings = JSON.parse(settingsJson)
+        } catch (error) {
+            return
+        }
+        var basicsValues = [settings.basics.brightness, settings.basics.contrast,
+            settings.basics.clarity, settings.basics.highlights, settings.basics.shadows,
+            settings.basics.whites, settings.basics.blacks]
+        for (var basicIndex = 0; basicIndex < basicsValues.length; ++basicIndex) {
+            var basic = basicsRepeater.itemAt(basicIndex)
+            if (basic)
+                basic.value = basicsValues[basicIndex]
+        }
+        var highlightHue = settings.color_grading.highlights.hue_degrees
+        var shadowHue = settings.color_grading.shadows.hue_degrees
+        var colorValues = [settings.basics.saturation, settings.basics.vibrance,
+            settings.basics.temperature, settings.basics.tint,
+            settings.color_grading.highlights.saturation,
+            highlightHue > 180 ? highlightHue - 360 : highlightHue,
+            settings.color_grading.shadows.saturation,
+            shadowHue > 180 ? shadowHue - 360 : shadowHue]
+        for (var colorIndex = 0; colorIndex < colorValues.length; ++colorIndex) {
+            var color = colorRepeater.itemAt(colorIndex)
+            if (color)
+                color.value = colorValues[colorIndex]
+        }
+        bloomControl.value = settings.effects.bloom
+        halationControl.value = settings.effects.halation
+        fadeControl.value = settings.effects.fade
+        grainControl.value = settings.effects.grain.amount
+        grainSizeControl.value = settings.effects.grain.size_iso
+        midtonesControl.value = settings.effects.grain.midtone_response
+        vignetteControl.value = settings.effects.vignette
+        sharpnessControl.value = settings.effects.sharpness
+    }
+
+    onSettingsJsonChanged: synchronizeSettings()
+    Component.onCompleted: synchronizeSettings()
 
     readonly property var basics: [
         { "label": "Brightness", "from": -100, "to": 100 },
@@ -121,6 +176,11 @@ Item {
                     from: modelData.from
                     to: modelData.to
                     initialValue: 0
+                    supported: panel.parameterSupported([
+                        "basics.brightness", "basics.contrast", "basics.clarity",
+                        "basics.highlights", "basics.shadows", "basics.whites",
+                        "basics.blacks"
+                    ][index])
                     onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
                     onValueCommitted: value => panel.parameterCommitted([
                         "basics.brightness", "basics.contrast", "basics.clarity",
@@ -149,6 +209,13 @@ Item {
                     to: modelData.to
                     suffix: modelData.suffix
                     initialValue: 0
+                    supported: panel.parameterSupported([
+                        "basics.saturation", "basics.vibrance", "basics.temperature",
+                        "basics.tint", "color_grading.highlights.saturation",
+                        "color_grading.highlights.hue_degrees",
+                        "color_grading.shadows.saturation",
+                        "color_grading.shadows.hue_degrees"
+                    ][index])
                     onSelectionRequested: requestedIndex => panel.selectionRequested(requestedIndex)
                     onValueCommitted: value => panel.parameterCommitted([
                         "basics.saturation", "basics.vibrance", "basics.temperature",
@@ -173,6 +240,7 @@ Item {
                 from: 0
                 to: 100
                 initialValue: 0
+                supported: panel.parameterSupported("effects.bloom")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.bloom", value)
             }
@@ -188,6 +256,7 @@ Item {
                 from: 0
                 to: 100
                 initialValue: 0
+                supported: panel.parameterSupported("effects.halation")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.halation", value)
             }
@@ -203,6 +272,7 @@ Item {
                 from: 0
                 to: 100
                 initialValue: 0
+                supported: panel.parameterSupported("effects.fade")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.fade", value)
             }
@@ -218,6 +288,7 @@ Item {
                 from: 0
                 to: 100
                 initialValue: 24
+                supported: panel.parameterSupported("effects.grain.amount")
                 expandable: true
                 expanded: panel.advancedExpanded
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -253,6 +324,7 @@ Item {
                         stepSize: 100
                         coarseStep: 500
                         suffix: " ISO"
+                        supported: panel.parameterSupported("effects.grain.size_iso")
                         onSelectionRequested: index => panel.selectionRequested(index)
                         onValueCommitted: value => panel.parameterCommitted("effects.grain.size_iso", value)
                     }
@@ -268,6 +340,7 @@ Item {
                         from: 0
                         to: 100
                         initialValue: 100
+                        supported: panel.parameterSupported("effects.grain.midtone_response")
                         onSelectionRequested: index => panel.selectionRequested(index)
                         onValueCommitted: value => panel.parameterCommitted("effects.grain.midtone_response", value)
                     }
@@ -285,6 +358,7 @@ Item {
                 from: -100
                 to: 100
                 initialValue: 0
+                supported: panel.parameterSupported("effects.vignette")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.vignette", value)
             }
@@ -300,6 +374,7 @@ Item {
                 from: 0
                 to: 100
                 initialValue: 0
+                supported: panel.parameterSupported("effects.sharpness")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.sharpness", value)
             }

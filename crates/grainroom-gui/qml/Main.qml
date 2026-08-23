@@ -34,7 +34,6 @@ ApplicationWindow {
     property int selectedPanel: 1
     property int selectedParameter: 0
     property bool grainAdvancedExpanded: false
-    property bool grainEnabled: true
     property bool shortcutsVisible: false
     property bool exportMenuVisible: false
     property string pendingExportFormat: ""
@@ -431,6 +430,7 @@ ApplicationWindow {
                 console.log("grainroom: export complete")
                 Qt.exit(0)
             } else if (status.indexOf("Could not") === 0
+                       || status.indexOf("Development failed") === 0
                        || status.indexOf("Unsupported") === 0
                        || status.indexOf("Only local") === 0
                        || status.indexOf("Open a photograph") === 0
@@ -541,8 +541,6 @@ ApplicationWindow {
                 window.toggleGrainAdvanced()
             } else if (keyText === "r" && window.selectedPanel <= 1) {
                 window.resetActiveParameter()
-            } else if (keyText === "b") {
-                window.grainEnabled = !window.grainEnabled
             } else if (keyText === "o") {
                 openDialog.open()
             } else if (keyText === "0") {
@@ -908,6 +906,8 @@ ApplicationWindow {
                                 photoReady: sourceImage.status === Image.Ready
                                 selectedParameter: window.selectedParameter
                                 advancedExpanded: window.grainAdvancedExpanded
+                                settingsJson: backend.settingsJson
+                                supportedParametersJson: backend.supportedParametersJson
                                 onSelectionRequested: index => window.selectParameter(index)
                                 onAdvancedToggleRequested: window.toggleGrainAdvanced()
                                 onParameterCommitted: (id, value) =>
@@ -968,13 +968,6 @@ ApplicationWindow {
 
                     Text {
                         text: "[S] SAVE"
-                        color: window.inkColor
-                        font.family: window.monoFont
-                        font.pixelSize: 10
-                    }
-
-                    Text {
-                        text: "[B] " + (window.grainEnabled ? "BYPASS" : "ENABLE")
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 10

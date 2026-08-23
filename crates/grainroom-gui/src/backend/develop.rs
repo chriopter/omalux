@@ -1,8 +1,12 @@
 use grainroom::{
-    develop::{DevelopSettings, PresetCatalog, PresetDocument},
+    develop::{
+        DevelopSettings, ParameterKind, PresetCatalog, PresetDocument, apply_parameter_overrides,
+        estimate_develop_working_set, parameter_registry, parse_parameter_override,
+    },
     io::{
-        AlphaPolicy, DecodeOptions, MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy,
-        ResourceLimits, SdrRangePolicy,
+        AlphaPolicy, AtomicOutputError, AtomicOutputOptions, AtomicOutputOutcome, DecodeOptions,
+        MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy, ResourceLimits,
+        SdrRangePolicy, SourceFileIdentity, write_atomic_output_for_source,
     },
     job::{
         CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, NoProgress,
@@ -11,7 +15,9 @@ use grainroom::{
 };
 use serde_json::json;
 use std::{
-    os::unix::fs::PermissionsExt,
+    fs::File,
+    io,
+    os::unix::fs::{FileExt, PermissionsExt},
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
@@ -57,6 +63,34 @@ pub(super) fn built_in_settings(id: &str) -> Result<DevelopSettings, String> {
 
 pub(super) fn settings_json(settings: &DevelopSettings) -> Result<String, String> {
     serde_json::to_string(settings).map_err(|error| error.to_string())
+}
+
+pub(super) fn supported_parameters_json() -> Result<String, String> {
+    let limits = ResourceLimits::default();
+    let mut supported = Vec::new();
+    for parameter in parameter_registry() {
+        if parameter.kind != ParameterKind::Scalar {
+            continue;
+        }
+        let active = if parameter.neutral != parameter.maximum {
+            parameter.maximum
+        } else {
+            parameter.minimum
+        };
+        let Ok(parsed) = parse_parameter_override(&format!("{}={active}", parameter.id)) else {
+            continue;
+        };
+        let Ok(settings) = apply_parameter_overrides(&DevelopSettings::default(), &[parsed]) else {
+            // Composite parameters such as crop extents cannot necessarily be
+            // activated safely in isolation and are omitted from this scalar
+            // control capability view.
+            continue;
+        };
+        if estimate_develop_working_set(64, 64, &settings, &limits).is_ok() {
+            supported.push(parameter.id);
+        }
+    }
+    serde_json::to_string(&supported).map_err(|error| error.to_string())
 }
 
 pub(super) fn develop_preview(
@@ -105,6 +139,63 @@ pub(super) fn export_photo(
         OverwritePolicy::Replace,
         cancellation,
     )
+}
+
+pub(super) fn save_original_atomic(
+    source: &Path,
+    destination: &Path,
+) -> Result<AtomicOutputOutcome, String> {
+    use rustix::fs::{self, FileType, Mode, OFlags};
+
+    let source = fs::open(
+        source,
+        OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map(File::from)
+    .map_err(|error| format!("Could not safely open original: {error}"))?;
+    let stat =
+        fs::fstat(&source).map_err(|error| format!("Could not inspect original: {error}"))?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile {
+        return Err("Original is not a regular file".to_owned());
+    }
+    let source_size =
+        u64::try_from(stat.st_size).map_err(|_| "Original has an invalid size".to_owned())?;
+    let identity = SourceFileIdentity::from_file(&source).map_err(|error| error.to_string())?;
+    match write_atomic_output_for_source(
+        destination,
+        Some(identity),
+        AtomicOutputOptions::default().with_overwrite(OverwritePolicy::Replace),
+        |output| copy_held_file(&source, source_size, output),
+    ) {
+        Ok(outcome) => Ok(outcome),
+        Err(AtomicOutputError::PublishedButNotDurable(_)) => {
+            Ok(AtomicOutputOutcome::PublishedButNotDurable)
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn copy_held_file(source: &File, size: u64, output: &mut File) -> io::Result<()> {
+    use std::io::Write;
+    let mut offset = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    while offset < size {
+        let remaining =
+            usize::try_from((size - offset).min(buffer.len() as u64)).map_err(io::Error::other)?;
+        let count = source.read_at(&mut buffer[..remaining], offset)?;
+        if count == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "original changed while being copied",
+            ));
+        }
+        output.write_all(&buffer[..count])?;
+        offset = offset
+            .checked_add(count as u64)
+            .ok_or_else(|| io::Error::other("original size overflow"))?;
+    }
+    Ok(())
 }
 
 fn preview_limits() -> ResourceLimits {
@@ -188,6 +279,19 @@ mod tests {
     }
 
     #[test]
+    fn supported_control_list_is_derived_from_the_bounded_core_profiles() {
+        let ids: Vec<String> = serde_json::from_str(&supported_parameters_json().unwrap()).unwrap();
+        assert!(ids.iter().any(|id| id == "basics.contrast"));
+        assert!(ids.iter().any(|id| id == "color_mixer.red.saturation"));
+        let clarity = parse_parameter_override("basics.clarity=100").unwrap();
+        let clarity = apply_parameter_overrides(&DevelopSettings::default(), &[clarity]).unwrap();
+        assert_eq!(
+            ids.iter().any(|id| id == "basics.clarity"),
+            estimate_develop_working_set(64, 64, &clarity, &ResourceLimits::default()).is_ok()
+        );
+    }
+
+    #[test]
     fn preview_is_private_core_pipeline_jpeg_and_cleans_up() {
         let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
         jpeg_fixture(input.path());
@@ -234,5 +338,34 @@ mod tests {
         let cancellation = CancellationToken::new();
         cancellation.cancel();
         assert!(develop_preview(input.path(), DevelopSettings::default(), &cancellation).is_err());
+    }
+
+    #[test]
+    fn original_copy_rejects_same_path_and_hardlink() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source.bin");
+        fs::write(&source, b"private original").unwrap();
+        assert!(save_original_atomic(&source, &source).is_err());
+        let hardlink = directory.path().join("hardlink.bin");
+        fs::hard_link(&source, &hardlink).unwrap();
+        assert!(save_original_atomic(&source, &hardlink).is_err());
+        assert_eq!(fs::read(&source).unwrap(), b"private original");
+    }
+
+    #[test]
+    fn original_copy_is_atomic_private_and_exact() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source.bin");
+        let destination = directory.path().join("copy.bin");
+        fs::write(&source, b"original bytes").unwrap();
+        assert_eq!(
+            save_original_atomic(&source, &destination).unwrap(),
+            AtomicOutputOutcome::PublishedAndDurable
+        );
+        assert_eq!(fs::read(&destination).unwrap(), b"original bytes");
+        assert_eq!(
+            fs::metadata(destination).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 }

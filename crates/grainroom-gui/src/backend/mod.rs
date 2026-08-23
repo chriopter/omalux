@@ -19,6 +19,11 @@ pub mod qobject {
         #[qproperty(QString, preset_catalog_json, cxx_name = "presetCatalogJson")]
         #[qproperty(QString, selected_preset_id, cxx_name = "selectedPresetId")]
         #[qproperty(QString, settings_json, cxx_name = "settingsJson")]
+        #[qproperty(
+            QString,
+            supported_parameters_json,
+            cxx_name = "supportedParametersJson"
+        )]
         #[qproperty(QString, theme_background, cxx_name = "themeBackground")]
         #[qproperty(QString, theme_foreground, cxx_name = "themeForeground")]
         #[qproperty(QString, theme_accent, cxx_name = "themeAccent")]
@@ -69,7 +74,7 @@ mod theme;
 
 use self::develop::{
     PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview, export_photo,
-    settings_json,
+    save_original_atomic, settings_json, supported_parameters_json,
 };
 use self::export::{display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
@@ -92,18 +97,65 @@ pub struct PhotoBackendRust {
     preset_catalog_json: QString,
     selected_preset_id: QString,
     settings_json: QString,
+    supported_parameters_json: QString,
     theme_background: QString,
     theme_foreground: QString,
     theme_accent: QString,
     theme_selection: QString,
     status: QString,
     loading: bool,
-    generation: AtomicU64,
+    metadata_revision: AtomicU64,
+    preview_revision: AtomicU64,
+    export_revision: AtomicU64,
+    save_revision: AtomicU64,
     generated_preview: Option<PreviewArtifact>,
     source_path: Option<PathBuf>,
     settings: DevelopSettings,
-    active_cancellation: Option<CancellationToken>,
+    preview_queue: PreviewQueue,
+    preview_cancellation: Option<CancellationToken>,
+    export_cancellation: Option<CancellationToken>,
     theme_watcher: Option<RecommendedWatcher>,
+}
+
+struct PreviewRequest {
+    revision: u64,
+    source: PathBuf,
+    settings: DevelopSettings,
+}
+
+#[derive(Default)]
+struct PreviewQueue {
+    worker_active: bool,
+    pending: Option<PreviewRequest>,
+}
+
+impl PreviewQueue {
+    fn enqueue(&mut self, request: PreviewRequest) -> Option<PreviewRequest> {
+        self.pending = Some(request);
+        self.take_if_idle()
+    }
+
+    fn worker_completed(&mut self) -> Option<PreviewRequest> {
+        self.worker_active = false;
+        self.take_if_idle()
+    }
+
+    fn cancel_pending(&mut self) {
+        self.pending = None;
+    }
+
+    fn take_if_idle(&mut self) -> Option<PreviewRequest> {
+        if self.worker_active {
+            return None;
+        }
+        let next = self.pending.take()?;
+        self.worker_active = true;
+        Some(next)
+    }
+}
+
+fn should_report_export_completion(current: u64, completed: u64, published: bool) -> bool {
+    published || current == completed
 }
 
 impl Default for PhotoBackendRust {
@@ -123,17 +175,25 @@ impl Default for PhotoBackendRust {
             settings_json: QString::from(
                 &settings_json(&settings).unwrap_or_else(|_| "{}".to_owned()),
             ),
+            supported_parameters_json: QString::from(
+                &supported_parameters_json().unwrap_or_else(|_| "[]".to_owned()),
+            ),
             theme_background: QString::from(&theme.background),
             theme_foreground: QString::from(&theme.foreground),
             theme_accent: QString::from(&theme.accent),
             theme_selection: QString::from(&theme.selection),
             status: QString::from("Open a JPEG or RAW photograph"),
             loading: false,
-            generation: AtomicU64::new(0),
+            metadata_revision: AtomicU64::new(0),
+            preview_revision: AtomicU64::new(0),
+            export_revision: AtomicU64::new(0),
+            save_revision: AtomicU64::new(0),
             generated_preview: None,
             source_path: None,
             settings,
-            active_cancellation: None,
+            preview_queue: PreviewQueue::default(),
+            preview_cancellation: None,
+            export_cancellation: None,
             theme_watcher: None,
         }
     }
@@ -141,7 +201,10 @@ impl Default for PhotoBackendRust {
 
 impl Drop for PhotoBackendRust {
     fn drop(&mut self) {
-        if let Some(cancellation) = self.active_cancellation.take() {
+        if let Some(cancellation) = self.preview_cancellation.take() {
+            cancellation.cancel();
+        }
+        if let Some(cancellation) = self.export_cancellation.take() {
             cancellation.cancel();
         }
     }
@@ -180,7 +243,7 @@ impl qobject::PhotoBackend {
             .unwrap_or_else(|_| "—".to_owned());
         self.as_mut()
             .set_original_file_size(QString::from(&original_file_size));
-        let generation = self.as_mut().begin_operation();
+        let metadata_revision = self.rust().metadata_revision.fetch_add(1, Ordering::SeqCst) + 1;
         self.as_mut()
             .set_metadata_text(QString::from("READING METADATA…"));
         self.as_mut().rust_mut().source_path = Some(path.clone());
@@ -189,55 +252,20 @@ impl qobject::PhotoBackend {
         std::thread::spawn(move || {
             let metadata = read_metadata(&metadata_path);
             let _ = metadata_thread.queue(move |mut backend| {
-                if backend.rust().generation.load(Ordering::SeqCst) == generation {
+                if backend.rust().metadata_revision.load(Ordering::SeqCst) == metadata_revision {
                     backend.as_mut().set_metadata_text(QString::from(&metadata));
                 }
             });
         });
-
-        self.as_mut().set_loading(true);
-        self.as_mut()
-            .set_status(QString::from("Developing CPU preview…"));
-        let qt_thread = self.qt_thread();
-        let settings = self.rust().settings.clone();
-        let cancellation = self
-            .rust()
-            .active_cancellation
-            .as_ref()
-            .expect("operation installed cancellation")
-            .clone();
-
-        std::thread::spawn(move || {
-            let result = develop_preview(&path, settings, &cancellation);
-            let _ = qt_thread.queue(move |mut backend| {
-                if backend.rust().generation.load(Ordering::SeqCst) != generation {
-                    return;
-                }
-
-                backend.as_mut().set_loading(false);
-                backend.as_mut().rust_mut().active_cancellation = None;
-                match result {
-                    Ok(artifact) => {
-                        let preview_url = QUrl::from_local_file(&QString::from(
-                            artifact.path().to_string_lossy().as_ref(),
-                        ));
-                        backend.as_mut().rust_mut().generated_preview = Some(artifact);
-                        backend.as_mut().set_preview_url(preview_url);
-                        backend
-                            .as_mut()
-                            .set_status(QString::from("Ready · CPU developed preview"));
-                    }
-                    Err(message) => {
-                        backend.as_mut().set_status(QString::from(&message));
-                    }
-                }
-            });
-        });
+        self.as_mut().request_preview();
     }
 
     pub fn cancel_develop(mut self: Pin<&mut Self>) {
-        self.as_mut().begin_operation();
-        self.as_mut().rust_mut().active_cancellation = None;
+        self.rust().preview_revision.fetch_add(1, Ordering::SeqCst);
+        if let Some(cancellation) = self.as_mut().rust_mut().preview_cancellation.take() {
+            cancellation.cancel();
+        }
+        self.as_mut().rust_mut().preview_queue.cancel_pending();
         self.as_mut().set_loading(false);
         self.as_mut()
             .set_status(QString::from("Development cancelled"));
@@ -294,18 +322,23 @@ impl qobject::PhotoBackend {
             return;
         };
 
+        let revision = self.rust().save_revision.fetch_add(1, Ordering::SeqCst) + 1;
         self.as_mut().set_status(QString::from("Saving original…"));
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = std::fs::copy(&source, &destination);
-            let _ = qt_thread.queue(move |mut backend| match result {
-                Ok(_) => backend.as_mut().set_status(QString::from(&format!(
-                    "Saved original · {}",
-                    display_file_name(&destination)
-                ))),
-                Err(error) => backend
-                    .as_mut()
-                    .set_status(QString::from(&format!("Could not save original: {error}"))),
+            let result = save_original_atomic(&source, &destination);
+            let _ = qt_thread.queue(move |mut backend| {
+                let current = backend.rust().save_revision.load(Ordering::SeqCst);
+                match result {
+                    Ok(_) => backend.as_mut().set_status(QString::from(&format!(
+                        "Saved original · {}",
+                        display_file_name(&destination)
+                    ))),
+                    Err(error) if current == revision => backend
+                        .as_mut()
+                        .set_status(QString::from(&format!("Could not save original: {error}"))),
+                    Err(_) => {}
+                }
             });
         });
     }
@@ -338,17 +371,16 @@ impl qobject::PhotoBackend {
             }
         };
 
-        let generation = self.as_mut().begin_operation();
+        if let Some(cancellation) = self.as_mut().rust_mut().export_cancellation.take() {
+            cancellation.cancel();
+        }
+        let revision = self.rust().export_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        let cancellation = CancellationToken::new();
+        self.as_mut().rust_mut().export_cancellation = Some(cancellation.clone());
         self.as_mut()
             .set_status(QString::from(&format!("Encoding {format}…")));
         let quality = quality.clamp(1, 100);
         let settings = self.rust().settings.clone();
-        let cancellation = self
-            .rust()
-            .active_cancellation
-            .as_ref()
-            .expect("operation installed cancellation")
-            .clone();
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
             let result = export_photo(
@@ -360,16 +392,24 @@ impl qobject::PhotoBackend {
                 &cancellation,
             );
             let _ = qt_thread.queue(move |mut backend| {
-                if backend.rust().generation.load(Ordering::SeqCst) != generation {
-                    return;
-                }
-                backend.as_mut().rust_mut().active_cancellation = None;
+                let current = backend.rust().export_revision.load(Ordering::SeqCst);
                 match result {
-                    Ok(()) => backend.as_mut().set_status(QString::from(&format!(
-                        "Saved {format} · {}",
-                        display_file_name(&destination)
-                    ))),
-                    Err(message) => backend.as_mut().set_status(QString::from(&message)),
+                    // Publication is a commit point. A newer request must not
+                    // hide that this destination was successfully published.
+                    Ok(()) if should_report_export_completion(current, revision, true) => {
+                        backend.as_mut().set_status(QString::from(&format!(
+                            "Saved {format} · {}",
+                            display_file_name(&destination)
+                        )))
+                    }
+                    Ok(()) => unreachable!("published completions are always reportable"),
+                    Err(message) if should_report_export_completion(current, revision, false) => {
+                        backend.as_mut().set_status(QString::from(&message));
+                    }
+                    Err(_) => {}
+                }
+                if current == revision {
+                    backend.as_mut().rust_mut().export_cancellation = None;
                 }
             });
         });
@@ -438,15 +478,6 @@ impl qobject::PhotoBackend {
         }
     }
 
-    fn begin_operation(mut self: Pin<&mut Self>) -> u64 {
-        if let Some(cancellation) = self.as_mut().rust_mut().active_cancellation.take() {
-            cancellation.cancel();
-        }
-        let generation = self.rust().generation.fetch_add(1, Ordering::SeqCst) + 1;
-        self.as_mut().rust_mut().active_cancellation = Some(CancellationToken::new());
-        generation
-    }
-
     fn publish_settings_json(mut self: Pin<&mut Self>) {
         if let Ok(json) = settings_json(&self.rust().settings) {
             self.as_mut().set_settings_json(QString::from(&json));
@@ -454,10 +485,101 @@ impl qobject::PhotoBackend {
     }
 
     fn restart_preview(mut self: Pin<&mut Self>) {
-        let Some(path) = self.rust().source_path.clone() else {
+        if self.rust().source_path.is_none() {
+            return;
+        }
+        self.as_mut().request_preview();
+    }
+
+    fn request_preview(mut self: Pin<&mut Self>) {
+        let Some(source) = self.rust().source_path.clone() else {
             return;
         };
-        let url = QUrl::from_local_file(&QString::from(path.to_string_lossy().as_ref()));
-        self.as_mut().open_photo(&url);
+        let revision = self.rust().preview_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some(cancellation) = self.as_mut().rust_mut().preview_cancellation.take() {
+            cancellation.cancel();
+        }
+        let request = PreviewRequest {
+            revision,
+            source,
+            settings: self.rust().settings.clone(),
+        };
+        let next = self.as_mut().rust_mut().preview_queue.enqueue(request);
+        self.as_mut().set_loading(true);
+        self.as_mut()
+            .set_status(QString::from("Developing CPU preview…"));
+        if let Some(next) = next {
+            self.as_mut().launch_preview(next);
+        }
+    }
+
+    fn launch_preview(mut self: Pin<&mut Self>, request: PreviewRequest) {
+        let cancellation = CancellationToken::new();
+        self.as_mut().rust_mut().preview_cancellation = Some(cancellation.clone());
+        let qt_thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let result = develop_preview(&request.source, request.settings, &cancellation);
+            let _ = qt_thread.queue(move |mut backend| {
+                backend.as_mut().rust_mut().preview_cancellation = None;
+                if backend.rust().preview_revision.load(Ordering::SeqCst) == request.revision {
+                    backend.as_mut().set_loading(false);
+                    match result {
+                        Ok(artifact) => {
+                            let preview_url = QUrl::from_local_file(&QString::from(
+                                artifact.path().to_string_lossy().as_ref(),
+                            ));
+                            backend.as_mut().rust_mut().generated_preview = Some(artifact);
+                            backend.as_mut().set_preview_url(preview_url);
+                            backend
+                                .as_mut()
+                                .set_status(QString::from("Ready · CPU developed preview"));
+                        }
+                        Err(message) => backend.as_mut().set_status(QString::from(&message)),
+                    }
+                }
+                let next = backend.as_mut().rust_mut().preview_queue.worker_completed();
+                if let Some(next) = next {
+                    backend.as_mut().launch_preview(next);
+                }
+            });
+        });
+    }
+}
+
+#[cfg(test)]
+mod preview_queue_tests {
+    use super::{PreviewQueue, PreviewRequest, should_report_export_completion};
+    use grainroom::develop::DevelopSettings;
+    use std::path::PathBuf;
+
+    fn request(revision: u64) -> PreviewRequest {
+        PreviewRequest {
+            revision,
+            source: PathBuf::from(format!("source-{revision}")),
+            settings: DevelopSettings::default(),
+        }
+    }
+
+    #[test]
+    fn rapid_updates_keep_one_worker_and_only_the_latest_pending_revision() {
+        let mut queue = PreviewQueue::default();
+        assert_eq!(queue.enqueue(request(1)).unwrap().revision, 1);
+        assert!(queue.worker_active);
+        for revision in 2..=1_000 {
+            assert!(queue.enqueue(request(revision)).is_none());
+            assert!(queue.worker_active);
+        }
+        assert_eq!(queue.pending.as_ref().unwrap().revision, 1_000);
+        assert_eq!(queue.worker_completed().unwrap().revision, 1_000);
+        assert!(queue.worker_active);
+        assert!(queue.worker_completed().is_none());
+        assert!(!queue.worker_active);
+    }
+
+    #[test]
+    fn published_export_is_reported_even_after_a_newer_revision_starts() {
+        assert!(should_report_export_completion(2, 1, true));
+        assert!(!should_report_export_completion(2, 1, false));
+        assert!(should_report_export_completion(2, 2, false));
     }
 }

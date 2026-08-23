@@ -690,6 +690,7 @@ dependencies = [
  "grainroom",
  "image 0.25.10",
  "notify",
+ "rustix",
  "serde_json",
  "tempfile",
 ]

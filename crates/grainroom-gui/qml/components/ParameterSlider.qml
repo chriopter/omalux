@@ -13,6 +13,7 @@ Item {
     required property real to
     required property real initialValue
     required property bool photoReady
+    property bool supported: true
     property real stepSize: 1
     property real coarseStep: stepSize * 10
     property string suffix: ""
@@ -31,12 +32,16 @@ Item {
     Accessible.description: Math.round(value) + suffix
 
     function nudge(direction, coarse) {
+        if (!photoReady || !supported)
+            return
         const amount = coarse ? coarseStep : stepSize
         slider.value = Math.max(from, Math.min(to, slider.value + direction * amount))
         valueCommitted(slider.value)
     }
 
     function resetValue() {
+        if (!supported)
+            return
         slider.value = initialValue
         valueCommitted(slider.value)
     }
@@ -103,7 +108,7 @@ Item {
             value: control.initialValue
             stepSize: control.stepSize
             snapMode: Slider.SnapAlways
-            enabled: control.photoReady
+            enabled: control.photoReady && control.supported
             activeFocusOnTab: false
             onPressedChanged: if (pressed)
                 control.selectionRequested(control.parameterIndex)
