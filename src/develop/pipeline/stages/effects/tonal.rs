@@ -5,7 +5,7 @@
 //! signal-processing definitions. No upstream or proprietary implementation,
 //! coefficients, LUT, preset, or camera profile was consulted or copied.
 
-use super::spatial::{Plane, finite_f32, gaussian_blur, reflect101};
+use super::super::spatial::{Plane, finite_f32, gaussian_blur, reflect101};
 use crate::develop::CpuImage;
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];

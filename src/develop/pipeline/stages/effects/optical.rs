@@ -7,7 +7,7 @@
 //! raw developers in project planning are conceptual context only; this module
 //! therefore has no upstream code provenance or inherited license obligation.
 
-use super::spatial::{Plane, finite_f32, pyramid_blur};
+use super::super::spatial::{Plane, finite_f32, pyramid_blur};
 use crate::develop::CpuImage;
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];

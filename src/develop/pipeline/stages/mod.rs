@@ -4,6 +4,7 @@ mod color_mixer;
 mod effects;
 mod geometry;
 mod radial_masks;
+mod spatial;
 mod tone_curves;
 
 use super::{CpuImage, DevelopRenderContext, DevelopSettings, DevelopStage, PipelineError};

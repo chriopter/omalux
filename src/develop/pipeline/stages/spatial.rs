@@ -1,4 +1,4 @@
-//! Deterministic bounded-memory spatial primitives.
+//! Shared deterministic bounded-memory spatial primitives.
 //!
 //! A filter request always carries the full image extent plus an output ROI.
 //! Every ROI reads its halo from global full-frame coordinates with Reflect101;

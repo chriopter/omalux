@@ -1,10 +1,10 @@
+use super::spatial;
 use crate::develop::{
     CpuImage, DevelopRenderContext, DevelopStage, PipelineError, settings::EffectsSettings,
 };
 
 mod grain;
 mod optical;
-mod spatial;
 mod tonal;
 
 pub(super) fn supports(_settings: &EffectsSettings) -> bool {
