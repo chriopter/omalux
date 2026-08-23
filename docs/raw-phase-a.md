@@ -4,13 +4,36 @@ Grainroom stages the source once while computing its content digest, then gives
 that private immutable copy to the installed LibRaw `dcraw_emu`. The fixed
 production arguments request camera white balance when available, embedded
 matrix use, highlight clipping, AHD demosaic, linear 16-bit full resolution,
-Rec.2020, and PPM on stdout: `-w +M -H 0 -q 3 -4 -o 8 -Z -`.
+Rec.2020, and a private PPM output file:
+`-w +M -H 0 -q 3 -4 -o 8 -Z <private-output> <private-input>`.
+
+On Linux, the original is opened once with `O_NONBLOCK|O_NOFOLLOW`, verified as
+a regular file, and copied through that descriptor. A CSPRNG-named `0700`
+session directory and its `0600` files are created exclusively with operations
+relative to held directory descriptors. The decoder receives only
+`/proc/self/fd/<dirfd>/<basename>` paths through an inherited directory
+descriptor. Renaming or replacing the staging parent therefore cannot redirect
+the decoder. FIFOs, sockets, devices, and source symlinks are rejected before a
+blocking read. All staging objects have RAII cleanup on every return path.
+
+The decoder is launched without a shell through the absolute `/usr/bin/prlimit`
+and fails closed when that limiter is unavailable. Address-space, data, output
+file-size, and CPU limits derive from the audited `ResourceLimits` and timeout.
+Grainroom still treats the external LibRaw process as untrusted: the process
+group is monitored until both its leader is reaped and the bounded stderr pipe
+reaches EOF; cancellation, timeout, capture failure, or overflow kills the
+whole group. A successful output is stream-parsed: its bounded PPM header and
+dimensions are validated before pixel allocation, the exact payload is read,
+and trailing data is rejected. OS resource limits reduce risk but are not a
+general syscall sandbox.
 
 Orientation is intentionally left to LibRaw: neither `-t` nor `-j` is passed.
 The resulting metadata marks orientation consumed. `dcraw_emu` on the target
 system has no supported version flag, so provenance records an unknown backend
 version and emits a diagnostic. Camera-white-balance fallback also remains
-explicitly unknown. Phase A does not claim ICC colorimetric accuracy.
+explicitly unknown. Metadata loss, the decoder's normalized/clipped 16-bit
+output range, and unknown matrix identity are always represented by diagnostics
+and typed provenance flags. Phase A does not claim ICC colorimetric accuracy.
 
 The repository intentionally contains no fabricated camera RAW fixture. The
 real-backend probe therefore reports `Available` with an absolute executable

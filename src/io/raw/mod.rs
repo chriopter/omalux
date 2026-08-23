@@ -32,14 +32,14 @@ pub fn decode_raw(
         &options.limits,
         cancellation.flag(),
     )?;
-    let bytes = process::run_dcraw(
-        staged.path(),
+    process::run_dcraw(
+        &staged,
         options.raw.white_balance,
         &options.limits,
         execution,
         cancellation,
     )?;
-    let image = ppm::parse_ppm16(&bytes, &options.limits)?;
+    let image = ppm::parse_ppm16(staged.open_output()?, &options.limits)?;
     let (white_balance, mut diagnostics) = match options.raw.white_balance {
         WhiteBalancePolicy::CameraThenDaylight => (
             WhiteBalanceProvenance::Unknown,
@@ -54,6 +54,14 @@ pub fn decode_raw(
     diagnostics.push(Diagnostic {
         severity: DiagnosticSeverity::Information,
         code: DiagnosticCode::BackendVersionUnavailable,
+    });
+    diagnostics.push(Diagnostic {
+        severity: DiagnosticSeverity::Warning,
+        code: DiagnosticCode::MetadataDropped,
+    });
+    diagnostics.push(Diagnostic {
+        severity: DiagnosticSeverity::Information,
+        code: DiagnosticCode::OutputRangeClipped,
     });
     diagnostics.push(Diagnostic {
         severity: DiagnosticSeverity::Warning,
@@ -94,7 +102,7 @@ mod tests {
         let path = directory.join("dcraw_emu");
         fs::write(
             &path,
-            "#!/bin/sh\nprintf 'P6\\n1 1\\n65535\\n\\377\\377\\100\\000\\000\\000'\n",
+            "#!/bin/sh\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = '-Z' ]; then shift; out=$1; fi\n  shift\ndone\nprintf 'P6\\n1 1\\n65535\\n\\377\\377\\100\\000\\000\\000' > \"$out\"\n",
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
@@ -120,6 +128,13 @@ mod tests {
         .unwrap();
         assert_eq!((photo.image.width(), photo.image.height()), (1, 1));
         assert!(photo.metadata.orientation_consumed());
+        for code in [
+            DiagnosticCode::MetadataDropped,
+            DiagnosticCode::OutputRangeClipped,
+            DiagnosticCode::UnknownRawMatrix,
+        ] {
+            assert!(photo.diagnostics.iter().any(|entry| entry.code == code));
+        }
         assert_eq!(fs::read_dir(stage).unwrap().count(), 0);
         assert!(!d.path().join("SHOULD_NOT_EXIST").exists());
         let digest = photo.source_digest;
@@ -140,7 +155,11 @@ mod tests {
         let source = d.path().join("source.raw");
         fs::write(&source, b"bytes").unwrap();
         let executable = d.path().join("bad-dcraw");
-        fs::write(&executable, "#!/bin/sh\nprintf 'P6 1 1 65535\\n\\000'\n").unwrap();
+        fs::write(
+            &executable,
+            "#!/bin/sh\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = '-Z' ]; then shift; out=$1; fi\n  shift\ndone\nprintf 'P6 1 1 65535\\n\\000' > \"$out\"\n",
+        )
+        .unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let stage = d.path().join("stage");
         fs::create_dir(&stage).unwrap();
@@ -160,7 +179,7 @@ mod tests {
     #[test]
     fn real_backend_probe_is_explicit() {
         match probe_dcraw_emu() {
-            RawCapability::Available { executable } => assert!(executable.is_absolute()),
+            RawCapability::Available { executable, .. } => assert!(executable.is_absolute()),
             RawCapability::Unavailable => {}
         }
     }

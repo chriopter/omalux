@@ -143,6 +143,7 @@ pub enum DecodeError {
     RawBackendTimedOut,
     Cancelled,
     RawBackendOutputLimit,
+    RawBackendCaptureIo(io::Error),
     RawBackendFailed { status: Option<i32> },
 }
 impl fmt::Display for DecodeError {
@@ -160,7 +161,9 @@ impl StableErrorCode for DecodeError {
             Self::ColorManagement => ErrorCode::ColorManagement,
             Self::Metadata => ErrorCode::Metadata,
             Self::RawBackendUnavailable => ErrorCode::RawBackend,
-            Self::RawBackendTimedOut | Self::RawBackendFailed { .. } => ErrorCode::RawBackend,
+            Self::RawBackendTimedOut
+            | Self::RawBackendFailed { .. }
+            | Self::RawBackendCaptureIo(_) => ErrorCode::RawBackend,
             Self::RawBackendOutputLimit => ErrorCode::ResourceLimit,
             Self::Cancelled => ErrorCode::Cancelled,
             Self::Limit(_) => ErrorCode::ResourceLimit,

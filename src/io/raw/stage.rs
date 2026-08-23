@@ -1,93 +1,230 @@
-#[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::{
-    fs::{File, OpenOptions},
+    fs::File,
     io,
-    path::{Path, PathBuf},
+    os::fd::{AsRawFd, OwnedFd},
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
 
+use rustix::fs::{self, AtFlags, FileType, Mode, OFlags};
+
 use crate::io::{DecodeError, DigestError, ResourceLimits, SourceDigestV1};
 
 pub(super) struct StagedRaw {
-    path: PathBuf,
+    base: OwnedFd,
+    directory: OwnedFd,
+    directory_name: String,
+    input_name: String,
+    output_name: String,
     pub digest: SourceDigestV1,
 }
+
 impl StagedRaw {
-    pub fn path(&self) -> &Path {
-        &self.path
+    pub fn input_path(&self) -> String {
+        format!(
+            "/proc/self/fd/{}/{}",
+            self.directory.as_raw_fd(),
+            self.input_name
+        )
+    }
+    pub fn output_path(&self) -> String {
+        format!(
+            "/proc/self/fd/{}/{}",
+            self.directory.as_raw_fd(),
+            self.output_name
+        )
+    }
+    pub fn open_output(&self) -> Result<File, DecodeError> {
+        let fd = fs::openat(
+            &self.directory,
+            self.output_name.as_str(),
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| DecodeError::RawBackendCaptureIo(std_error(e)))?;
+        let stat = fs::fstat(&fd).map_err(|e| DecodeError::RawBackendCaptureIo(std_error(e)))?;
+        if !FileType::from_raw_mode(stat.st_mode).is_file() {
+            return Err(DecodeError::CorruptInput);
+        }
+        Ok(File::from(fd))
     }
 }
+
 impl Drop for StagedRaw {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        let _ = fs::unlinkat(&self.directory, self.input_name.as_str(), AtFlags::empty());
+        let _ = fs::unlinkat(&self.directory, self.output_name.as_str(), AtFlags::empty());
+        let _ = fs::unlinkat(&self.base, self.directory_name.as_str(), AtFlags::REMOVEDIR);
     }
 }
 
 pub(super) fn stage_source(
     source: &Path,
-    directory: &Path,
+    base_path: &Path,
     limits: &ResourceLimits,
     cancelled: &Arc<AtomicBool>,
 ) -> Result<StagedRaw, DecodeError> {
     if cancelled.load(Ordering::Acquire) {
         return Err(DecodeError::Cancelled);
     }
-    let mut input = File::open(source).map_err(DecodeError::Input)?;
-    if !input.metadata().map_err(DecodeError::Input)?.is_file() {
+    let suffix = safe_suffix(source);
+    let source_fd = fs::open(
+        source,
+        OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(map_source_open)?;
+    let source_stat = fs::fstat(&source_fd).map_err(|e| DecodeError::Input(std_error(e)))?;
+    if !FileType::from_raw_mode(source_stat.st_mode).is_file() {
         return Err(DecodeError::UnsupportedFormat);
     }
-    let suffix = safe_suffix(source);
-    std::fs::create_dir_all(directory).map_err(DecodeError::Input)?;
+    let source_size =
+        u64::try_from(source_stat.st_size).map_err(|_| DecodeError::UnsupportedFormat)?;
+    limits
+        .check_source_bytes(source_size)
+        .map_err(DecodeError::Limit)?;
+
+    let base = fs::open(
+        base_path,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|e| DecodeError::Input(std_error(e)))?;
     for _ in 0..16 {
-        let path = directory.join(format!(".grainroom-raw-{}.{}", random_hex()?, suffix));
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        options.mode(0o600);
-        let mut output = match options.open(&path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(DecodeError::Input(error)),
-        };
-        let result = SourceDigestV1::copy_from_reader(&mut input, &mut output, limits, || {
-            cancelled.load(Ordering::Acquire)
-        });
-        match result {
-            Ok((digest, _)) => {
-                output.sync_all().map_err(DecodeError::Input)?;
-                #[cfg(unix)]
-                if output
-                    .metadata()
-                    .map_err(DecodeError::Input)?
-                    .permissions()
-                    .mode()
-                    & 0o777
-                    != 0o600
-                {
-                    let _ = std::fs::remove_file(&path);
-                    return Err(DecodeError::Input(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "staged raw is not private",
-                    )));
-                }
-                drop(output);
-                return Ok(StagedRaw { path, digest });
-            }
-            Err(error) => {
-                drop(output);
-                let _ = std::fs::remove_file(&path);
-                return Err(map_digest(error));
-            }
+        let directory_name = format!(".grainroom-raw-{}", random_hex()?);
+        match fs::mkdirat(&base, directory_name.as_str(), Mode::RWXU) {
+            Ok(()) => {}
+            Err(error) if error == rustix::io::Errno::EXIST => continue,
+            Err(error) => return Err(DecodeError::Input(std_error(error))),
         }
+        let mut setup = SetupGuard {
+            base: &base,
+            directory_name: &directory_name,
+            armed: true,
+        };
+        let directory = fs::openat(
+            &base,
+            directory_name.as_str(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| DecodeError::Input(std_error(e)))?;
+        rustix::io::fcntl_setfd(&directory, rustix::io::FdFlags::empty())
+            .map_err(|e| DecodeError::Input(std_error(e)))?;
+        setup.armed = false;
+        drop(setup);
+        return finish_stage(
+            base,
+            directory,
+            directory_name,
+            source_fd,
+            suffix,
+            limits,
+            cancelled,
+        );
     }
     Err(DecodeError::Input(io::Error::new(
         io::ErrorKind::AlreadyExists,
-        "secure staged names exhausted",
+        "secure stage directories exhausted",
     )))
+}
+
+// Kept separate so the cleanup guard is installed immediately after mkdirat.
+fn finish_stage(
+    base: OwnedFd,
+    directory: OwnedFd,
+    directory_name: String,
+    source: OwnedFd,
+    suffix: String,
+    limits: &ResourceLimits,
+    cancelled: &Arc<AtomicBool>,
+) -> Result<StagedRaw, DecodeError> {
+    let input_name = format!("input.{suffix}");
+    let output_name = "output.ppm".to_owned();
+    let mut guard = OwnedSetupGuard {
+        base: &base,
+        directory: &directory,
+        directory_name: &directory_name,
+        input: Some(&input_name),
+        output: None,
+        armed: true,
+    };
+    let input = fs::openat(
+        &directory,
+        input_name.as_str(),
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+    )
+    .map_err(|e| DecodeError::Input(std_error(e)))?;
+    let output = fs::openat(
+        &directory,
+        output_name.as_str(),
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::RUSR | Mode::WUSR,
+    )
+    .map_err(|e| DecodeError::Input(std_error(e)))?;
+    guard.output = Some(&output_name);
+    drop(output);
+    let mut source = File::from(source);
+    let mut input = File::from(input);
+    let result = SourceDigestV1::copy_from_reader(&mut source, &mut input, limits, || {
+        cancelled.load(Ordering::Acquire)
+    });
+    let digest = match result {
+        Ok((digest, _)) => digest,
+        Err(error) => return Err(map_digest(error)),
+    };
+    input.sync_all().map_err(DecodeError::Input)?;
+    fs::fsync(&directory).map_err(|e| DecodeError::Input(std_error(e)))?;
+    drop(input);
+    guard.armed = false;
+    drop(guard);
+    Ok(StagedRaw {
+        base,
+        directory,
+        directory_name,
+        input_name,
+        output_name,
+        digest,
+    })
+}
+
+// Temporary guard used between mkdir and ownership transfer.
+struct SetupGuard<'a> {
+    base: &'a OwnedFd,
+    directory_name: &'a str,
+    armed: bool,
+}
+impl Drop for SetupGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = fs::unlinkat(self.base, self.directory_name, AtFlags::REMOVEDIR);
+        }
+    }
+}
+struct OwnedSetupGuard<'a> {
+    base: &'a OwnedFd,
+    directory: &'a OwnedFd,
+    directory_name: &'a str,
+    input: Option<&'a str>,
+    output: Option<&'a str>,
+    armed: bool,
+}
+impl Drop for OwnedSetupGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            if let Some(name) = self.input {
+                let _ = fs::unlinkat(self.directory, name, AtFlags::empty());
+            }
+            if let Some(name) = self.output {
+                let _ = fs::unlinkat(self.directory, name, AtFlags::empty());
+            }
+            let _ = fs::unlinkat(self.base, self.directory_name, AtFlags::REMOVEDIR);
+        }
+    }
 }
 
 fn safe_suffix(path: &Path) -> String {
@@ -102,6 +239,16 @@ fn random_hex() -> Result<String, DecodeError> {
     getrandom::fill(&mut bytes).map_err(|e| DecodeError::Input(io::Error::other(e)))?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
+fn std_error(error: rustix::io::Errno) -> io::Error {
+    io::Error::from_raw_os_error(error.raw_os_error())
+}
+fn map_source_open(error: rustix::io::Errno) -> DecodeError {
+    if error == rustix::io::Errno::LOOP {
+        DecodeError::UnsupportedFormat
+    } else {
+        DecodeError::Input(std_error(error))
+    }
+}
 fn map_digest(error: DigestError) -> DecodeError {
     match error {
         DigestError::Read(e) if e.kind() == io::ErrorKind::Interrupted => DecodeError::Cancelled,
@@ -113,28 +260,103 @@ fn map_digest(error: DigestError) -> DecodeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs as stdfs,
+        io::Read,
+        os::unix::{fs::PermissionsExt, net::UnixListener},
+        time::{Duration, Instant},
+    };
     use tempfile::tempdir;
-    #[test]
-    fn suffix_is_safe() {
-        assert_eq!(safe_suffix(Path::new("x.NEF")), "nef");
-        assert_eq!(safe_suffix(Path::new("x.$(bad)")), "raw");
+
+    fn cancellation() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
     }
+
     #[test]
-    fn staging_is_private_bounded_and_cleans() {
-        let d = tempdir().unwrap();
-        let source = d.path().join("source.nef");
-        std::fs::write(&source, b"abc").unwrap();
-        let stage_dir = d.path().join("stage");
-        let staged = stage_source(
-            &source,
-            &stage_dir,
-            &ResourceLimits::default(),
-            &Arc::new(AtomicBool::new(false)),
-        )
-        .unwrap();
-        let path = staged.path.clone();
-        assert_eq!(std::fs::read(&path).unwrap(), b"abc");
+    fn fifo_socket_and_symlink_are_rejected_without_blocking() {
+        let directory = tempdir().unwrap();
+        let fifo = directory.path().join("fifo.raw");
+        rustix::fs::mkfifoat(rustix::fs::CWD, &fifo, Mode::RUSR | Mode::WUSR).unwrap();
+        let socket = directory.path().join("socket.raw");
+        let _listener = UnixListener::bind(&socket).unwrap();
+        let regular = directory.path().join("regular.raw");
+        stdfs::write(&regular, b"raw").unwrap();
+        let symlink = directory.path().join("symlink.raw");
+        std::os::unix::fs::symlink(&regular, &symlink).unwrap();
+        for source in [&fifo, &socket, &symlink] {
+            let start = Instant::now();
+            assert!(
+                stage_source(
+                    source,
+                    directory.path(),
+                    &ResourceLimits::default(),
+                    &cancellation()
+                )
+                .is_err()
+            );
+            assert!(start.elapsed() < Duration::from_secs(1));
+        }
+    }
+
+    #[test]
+    fn held_directory_survives_parent_rename_and_drop_cleans_it() {
+        let root = tempdir().unwrap();
+        let source = root.path().join("source.NEF");
+        stdfs::write(&source, b"immutable source bytes").unwrap();
+        let stage = root.path().join("stage");
+        let moved = root.path().join("moved");
+        stdfs::create_dir(&stage).unwrap();
+        let staged =
+            stage_source(&source, &stage, &ResourceLimits::default(), &cancellation()).unwrap();
+        stdfs::rename(&stage, &moved).unwrap();
+        let mut bytes = Vec::new();
+        File::open(staged.input_path())
+            .unwrap()
+            .read_to_end(&mut bytes)
+            .unwrap();
+        assert_eq!(bytes, b"immutable source bytes");
+        let session = moved.join(&staged.directory_name);
+        assert_eq!(
+            stdfs::metadata(&session).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        for name in [&staged.input_name, &staged.output_name] {
+            assert_eq!(
+                stdfs::metadata(session.join(name))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
         drop(staged);
-        assert!(!path.exists());
+        assert_eq!(stdfs::read_dir(moved).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn source_limit_failure_leaves_no_stage_entries() {
+        let root = tempdir().unwrap();
+        let source = root.path().join("source.raw");
+        stdfs::write(&source, [0_u8; 16]).unwrap();
+        let limits = ResourceLimits {
+            max_source_bytes: 8,
+            ..ResourceLimits::default()
+        };
+        assert!(matches!(
+            stage_source(&source, root.path(), &limits, &cancellation()),
+            Err(DecodeError::Limit(_))
+        ));
+        assert_eq!(
+            stdfs::read_dir(root.path())
+                .unwrap()
+                .filter_map(Result::ok)
+                .filter(|entry| entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".grainroom-raw-"))
+                .count(),
+            0
+        );
     }
 }

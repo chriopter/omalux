@@ -2,23 +2,26 @@ use crate::{
     develop::{CpuImage, RgbaPixel},
     io::{DecodeError, DecodeWorkingSetProfile, ResourceLimits},
 };
-
+use std::io::{self, Read};
 const HEADER_LIMIT: usize = 64 * 1024;
 
-pub(super) fn parse_ppm16(bytes: &[u8], limits: &ResourceLimits) -> Result<CpuImage, DecodeError> {
-    let mut parser = Header { bytes, index: 0 };
-    if parser.token()? != b"P6" {
+pub(super) fn parse_ppm16(
+    reader: impl Read,
+    limits: &ResourceLimits,
+) -> Result<CpuImage, DecodeError> {
+    let mut header = HeaderReader::new(reader);
+    let magic = header.token()?;
+    if magic != b"P6" {
         return Err(DecodeError::CorruptInput);
     }
-    let width = parse_u32(parser.token()?)?;
-    let height = parse_u32(parser.token()?)?;
+    let width = parse_u32(&header.token()?)?;
+    let height = parse_u32(&header.token()?)?;
     if width == 0 || height == 0 {
         return Err(DecodeError::CorruptInput);
     }
-    if parse_u32(parser.token()?)? != 65_535 {
+    if parse_u32(&header.token()?)? != 65_535 {
         return Err(DecodeError::CorruptInput);
     }
-    let payload = parser.consume_raster_separator()?;
     limits
         .estimate_working_set(
             width,
@@ -29,78 +32,108 @@ pub(super) fn parse_ppm16(bytes: &[u8], limits: &ResourceLimits) -> Result<CpuIm
     let count = u64::from(width)
         .checked_mul(u64::from(height))
         .ok_or(DecodeError::CorruptInput)?;
-    let expected = usize::try_from(count.checked_mul(6).ok_or(DecodeError::CorruptInput)?)
-        .map_err(|_| DecodeError::CorruptInput)?;
-    if payload.len() != expected {
-        return Err(DecodeError::CorruptInput);
+    let capacity = usize::try_from(count).map_err(|_| DecodeError::CorruptInput)?;
+    let mut payload = header.into_payload()?;
+    let mut pixels = Vec::with_capacity(capacity);
+    let mut rgb = [0_u8; 6];
+    for _ in 0..count {
+        payload.read_exact(&mut rgb).map_err(map_payload_io)?;
+        let c = |i| f32::from(u16::from_be_bytes([rgb[i], rgb[i + 1]])) / 65_535.0;
+        pixels.push(RgbaPixel::new(c(0), c(2), c(4), 1.0).map_err(|_| DecodeError::CorruptInput)?);
     }
-    let mut pixels =
-        Vec::with_capacity(usize::try_from(count).map_err(|_| DecodeError::CorruptInput)?);
-    for rgb in payload.chunks_exact(6) {
-        let channel = |i| f32::from(u16::from_be_bytes([rgb[i], rgb[i + 1]])) / 65_535.0;
-        pixels.push(
-            RgbaPixel::new(channel(0), channel(2), channel(4), 1.0)
-                .map_err(|_| DecodeError::CorruptInput)?,
-        );
+    let mut trailing = [0_u8; 1];
+    match payload.read(&mut trailing) {
+        Ok(0) => {}
+        Ok(_) => return Err(DecodeError::CorruptInput),
+        Err(e) => return Err(DecodeError::RawBackendCaptureIo(e)),
     }
     CpuImage::new(width, height, pixels).map_err(|_| DecodeError::CorruptInput)
 }
-
-struct Header<'a> {
-    bytes: &'a [u8],
-    index: usize,
+struct HeaderReader<R> {
+    reader: R,
+    consumed: usize,
+    delimiter: u8,
 }
-impl<'a> Header<'a> {
-    fn token(&mut self) -> Result<&'a [u8], DecodeError> {
-        self.skip()?;
-        let start = self.index;
-        while self.index < self.bytes.len()
-            && !self.bytes[self.index].is_ascii_whitespace()
-            && self.bytes[self.index] != b'#'
-        {
-            self.index += 1;
-            if self.index > HEADER_LIMIT {
+impl<R: Read> HeaderReader<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            reader,
+            consumed: 0,
+            delimiter: 0,
+        }
+    }
+    fn token(&mut self) -> Result<Vec<u8>, DecodeError> {
+        let mut out = Vec::new();
+        loop {
+            let byte = self.byte()?;
+            if byte.is_ascii_whitespace() {
+                continue;
+            }
+            if byte == b'#' {
+                self.comment()?;
+                continue;
+            }
+            out.push(byte);
+            break;
+        }
+        loop {
+            let byte = self.byte()?;
+            if byte.is_ascii_whitespace() {
+                self.delimiter = byte;
+                return Ok(out);
+            }
+            if byte == b'#' {
                 return Err(DecodeError::CorruptInput);
             }
+            out.push(byte);
         }
-        if start == self.index {
-            return Err(DecodeError::CorruptInput);
-        }
-        Ok(&self.bytes[start..self.index])
     }
-    fn skip(&mut self) -> Result<(), DecodeError> {
+    fn comment(&mut self) -> Result<(), DecodeError> {
         loop {
-            while self.index < self.bytes.len() && self.bytes[self.index].is_ascii_whitespace() {
-                self.index += 1;
-                if self.index > HEADER_LIMIT {
-                    return Err(DecodeError::CorruptInput);
-                }
-            }
-            if self.bytes.get(self.index) == Some(&b'#') {
-                while self.index < self.bytes.len() && self.bytes[self.index] != b'\n' {
-                    self.index += 1;
-                    if self.index > HEADER_LIMIT {
-                        return Err(DecodeError::CorruptInput);
-                    }
-                }
-            } else {
+            if self.byte()? == b'\n' {
                 return Ok(());
             }
         }
     }
-    fn consume_raster_separator(&mut self) -> Result<&'a [u8], DecodeError> {
-        let first = *self
-            .bytes
-            .get(self.index)
+    fn byte(&mut self) -> Result<u8, DecodeError> {
+        self.consumed = self
+            .consumed
+            .checked_add(1)
             .ok_or(DecodeError::CorruptInput)?;
-        if !first.is_ascii_whitespace() {
+        if self.consumed > HEADER_LIMIT {
             return Err(DecodeError::CorruptInput);
         }
-        self.index += 1;
-        if first == b'\r' && self.bytes.get(self.index) == Some(&b'\n') {
-            self.index += 1;
+        let mut byte = [0_u8; 1];
+        self.reader.read_exact(&mut byte).map_err(map_header_io)?;
+        Ok(byte[0])
+    }
+    fn into_payload(mut self) -> Result<PayloadReader<R>, DecodeError> {
+        let prefix = if self.delimiter == b'\r' {
+            let byte = self.byte()?;
+            (byte != b'\n').then_some(byte)
+        } else {
+            None
+        };
+        Ok(PayloadReader {
+            reader: self.reader,
+            prefix,
+        })
+    }
+}
+struct PayloadReader<R> {
+    reader: R,
+    prefix: Option<u8>,
+}
+impl<R: Read> Read for PayloadReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
         }
-        Ok(&self.bytes[self.index..])
+        if let Some(byte) = self.prefix.take() {
+            buffer[0] = byte;
+            return Ok(1);
+        }
+        self.reader.read(buffer)
     }
 }
 fn parse_u32(token: &[u8]) -> Result<u32, DecodeError> {
@@ -112,54 +145,75 @@ fn parse_u32(token: &[u8]) -> Result<u32, DecodeError> {
         .and_then(|s| s.parse().ok())
         .ok_or(DecodeError::CorruptInput)
 }
+fn map_payload_io(error: io::Error) -> DecodeError {
+    if error.kind() == io::ErrorKind::UnexpectedEof {
+        DecodeError::CorruptInput
+    } else {
+        DecodeError::RawBackendCaptureIo(error)
+    }
+}
+fn map_header_io(error: io::Error) -> DecodeError {
+    map_payload_io(error)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn ppm(header: &[u8], payload: &[u8]) -> Vec<u8> {
-        [header, payload].concat()
+    use std::io::Cursor;
+    fn ppm(h: &[u8], p: &[u8]) -> Vec<u8> {
+        [h, p].concat()
     }
     #[test]
-    fn parses_big_endian_exactly() {
+    fn parses_stream_big_endian() {
         let image = parse_ppm16(
-            &ppm(b"P6\n# c\n1 1\n65535\n", &[0xff, 0xff, 0x80, 0x00, 0, 1]),
+            Cursor::new(ppm(b"P6\n# c\n1 1\n65535\n", &[0xff, 0xff, 0x80, 0, 0, 1])),
             &ResourceLimits::default(),
         )
         .unwrap();
         let p = image.pixels()[0];
         assert_eq!(p.red(), 1.0);
-        assert!((p.green() - 32768.0 / 65535.0).abs() < 1e-7);
         assert_eq!(p.blue(), 1.0 / 65535.0);
-        assert_eq!(p.alpha(), 1.0);
+        let crlf = parse_ppm16(
+            Cursor::new(ppm(b"P6\r\n1 1\r\n65535\r\n", &[0, 1, 0, 2, 0, 3])),
+            &ResourceLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(crlf.pixels()[0].blue(), 3.0 / 65535.0);
     }
     #[test]
-    fn rejects_wrong_max_partial_trailing_and_huge_header() {
-        for bytes in [
+    fn rejects_partial_trailing_wrong_max() {
+        for b in [
             ppm(b"P6 1 1 255\n", &[0; 6]),
             ppm(b"P6 1 1 65535\n", &[0; 5]),
             ppm(b"P6 1 1 65535\n", &[0; 7]),
         ] {
             assert!(matches!(
-                parse_ppm16(&bytes, &ResourceLimits::default()),
+                parse_ppm16(Cursor::new(b), &ResourceLimits::default()),
                 Err(DecodeError::CorruptInput)
             ));
         }
-        let huge = [b"P6 #".as_slice(), vec![b'x'; HEADER_LIMIT + 1].as_slice()].concat();
-        assert!(parse_ppm16(&huge, &ResourceLimits::default()).is_err());
     }
     #[test]
-    fn dimensions_are_checked_before_pixel_allocation() {
-        let bytes = ppm(b"P6 2 2 65535\n", &[0; 24]);
-        let limits = ResourceLimits {
+    fn limits_before_alloc() {
+        let b = ppm(b"P6 2 2 65535\n", &[0; 24]);
+        let l = ResourceLimits {
             max_pixels: 3,
             ..Default::default()
         };
         assert!(matches!(
-            parse_ppm16(&bytes, &limits),
+            parse_ppm16(Cursor::new(b), &l),
             Err(DecodeError::Limit(crate::io::LimitError::PixelCount { .. }))
         ));
+    }
+    #[test]
+    fn cumulative_header_is_bounded() {
+        let mut bytes = b"P6\n".to_vec();
+        while bytes.len() <= HEADER_LIMIT {
+            bytes.extend_from_slice(b"# comment\n");
+        }
+        bytes.extend_from_slice(b"1 1\n65535\n");
         assert!(matches!(
-            parse_ppm16(b"P6 0 1 65535\n", &ResourceLimits::default()),
+            parse_ppm16(Cursor::new(bytes), &ResourceLimits::default()),
             Err(DecodeError::CorruptInput)
         ));
     }

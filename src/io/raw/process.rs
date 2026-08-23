@@ -1,21 +1,20 @@
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-#[cfg(unix)]
-use std::os::unix::process::CommandExt;
+use std::os::unix::{
+    fs::PermissionsExt,
+    process::{CommandExt, ExitStatusExt},
+};
 use std::{
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread,
     time::{Duration, Instant},
 };
 
+use super::stage::StagedRaw;
 use crate::io::{DecodeError, ResourceLimits, WhiteBalancePolicy};
+
+const PRLIMIT: &str = "/usr/bin/prlimit";
 
 #[derive(Clone, Debug)]
 pub struct RawExecutionOptions {
@@ -27,6 +26,7 @@ pub struct RawExecutionOptions {
 impl RawExecutionOptions {
     pub fn new(executable: impl AsRef<Path>) -> Result<Self, DecodeError> {
         let executable = resolve_executable(executable.as_ref())?;
+        validate_executable(Path::new(PRLIMIT))?;
         Ok(Self {
             executable,
             timeout: Duration::from_secs(120),
@@ -41,241 +41,320 @@ impl RawExecutionOptions {
         if self.timeout.is_zero() || self.max_stderr_bytes == 0 {
             return Err(DecodeError::InvalidOptions);
         }
-        Ok(())
+        validate_executable(Path::new(PRLIMIT))
     }
 }
 
 #[derive(Clone, Default, Debug)]
-pub struct RawCancellation(Arc<AtomicBool>);
+pub struct RawCancellation(std::sync::Arc<std::sync::atomic::AtomicBool>);
 impl RawCancellation {
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release)
+        self.0.store(true, std::sync::atomic::Ordering::Release)
     }
-    pub(super) fn flag(&self) -> &Arc<AtomicBool> {
+    pub(super) fn flag(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
         &self.0
+    }
+    fn cancelled(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Acquire)
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RawCapability {
-    Available { executable: PathBuf },
+    Available {
+        executable: PathBuf,
+        prlimit: PathBuf,
+    },
     Unavailable,
 }
 pub fn probe_dcraw_emu() -> RawCapability {
     match RawExecutionOptions::new(Path::new("dcraw_emu")) {
         Ok(options) => RawCapability::Available {
             executable: options.executable,
+            prlimit: PathBuf::from(PRLIMIT),
         },
         Err(_) => RawCapability::Unavailable,
     }
 }
 
 pub(super) fn run_dcraw(
-    staged: &Path,
+    staged: &StagedRaw,
     white_balance: WhiteBalancePolicy,
     limits: &ResourceLimits,
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
-) -> Result<Vec<u8>, DecodeError> {
+) -> Result<(), DecodeError> {
     execution.validate()?;
-    if cancellation.0.load(Ordering::Acquire) {
+    if cancellation.cancelled() {
         return Err(DecodeError::Cancelled);
     }
-    let args = dcraw_args(staged, white_balance);
-    let mut command = Command::new(&execution.executable);
+    let args = dcraw_args(&staged.input_path(), &staged.output_path(), white_balance);
+    let file_limit = limits
+        .max_decoded_bytes
+        .checked_add(64 * 1024)
+        .ok_or(DecodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    let cpu_seconds = execution
+        .timeout
+        .as_secs()
+        .saturating_add(u64::from(execution.timeout.subsec_nanos() > 0))
+        .max(1);
+    let mut command = Command::new(PRLIMIT);
     command
-        .args(&args)
+        .arg(format!("--as={}", limits.max_working_bytes))
+        .arg(format!("--data={}", limits.max_working_bytes))
+        .arg(format!("--fsize={file_limit}"))
+        .arg(format!("--cpu={cpu_seconds}"))
+        .arg("--")
+        .arg(&execution.executable)
+        .args(args)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
+        .stdout(Stdio::null())
         .stderr(Stdio::piped());
     #[cfg(unix)]
     command.process_group(0);
-    let mut child = command.spawn().map_err(|error| {
-        if error.kind() == io::ErrorKind::NotFound {
+    let mut child = command.spawn().map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
             DecodeError::RawBackendUnavailable
         } else {
-            DecodeError::Input(error)
+            DecodeError::Input(e)
         }
     })?;
-    let overflow = Arc::new(AtomicBool::new(false));
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or(DecodeError::RawBackendFailed { status: None })?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or(DecodeError::RawBackendFailed { status: None })?;
-    let stdout_limit =
-        limits
-            .max_decoded_bytes
-            .checked_add(64 * 1024)
-            .ok_or(DecodeError::Limit(
-                crate::io::LimitError::ArithmeticOverflow,
-            ))?;
-    let stdout_thread = spawn_capture(stdout, stdout_limit, overflow.clone());
-    let stderr_thread = spawn_capture(stderr, execution.max_stderr_bytes, overflow.clone());
-    let started = Instant::now();
-    let status = loop {
-        if cancellation.0.load(Ordering::Acquire) {
-            kill_and_wait(&mut child);
-            join_discard(stdout_thread, stderr_thread);
-            return Err(DecodeError::Cancelled);
-        }
-        if overflow.load(Ordering::Acquire) {
-            kill_and_wait(&mut child);
-            join_discard(stdout_thread, stderr_thread);
-            return Err(DecodeError::RawBackendOutputLimit);
-        }
-        if started.elapsed() >= execution.timeout {
-            kill_and_wait(&mut child);
-            join_discard(stdout_thread, stderr_thread);
-            return Err(DecodeError::RawBackendTimedOut);
-        }
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => thread::sleep(Duration::from_millis(5)),
-            Err(error) => {
-                kill_and_wait(&mut child);
-                join_discard(stdout_thread, stderr_thread);
-                return Err(DecodeError::Input(error));
-            }
+    let pgid = child.id();
+    let mut stderr = match child.stderr.take() {
+        Some(stderr) => stderr,
+        None => {
+            kill_group_and_wait(pgid, &mut child);
+            return Err(DecodeError::RawBackendCaptureIo(io::Error::other(
+                "stderr capture pipe unavailable",
+            )));
         }
     };
-    let stdout = stdout_thread
-        .join()
-        .map_err(|_| DecodeError::RawBackendFailed {
-            status: status.code(),
-        })?
-        .map_err(|_| DecodeError::RawBackendOutputLimit)?;
-    let _stderr = stderr_thread
-        .join()
-        .map_err(|_| DecodeError::RawBackendFailed {
-            status: status.code(),
-        })?
-        .map_err(|_| DecodeError::RawBackendOutputLimit)?;
+    let flags = match rustix::fs::fcntl_getfl(&stderr) {
+        Ok(flags) => flags,
+        Err(error) => {
+            kill_group_and_wait(pgid, &mut child);
+            return Err(DecodeError::RawBackendCaptureIo(std_error(error)));
+        }
+    };
+    if let Err(error) = rustix::fs::fcntl_setfl(&stderr, flags | rustix::fs::OFlags::NONBLOCK) {
+        kill_group_and_wait(pgid, &mut child);
+        return Err(DecodeError::RawBackendCaptureIo(std_error(error)));
+    }
+    let started = Instant::now();
+    let mut status = None;
+    let mut eof = false;
+    let mut stderr_bytes = 0_u64;
+    let mut buffer = [0_u8; 8192];
+    loop {
+        drain_stderr(
+            &mut stderr,
+            &mut buffer,
+            &mut stderr_bytes,
+            execution.max_stderr_bytes,
+            &mut eof,
+        )
+        .inspect_err(|_| {
+            kill_group_and_wait(pgid, &mut child);
+        })?;
+        if status.is_none() {
+            status = match child.try_wait() {
+                Ok(status) => status,
+                Err(error) => {
+                    kill_group_and_wait(pgid, &mut child);
+                    return Err(DecodeError::RawBackendCaptureIo(error));
+                }
+            };
+        }
+        if status.is_some() && eof {
+            break;
+        }
+        if cancellation.cancelled() {
+            kill_group_and_wait(pgid, &mut child);
+            drain_after_kill(&mut stderr)?;
+            return Err(DecodeError::Cancelled);
+        }
+        if started.elapsed() >= execution.timeout {
+            kill_group_and_wait(pgid, &mut child);
+            drain_after_kill(&mut stderr)?;
+            return Err(DecodeError::RawBackendTimedOut);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let status = status.expect("leader status exists when monitor completes");
     if !status.success() {
+        let xfsz = rustix::process::Signal::XFSZ.as_raw();
+        let xcpu = rustix::process::Signal::XCPU.as_raw();
+        if status.signal() == Some(xfsz) || status.code() == Some(128 + xfsz) {
+            return Err(DecodeError::RawBackendOutputLimit);
+        }
+        if status.signal() == Some(xcpu) || status.code() == Some(128 + xcpu) {
+            return Err(DecodeError::RawBackendTimedOut);
+        }
         return Err(DecodeError::RawBackendFailed {
             status: status.code(),
         });
     }
-    Ok(stdout)
+    Ok(())
 }
 
-fn dcraw_args(staged: &Path, white_balance: WhiteBalancePolicy) -> Vec<std::ffi::OsString> {
+fn drain_stderr(
+    stderr: &mut impl Read,
+    buffer: &mut [u8],
+    total: &mut u64,
+    limit: u64,
+    eof: &mut bool,
+) -> Result<(), DecodeError> {
+    loop {
+        match stderr.read(buffer) {
+            Ok(0) => {
+                *eof = true;
+                return Ok(());
+            }
+            Ok(count) => {
+                *total = total
+                    .checked_add(count as u64)
+                    .ok_or(DecodeError::RawBackendOutputLimit)?;
+                if *total > limit {
+                    return Err(DecodeError::RawBackendOutputLimit);
+                }
+            }
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+            Err(e) => return Err(DecodeError::RawBackendCaptureIo(e)),
+        }
+    }
+}
+fn drain_after_kill(stderr: &mut impl Read) -> Result<(), DecodeError> {
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let mut buffer = [0_u8; 8192];
+    loop {
+        match stderr.read(&mut buffer) {
+            Ok(0) => return Ok(()),
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return Err(DecodeError::RawBackendCaptureIo(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "stderr pipe did not close after process-group kill",
+                    )));
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => return Err(DecodeError::RawBackendCaptureIo(e)),
+        }
+    }
+}
+
+fn dcraw_args(
+    input: &str,
+    output: &str,
+    white_balance: WhiteBalancePolicy,
+) -> Vec<std::ffi::OsString> {
     let mut args = Vec::new();
     match white_balance {
         WhiteBalancePolicy::CameraThenDaylight => args.push("-w".into()),
         WhiteBalancePolicy::Daylight => {}
-        WhiteBalancePolicy::Explicit(values) => {
+        WhiteBalancePolicy::Explicit(v) => {
             args.push("-r".into());
-            for value in values {
-                args.push(value.to_string().into());
+            for x in v {
+                args.push(x.to_string().into());
             }
         }
     }
-    args.extend(["+M", "-H", "0", "-q", "3", "-4", "-o", "8", "-Z", "-"].map(Into::into));
-    args.push(staged.as_os_str().to_owned());
+    args.extend(["+M", "-H", "0", "-q", "3", "-4", "-o", "8", "-Z"].map(Into::into));
+    args.push(output.into());
+    args.push(input.into());
     args
 }
-
-fn spawn_capture(
-    mut reader: impl Read + Send + 'static,
-    limit: u64,
-    overflow: Arc<AtomicBool>,
-) -> thread::JoinHandle<io::Result<Vec<u8>>> {
-    thread::spawn(move || {
-        let capacity = usize::try_from(limit.min(1 << 20)).unwrap_or(1 << 20);
-        let mut output = Vec::with_capacity(capacity);
-        let mut buffer = [0_u8; 8192];
-        loop {
-            let count = reader.read(&mut buffer)?;
-            if count == 0 {
-                break;
-            }
-            let next = u64::try_from(output.len())
-                .unwrap_or(u64::MAX)
-                .saturating_add(count as u64);
-            if next > limit {
-                overflow.store(true, Ordering::Release);
-                return Err(io::Error::new(
-                    io::ErrorKind::FileTooLarge,
-                    "backend output limit",
-                ));
-            }
-            output.extend_from_slice(&buffer[..count]);
-        }
-        Ok(output)
-    })
-}
-fn kill_and_wait(child: &mut std::process::Child) {
+fn kill_group_and_wait(pgid: u32, child: &mut std::process::Child) {
     #[cfg(target_os = "linux")]
-    if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
+    if let Some(pid) = rustix::process::Pid::from_raw(pgid as i32) {
         let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
     }
     #[cfg(not(target_os = "linux"))]
     let _ = child.kill();
     let _ = child.wait();
 }
-fn join_discard(
-    a: thread::JoinHandle<io::Result<Vec<u8>>>,
-    b: thread::JoinHandle<io::Result<Vec<u8>>>,
-) {
-    let _ = a.join();
-    let _ = b.join();
-}
-
 fn resolve_executable(requested: &Path) -> Result<PathBuf, DecodeError> {
     let candidate = if requested.components().count() > 1 || requested.is_absolute() {
         requested.to_owned()
     } else {
         std::env::var_os("PATH")
-            .and_then(|paths| {
-                std::env::split_paths(&paths)
-                    .map(|dir| dir.join(requested))
-                    .find(|path| path.is_file())
+            .and_then(|p| {
+                std::env::split_paths(&p)
+                    .map(|d| d.join(requested))
+                    .find(|p| p.is_file())
             })
             .ok_or(DecodeError::RawBackendUnavailable)?
     };
-    let resolved = fs::canonicalize(candidate).map_err(|error| {
-        if error.kind() == io::ErrorKind::NotFound {
+    let resolved = fs::canonicalize(candidate).map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
             DecodeError::RawBackendUnavailable
         } else {
-            DecodeError::Input(error)
+            DecodeError::Input(e)
         }
     })?;
-    let metadata = fs::metadata(&resolved).map_err(DecodeError::Input)?;
+    validate_executable(&resolved)?;
+    Ok(resolved)
+}
+fn validate_executable(path: &Path) -> Result<(), DecodeError> {
+    let metadata = fs::metadata(path).map_err(|_| DecodeError::RawBackendUnavailable)?;
     #[cfg(unix)]
     if !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
         return Err(DecodeError::RawBackendUnavailable);
     }
-    if !resolved.is_absolute() {
+    if !path.is_absolute() {
         return Err(DecodeError::RawBackendUnavailable);
     }
-    Ok(resolved)
+    Ok(())
+}
+fn std_error(error: rustix::io::Errno) -> io::Error {
+    io::Error::from_raw_os_error(error.raw_os_error())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
     use tempfile::tempdir;
-    #[cfg(unix)]
     fn script(directory: &Path, body: &str) -> PathBuf {
-        let path = directory.join("fake-dcraw");
-        fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
-        path
+        let p = directory.join("fake-dcraw");
+        fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o700)).unwrap();
+        p
+    }
+    fn staged(d: &tempfile::TempDir) -> StagedRaw {
+        let source = d.path().join("input.nef");
+        fs::write(&source, b"raw").unwrap();
+        super::super::stage::stage_source(
+            &source,
+            d.path(),
+            &ResourceLimits::default(),
+            RawCancellation::default().flag(),
+        )
+        .unwrap()
+    }
+    fn assert_not_running(pid: &str) {
+        let stat = fs::read_to_string(format!("/proc/{}/stat", pid.trim()));
+        if let Ok(stat) = stat {
+            let state = stat.rsplit_once(") ").unwrap().1.as_bytes()[0];
+            assert_eq!(
+                state, b'Z',
+                "descendant survived process-group kill: {stat}"
+            );
+        }
     }
     #[test]
-    fn argv_is_exact_full_resolution_and_no_shell() {
-        let args = dcraw_args(
-            Path::new("literal;touch BAD.nef"),
+    fn argv_is_fullres_and_file_output() {
+        let a = dcraw_args(
+            "/proc/self/fd/9/in.nef",
+            "/proc/self/fd/9/out.ppm",
             WhiteBalancePolicy::CameraThenDaylight,
         );
-        let strings = args.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>();
+        let s = a.iter().map(|x| x.to_string_lossy()).collect::<Vec<_>>();
         assert_eq!(
-            &strings[..12],
+            &s[..11],
             [
                 "-w",
                 "+M",
@@ -287,148 +366,188 @@ mod tests {
                 "-o",
                 "8",
                 "-Z",
-                "-",
-                "literal;touch BAD.nef"
+                "/proc/self/fd/9/out.ppm"
             ]
         );
-        assert!(!strings.iter().any(|s| s == "-h" || s == "-t" || s == "-j"));
-    }
-    #[cfg(unix)]
-    #[test]
-    fn timeout_kills_and_waits() {
-        let d = tempdir().unwrap();
-        let executable = script(d.path(), "sleep 5");
-        let mut options = RawExecutionOptions::new(executable).unwrap();
-        options.timeout = Duration::from_millis(30);
-        let result = run_dcraw(
-            Path::new("input.nef"),
-            WhiteBalancePolicy::CameraThenDaylight,
-            &ResourceLimits::default(),
-            &options,
-            &RawCancellation::default(),
+        assert!(
+            !s.iter()
+                .any(|x| x == "-h" || x == "-t" || x == "-j" || x == "-")
         );
-        assert!(matches!(result, Err(DecodeError::RawBackendTimedOut)));
     }
-    #[cfg(unix)]
     #[test]
-    fn stdout_and_stderr_are_drained_concurrently() {
+    fn descendants_holding_pipe_force_timeout_and_group_kill() {
         let d = tempdir().unwrap();
-        let executable = script(
+        let staged = staged(&d);
+        let pidfile = d.path().join("timeout-child-pid");
+        let exe = script(
             d.path(),
-            "i=0; while [ $i -lt 5000 ]; do printf x >&2; i=$((i+1)); done; printf 'P6\\n1 1\\n65535\\n\\377\\377\\000\\000\\000\\000'",
+            &format!("sleep 5 & echo $! > '{}'; exit 0", pidfile.display()),
         );
-        let mut options = RawExecutionOptions::new(executable).unwrap();
-        options.max_stderr_bytes = 10_000;
-        let bytes = run_dcraw(
-            Path::new("input.nef"),
-            WhiteBalancePolicy::CameraThenDaylight,
+        let mut o = RawExecutionOptions::new(exe).unwrap();
+        o.timeout = Duration::from_millis(40);
+        let start = Instant::now();
+        assert!(matches!(
+            run_dcraw(
+                &staged,
+                WhiteBalancePolicy::Daylight,
+                &ResourceLimits::default(),
+                &o,
+                &RawCancellation::default()
+            ),
+            Err(DecodeError::RawBackendTimedOut)
+        ));
+        assert!(start.elapsed() < Duration::from_secs(1));
+        let pid = fs::read_to_string(pidfile).unwrap();
+        assert_not_running(&pid);
+    }
+    #[test]
+    fn monitor_accepts_descendant_write_after_leader_exit_then_eof() {
+        let d = tempdir().unwrap();
+        let staged = staged(&d);
+        let exe = script(d.path(), "(sleep 0.03; printf late >&2) & exit 0");
+        let o = RawExecutionOptions::new(exe).unwrap();
+        let start = Instant::now();
+        run_dcraw(
+            &staged,
+            WhiteBalancePolicy::Daylight,
             &ResourceLimits::default(),
-            &options,
+            &o,
             &RawCancellation::default(),
         )
         .unwrap();
-        assert!(bytes.starts_with(b"P6"));
+        assert!(start.elapsed() >= Duration::from_millis(20));
     }
-    #[cfg(unix)]
     #[test]
-    fn stderr_limit_kills_backend() {
+    fn cancel_kills_descendant_without_survivor() {
         let d = tempdir().unwrap();
-        let executable = script(d.path(), "while :; do printf x >&2; done");
-        let mut options = RawExecutionOptions::new(executable).unwrap();
-        options.max_stderr_bytes = 32;
+        let staged = staged(&d);
+        let pidfile = d.path().join("pid");
+        let exe = script(
+            d.path(),
+            &format!("sleep 5 & echo $! > '{}'; sleep 5", pidfile.display()),
+        );
+        let o = RawExecutionOptions::new(exe).unwrap();
+        let c = RawCancellation::default();
+        let trigger = c.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(30));
+            trigger.cancel();
+        });
         assert!(matches!(
             run_dcraw(
-                Path::new("input.nef"),
-                WhiteBalancePolicy::CameraThenDaylight,
+                &staged,
+                WhiteBalancePolicy::Daylight,
                 &ResourceLimits::default(),
-                &options,
+                &o,
+                &c
+            ),
+            Err(DecodeError::Cancelled)
+        ));
+        let pid = fs::read_to_string(pidfile).unwrap();
+        assert_not_running(&pid);
+    }
+    #[test]
+    fn stderr_limit_is_distinct() {
+        let d = tempdir().unwrap();
+        let staged = staged(&d);
+        let exe = script(d.path(), "while :; do printf x >&2; done");
+        let mut o = RawExecutionOptions::new(exe).unwrap();
+        o.max_stderr_bytes = 32;
+        assert!(matches!(
+            run_dcraw(
+                &staged,
+                WhiteBalancePolicy::Daylight,
+                &ResourceLimits::default(),
+                &o,
                 &RawCancellation::default()
             ),
             Err(DecodeError::RawBackendOutputLimit)
         ));
     }
-    #[cfg(unix)]
-    #[test]
-    fn stdout_limit_kills_backend() {
-        let d = tempdir().unwrap();
-        let executable = script(d.path(), "while :; do printf 1234567890; done");
-        let options = RawExecutionOptions::new(executable).unwrap();
-        let limits = ResourceLimits {
-            max_decoded_bytes: 8,
-            ..Default::default()
-        };
-        let result = run_dcraw(
-            Path::new("input.nef"),
-            WhiteBalancePolicy::Daylight,
-            &limits,
-            &options,
-            &RawCancellation::default(),
-        );
-        assert!(
-            matches!(result, Err(DecodeError::RawBackendOutputLimit)),
-            "{result:?}"
-        );
-    }
-    #[cfg(unix)]
-    #[test]
-    fn cancellation_kills_running_process_group() {
-        let d = tempdir().unwrap();
-        let executable = script(d.path(), "sleep 5");
-        let options = RawExecutionOptions::new(executable).unwrap();
-        let cancellation = RawCancellation::default();
-        let trigger = cancellation.clone();
-        let thread = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(20));
-            trigger.cancel();
-        });
-        let started = Instant::now();
-        let result = run_dcraw(
-            Path::new("input.nef"),
-            WhiteBalancePolicy::CameraThenDaylight,
-            &ResourceLimits::default(),
-            &options,
-            &cancellation,
-        );
-        thread.join().unwrap();
-        assert!(matches!(result, Err(DecodeError::Cancelled)));
-        assert!(started.elapsed() < Duration::from_secs(1));
-    }
-    #[cfg(unix)]
     #[test]
     fn nonzero_exit_is_stable_backend_failure() {
         let d = tempdir().unwrap();
-        let executable = script(d.path(), "printf diagnostic >&2; exit 23");
-        let options = RawExecutionOptions::new(executable).unwrap();
+        let staged = staged(&d);
+        let exe = script(d.path(), "printf diagnostic >&2; exit 23");
         assert!(matches!(
             run_dcraw(
-                Path::new("input.nef"),
+                &staged,
                 WhiteBalancePolicy::Daylight,
                 &ResourceLimits::default(),
-                &options,
+                &RawExecutionOptions::new(exe).unwrap(),
                 &RawCancellation::default()
             ),
             Err(DecodeError::RawBackendFailed { status: Some(23) })
         ));
     }
     #[test]
-    fn pre_cancel_is_explicit() {
-        let cancel = RawCancellation::default();
-        cancel.cancel();
-        let options = RawExecutionOptions {
-            executable: PathBuf::from("/missing"),
-            timeout: Duration::from_secs(1),
-            max_stderr_bytes: 1,
-            staging_directory: PathBuf::from("."),
+    fn file_size_rlimit_is_a_distinct_output_limit() {
+        let d = tempdir().unwrap();
+        let staged = staged(&d);
+        let exe = script(
+            d.path(),
+            "out=''\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = '-Z' ]; then shift; out=$1; fi\n  shift\ndone\nhead -c 131072 /dev/zero > \"$out\"",
+        );
+        let limits = ResourceLimits {
+            max_decoded_bytes: 8,
+            ..ResourceLimits::default()
         };
         assert!(matches!(
             run_dcraw(
-                Path::new("x"),
+                &staged,
                 WhiteBalancePolicy::Daylight,
-                &ResourceLimits::default(),
-                &options,
-                &cancel
+                &limits,
+                &RawExecutionOptions::new(exe).unwrap(),
+                &RawCancellation::default()
             ),
-            Err(DecodeError::Cancelled)
+            Err(DecodeError::RawBackendOutputLimit)
         ));
+    }
+    #[test]
+    fn inherited_directory_fd_survives_parent_swap() {
+        let d = tempdir().unwrap();
+        let stage_path = d.path().join("stage");
+        fs::create_dir(&stage_path).unwrap();
+        let source = d.path().join("source.nef");
+        fs::write(&source, b"raw through inherited descriptor").unwrap();
+        let staged = super::super::stage::stage_source(
+            &source,
+            &stage_path,
+            &ResourceLimits::default(),
+            RawCancellation::default().flag(),
+        )
+        .unwrap();
+        fs::rename(&stage_path, d.path().join("moved-stage")).unwrap();
+        fs::create_dir(&stage_path).unwrap();
+        let exe = script(
+            d.path(),
+            "out=''\nlast=''\nwhile [ \"$#\" -gt 0 ]; do\n  last=$1\n  if [ \"$1\" = '-Z' ]; then shift; out=$1; fi\n  shift\ndone\ncp \"$last\" \"$out\"",
+        );
+        run_dcraw(
+            &staged,
+            WhiteBalancePolicy::Daylight,
+            &ResourceLimits::default(),
+            &RawExecutionOptions::new(exe).unwrap(),
+            &RawCancellation::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(staged.output_path()).unwrap(),
+            b"raw through inherited descriptor"
+        );
+        assert_eq!(fs::read_dir(stage_path).unwrap().count(), 0);
+    }
+    #[test]
+    fn capability_is_explicit() {
+        match probe_dcraw_emu() {
+            RawCapability::Available {
+                executable,
+                prlimit,
+            } => {
+                assert!(executable.is_absolute());
+                assert_eq!(prlimit, Path::new(PRLIMIT));
+            }
+            RawCapability::Unavailable => {}
+        }
     }
 }
