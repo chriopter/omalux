@@ -285,18 +285,10 @@ fn estimate_job_working_set(
     let estimate =
         estimate_develop_working_set(dimensions.0, dimensions.1, settings, &estimate_limits)?;
     let post_develop_scene_peak_bytes = if relation == crate::io::SignalRelation::SceneRelatedRaw {
-        let developed_image_bytes = u64::from(estimate.output_width)
-            .checked_mul(u64::from(estimate.output_height))
-            .and_then(|pixels| pixels.checked_mul(16))
-            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
-        let two_rows = u64::from(estimate.output_width)
-            .checked_mul(32)
-            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
-        Some(
-            developed_image_bytes
-                .checked_add(two_rows)
-                .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
-        )
+        Some(scene_render_phase_bytes(
+            estimate.output_width,
+            estimate.output_height,
+        )?)
     } else {
         None
     };
@@ -306,6 +298,22 @@ fn estimate_job_working_set(
         estimate.profile,
         job_peak_bytes,
     ))
+}
+
+/// A RAW scene-render phase owns the developed image plus one copied source
+/// row and one transactional destination row. Both rows contain 16-byte RGBA
+/// pixels. Keeping this formula isolated pins the job gate to the artifact
+/// renderer's allocation contract.
+fn scene_render_phase_bytes(width: u32, height: u32) -> Result<u64, PipelineError> {
+    u64::from(width)
+        .checked_mul(u64::from(height))
+        .and_then(|pixels| pixels.checked_mul(16))
+        .and_then(|image| {
+            u64::from(width)
+                .checked_mul(32)
+                .and_then(|rows| image.checked_add(rows))
+        })
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))
 }
 
 fn pipeline_error_code(error: &PipelineError) -> JobErrorCode {
@@ -551,5 +559,17 @@ mod tests {
         // The estimator shares geometry's f32-to-f64 edge rounding; persisted
         // 0.1 rounds the right edge just above one pixel, producing a 2x2 ROI.
         assert_eq!(cropped.estimated_peak_bytes(), 1_024);
+    }
+
+    #[test]
+    fn raw_scene_phase_formula_is_isolated_and_uses_two_full_width_rows() {
+        assert_eq!(super::scene_render_phase_bytes(1, 1).unwrap(), 48);
+        assert_eq!(super::scene_render_phase_bytes(17, 9).unwrap(), 2_992);
+        assert_eq!(
+            super::scene_render_phase_bytes(u32::MAX, u32::MAX),
+            Err(super::PipelineError::ResourceLimit(
+                super::LimitError::ArithmeticOverflow,
+            ))
+        );
     }
 }

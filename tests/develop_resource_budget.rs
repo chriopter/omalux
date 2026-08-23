@@ -285,6 +285,57 @@ fn geometry_masks_compose_explicitly_with_color_and_spatial_profiles() {
 }
 
 #[test]
+fn every_component_profile_combination_has_an_atomic_exact_gate() {
+    for bits in 0_u8..16 {
+        let mut settings = DevelopSettings::default();
+        if bits & 1 != 0 {
+            settings.color_mixer.red.saturation = 5.0;
+        }
+        if bits & 2 != 0 {
+            settings.effects.sharpness = 10.0;
+        }
+        if bits & 4 != 0 {
+            settings.geometry.quarter_turns_clockwise = 1;
+        }
+        if bits & 8 != 0 {
+            settings.radial_masks.masks.push(active_mask(false, 0.0));
+        }
+
+        let estimate =
+            estimate_develop_working_set(4, 3, &settings, &ResourceLimits::default()).unwrap();
+        assert_eq!(
+            estimate.profile,
+            DevelopWorkingSetProfile::new(
+                bits & 1 != 0,
+                bits & 2 != 0,
+                bits & 4 != 0,
+                bits & 8 != 0,
+            ),
+            "profile bits {bits:04b}",
+        );
+
+        let exact = ResourceLimits::default().with_max_working_bytes(estimate.peak_bytes);
+        let mut rendered = image(4, 3);
+        DevelopPipeline
+            .process_bounded(&mut rendered, &settings, &exact)
+            .unwrap();
+
+        let below = ResourceLimits::default().with_max_working_bytes(estimate.peak_bytes - 1);
+        let mut rejected = image(4, 3);
+        let original = rejected.clone();
+        assert_eq!(
+            DevelopPipeline.process_bounded(&mut rejected, &settings, &below),
+            Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
+                requested: estimate.peak_bytes,
+                maximum: estimate.peak_bytes - 1,
+            })),
+            "gate bits {bits:04b}",
+        );
+        assert_eq!(rejected, original, "atomicity bits {bits:04b}");
+    }
+}
+
+#[test]
 fn negative_local_sharpness_remains_unsupported_before_mutation() {
     let mut settings = DevelopSettings::default();
     settings.radial_masks.masks.push(active_mask(false, -1.0));

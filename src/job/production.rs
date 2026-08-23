@@ -338,6 +338,14 @@ mod tests {
         settings
     }
 
+    fn full_component_settings() -> crate::develop::DevelopSettings {
+        let mut settings = geometry_mask_settings();
+        settings.tone_curves.master.points[1].y = 0.8;
+        settings.basics.clarity = 15.0;
+        settings.effects.bloom = 10.0;
+        settings
+    }
+
     fn geometry_mask_job(
         input: &Path,
         output: &Path,
@@ -368,6 +376,109 @@ mod tests {
             )),
             overrides: Vec::new(),
         }
+    }
+
+    fn full_component_job(
+        input: &Path,
+        output: &Path,
+        format: OutputFormat,
+    ) -> crate::job::DevelopJob {
+        let mut job = geometry_mask_job(input, output, format);
+        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+            "full-component-job",
+            "Full component job",
+            full_component_settings(),
+        ));
+        job
+    }
+
+    fn assert_full_component_profile(report: &crate::job::DevelopJobReport) {
+        let profile = report.develop_working_set.profile().unwrap();
+        assert!(profile.pointwise_v1);
+        assert!(profile.color_v1);
+        assert!(profile.spatial_v1);
+        assert!(profile.geometry_v1);
+        assert!(profile.radial_masks_v1);
+    }
+
+    #[test]
+    fn raster_jpeg_runs_real_geometry_radial_color_and_spatial_stack() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("full-stack.jpg");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &full_component_job(&input, &output, OutputFormat::Jpeg),
+                &ProductionPhotoDecoder::new(),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+        assert_full_component_profile(&report);
+        let decoded = image::open(output).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (3, 4));
+    }
+
+    #[cfg(feature = "heic")]
+    #[test]
+    fn raster_heic_runs_real_geometry_radial_color_and_spatial_stack() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("full-stack.heic");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &full_component_job(&input, &output, OutputFormat::Heic),
+                &ProductionPhotoDecoder::new(),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+        assert_full_component_profile(&report);
+        assert!(output.exists());
+    }
+
+    #[test]
+    fn negative_local_sharpness_never_creates_a_production_target() {
+        use crate::{
+            develop::PresetCatalog,
+            job::{DevelopJobRunner, JobErrorCode, JobStage, NoProgress},
+        };
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("must-not-exist.jpg");
+        jpeg_solid(&input, 4, 3, [30, 60, 90]);
+        let mut job = geometry_mask_job(&input, &output, OutputFormat::Jpeg);
+        let mut settings = geometry_mask_settings();
+        settings.radial_masks.masks[0].adjustments.sharpness = -1.0;
+        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+            "negative-local-sharpness-production",
+            "Negative local sharpness production",
+            settings,
+        ));
+        let failure = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &job,
+                &ProductionPhotoDecoder::new(),
+                &ProductionPhotoEncoder::new(ResourceLimits::default()),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap_err();
+        assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+        assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+        assert!(!output.exists());
     }
 
     #[test]

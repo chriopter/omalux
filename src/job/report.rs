@@ -247,17 +247,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_profile_preserves_the_full_peak_domain() {
+    fn schema_v4_preserves_all_sixteen_component_profiles_and_full_peak_domain() {
+        assert_eq!(DEVELOP_JOB_REPORT_VERSION, 4);
         let peak = u64::MAX;
-        for profile in [
-            DevelopWorkingSetProfile::PointwiseV1,
-            DevelopWorkingSetProfile::ColorV1,
-            DevelopWorkingSetProfile::SpatialV1,
-            DevelopWorkingSetProfile::ColorSpatialV1,
-        ] {
+        for bits in 0_u8..16 {
+            let profile = DevelopWorkingSetProfile::new(
+                bits & 1 != 0,
+                bits & 2 != 0,
+                bits & 4 != 0,
+                bits & 8 != 0,
+            );
             let summary = DevelopWorkingSetSummary::from_profile(profile, peak);
             assert_eq!(summary.estimated_peak_bytes(), peak);
             assert_eq!(summary.profile(), Some(profile.into()));
+
+            let report_profile = summary.profile().unwrap();
+            assert!(report_profile.pointwise_v1);
+            assert_eq!(report_profile.color_v1, bits & 1 != 0);
+            assert_eq!(report_profile.spatial_v1, bits & 2 != 0);
+            assert_eq!(report_profile.geometry_v1, bits & 4 != 0);
+            assert_eq!(report_profile.radial_masks_v1, bits & 8 != 0);
         }
         assert!(std::mem::size_of::<DevelopWorkingSetSummary>() >= 16);
     }
