@@ -39,18 +39,24 @@ and encoding. The current pixel pipeline is transactional but not internally
 interruptible, so cancellation requested during a single pipeline call takes
 effect immediately after that call.
 
-## Temporary resource-contract restriction
+## Bounded PointwiseV1 execution
 
-The existing pixel stages still contain legacy infallible allocations, and
-there is not yet a complete stage-aware peak-memory estimator. Consequently
-this job contract currently rejects every non-neutral resolved settings
-document with `unproven_pipeline_budget`. It does not call the cloning pipeline
-for a neutral document. This fail-closed restriction is removed only together
-with a reviewed estimator and fallible allocation conversion for clarity,
-effects, geometry and radial masks. RAW scene rendering is independently
-bounded to the owned image plus two fallible scanline buffers.
+The job resolves catalog/document settings and typed overrides before selecting
+the reviewed `PointwiseV1` profile. It executes brightness, contrast,
+highlights, shadows, whites, blacks, saturation, vibrance, temperature, tint,
+fade, vignette, and deterministic content-digest grain. Clarity, geometry,
+curves, color mixer/grading, radial masks, bloom, halation, and sharpness remain
+fail-closed with `unproven_pipeline_budget` before the transactional image is
+created.
+
+The develop peak is the resident source image plus its exact transactional
+copy. For RAW, scene-to-display follows after that copy has committed and been
+dropped; its peak is the resident post-develop image plus two scanlines. The
+job reports and enforces the maximum of those sequential phases, never their
+sum. A limit failure is reported before develop mutation or encoder dispatch.
 
 `DevelopJobReport` has a versioned schema and deliberately excludes input and
 output paths, filenames, service error strings and wall-clock timing. It keeps
-only stable stage/error categories, content identity, signal relations and
-deterministic processing counters.
+only stable stage/error categories, content identity, signal relations,
+bounded profile/byte estimates, and deterministic processing counters. Adding
+the working-set summary advances the report schema to version 2.

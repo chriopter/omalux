@@ -70,6 +70,10 @@ impl<R: ArtifactRelation> WorkingArtifact<R> {
         &self.image
     }
 
+    pub(crate) fn image_mut(&mut self) -> &mut CpuImage {
+        &mut self.image
+    }
+
     pub fn metadata(&self) -> &MetadataBundle {
         &self.metadata
     }

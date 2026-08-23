@@ -1,16 +1,20 @@
 use crate::{
-    develop::{DevelopPipeline, DevelopSettings, PipelineError, PresetCatalog, PresetDocument},
+    develop::{
+        DevelopPipeline, DevelopSettings, PipelineError, PresetCatalog, apply_parameter_overrides,
+        estimate_develop_working_set,
+    },
     io::{
         LimitError,
         color::{SceneRenderError, SceneToDisplayTransform},
     },
 };
+use std::borrow::Cow;
 
 use super::{
     CancellationToken, DecodedArtifact, DevelopJob, DevelopJobFailure, DevelopJobOutcome,
-    DevelopJobReport, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder, PresetSelection,
-    ProgressSink, PublicationRequest, PublicationStatus, ReportDigest, ReportSignalRelation,
-    SceneRenderSummary, WorkingArtifact, services::stable_code,
+    DevelopJobReport, DevelopWorkingSetSummary, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder,
+    PresetSelection, ProgressSink, PublicationRequest, PublicationStatus, ReportDigest,
+    ReportSignalRelation, SceneRenderSummary, WorkingArtifact, services::stable_code,
 };
 
 #[derive(Clone, Debug)]
@@ -94,34 +98,33 @@ impl DevelopJobRunner {
         progress.stage_completed(JobStage::Decode);
 
         self.check_cancelled(JobStage::ResolveSettings, cancellation, &report)?;
-        let document = self.resolve_preset(&job.preset).map_err(|code| {
-            DevelopJobFailure::new(JobStage::ResolveSettings, code, report.clone())
-        })?;
-        if !job.overrides.is_empty() {
-            return Err(DevelopJobFailure::new(
-                JobStage::ResolveSettings,
-                JobErrorCode::UnprovenPipelineBudget,
-                report,
-            ));
-        }
-        let settings = &document.settings;
-        self.pipeline
-            .preflight_with_context(settings, Some(&digest.develop_render_context()))
-            .map_err(|error| {
-                DevelopJobFailure::new(
-                    JobStage::ResolveSettings,
-                    pipeline_error_code(&error),
-                    report.clone(),
-                )
+        let settings = self
+            .resolve_settings(&job.preset, &job.overrides)
+            .map_err(|code| {
+                DevelopJobFailure::new(JobStage::ResolveSettings, code, report.clone())
             })?;
-        // Current develop stages contain legacy infallible allocations whose
-        // combined peak is not yet covered by a stage-aware estimator. The
-        // job boundary therefore admits only the allocation-free neutral path
-        // instead of claiming an optimistic full-image budget.
-        if !settings.is_neutral() {
+        let dimensions = match &artifact {
+            DecodedArtifact::Scene(value) => (value.image().width(), value.image().height()),
+            DecodedArtifact::Display(value) => (value.image().width(), value.image().height()),
+        };
+        let summary = estimate_job_working_set(
+            dimensions,
+            input_relation,
+            settings.as_ref(),
+            &job.decode.limits,
+        )
+        .map_err(|error| {
+            DevelopJobFailure::new(
+                JobStage::ResolveSettings,
+                pipeline_error_code(&error),
+                report.clone(),
+            )
+        })?;
+        report.develop_working_set = Some(summary);
+        if summary.job_peak_bytes > job.decode.limits.max_working_bytes {
             return Err(DevelopJobFailure::new(
                 JobStage::ResolveSettings,
-                JobErrorCode::UnprovenPipelineBudget,
+                JobErrorCode::ResourceLimit,
                 report,
             ));
         }
@@ -131,8 +134,9 @@ impl DevelopJobRunner {
             DecodedArtifact::Scene(mut scene) => {
                 self.process_artifact(
                     &mut scene,
-                    settings,
+                    settings.as_ref(),
                     digest,
+                    &job.decode.limits,
                     cancellation,
                     progress,
                     &report,
@@ -155,8 +159,9 @@ impl DevelopJobRunner {
             DecodedArtifact::Display(mut display) => {
                 self.process_artifact(
                     &mut display,
-                    settings,
+                    settings.as_ref(),
                     digest,
+                    &job.decode.limits,
                     cancellation,
                     progress,
                     &report,
@@ -204,22 +209,36 @@ impl DevelopJobRunner {
         artifact: &mut WorkingArtifact<R>,
         settings: &DevelopSettings,
         digest: crate::io::SourceDigestV1,
+        limits: &crate::io::ResourceLimits,
         cancellation: &CancellationToken,
         progress: &mut impl ProgressSink,
         report: &DevelopJobReport,
     ) -> Result<(), DevelopJobFailure> {
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
-        debug_assert!(settings.is_neutral());
-        let _ = (artifact, digest);
+        self.pipeline
+            .process_bounded_with_context(
+                artifact.image_mut(),
+                settings,
+                Some(&digest.develop_render_context()),
+                limits,
+            )
+            .map_err(|error| {
+                DevelopJobFailure::new(
+                    JobStage::Develop,
+                    pipeline_error_code(&error),
+                    report.clone(),
+                )
+            })?;
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
         progress.stage_completed(JobStage::Develop);
         Ok(())
     }
 
-    fn resolve_preset<'a>(
+    fn resolve_settings<'a>(
         &'a self,
         selection: &'a PresetSelection,
-    ) -> Result<&'a PresetDocument, JobErrorCode> {
+        overrides: &[crate::develop::ParameterOverride],
+    ) -> Result<Cow<'a, DevelopSettings>, JobErrorCode> {
         let document = match selection {
             PresetSelection::CatalogId(id) => {
                 self.catalog.get(id).ok_or(JobErrorCode::InvalidOptions)?
@@ -229,7 +248,13 @@ impl DevelopJobRunner {
         document
             .validate()
             .map_err(|_| JobErrorCode::InvalidOptions)?;
-        Ok(document)
+        if overrides.is_empty() {
+            Ok(Cow::Borrowed(&document.settings))
+        } else {
+            apply_parameter_overrides(&document.settings, overrides)
+                .map(Cow::Owned)
+                .map_err(|_| JobErrorCode::InvalidOptions)
+        }
     }
 
     fn check_cancelled(
@@ -248,6 +273,44 @@ impl DevelopJobRunner {
             Ok(())
         }
     }
+}
+
+fn estimate_job_working_set(
+    dimensions: (u32, u32),
+    relation: crate::io::SignalRelation,
+    settings: &DevelopSettings,
+    limits: &crate::io::ResourceLimits,
+) -> Result<DevelopWorkingSetSummary, PipelineError> {
+    let mut estimate_limits = *limits;
+    // Obtain the required payload first so peak-minus-one failures can carry
+    // the deterministic estimate in their path-free report.
+    estimate_limits.max_working_bytes = u64::MAX;
+    let estimate =
+        estimate_develop_working_set(dimensions.0, dimensions.1, settings, &estimate_limits)?;
+    let post_develop_scene_peak_bytes = if relation == crate::io::SignalRelation::SceneRelatedRaw {
+        let two_rows = u64::from(dimensions.0)
+            .checked_mul(32)
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+        Some(
+            estimate
+                .source_image_bytes
+                .checked_add(two_rows)
+                .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
+        )
+    } else {
+        None
+    };
+    let job_peak_bytes = post_develop_scene_peak_bytes
+        .map_or(estimate.peak_bytes, |scene| scene.max(estimate.peak_bytes));
+    Ok(DevelopWorkingSetSummary {
+        profile: estimate.profile.into(),
+        source_image_bytes: estimate.source_image_bytes,
+        transactional_image_bytes: estimate.transactional_image_bytes,
+        stage_scratch_bytes: estimate.stage_scratch_bytes,
+        develop_peak_bytes: estimate.peak_bytes,
+        post_develop_scene_peak_bytes,
+        job_peak_bytes,
+    })
 }
 
 fn pipeline_error_code(error: &PipelineError) -> JobErrorCode {
@@ -284,16 +347,23 @@ fn scene_error_code(error: &SceneRenderError) -> JobErrorCode {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{
+        path::Path,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
 
     use crate::{
-        develop::{CpuImage, RgbaPixel},
+        develop::{CpuImage, DevelopSettings, PresetDocument, RgbaPixel},
         io::{
             AlphaPolicy, ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, Diagnostic,
             EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy, OutputFormat,
             OutputProfile, OverwritePolicy, RawBackendName, RawMatrixSource,
             RawProcessingProvenance, ResourceLimits, SdrRangePolicy, SignalRelation,
             SourceDigestV1, SourceFileIdentity, WhiteBalanceProvenance,
+            color::SceneToDisplayTransform,
         },
         job::{
             CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
@@ -344,7 +414,10 @@ mod tests {
         }
     }
 
-    struct RelationEncoder;
+    struct RelationEncoder {
+        expected_red: u32,
+        calls: Arc<AtomicUsize>,
+    }
     impl PhotoEncoder for RelationEncoder {
         type Error = EncodeError;
 
@@ -355,6 +428,7 @@ mod tests {
             _options: &EncodeOptions,
             _cancellation: &CancellationToken,
         ) -> Result<EncodeReceipt, Self::Error> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
             assert_eq!(
                 artifact.signal_relation(),
                 SignalRelation::LinearizedDisplayReferred
@@ -362,6 +436,10 @@ mod tests {
             assert_eq!(
                 artifact.image().pixels()[0].alpha().to_bits(),
                 0.37_f32.to_bits()
+            );
+            assert_eq!(
+                artifact.image().pixels()[0].red().to_bits(),
+                self.expected_red
             );
             Ok(EncodeReceipt {
                 bytes_written: 1,
@@ -371,11 +449,16 @@ mod tests {
     }
 
     #[test]
-    fn raw_is_scene_rendered_before_the_display_only_encoder() {
-        let job = DevelopJob {
+    fn raw_pointwise_runs_once_and_job_peak_is_phase_maximum() {
+        let mut settings = DevelopSettings::default();
+        settings.basics.brightness = 100.0;
+        let mut job = DevelopJob {
             input: "input.raw".into(),
             output: "output.jpg".into(),
-            decode: DecodeOptions::default(),
+            decode: DecodeOptions {
+                limits: ResourceLimits::default().with_max_working_bytes(48),
+                ..DecodeOptions::default()
+            },
             output_options: DevelopOutput::new(
                 OutputFormat::Jpeg,
                 90,
@@ -385,23 +468,62 @@ mod tests {
                 SdrRangePolicy::Reject,
             ),
             overwrite: OverwritePolicy::Forbid,
-            preset: PresetSelection::CatalogId("neutral".to_owned()),
+            preset: PresetSelection::document(PresetDocument::new(
+                "raw-pointwise",
+                "RAW pointwise",
+                settings,
+            )),
             overrides: Vec::new(),
+        };
+        let source = [RgbaPixel::new(0.36, 0.36, 0.36, 0.37).unwrap()];
+        let mut expected = source;
+        SceneToDisplayTransform::new()
+            .transform_scanline(
+                &source,
+                &mut expected,
+                SignalRelation::SceneRelatedRaw,
+                &ResourceLimits::default(),
+            )
+            .unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let encoder = RelationEncoder {
+            expected_red: expected[0].red().to_bits(),
+            calls: calls.clone(),
         };
         let report = DevelopJobRunner::built_in()
             .unwrap()
             .run(
                 &job,
                 &RawDecoder,
-                &RelationEncoder,
+                &encoder,
                 &CancellationToken::new(),
                 &mut NoProgress,
             )
             .unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
         assert!(report.scene_render.is_some());
+        let working_set = report.develop_working_set.unwrap();
+        assert_eq!(working_set.develop_peak_bytes, 32);
+        assert_eq!(working_set.post_develop_scene_peak_bytes, Some(48));
+        assert_eq!(working_set.job_peak_bytes, 48);
         assert_eq!(
             report.output_signal_relation,
             Some(super::ReportSignalRelation::LinearizedDisplayReferred)
         );
+
+        job.decode.limits.max_working_bytes = 47;
+        let rejected = DevelopJobRunner::built_in()
+            .unwrap()
+            .run(
+                &job,
+                &RawDecoder,
+                &encoder,
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap_err();
+        assert_eq!(rejected.error.stage, super::JobStage::ResolveSettings);
+        assert_eq!(rejected.error.code, super::JobErrorCode::ResourceLimit);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
     }
 }

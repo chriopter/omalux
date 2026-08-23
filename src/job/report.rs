@@ -1,11 +1,14 @@
 use serde::Serialize;
 
-use crate::io::{SignalRelation, color::SceneRenderReport};
+use crate::{
+    develop::DevelopWorkingSetProfile,
+    io::{SignalRelation, color::SceneRenderReport},
+};
 
 use super::{JobErrorCode, JobStage};
 
 pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.grainroom.develop-job-report";
-pub const DEVELOP_JOB_REPORT_VERSION: u32 = 1;
+pub const DEVELOP_JOB_REPORT_VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReportDigest(pub [u8; 32]);
@@ -43,6 +46,34 @@ impl From<SignalRelation> for ReportSignalRelation {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReportDevelopWorkingSetProfile {
+    PointwiseV1,
+}
+
+impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
+    fn from(value: DevelopWorkingSetProfile) -> Self {
+        match value {
+            DevelopWorkingSetProfile::PointwiseV1 => Self::PointwiseV1,
+        }
+    }
+}
+
+/// Exact requested image payload for the selected bounded develop profile.
+/// A RAW scene peak follows develop, so `job_peak_bytes` is the maximum of the
+/// two phases rather than their sum.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct DevelopWorkingSetSummary {
+    pub profile: ReportDevelopWorkingSetProfile,
+    pub source_image_bytes: u64,
+    pub transactional_image_bytes: u64,
+    pub stage_scratch_bytes: u64,
+    pub develop_peak_bytes: u64,
+    pub post_develop_scene_peak_bytes: Option<u64>,
+    pub job_peak_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct SceneRenderSummary {
     pub tone_mapped_pixels: u64,
     pub gamut_compressed_pixels: u64,
@@ -75,6 +106,7 @@ pub struct DevelopJobReport {
     pub source_digest_v1: Option<ReportDigest>,
     pub input_signal_relation: Option<ReportSignalRelation>,
     pub output_signal_relation: Option<ReportSignalRelation>,
+    pub develop_working_set: Option<DevelopWorkingSetSummary>,
     pub scene_render: Option<SceneRenderSummary>,
     pub outcome: DevelopJobOutcome,
 }
@@ -87,6 +119,7 @@ impl DevelopJobReport {
             source_digest_v1: None,
             input_signal_relation: None,
             output_signal_relation: None,
+            develop_working_set: None,
             scene_render: None,
             outcome: DevelopJobOutcome::Failure {
                 stage: JobStage::Validate,
