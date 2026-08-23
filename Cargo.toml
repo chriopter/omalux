@@ -13,6 +13,7 @@ homepage = "https://github.com/chriopter/grainroom"
 repository = "https://github.com/chriopter/grainroom"
 
 [dependencies]
+clap = { version = "4.5", features = ["derive"] }
 crc32fast = "1.5"
 flate2 = "1.1"
 image = { version = "0.25", default-features = false, features = ["bmp", "jpeg", "png"] }
