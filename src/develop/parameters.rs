@@ -1,4 +1,7 @@
-use super::DevelopStage;
+use super::{
+    DevelopStage,
+    settings::{TONE_CURVE_MAX, TONE_CURVE_MIN},
+};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -12,6 +15,7 @@ pub enum ParameterUnit {
     Normalized,
     Percent,
     QuarterTurns,
+    Stops,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -94,8 +98,8 @@ impl ParameterDefinition {
             stage: DevelopStage::ToneCurves,
             kind: ParameterKind::Curve,
             unit: ParameterUnit::ControlPoints,
-            minimum: 0.0,
-            maximum: 1.0,
+            minimum: TONE_CURVE_MIN,
+            maximum: TONE_CURVE_MAX,
             neutral: 0.0,
             step: 0.001,
             neutral_representation: NeutralRepresentation::IdentityCurve,
@@ -224,6 +228,15 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         ));
     }
 
+    definitions.push(ParameterDefinition::scalar(
+        "basics.exposure_ev",
+        "Exposure",
+        Basics,
+        Stops,
+        (-4.0, 4.0),
+        0.0,
+        0.1,
+    ));
     for name in [
         "brightness",
         "contrast",

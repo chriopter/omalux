@@ -41,6 +41,7 @@ pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(
 /// Prepared normative WP1 point operations shared with local adjustments.
 pub(super) struct PreparedBasics {
     white_balance: [[f64; 3]; 3],
+    exposure_ev: f64,
     brightness_ev: f64,
     whites: f32,
     blacks: f32,
@@ -55,6 +56,7 @@ impl PreparedBasics {
     fn from_settings(settings: &BasicsSettings) -> Self {
         Self {
             white_balance: prepare_temperature_tint_matrix(settings.temperature, settings.tint),
+            exposure_ev: f64::from(settings.exposure_ev),
             brightness_ev: f64::from(settings.brightness) / 100.0,
             whites: settings.whites,
             blacks: settings.blacks,
@@ -69,6 +71,7 @@ impl PreparedBasics {
     pub(super) fn from_local(settings: &LocalAdjustments) -> Self {
         Self {
             white_balance: prepare_temperature_tint_matrix(settings.temperature, settings.tint),
+            exposure_ev: 0.0,
             brightness_ev: f64::from(settings.brightness) / 100.0,
             whites: 0.0,
             blacks: 0.0,
@@ -87,6 +90,7 @@ impl PreparedBasics {
             f64::from(pixel.blue),
         ];
         rgb = multiply_matrix(self.white_balance, rgb);
+        rgb = exposure(rgb, self.exposure_ev);
         rgb = exposure(rgb, self.brightness_ev);
         rgb = whites_blacks(rgb, self.whites, self.blacks);
         rgb = highlights_shadows(rgb, self.highlights, self.shadows);
@@ -105,6 +109,7 @@ impl PreparedBasics {
             f64::from(pixel.blue),
         ];
         rgb = multiply_matrix(self.white_balance, rgb);
+        rgb = exposure(rgb, self.exposure_ev);
         rgb = exposure(rgb, self.brightness_ev);
         rgb = whites_blacks(rgb, self.whites, self.blacks);
         rgb = highlights_shadows(rgb, self.highlights, self.shadows);

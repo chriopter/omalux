@@ -1,6 +1,9 @@
 use super::{SettingsError, canonical_zero, validate_range_lazy};
 use serde::{Deserialize, Serialize};
 
+pub const TONE_CURVE_MIN: f32 = -4.0;
+pub const TONE_CURVE_MAX: f32 = 4.0;
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CurvePoint {
@@ -30,11 +33,21 @@ impl ToneCurve {
                 "must contain between 2 and 32 points",
             ));
         }
-        let mut previous_x = -1.0;
-        let mut previous_y = -1.0;
+        let mut previous_x = f32::NEG_INFINITY;
+        let mut previous_y = f32::NEG_INFINITY;
         for (index, point) in self.points.iter().enumerate() {
-            validate_range_lazy(|| format!("{path}.points[{index}].x"), point.x, 0.0, 1.0)?;
-            validate_range_lazy(|| format!("{path}.points[{index}].y"), point.y, 0.0, 1.0)?;
+            validate_range_lazy(
+                || format!("{path}.points[{index}].x"),
+                point.x,
+                TONE_CURVE_MIN,
+                TONE_CURVE_MAX,
+            )?;
+            validate_range_lazy(
+                || format!("{path}.points[{index}].y"),
+                point.y,
+                TONE_CURVE_MIN,
+                TONE_CURVE_MAX,
+            )?;
             if point.x <= previous_x {
                 return Err(SettingsError::new(
                     format!("{path}.points[{index}].x"),
@@ -50,12 +63,12 @@ impl ToneCurve {
             previous_x = point.x;
             previous_y = point.y;
         }
-        if self.points.first().map(|point| point.x) != Some(0.0)
-            || self.points.last().map(|point| point.x) != Some(1.0)
+        if self.points.first().is_none_or(|point| point.x > 0.0)
+            || self.points.last().is_none_or(|point| point.x < 1.0)
         {
             return Err(SettingsError::new(
                 format!("{path}.points"),
-                "curve must span x=0 through x=1",
+                "curve domain must include x=0 through x=1",
             ));
         }
         Ok(())

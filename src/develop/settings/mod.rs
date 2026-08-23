@@ -14,7 +14,7 @@ pub use geometry::{CropRect, GeometrySettings};
 pub use masks::{LocalAdjustments, RadialMask, RadialMasksSettings};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-pub use tone_curves::{CurvePoint, ToneCurve, ToneCurvesSettings};
+pub use tone_curves::{CurvePoint, TONE_CURVE_MAX, TONE_CURVE_MIN, ToneCurve, ToneCurvesSettings};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

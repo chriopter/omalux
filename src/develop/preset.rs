@@ -2,7 +2,8 @@ use super::{DevelopSettings, SettingsError};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-pub const PRESET_SCHEMA_VERSION: u32 = 1;
+pub const PRESET_SCHEMA_VERSION: u32 = 2;
+const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
 pub const PRESET_SCHEMA_ID: &str = "io.omacom.grainroom.preset";
 
 #[derive(Deserialize)]
@@ -63,10 +64,22 @@ impl PresetDocument {
         if envelope.schema != PRESET_SCHEMA_ID {
             return Err(PresetError::UnsupportedSchema(envelope.schema));
         }
-        if envelope.schema_version != PRESET_SCHEMA_VERSION {
+        if !matches!(
+            envelope.schema_version,
+            LEGACY_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
+        ) {
             return Err(PresetError::UnsupportedVersion(envelope.schema_version));
         }
-        let document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
+        let value: serde_json::Value = serde_json::from_str(json).map_err(PresetError::Json)?;
+        let mut document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
+        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
+            validate_v1_semantics(&value, &document)?;
+            document.schema_version = PRESET_SCHEMA_VERSION;
+        } else if value.pointer("/settings/basics/exposure_ev").is_none() {
+            return Err(PresetError::MissingRequiredField(
+                "settings.basics.exposure_ev",
+            ));
+        }
         document.validate()?;
         Ok(document)
     }
@@ -81,11 +94,57 @@ impl PresetDocument {
     }
 }
 
+fn validate_v1_semantics(
+    value: &serde_json::Value,
+    document: &PresetDocument,
+) -> Result<(), PresetError> {
+    if value.pointer("/settings/basics/exposure_ev").is_some() {
+        return Err(PresetError::FieldNotAvailable {
+            version: LEGACY_PRESET_SCHEMA_VERSION,
+            path: "settings.basics.exposure_ev",
+        });
+    }
+    for (path, curve) in [
+        (
+            "settings.tone_curves.master",
+            &document.settings.tone_curves.master,
+        ),
+        (
+            "settings.tone_curves.red",
+            &document.settings.tone_curves.red,
+        ),
+        (
+            "settings.tone_curves.green",
+            &document.settings.tone_curves.green,
+        ),
+        (
+            "settings.tone_curves.blue",
+            &document.settings.tone_curves.blue,
+        ),
+    ] {
+        let legacy_range = curve
+            .points
+            .iter()
+            .all(|point| (0.0..=1.0).contains(&point.x) && (0.0..=1.0).contains(&point.y));
+        let legacy_domain = curve.points.first().map(|point| point.x) == Some(0.0)
+            && curve.points.last().map(|point| point.x) == Some(1.0);
+        if !legacy_range || !legacy_domain {
+            return Err(PresetError::FieldNotAvailable {
+                version: LEGACY_PRESET_SCHEMA_VERSION,
+                path,
+            });
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum PresetError {
     Json(serde_json::Error),
     UnsupportedSchema(String),
     UnsupportedVersion(u32),
+    MissingRequiredField(&'static str),
+    FieldNotAvailable { version: u32, path: &'static str },
     InvalidIdentity(String),
     Settings(SettingsError),
 }
@@ -99,6 +158,15 @@ impl fmt::Display for PresetError {
             }
             Self::UnsupportedVersion(version) => {
                 write!(formatter, "unsupported preset schema version {version}")
+            }
+            Self::MissingRequiredField(path) => {
+                write!(formatter, "missing required preset field {path}")
+            }
+            Self::FieldNotAvailable { version, path } => {
+                write!(
+                    formatter,
+                    "field {path} is not available in preset schema version {version}"
+                )
             }
             Self::InvalidIdentity(message) => {
                 write!(formatter, "invalid preset identity: {message}")

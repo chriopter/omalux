@@ -738,6 +738,7 @@ fn unit_name(value: ParameterUnit) -> &'static str {
         ParameterUnit::Normalized => "normalized",
         ParameterUnit::Percent => "percent",
         ParameterUnit::QuarterTurns => "quarter_turns",
+        ParameterUnit::Stops => "stops",
     }
 }
 

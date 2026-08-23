@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BasicsSettings {
+    /// Scene-linear exposure compensation in photographic stops. Missing in
+    /// schema-v1 JSON means neutral exposure during migration.
+    #[serde(default)]
+    pub exposure_ev: f32,
     pub brightness: f32,
     pub contrast: f32,
     pub clarity: f32,
@@ -19,6 +23,12 @@ pub struct BasicsSettings {
 
 impl BasicsSettings {
     pub fn validate(&self) -> Result<(), SettingsError> {
+        validate_range_lazy(
+            || "basics.exposure_ev".to_owned(),
+            self.exposure_ev,
+            -4.0,
+            4.0,
+        )?;
         for (name, value) in [
             ("brightness", self.brightness),
             ("contrast", self.contrast),
@@ -42,6 +52,7 @@ impl BasicsSettings {
     }
 
     pub(crate) fn canonicalize(&mut self) {
+        self.exposure_ev = canonical_zero(self.exposure_ev);
         self.brightness = canonical_zero(self.brightness);
         self.contrast = canonical_zero(self.contrast);
         self.clarity = canonical_zero(self.clarity);

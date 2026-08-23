@@ -151,8 +151,10 @@ enum PreparedCurve {
     Identity,
     Pchip {
         segments: Vec<PchipSegment>,
+        first_x: f64,
         first_y: f64,
         first_slope: f64,
+        last_x: f64,
         last_y: f64,
         last_slope: f64,
     },
@@ -204,8 +206,10 @@ impl PreparedCurve {
         }
         Ok(Self::Pchip {
             segments,
+            first_x: f64::from(curve.points[0].x),
             first_y: f64::from(curve.points[0].y),
             first_slope: slopes[0],
+            last_x: f64::from(curve.points[curve.points.len() - 1].x),
             last_y: f64::from(curve.points[curve.points.len() - 1].y),
             last_slope: slopes[curve.points.len() - 1],
         })
@@ -220,16 +224,18 @@ impl PreparedCurve {
             Self::Identity => value,
             Self::Pchip {
                 segments,
+                first_x,
                 first_y,
                 first_slope,
+                last_x,
                 last_y,
                 last_slope,
             } => {
-                if value < 0.0 {
-                    return first_y + first_slope * value;
+                if value < *first_x {
+                    return first_y + first_slope * (value - first_x);
                 }
-                if value > 1.0 {
-                    return last_y + last_slope * (value - 1.0);
+                if value > *last_x {
+                    return last_y + last_slope * (value - last_x);
                 }
                 let index = segments
                     .partition_point(|segment| segment.x1 < value)

@@ -174,6 +174,7 @@ fn set_scalar(
         "geometry.crop.y" => crop(settings).y = value,
         "geometry.crop.width" => crop(settings).width = value,
         "geometry.crop.height" => crop(settings).height = value,
+        "basics.exposure_ev" => settings.basics.exposure_ev = value,
         "basics.brightness" => settings.basics.brightness = value,
         "basics.contrast" => settings.basics.contrast = value,
         "basics.clarity" => settings.basics.clarity = value,
