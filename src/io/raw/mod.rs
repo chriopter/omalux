@@ -4,6 +4,7 @@
 mod ppm;
 mod process;
 mod stage;
+mod trusted;
 
 use crate::io::{
     ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic,
@@ -15,6 +16,7 @@ use crate::io::{
 use super::RawBackendName;
 pub use process::{RawCancellation, RawCapability, RawExecutionOptions, probe_dcraw_emu};
 use std::{fs::File, path::Path};
+pub use trusted::trusted_dcraw_execution;
 
 /// Stages one immutable source byte stream, runs full-resolution dcraw_emu,
 /// and returns scene-linear Rec.2020 pixels. No ICC accuracy is claimed.

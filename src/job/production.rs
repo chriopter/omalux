@@ -1,11 +1,6 @@
 //! Production Qt-free decoder and JPEG publication services.
 
-use std::{
-    fs::File,
-    io,
-    os::unix::fs::{FileExt, MetadataExt, PermissionsExt},
-    path::Path,
-};
+use std::{fs::File, io, os::unix::fs::FileExt, path::Path};
 
 use rustix::fs::{self, FileType, Mode, OFlags};
 
@@ -15,15 +10,13 @@ use crate::{
         EncodeError, EncodeOptions, JpegEncodeInput, JpegEncodeRequest, OutputFormat,
         ResourceLimits,
         raster::{RasterCancellation, decode_raster_file},
-        raw::{RawCancellation, RawExecutionOptions, decode_raw_file},
+        raw::{RawCancellation, RawExecutionOptions, decode_raw_file, trusted_dcraw_execution},
     },
     job::{
         CancellationToken, DecodedSource, DisplayReferred, EncodeReceipt, PhotoDecoder,
         PhotoEncoder, PublicationRequest, PublicationStatus, WorkingArtifact,
     },
 };
-
-const PRODUCTION_DCRAW: &str = "/usr/bin/dcraw_emu";
 
 #[derive(Clone, Debug)]
 pub struct ProductionPhotoDecoder {
@@ -36,7 +29,7 @@ impl ProductionPhotoDecoder {
     /// the trusted-file policy.
     pub fn new() -> Self {
         Self {
-            raw: trusted_raw_execution().ok(),
+            raw: trusted_dcraw_execution().ok(),
         }
     }
 
@@ -129,20 +122,6 @@ fn map_source_open(error: rustix::io::Errno) -> DecodeError {
     } else {
         DecodeError::Input(io::Error::from_raw_os_error(error.raw_os_error()))
     }
-}
-
-fn trusted_raw_execution() -> Result<RawExecutionOptions, DecodeError> {
-    let path = Path::new(PRODUCTION_DCRAW);
-    let metadata =
-        std::fs::symlink_metadata(path).map_err(|_| DecodeError::RawBackendUnavailable)?;
-    if !metadata.file_type().is_file()
-        || metadata.uid() != 0
-        || metadata.permissions().mode() & 0o111 == 0
-        || metadata.permissions().mode() & 0o022 != 0
-    {
-        return Err(DecodeError::RawBackendUnavailable);
-    }
-    RawExecutionOptions::new(path)
 }
 
 #[derive(Clone, Copy, Debug)]

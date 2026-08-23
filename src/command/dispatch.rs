@@ -25,26 +25,15 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     fs::File,
-    io::{self, Read, Write},
-    os::{
-        fd::AsRawFd,
-        unix::{
-            fs::{MetadataExt, PermissionsExt},
-            process::CommandExt,
-        },
-    },
+    io::{self, Write},
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
-    process::{Command as ProcessCommand, ExitStatus, Stdio},
+    process::{Command as ProcessCommand, ExitStatus},
     sync::{
         Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
 };
-
-const RAW_PROBE_CANDIDATES: [&str; 2] = ["/usr/bin/dcraw_emu", "/usr/local/bin/dcraw_emu"];
-const RAW_PROBE_SENTINEL: &str = "/proc/self/fd/2147483647";
-const RAW_PROBE_CAPTURE_BYTES: usize = 8 * 1024;
 
 pub(crate) trait GuiResolver {
     fn packaged_sibling(&self) -> io::Result<HeldGuiExecutable>;
@@ -234,40 +223,8 @@ fn validate_develop(
         return emit_unavailable(arguments.json, stdout, stderr, "heic_encoder");
     }
 
-    let catalog = match PresetCatalog::built_in() {
-        Ok(catalog) => catalog,
-        Err(_) => {
-            human_error(stderr, "built-in preset catalog is unavailable");
-            return CommandExit::Internal;
-        }
-    };
-    let preset = if let Some(path) = arguments.preset_file.as_deref() {
-        match load_preset_file(path) {
-            Ok(document) => PresetSelection::document(document),
-            Err(_) => {
-                human_error(stderr, "external preset could not be loaded");
-                return CommandExit::Usage;
-            }
-        }
-    } else {
-        let id = arguments.preset.as_deref().unwrap_or("neutral");
-        let Some(document) = catalog.get(id) else {
-            human_error(stderr, "unknown built-in preset ID");
-            return CommandExit::Usage;
-        };
-        PresetSelection::CatalogId(document.id.clone())
-    };
-    let base_settings = match &preset {
-        PresetSelection::CatalogId(id) => {
-            &catalog.get(id).expect("catalog ID was checked").settings
-        }
-        PresetSelection::Document(document) => &document.settings,
-    };
-    if apply_parameter_overrides(base_settings, &arguments.overrides).is_err() {
-        human_error(stderr, "parameter overrides do not form valid settings");
-        return CommandExit::Usage;
-    }
-
+    // All option-only contracts precede external preset I/O. A malformed
+    // resource budget must not touch even a FIFO or inaccessible preset path.
     let mut limits = ResourceLimits::default();
     if let Some(value) = arguments.max_source_bytes {
         limits.max_source_bytes = value;
@@ -304,6 +261,45 @@ fn validate_develop(
         alpha,
         SdrRangePolicy::ClipAndReport,
     );
+    if decode.validate().is_err() || output_options.validate().is_err() {
+        human_error(stderr, "develop options are invalid");
+        return CommandExit::Usage;
+    }
+
+    let catalog = match PresetCatalog::built_in() {
+        Ok(catalog) => catalog,
+        Err(_) => {
+            human_error(stderr, "built-in preset catalog is unavailable");
+            return CommandExit::Internal;
+        }
+    };
+    let preset = if let Some(path) = arguments.preset_file.as_deref() {
+        match load_preset_file(path) {
+            Ok(document) => PresetSelection::document(document),
+            Err(_) => {
+                human_error(stderr, "external preset could not be loaded");
+                return CommandExit::Usage;
+            }
+        }
+    } else {
+        let id = arguments.preset.as_deref().unwrap_or("neutral");
+        let Some(document) = catalog.get(id) else {
+            human_error(stderr, "unknown built-in preset ID");
+            return CommandExit::Usage;
+        };
+        PresetSelection::CatalogId(document.id.clone())
+    };
+    let base_settings = match &preset {
+        PresetSelection::CatalogId(id) => {
+            &catalog.get(id).expect("catalog ID was checked").settings
+        }
+        PresetSelection::Document(document) => &document.settings,
+    };
+    if apply_parameter_overrides(base_settings, &arguments.overrides).is_err() {
+        human_error(stderr, "parameter overrides do not form valid settings");
+        return CommandExit::Usage;
+    }
+
     let job = DevelopJob {
         input: arguments.input,
         output: arguments.output,
@@ -612,7 +608,7 @@ fn list_parameters(
 }
 
 fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
-    let available = trusted_raw_probe(&RAW_PROBE_CANDIDATES);
+    let available = grainroom::io::raw::trusted_dcraw_execution().is_ok();
     if json_output {
         write_json(
             stdout,
@@ -634,163 +630,6 @@ fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> C
     } else {
         human_error(stderr, "probe output could not be written");
         CommandExit::Internal
-    }
-}
-
-fn trusted_raw_probe(candidates: &[&str]) -> bool {
-    candidates.iter().any(|candidate| {
-        let path = Path::new(candidate);
-        let Ok(metadata) = std::fs::symlink_metadata(path) else {
-            return false;
-        };
-        path.is_absolute()
-            && metadata.file_type().is_file()
-            && metadata.uid() == 0
-            && metadata.permissions().mode() & 0o111 != 0
-            && metadata.permissions().mode() & 0o022 == 0
-            && functional_dcraw_handshake(path)
-    })
-}
-
-fn functional_dcraw_handshake(executable: &Path) -> bool {
-    let mut command = ProcessCommand::new(executable);
-    command
-        .arg("-v")
-        .arg(RAW_PROBE_SENTINEL)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0);
-    let mut child = match command.spawn() {
-        Ok(child) => child,
-        Err(_) => return false,
-    };
-    let process_group = child.id();
-    let Some(leader) = rustix::process::Pid::from_raw(process_group as i32) else {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    };
-    let (Some(mut stdout), Some(mut stderr)) = (child.stdout.take(), child.stderr.take()) else {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    };
-    if !set_nonblocking(&stdout) || !set_nonblocking(&stderr) {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    }
-    let deadline = Instant::now() + Duration::from_millis(750);
-    let mut observed_exit = None;
-    let mut stdout_eof = false;
-    let mut stderr_eof = false;
-    let mut stdout_bytes = Vec::new();
-    let mut stderr_bytes = Vec::new();
-    let completed = loop {
-        if !drain_probe_stream(&mut stdout, &mut stdout_bytes, &mut stdout_eof)
-            || !drain_probe_stream(&mut stderr, &mut stderr_bytes, &mut stderr_eof)
-        {
-            break false;
-        }
-        if observed_exit.is_none() {
-            match observe_probe_exit(leader) {
-                Ok(value) => observed_exit = value,
-                Err(()) => break false,
-            }
-        }
-        if observed_exit.is_some() && stdout_eof && stderr_eof {
-            break true;
-        }
-        if Instant::now() >= deadline {
-            break false;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
-    if !completed {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    }
-    let Some(exit_code) = observed_exit else {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    };
-    // Keep the exited leader unreaped until all same-group survivors are
-    // terminated. This pins the numeric PID/PGID against reuse.
-    if observe_probe_exit(leader).ok().flatten().is_none() {
-        kill_probe_group(process_group);
-        let _ = child.wait();
-        return false;
-    }
-    kill_probe_group(process_group);
-    std::thread::sleep(Duration::from_millis(10));
-    if observe_probe_exit(leader).ok().flatten().is_none() {
-        let _ = child.wait();
-        return false;
-    }
-    let status = match child.wait() {
-        Ok(status) => status,
-        Err(_) => return false,
-    };
-    if status.code() != Some(exit_code) {
-        return false;
-    }
-    let mut output = stdout_bytes;
-    output.extend_from_slice(&stderr_bytes);
-    let output = String::from_utf8_lossy(&output);
-    exit_code == 2
-        && output.contains("Using ")
-        && output.contains(" threads")
-        && output.contains(&format!("Processing file {RAW_PROBE_SENTINEL}"))
-        && output.contains("Cannot open")
-}
-
-fn set_nonblocking(file: &impl std::os::fd::AsFd) -> bool {
-    let Ok(flags) = rustix::fs::fcntl_getfl(file) else {
-        return false;
-    };
-    rustix::fs::fcntl_setfl(file, flags | rustix::fs::OFlags::NONBLOCK).is_ok()
-}
-
-fn drain_probe_stream(stream: &mut impl Read, retained: &mut Vec<u8>, eof: &mut bool) -> bool {
-    let mut chunk = [0_u8; 1024];
-    loop {
-        match stream.read(&mut chunk) {
-            Ok(0) => {
-                *eof = true;
-                return true;
-            }
-            Ok(count) => {
-                let Some(new_len) = retained.len().checked_add(count) else {
-                    return false;
-                };
-                if new_len > RAW_PROBE_CAPTURE_BYTES {
-                    return false;
-                }
-                retained.extend_from_slice(&chunk[..count]);
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return true,
-            Err(_) => return false,
-        }
-    }
-}
-
-fn observe_probe_exit(leader: rustix::process::Pid) -> Result<Option<i32>, ()> {
-    rustix::process::waitid(
-        rustix::process::WaitId::Pid(leader),
-        rustix::process::WaitIdOptions::EXITED
-            | rustix::process::WaitIdOptions::NOHANG
-            | rustix::process::WaitIdOptions::NOWAIT,
-    )
-    .map(|status| status.and_then(|status| status.exit_status()))
-    .map_err(|_| ())
-}
-
-fn kill_probe_group(process_group: u32) {
-    if let Some(pid) = rustix::process::Pid::from_raw(process_group as i32) {
-        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::KILL);
     }
 }
 
@@ -951,70 +790,6 @@ mod tests {
             SystemGuiProcess.launch(&held, None).unwrap().code(),
             Some(23)
         );
-    }
-
-    #[test]
-    fn raw_probe_requires_the_expected_bounded_behavior() {
-        let directory = tempdir().unwrap();
-        let valid = directory.path().join("valid");
-        fs::write(
-            &valid,
-            format!(
-                "#!/bin/sh\nprintf 'Using 4 threads\\nProcessing file {RAW_PROBE_SENTINEL}\\nCannot open {RAW_PROBE_SENTINEL}: Input/output error\\n' >&2\nexit 2\n"
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&valid, fs::Permissions::from_mode(0o700)).unwrap();
-        assert!(functional_dcraw_handshake(&valid));
-
-        let impostor = directory.path().join("dcraw_emu");
-        fs::write(&impostor, "#!/bin/sh\nexit 0\n").unwrap();
-        fs::set_permissions(&impostor, fs::Permissions::from_mode(0o700)).unwrap();
-        assert!(!functional_dcraw_handshake(&impostor));
-        assert!(!trusted_raw_probe(&[impostor.to_str().unwrap()]));
-
-        let survivor_pid = directory.path().join("survivor-pid");
-        let same_group = directory.path().join("same-group");
-        fs::write(
-            &same_group,
-            format!(
-                "#!/bin/sh\nprintf 'Using 4 threads\\nProcessing file {RAW_PROBE_SENTINEL}\\nCannot open {RAW_PROBE_SENTINEL}\\n'\nsleep 5 >/dev/null 2>&1 & echo $! > '{}'\nexit 2\n",
-                survivor_pid.display()
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&same_group, fs::Permissions::from_mode(0o700)).unwrap();
-        assert!(functional_dcraw_handshake(&same_group));
-        assert_not_running(fs::read_to_string(&survivor_pid).unwrap().trim());
-
-        let detached_pid = directory.path().join("detached-pid");
-        let detached = directory.path().join("detached");
-        fs::write(
-            &detached,
-            format!(
-                "#!/bin/sh\nsetsid sh -c 'echo $$ > \"{}\"; sleep 5' &\nexit 0\n",
-                detached_pid.display()
-            ),
-        )
-        .unwrap();
-        fs::set_permissions(&detached, fs::Permissions::from_mode(0o700)).unwrap();
-        let started = Instant::now();
-        assert!(!functional_dcraw_handshake(&detached));
-        assert!(started.elapsed() < Duration::from_millis(1_200));
-        if let Ok(pid) = fs::read_to_string(detached_pid)
-            && let Ok(pid) = pid.trim().parse::<i32>()
-            && let Some(pid) = rustix::process::Pid::from_raw(pid)
-        {
-            let _ = rustix::process::kill_process(pid, rustix::process::Signal::KILL);
-        }
-    }
-
-    fn assert_not_running(pid: &str) {
-        let status = fs::read_to_string(format!("/proc/{pid}/stat"));
-        if let Ok(status) = status {
-            let state = status.rsplit_once(") ").unwrap().1.as_bytes()[0];
-            assert_eq!(state, b'Z', "probe survivor {pid} is still running");
-        }
     }
 
     #[test]

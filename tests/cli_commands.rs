@@ -191,6 +191,31 @@ fn unavailable_heic_does_not_open_or_create_any_requested_file() {
     assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
 }
 
+#[test]
+fn invalid_resource_limits_precede_external_preset_io() {
+    use rustix::fs::Mode;
+
+    let directory = tempfile::tempdir().unwrap();
+    let preset_fifo = directory.path().join("preset.json");
+    rustix::fs::mkfifoat(rustix::fs::CWD, &preset_fifo, Mode::RUSR | Mode::WUSR).unwrap();
+    let output = directory.path().join("must-not-exist.jpg");
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(directory.path().join("missing.jpg"))
+        .arg("--output")
+        .arg(&output)
+        .arg("--preset-file")
+        .arg(&preset_fifo)
+        .arg("--max-source-bytes")
+        .arg("0")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    assert!(preset_fifo.exists());
+    assert!(!output.exists());
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn gui_command_rejects_a_sibling_symlink_and_accepts_a_regular_held_sibling() {
