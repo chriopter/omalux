@@ -5,6 +5,7 @@
 //! pipeline and stable error classifications suitable for a future CLI.
 
 mod atomic;
+pub mod color;
 mod digest;
 mod error;
 mod limits;
