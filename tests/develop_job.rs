@@ -52,7 +52,7 @@ impl PhotoDecoder for FakeDecoder {
 #[derive(Clone)]
 struct FakeEncoder {
     calls: Arc<Mutex<Vec<&'static str>>>,
-    observed: Arc<Mutex<Vec<(SignalRelation, f32)>>>,
+    observed: Arc<Mutex<Vec<(SignalRelation, f32, Vec<[u32; 4]>)>>>,
     publication: PublicationStatus,
     cancel_on_publish: bool,
 }
@@ -79,9 +79,23 @@ impl PhotoEncoder for FakeEncoder {
         cancellation: &CancellationToken,
     ) -> Result<EncodeReceipt, Self::Error> {
         self.calls.lock().unwrap().push("encode");
+        let pixels = artifact
+            .image()
+            .pixels()
+            .iter()
+            .map(|pixel| {
+                [
+                    pixel.red().to_bits(),
+                    pixel.green().to_bits(),
+                    pixel.blue().to_bits(),
+                    pixel.alpha().to_bits(),
+                ]
+            })
+            .collect();
         self.observed.lock().unwrap().push((
             artifact.signal_relation(),
             artifact.image().pixels()[0].red(),
+            pixels,
         ));
         if self.cancel_on_publish {
             cancellation.cancel();
@@ -240,6 +254,9 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         .unwrap();
     let json = serde_json::to_string(&report).unwrap();
     assert!(json.contains("io.omacom.grainroom.develop-job-report"));
+    assert!(json.contains("\"schema_version\":2"));
+    assert!(json.contains("\"profile\":\"pointwise_v1\""));
+    assert!(json.contains("\"job_peak_bytes\":64"));
     assert!(!json.contains("/virtual/"));
     assert!(!json.contains("input.raw"));
     assert!(!json.contains("output.jpg"));
@@ -272,7 +289,7 @@ fn invalid_preset_fails_after_decode_but_before_develop_or_encode() {
 }
 
 #[test]
-fn non_neutral_override_is_rejected_until_pipeline_budget_is_proven() {
+fn pointwise_override_is_applied_to_the_encoded_artifact() {
     let decoder = FakeDecoder {
         photo: decoded(),
         cancel_after_decode: false,
@@ -284,7 +301,7 @@ fn non_neutral_override_is_rejected_until_pipeline_budget_is_proven() {
     request
         .overrides
         .push(ParameterOverride::scalar("basics.brightness", 25.0));
-    let failure = DevelopJobRunner::built_in()
+    let report = DevelopJobRunner::built_in()
         .unwrap()
         .run(
             &request,
@@ -293,18 +310,20 @@ fn non_neutral_override_is_rejected_until_pipeline_budget_is_proven() {
             &CancellationToken::new(),
             &mut Stages::default(),
         )
-        .unwrap_err();
-    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
-    assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
-    assert!(encoder.calls.lock().unwrap().is_empty());
+        .unwrap();
+    assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
+    let expected = f64::from(0.18_f32) * 2.0_f64.powf(0.25);
+    assert_eq!(encoder.observed.lock().unwrap()[0].1, expected as f32);
+    assert_eq!(
+        report.develop_working_set.unwrap().profile,
+        grainroom::job::ReportDevelopWorkingSetProfile::PointwiseV1
+    );
 }
 
 #[test]
-fn proven_pointwise_profile_remains_job_gated_until_the_adapter_is_reviewed() {
+fn pointwise_preset_is_applied_to_the_encoded_artifact() {
     let mut settings = DevelopSettings::default();
-    settings.basics.brightness = 12.0;
-    settings.effects.fade = 5.0;
-    settings.effects.grain.amount = 24.0;
+    settings.basics.brightness = 100.0;
     let estimate = estimate_develop_working_set(
         2,
         1,
@@ -328,7 +347,7 @@ fn proven_pointwise_profile_remains_job_gated_until_the_adapter_is_reviewed() {
         "Pointwise job gate",
         settings,
     ));
-    let failure = DevelopJobRunner::built_in()
+    let report = DevelopJobRunner::built_in()
         .unwrap()
         .run(
             &request,
@@ -337,20 +356,105 @@ fn proven_pointwise_profile_remains_job_gated_until_the_adapter_is_reviewed() {
             &CancellationToken::new(),
             &mut Stages::default(),
         )
-        .unwrap_err();
-    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
-    assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
-    assert!(encoder.calls.lock().unwrap().is_empty());
+        .unwrap();
+    assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
+    assert_eq!(encoder.observed.lock().unwrap()[0].1, 0.36_f32);
+    assert_eq!(report.develop_working_set.unwrap().job_peak_bytes, 64);
 }
 
 #[test]
-fn every_allocating_stage_family_is_fail_closed_without_an_estimator() {
+fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+        source_identity: source_identity(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut exact = job();
+    exact.decode.limits.max_working_bytes = 64;
+    let report = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &exact,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap();
+    assert_eq!(report.develop_working_set.unwrap().job_peak_bytes, 64);
+    assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
+
+    let rejected_encoder = FakeEncoder::default();
+    let mut below = job();
+    below.decode.limits.max_working_bytes = 63;
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &below,
+            &decoder,
+            &rejected_encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
+    assert_eq!(
+        failure.report.develop_working_set.unwrap().job_peak_bytes,
+        64
+    );
+    assert!(rejected_encoder.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn grain_seed_depends_on_content_not_renamed_paths() {
+    let mut settings = DevelopSettings::default();
+    settings.effects.grain.amount = 61.0;
+    let preset = PresetDocument::new("grain-rename", "Grain rename", settings);
+    let render = |input: &str, output: &str| {
+        let decoder = FakeDecoder {
+            photo: decoded(),
+            cancel_after_decode: false,
+            calls: Arc::default(),
+            source_identity: source_identity(),
+        };
+        let encoder = FakeEncoder::default();
+        let mut request = job();
+        request.input = input.into();
+        request.output = output.into();
+        request.preset = PresetSelection::document(preset.clone());
+        DevelopJobRunner::built_in()
+            .unwrap()
+            .run(
+                &request,
+                &decoder,
+                &encoder,
+                &CancellationToken::new(),
+                &mut Stages::default(),
+            )
+            .unwrap();
+        encoder.observed.lock().unwrap()[0].2.clone()
+    };
+    assert_eq!(
+        render("/renamed/one.jpg", "/out/one.jpg"),
+        render("/elsewhere/two.jpg", "/out/two.jpg")
+    );
+}
+
+#[test]
+fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
     let mut clarity = DevelopSettings::default();
     clarity.basics.clarity = 1.0;
-    let mut effects = DevelopSettings::default();
-    effects.effects.bloom = 1.0;
     let mut geometry = DevelopSettings::default();
     geometry.geometry.straighten_degrees = 1.0;
+    let mut curves = DevelopSettings::default();
+    curves.tone_curves.master.points[1].y = 0.75;
+    let mut mixer = DevelopSettings::default();
+    mixer.color_mixer.red.saturation = 1.0;
+    let mut grading = DevelopSettings::default();
+    grading.color_grading.midtones.saturation = 1.0;
     let mut radial = DevelopSettings::default();
     radial.radial_masks.masks.push(RadialMask {
         id: "resource-test".to_owned(),
@@ -369,7 +473,19 @@ fn every_allocating_stage_family_is_fail_closed_without_an_estimator() {
         },
     });
 
-    for (index, settings) in [clarity, effects, geometry, radial].into_iter().enumerate() {
+    let mut bloom = DevelopSettings::default();
+    bloom.effects.bloom = 1.0;
+    let mut halation = DevelopSettings::default();
+    halation.effects.halation = 1.0;
+    let mut sharpness = DevelopSettings::default();
+    sharpness.effects.sharpness = 1.0;
+
+    for (index, settings) in [
+        clarity, geometry, curves, mixer, grading, radial, bloom, halation, sharpness,
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let decoder = FakeDecoder {
             photo: decoded(),
             cancel_after_decode: false,
@@ -383,6 +499,7 @@ fn every_allocating_stage_family_is_fail_closed_without_an_estimator() {
             "Resource test",
             settings,
         ));
+        let mut stages = Stages::default();
         let failure = DevelopJobRunner::built_in()
             .unwrap()
             .run(
@@ -390,10 +507,12 @@ fn every_allocating_stage_family_is_fail_closed_without_an_estimator() {
                 &decoder,
                 &encoder,
                 &CancellationToken::new(),
-                &mut Stages::default(),
+                &mut stages,
             )
             .unwrap_err();
+        assert_eq!(failure.error.stage, JobStage::ResolveSettings);
         assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+        assert_eq!(stages.0, [JobStage::Validate, JobStage::Decode]);
         assert!(encoder.calls.lock().unwrap().is_empty());
     }
 }
