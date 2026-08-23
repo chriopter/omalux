@@ -3,10 +3,12 @@
 The built-in catalog is a deterministic, ID-sorted collection of validated
 `PresetDocument` values. It includes `neutral`, the exact canonical
 `DevelopSettings::default()` document, plus independently recreated parameter
-documents maintained for Grainroom. These documents describe only Grainroom's
-own public schema and names; they make no claim of upstream provenance or
-endorsement. New built-ins require an explicit, reviewed recipe and must be
-checked in as canonical schema-v3 JSON under `presets/builtin/`.
+documents maintained for Grainroom. Personal entries preserve names owned and
+approved by the user; community and series entries use independent Grainroom
+names. These documents describe only Grainroom's public schema and make no
+claim of upstream provenance or endorsement. New built-ins require an explicit,
+reviewed recipe and must be checked in as canonical schema-v3 JSON under
+`presets/builtin/`.
 
 Schema v2 adds neutral-default `basics.exposure_ev` and the extended tone-curve
 domain. Schema v3 adds `radial_masks.masks[].adjustments.exposure_ev`. Valid
