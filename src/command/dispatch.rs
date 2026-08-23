@@ -252,7 +252,7 @@ fn validate_develop(
     } else {
         human_error(
             stderr,
-            "develop execution is unavailable until the job and encoder boundary is integrated",
+            "develop execution is unavailable until production decoder and encoder services are wired",
         );
     }
     CommandExit::Unavailable

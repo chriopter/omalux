@@ -87,9 +87,9 @@ grainroom develop --input photo.raw --output result.jpg \
   --preset neutral --set basics.contrast=10 --quality 90
 ```
 
-Until the job/encoder boundary is connected, a valid request exits explicitly
-as unavailable and never creates the output. See [`docs/cli.md`](docs/cli.md)
-for the complete contract.
+Until production decoder/encoder services are connected, a valid request exits
+explicitly as unavailable and never creates the output. See
+[`docs/cli.md`](docs/cli.md) for the complete contract.
 
 ## Requirements
 

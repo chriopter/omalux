@@ -1,5 +1,9 @@
 use serde_json::Value;
-use std::process::{Command, Output};
+use std::{
+    fs,
+    os::unix::fs::symlink,
+    process::{Command, Output},
+};
 
 fn run(arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_grainroom"))
@@ -142,4 +146,48 @@ fn legacy_headless_is_a_typed_usage_error() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument '--headless'"));
+}
+
+#[test]
+fn unavailable_develop_does_not_open_or_create_any_requested_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("does-not-exist.raw");
+    let preset = directory.path().join("does-not-exist.json");
+    let output = directory.path().join("must-not-exist.jpg");
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .arg("--preset-file")
+        .arg(&preset)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(69));
+    assert_eq!(json(&result)["error"]["code"], "unavailable");
+    assert!(!input.exists());
+    assert!(!preset.exists());
+    assert!(!output.exists());
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn gui_command_rejects_a_sibling_symlink_and_accepts_a_regular_held_sibling() {
+    let directory = tempfile::tempdir().unwrap();
+    let core = directory.path().join("grainroom");
+    let sibling = directory.path().join("grainroom-gui");
+    fs::copy(env!("CARGO_BIN_EXE_grainroom"), &core).unwrap();
+
+    symlink("/bin/true", &sibling).unwrap();
+    assert_eq!(
+        Command::new(&core).arg("gui").status().unwrap().code(),
+        Some(69)
+    );
+
+    fs::remove_file(&sibling).unwrap();
+    fs::copy("/bin/true", &sibling).unwrap();
+    assert!(Command::new(&core).arg("gui").status().unwrap().success());
 }

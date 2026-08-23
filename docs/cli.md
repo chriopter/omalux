@@ -36,12 +36,13 @@ are not converted or logged.
 `develop` resolves a built-in preset and validates all typed overrides as one
 transaction. `--preset` and `--preset-file` are mutually exclusive, and
 duplicate `--set` parameter IDs are rejected. An external preset path is kept
-opaque until the job layer is available, so this validation phase performs no
-file I/O. Output format is
+opaque until production services are wired, so this validation phase performs
+no file I/O. Output format is
 inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or `.heif` when
 `--format` is absent. The command does not inspect the input or destination at
-this stage. A valid request returns unavailable until the job and encoder
-boundary is integrated; no destination is created.
+this stage. The typed job boundary exists, but a valid request remains
+unavailable until production decoder and encoder services are wired; no
+destination is created.
 Because execution is unavailable, every `--progress` mode currently emits no
 progress events. JSON mode emits only the final unavailable object on stdout;
 human mode emits only the final diagnostic on stderr.
