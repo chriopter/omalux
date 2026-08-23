@@ -67,6 +67,7 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
     settings.geometry.quarter_turns_clockwise = 1;
     settings.basics.brightness = 12.0;
     settings.basics.contrast = 8.0;
+    settings.basics.clarity = 35.0;
     settings.basics.saturation = 5.0;
     settings.tone_curves.master.points = vec![
         CurvePoint { x: 0.0, y: 0.0 },
@@ -121,7 +122,7 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    assert_eq!(stable_pixel_hash(&image), 0xdfd0_e478_0ba6_2837);
+    assert_eq!(stable_pixel_hash(&image), 0xa353_7c4a_98fb_dd92);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {
