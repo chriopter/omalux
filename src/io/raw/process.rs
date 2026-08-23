@@ -54,6 +54,9 @@ impl RawCancellation {
     pub(super) fn flag(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
         &self.0
     }
+    pub(crate) fn from_flag(flag: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
+        Self(flag)
+    }
     fn cancelled(&self) -> bool {
         self.0.load(std::sync::atomic::Ordering::Acquire)
     }

@@ -8,13 +8,13 @@ mod stage;
 use crate::io::{
     ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic,
     DiagnosticCode, DiagnosticSeverity, MetadataBundle, RawMatrixSource, RawProcessingProvenance,
-    SignalRelation, WhiteBalancePolicy, WhiteBalanceProvenance,
+    SignalRelation, SourceFileIdentity, WhiteBalancePolicy, WhiteBalanceProvenance,
 };
 
 #[cfg(test)]
 use super::RawBackendName;
 pub use process::{RawCancellation, RawCapability, RawExecutionOptions, probe_dcraw_emu};
-use std::path::Path;
+use std::{fs::File, path::Path};
 
 /// Stages one immutable source byte stream, runs full-resolution dcraw_emu,
 /// and returns scene-linear Rec.2020 pixels. No ICC accuracy is claimed.
@@ -24,17 +24,56 @@ pub fn decode_raw(
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
 ) -> Result<DecodedPhoto, DecodeError> {
-    options.validate()?;
-    execution.validate()?;
-    if !options.raw.apply_orientation {
-        return Err(DecodeError::InvalidOptions);
-    }
+    decode_raw_with_identity(source, options, execution, cancellation).map(|(photo, _)| photo)
+}
+
+/// Decodes from one safely opened source and returns the identity captured
+/// from the exact descriptor copied into the immutable RAW staging area.
+pub fn decode_raw_with_identity(
+    source: impl AsRef<Path>,
+    options: &DecodeOptions,
+    execution: &RawExecutionOptions,
+    cancellation: &RawCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
     let staged = stage::stage_source(
         source.as_ref(),
         &execution.staging_directory,
         &options.limits,
         cancellation.flag(),
     )?;
+    decode_staged(staged, options, execution, cancellation)
+}
+
+/// Decodes a descriptor already opened by a trusted caller. `source_name` is
+/// used solely for the detector suffix of the private immutable staging file.
+pub(crate) fn decode_raw_file(
+    source: File,
+    source_name: &Path,
+    options: &DecodeOptions,
+    execution: &RawExecutionOptions,
+    cancellation: &RawCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    let staged = stage::stage_source_file(
+        source,
+        source_name,
+        &execution.staging_directory,
+        &options.limits,
+        cancellation.flag(),
+    )?;
+    decode_staged(staged, options, execution, cancellation)
+}
+
+fn decode_staged(
+    staged: stage::StagedRaw,
+    options: &DecodeOptions,
+    execution: &RawExecutionOptions,
+    cancellation: &RawCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    options.validate()?;
+    execution.validate()?;
+    if !options.raw.apply_orientation {
+        return Err(DecodeError::InvalidOptions);
+    }
     process::run_dcraw(
         &staged,
         options.raw.white_balance,
@@ -70,7 +109,7 @@ pub fn decode_raw(
         severity: DiagnosticSeverity::Warning,
         code: DiagnosticCode::UnknownRawMatrix,
     });
-    DecodedPhoto::new(
+    let photo = DecodedPhoto::new(
         image,
         MetadataBundle::try_new(None, None, None, true, &options.limits)
             .map_err(DecodeError::Limit)?,
@@ -84,7 +123,8 @@ pub fn decode_raw(
         diagnostics,
         &options.limits,
     )
-    .map_err(map_decoded_photo_error)
+    .map_err(map_decoded_photo_error)?;
+    Ok((photo, staged.identity))
 }
 
 fn map_decoded_photo_error(error: DecodedPhotoError) -> DecodeError {

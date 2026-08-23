@@ -7,6 +7,7 @@ mod png;
 mod source;
 
 use std::{
+    fs::File,
     path::Path,
     sync::{
         Arc,
@@ -18,7 +19,7 @@ use crate::{
     develop::{CpuImage, RgbaPixel},
     io::{
         DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic, MetadataBundle,
-        ResourceLimits, SignalRelation,
+        ResourceLimits, SignalRelation, SourceFileIdentity,
         color::{ColorError, RasterToWorkingTransform, ResolvedInputProfile},
     },
 };
@@ -33,6 +34,10 @@ impl RasterCancellation {
 
     fn cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn from_flag(flag: Arc<AtomicBool>) -> Self {
+        Self(flag)
     }
 }
 
@@ -53,10 +58,39 @@ pub fn decode_raster(
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<DecodedPhoto, DecodeError> {
-    options.validate()?;
+    decode_raster_with_identity(source, options, cancellation).map(|(photo, _)| photo)
+}
+
+/// Decodes from one safely opened source and returns the identity captured
+/// from that same descriptor before any bytes are read.
+pub fn decode_raster_with_identity(
+    source: impl AsRef<Path>,
+    options: &DecodeOptions,
+    cancellation: &RasterCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
     let buffered = source::read_once(source.as_ref(), &options.limits, || {
         cancellation.cancelled()
     })?;
+    decode_buffered(buffered, options, cancellation)
+}
+
+/// Decodes a source descriptor already opened by a trusted caller. The
+/// descriptor is consumed and is never resolved through a path again.
+pub(crate) fn decode_raster_file(
+    source: File,
+    options: &DecodeOptions,
+    cancellation: &RasterCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    let buffered = source::read_file_once(source, &options.limits, || cancellation.cancelled())?;
+    decode_buffered(buffered, options, cancellation)
+}
+
+fn decode_buffered(
+    buffered: source::BufferedSource,
+    options: &DecodeOptions,
+    cancellation: &RasterCancellation,
+) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
+    options.validate()?;
     let mut payload = match sniff(&buffered.bytes)? {
         RasterFormat::Jpeg => jpeg::decode(&buffered.bytes, options, cancellation)?,
         RasterFormat::Png => png::decode(&buffered.bytes, options, cancellation)?,
@@ -96,7 +130,7 @@ pub fn decode_raster(
     payload
         .diagnostics
         .append(&mut payload.resolved.diagnostics);
-    DecodedPhoto::new(
+    let photo = DecodedPhoto::new(
         image,
         metadata,
         buffered.digest,
@@ -105,7 +139,8 @@ pub fn decode_raster(
         payload.diagnostics,
         &options.limits,
     )
-    .map_err(map_photo)
+    .map_err(map_photo)?;
+    Ok((photo, buffered.identity))
 }
 
 fn apply_orientation(

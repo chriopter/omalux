@@ -54,11 +54,15 @@ impl AtomicOutputOptions {
     }
 }
 
-/// The destination is committed and its containing directory was synced.
+/// Publication status after the destination commit point.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum AtomicOutputOutcome {
     PublishedAndDurable,
+    /// The destination is visible but directory durability could not be
+    /// confirmed. Retrying blindly can overwrite a successfully published
+    /// file.
+    PublishedButNotDurable,
 }
 
 /// Stable identity captured from the decoder's already-open source file.
@@ -73,6 +77,10 @@ pub struct SourceFileIdentity {
 }
 
 impl SourceFileIdentity {
+    pub(crate) const fn from_device_inode(device: u64, inode: u64) -> Self {
+        Self { device, inode }
+    }
+
     #[cfg(target_os = "linux")]
     pub fn from_file(file: &File) -> Result<Self, AtomicOutputError> {
         let stat =

@@ -2,6 +2,7 @@
 
 mod artifact;
 mod error;
+mod production;
 mod progress;
 mod report;
 mod runner;
@@ -12,6 +13,7 @@ pub use artifact::{
     ArtifactRelation, DecodedArtifact, DisplayReferred, SceneRelated, WorkingArtifact,
 };
 pub use error::{DevelopJobError, DevelopJobFailure, JobErrorCode};
+pub use production::{ProductionJpegEncoder, ProductionPhotoDecoder};
 pub use progress::{CancellationToken, JobStage, NoProgress, ProgressSink};
 pub use report::{
     DEVELOP_JOB_REPORT_SCHEMA, DEVELOP_JOB_REPORT_VERSION, DevelopJobOutcome, DevelopJobReport,

@@ -55,7 +55,7 @@ pub fn encode_jpeg(request: JpegEncodeRequest<'_>) -> Result<JpegEncodeReport, E
 
     let mut inner_failure = None;
     let mut output_bytes = 0_u64;
-    let outcome = write_atomic_output_for_source(
+    let publication = write_atomic_output_for_source(
         request.destination,
         request.source_identity,
         request.atomic,
@@ -104,8 +104,14 @@ pub fn encode_jpeg(request: JpegEncodeRequest<'_>) -> Result<JpegEncodeReport, E
             }
             Ok(())
         },
-    )
-    .map_err(|error| map_atomic(error, inner_failure))?;
+    );
+    let outcome = match publication {
+        Ok(outcome) => outcome,
+        Err(AtomicOutputError::PublishedButNotDurable(_)) if inner_failure.is_none() => {
+            crate::io::AtomicOutputOutcome::PublishedButNotDurable
+        }
+        Err(error) => return Err(map_atomic(error, inner_failure)),
+    };
 
     Ok(JpegEncodeReport {
         outcome,

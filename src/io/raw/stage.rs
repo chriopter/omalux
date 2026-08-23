@@ -11,7 +11,7 @@ use std::{
 
 use rustix::fs::{self, AtFlags, FileType, Mode, OFlags};
 
-use crate::io::{DecodeError, DigestError, ResourceLimits, SourceDigestV1};
+use crate::io::{DecodeError, DigestError, ResourceLimits, SourceDigestV1, SourceFileIdentity};
 
 pub(super) struct StagedRaw {
     base: OwnedFd,
@@ -20,6 +20,7 @@ pub(super) struct StagedRaw {
     input_name: String,
     output_name: String,
     pub digest: SourceDigestV1,
+    pub identity: SourceFileIdentity,
 }
 
 impl StagedRaw {
@@ -70,14 +71,24 @@ pub(super) fn stage_source(
     if cancelled.load(Ordering::Acquire) {
         return Err(DecodeError::Cancelled);
     }
-    let suffix = safe_suffix(source);
     let source_fd = fs::open(
         source,
         OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map_err(map_source_open)?;
-    let source_stat = fs::fstat(&source_fd).map_err(|e| DecodeError::Input(std_error(e)))?;
+    stage_source_file(File::from(source_fd), source, base_path, limits, cancelled)
+}
+
+pub(super) fn stage_source_file(
+    source: File,
+    source_name: &Path,
+    base_path: &Path,
+    limits: &ResourceLimits,
+    cancelled: &Arc<AtomicBool>,
+) -> Result<StagedRaw, DecodeError> {
+    let suffix = safe_suffix(source_name);
+    let source_stat = fs::fstat(&source).map_err(|e| DecodeError::Input(std_error(e)))?;
     if !FileType::from_raw_mode(source_stat.st_mode).is_file() {
         return Err(DecodeError::UnsupportedFormat);
     }
@@ -86,6 +97,8 @@ pub(super) fn stage_source(
     limits
         .check_source_bytes(source_size)
         .map_err(DecodeError::Limit)?;
+    let source_identity =
+        SourceFileIdentity::from_device_inode(source_stat.st_dev, source_stat.st_ino);
 
     let base = fs::open(
         base_path,
@@ -134,7 +147,7 @@ pub(super) fn stage_source(
             base,
             directory,
             directory_name,
-            source_fd,
+            (source.into(), source_identity),
             suffix,
             limits,
             cancelled,
@@ -151,11 +164,12 @@ fn finish_stage(
     base: OwnedFd,
     directory: OwnedFd,
     directory_name: String,
-    source: OwnedFd,
+    source: (OwnedFd, SourceFileIdentity),
     suffix: String,
     limits: &ResourceLimits,
     cancelled: &Arc<AtomicBool>,
 ) -> Result<StagedRaw, DecodeError> {
+    let (source, source_identity) = source;
     let input_name = format!("input.{suffix}");
     let output_name = "output.ppm".to_owned();
     let mut guard = OwnedSetupGuard {
@@ -205,6 +219,7 @@ fn finish_stage(
         input_name,
         output_name,
         digest,
+        identity: source_identity,
     })
 }
 

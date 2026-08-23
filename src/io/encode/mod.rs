@@ -30,6 +30,10 @@ impl EncodeCancellation {
     pub(crate) fn cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
     }
+
+    pub(crate) fn from_flag(flag: Arc<AtomicBool>) -> Self {
+        Self(flag)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
