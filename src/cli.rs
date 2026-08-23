@@ -1,34 +1,48 @@
-pub(crate) fn prepare() -> bool {
-    let arguments: Vec<String> = std::env::args().collect();
-    if arguments
-        .iter()
-        .any(|argument| argument == "--help" || argument == "-h")
-    {
-        print_help();
-        return false;
+use std::process::ExitCode;
+
+pub(crate) fn run(arguments: impl IntoIterator<Item = String>) -> ExitCode {
+    let arguments: Vec<String> = arguments.into_iter().collect();
+    match arguments.as_slice() {
+        [] => {
+            print_help();
+            ExitCode::SUCCESS
+        }
+        [help] if help == "--help" || help == "-h" => {
+            print_help();
+            ExitCode::SUCCESS
+        }
+        [version] if version == "--version" || version == "-V" => {
+            println!("grainroom {}", env!("CARGO_PKG_VERSION"));
+            ExitCode::SUCCESS
+        }
+        _ => {
+            eprintln!(
+                "grainroom: no core command was selected; run `grainroom --help` or launch `grainroom-gui`"
+            );
+            ExitCode::from(2)
+        }
     }
-    if arguments
-        .iter()
-        .any(|argument| argument == "--version" || argument == "-V")
-    {
-        println!("grainroom {}", env!("CARGO_PKG_VERSION"));
-        return false;
-    }
-    if arguments.iter().any(|argument| argument == "--headless")
-        && std::env::var_os("QT_QPA_PLATFORM").is_none()
-    {
-        // SAFETY: this runs before Qt or any application threads are created.
-        unsafe { std::env::set_var("QT_QPA_PLATFORM", "offscreen") };
-    }
-    true
 }
 
 fn print_help() {
     println!(
-        "Grainroom — Omarchy photo developer\n\n\
+        "Grainroom core — Qt-free photo processing\n\n\
 Usage:\n  grainroom [OPTIONS]\n\n\
-Options:\n  --input PATH         Open JPEG, PNG, BMP, or camera RAW\n  --output PATH        Export without a save dialog\n  --format FORMAT      original, jpeg/jpg, or heic/heif (default: inferred)\n  --quality 1..100     JPEG/HEIC quality (default: 90)\n  --grain 0..100       Grain amount (default: 24)\n  --grain-size ISO     Grain size, 20..6400 (default: 4000)\n  --midtones 0..100    Midtone grain response (default: 100)\n  --headless           Run export without showing a window\n  -h, --help           Show this help\n  -V, --version        Show the version\n\n\
-Examples:\n  grainroom --input photo.jpg\n  grainroom --headless --input photo.jpg --output out.heic \\
-    --format heic --quality 90 --grain 24 --grain-size 4000"
+Options:\n  -h, --help       Show this help\n  -V, --version    Show the version\n\n\
+The desktop application is installed as `grainroom-gui`. Processing\n\
+subcommands will be added to this Qt-free executable in a later package."
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_process_level_help_and_version_for_now() {
+        assert_eq!(run(Vec::new()), ExitCode::SUCCESS);
+        assert_eq!(run(["--help".to_owned()]), ExitCode::SUCCESS);
+        assert_eq!(run(["--version".to_owned()]), ExitCode::SUCCESS);
+        assert_eq!(run(["export".to_owned()]), ExitCode::from(2));
+    }
 }

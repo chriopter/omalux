@@ -552,21 +552,28 @@ name = "grainroom"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
- "cxx",
- "cxx-qt",
- "cxx-qt-build",
- "cxx-qt-lib",
  "flate2",
  "getrandom",
  "image 0.25.10",
  "lcms2",
- "notify",
  "png",
  "rustix",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "grainroom-gui"
+version = "0.1.0"
+dependencies = [
+ "cxx",
+ "cxx-qt",
+ "cxx-qt-build",
+ "cxx-qt-lib",
+ "grainroom",
+ "notify",
 ]
 
 [[package]]

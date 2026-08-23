@@ -1,0 +1,16 @@
+[package]
+name = "grainroom-gui"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "Qt Quick desktop interface for Grainroom"
+
+[dependencies]
+cxx = "1.0"
+cxx-qt = "0.9"
+cxx-qt-lib = { version = "0.9", features = ["full"] }
+grainroom = { path = "../.." }
+notify = "8.2"
+
+[build-dependencies]
+cxx-qt-build = { version = "0.9", features = ["link_qt_object_files"] }
