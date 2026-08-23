@@ -4,8 +4,8 @@ use grainroom::{
     develop::{CpuImage, RgbaPixel},
     io::{
         AtomicOutputError, AtomicOutputOptions, EncodeCancellation, EncodeError, EncodeOptions,
-        JpegEncodeInput, JpegEncodeRequest, LimitError, MetadataBundle, OverwritePolicy,
-        ResourceLimits, SignalRelation, encode_jpeg,
+        EncodeWorkingSetProfile, JpegEncodeInput, JpegEncodeRequest, JpegMetadataFootprint,
+        LimitError, MetadataBundle, OverwritePolicy, ResourceLimits, SignalRelation, encode_jpeg,
     },
 };
 use sha2::{Digest, Sha256};
@@ -226,6 +226,66 @@ fn source_output_hardlink_collision_is_preserved() {
         Err(EncodeError::Output(AtomicOutputError::InputOutputCollision))
     ));
     assert_eq!(fs::read(source_path).unwrap(), b"source");
+}
+
+#[test]
+fn codec_dominant_peak_is_exact_at_the_atomic_encode_boundary() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut exif = vec![0_u8; 26];
+    exif[..8].copy_from_slice(b"II*\0\x08\0\0\0");
+    exif[8..10].copy_from_slice(&1_u16.to_le_bytes());
+    exif[10..12].copy_from_slice(&0x8827_u16.to_le_bytes());
+    exif[12..14].copy_from_slice(&3_u16.to_le_bytes());
+    exif[14..18].copy_from_slice(&1_u32.to_le_bytes());
+    exif[18..20].copy_from_slice(&400_u16.to_le_bytes());
+    let metadata =
+        MetadataBundle::try_new(Some(exif), None, None, true, &ResourceLimits::default()).unwrap();
+    let estimate = ResourceLimits::default()
+        .estimate_encode_working_set(
+            1,
+            1,
+            EncodeWorkingSetProfile::JpegRgb8,
+            JpegMetadataFootprint {
+                input_metadata_bytes: 26,
+                output_exif_bytes: 44,
+                output_icc_bytes: 588,
+                transform_profile_bytes: 588 + 568,
+            },
+        )
+        .unwrap();
+    assert_eq!(estimate.codec_metadata_scratch_bytes, 618);
+    assert!(estimate.codec_peak_bytes > estimate.preparation_peak_bytes);
+
+    let source = image(1, 1);
+    let cancellation = EncodeCancellation::default();
+    let exact = ResourceLimits::default().with_max_working_bytes(estimate.codec_peak_bytes);
+    let exact_output = directory.path().join("exact.jpg");
+    encode_jpeg(request(
+        &source,
+        &metadata,
+        &exact_output,
+        &exact,
+        &cancellation,
+    ))
+    .unwrap();
+    assert!(exact_output.is_file());
+
+    let below = ResourceLimits::default().with_max_working_bytes(estimate.codec_peak_bytes - 1);
+    let rejected_output = directory.path().join("rejected.jpg");
+    assert!(matches!(
+        encode_jpeg(request(
+            &source,
+            &metadata,
+            &rejected_output,
+            &below,
+            &cancellation,
+        )),
+        Err(EncodeError::Limit(LimitError::WorkingBytes {
+            requested,
+            maximum
+        })) if requested == estimate.codec_peak_bytes && maximum + 1 == requested
+    ));
+    assert!(!rejected_output.exists());
 }
 
 fn assert_clean(directory: &Path, output: &Path) {

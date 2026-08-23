@@ -261,14 +261,15 @@ impl ResourceLimits {
             .checked_mul(64)
             .ok_or(LimitError::ArithmeticOverflow)?;
         // image 0.25.10's JPEG encoder owns three Components (12 bytes each)
-        // and two 64-byte quantization tables. Its reusable header Vec reaches
-        // 14 bytes for JFIF and later 179 bytes for the AC Huffman segment.
-        // The 14-byte JFIF capacity remains live while EXIF/ICC is emitted.
+        // and two 64-byte quantization tables. Its reusable header Vec holds a
+        // 14-byte JFIF payload in 16 bytes of capacity and later reaches 179
+        // bytes for the AC Huffman segment. The 16-byte JFIF capacity remains
+        // live while EXIF/ICC is emitted.
         // EXIF formatting owns `Exif\0\0`
         // plus the TIFF, while ICC chunking owns a 14-byte header plus at most
         // one 65,519-byte chunk; these temporaries do not overlap.
         const JPEG_ENCODER_FIXED_HEAP: u64 = 3 * 12 + 2 * 64;
-        const JPEG_JFIF_BUFFER: u64 = 14;
+        const JPEG_JFIF_BUFFER: u64 = 16;
         const JPEG_HEADER_BUFFER: u64 = 179;
         const ICC_CHUNK_BYTES: u64 = 65_519;
         let exif_segment = if metadata.output_exif_bytes == 0 {

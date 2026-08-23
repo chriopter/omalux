@@ -315,7 +315,7 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(baseline.codec_metadata_scratch_bytes, 616);
+        assert_eq!(baseline.codec_metadata_scratch_bytes, 618);
         let input = || JpegEncodeInput {
             image: &source,
             signal_relation: SignalRelation::LinearizedDisplayReferred,
@@ -341,6 +341,54 @@ mod tests {
                 requested,
                 maximum
             })) if requested == baseline.peak_bytes && maximum + 1 == requested
+        ));
+
+        // A one-pixel image with retained EXIF is deliberately codec-dominant:
+        // the encoder copies plus its co-resident JFIF/ICC segment exceed all
+        // preparation scratch. This pins the other branch of `max()`.
+        let tiny =
+            CpuImage::new(1, 1, vec![RgbaPixel::new(0.18, 0.18, 0.18, 1.0).unwrap()]).unwrap();
+        let codec_dominant = ResourceLimits::default()
+            .estimate_encode_working_set(
+                1,
+                1,
+                EncodeWorkingSetProfile::JpegRgb8,
+                JpegMetadataFootprint {
+                    input_metadata_bytes: 26,
+                    output_exif_bytes: 44,
+                    output_icc_bytes: CANONICAL_SRGB_ICC_BYTES,
+                    transform_profile_bytes: CANONICAL_SRGB_ICC_BYTES
+                        + CANONICAL_LINEAR_REC2020_ICC_BYTES,
+                },
+            )
+            .unwrap();
+        assert!(codec_dominant.codec_peak_bytes > codec_dominant.preparation_peak_bytes);
+        let tiny_input = || JpegEncodeInput {
+            image: &tiny,
+            signal_relation: SignalRelation::LinearizedDisplayReferred,
+            metadata: &metadata,
+        };
+        assert!(
+            prepare_display_rgb8(
+                tiny_input(),
+                &EncodeOptions::default(),
+                &ResourceLimits::default().with_max_working_bytes(codec_dominant.codec_peak_bytes),
+                &EncodeCancellation::default(),
+            )
+            .is_ok()
+        );
+        assert!(matches!(
+            prepare_display_rgb8(
+                tiny_input(),
+                &EncodeOptions::default(),
+                &ResourceLimits::default()
+                    .with_max_working_bytes(codec_dominant.codec_peak_bytes - 1),
+                &EncodeCancellation::default(),
+            ),
+            Err(EncodeError::Limit(crate::io::LimitError::WorkingBytes {
+                requested,
+                maximum
+            })) if requested == codec_dominant.codec_peak_bytes && maximum + 1 == requested
         ));
     }
 
