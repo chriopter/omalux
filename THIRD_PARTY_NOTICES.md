@@ -68,19 +68,46 @@ JPEG, PNG, and BMP decoding. Grainroom does not copy their codec source:
 - `crc32fast` 1.5.1, Copyright (c) 2018 Sam Rijs, Alex Crichton and contributors — MIT OR Apache-2.0
 - `zune-jpeg` 0.5.15 and `zune-core` 0.5.3, Copyright (c) zune-image developers — MIT OR Apache-2.0 OR Zlib
 - `fdeflate` 0.3.7 — MIT OR Apache-2.0
-- `miniz_oxide` 0.8.9, with its published RAD Game Tools, Valve,
-  Rich Geldreich, Tenacious Software, Frommi, and oyvindln notices — MIT OR
-  Zlib OR Apache-2.0
+- `miniz_oxide` 0.8.9, Copyright 2013-2014 RAD Game Tools and Valve Software,
+  Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC, Copyright (c)
+  2017 Frommi, Copyright (c) 2017-2024 oyvindln — MIT OR Zlib OR Apache-2.0
 - `adler2` 2.0.1, Copyright (c) Jonas Schievink — 0BSD OR MIT OR Apache-2.0
 - `simd-adler32` 0.3.10, Copyright (c) 2021 Marvin Countryman — MIT
 - `byteorder-lite` 0.1.0, Copyright (c) 2015 Andrew Gallant — Unlicense OR MIT
 - `moxcms` 0.8.1, Copyright (c) Radzivon Bartoshyk — BSD-3-Clause OR Apache-2.0
 - `pxfm` 0.1.30, Copyright (c) Radzivon Bartoshyk — BSD-3-Clause OR Apache-2.0
-- `bytemuck` 1.25.2, Copyright (c) Lokathor — Zlib OR Apache-2.0 OR MIT
-- `num-traits` 0.2.19, The Rust Project Developers — MIT OR Apache-2.0
-- `bitflags` 2.13.1, The Rust Project Developers — MIT OR Apache-2.0
-- `cfg-if` 1.0.4, Copyright (c) Alex Crichton — MIT OR Apache-2.0
+- `bytemuck` 1.25.2, Copyright (c) 2019 Daniel "Lokathor" Gee — Zlib OR Apache-2.0 OR MIT
+- `num-traits` 0.2.19, Copyright (c) 2014 The Rust Project Developers — MIT OR Apache-2.0
+- `bitflags` 2.13.1, Copyright (c) 2014 The Rust Project Developers — MIT OR Apache-2.0
+- `cfg-if` 1.0.4, Copyright (c) 2014 Alex Crichton — MIT OR Apache-2.0
 
 The MIT license text is reproduced above. The Apache-2.0 and Zlib alternatives
 are available in each crate's published source distribution; Grainroom selects
-the MIT option where offered.
+the MIT option where offered and BSD-3-Clause for `moxcms` and `pxfm`.
+
+### moxcms and pxfm BSD-3-Clause license
+
+Copyright (c) Radzivon Bartoshyk. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software without
+   specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
