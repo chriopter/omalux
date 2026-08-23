@@ -1,5 +1,5 @@
 use super::{CropRect, DevelopSettings, ParameterKind, SettingsError, parameter_registry};
-use std::{collections::HashSet, fmt};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParameterOverrideValue {
@@ -88,11 +88,15 @@ pub fn apply_parameter_overrides(
     base.validate()
         .map_err(ParameterOverrideError::InvalidSettings)?;
     let registry = parameter_registry();
-    let mut ids = HashSet::new();
-    let mut result = base.clone();
-    for parameter_override in overrides {
+    let mut result = base
+        .try_clone()
+        .map_err(|_| ParameterOverrideError::Allocation)?;
+    for (index, parameter_override) in overrides.iter().enumerate() {
         let id = parameter_override.parameter_id();
-        if !ids.insert(id) {
+        if overrides[..index]
+            .iter()
+            .any(|previous| previous.parameter_id() == id)
+        {
             return Err(ParameterOverrideError::DuplicateParameter(id.to_owned()));
         }
         let definition = registry
@@ -280,6 +284,7 @@ pub enum ParameterOverrideError {
     DuplicateParameter(String),
     MappingMissing(String),
     InvalidSettings(SettingsError),
+    Allocation,
 }
 
 impl fmt::Display for ParameterOverrideError {
@@ -318,6 +323,7 @@ impl fmt::Display for ParameterOverrideError {
             Self::InvalidSettings(error) => {
                 write!(formatter, "overrides produce invalid settings: {error}")
             }
+            Self::Allocation => formatter.write_str("override settings allocation failed"),
         }
     }
 }

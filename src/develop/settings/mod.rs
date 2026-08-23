@@ -29,6 +29,54 @@ pub struct DevelopSettings {
 }
 
 impl DevelopSettings {
+    pub(crate) fn try_clone(&self) -> Result<Self, ()> {
+        fn clone_curve(curve: &ToneCurve) -> Result<ToneCurve, ()> {
+            let mut points = Vec::new();
+            points
+                .try_reserve_exact(curve.points.len())
+                .map_err(|_| ())?;
+            points.extend_from_slice(&curve.points);
+            Ok(ToneCurve { points })
+        }
+
+        let mut masks = Vec::new();
+        masks
+            .try_reserve_exact(self.radial_masks.masks.len())
+            .map_err(|_| ())?;
+        for mask in &self.radial_masks.masks {
+            let mut id = String::new();
+            id.try_reserve_exact(mask.id.len()).map_err(|_| ())?;
+            id.push_str(&mask.id);
+            masks.push(RadialMask {
+                id,
+                enabled: mask.enabled,
+                center_x: mask.center_x,
+                center_y: mask.center_y,
+                radius_x: mask.radius_x,
+                radius_y: mask.radius_y,
+                rotation_degrees: mask.rotation_degrees,
+                feather: mask.feather,
+                opacity: mask.opacity,
+                invert: mask.invert,
+                adjustments: mask.adjustments.clone(),
+            });
+        }
+        Ok(Self {
+            geometry: self.geometry.clone(),
+            basics: self.basics.clone(),
+            tone_curves: ToneCurvesSettings {
+                master: clone_curve(&self.tone_curves.master)?,
+                red: clone_curve(&self.tone_curves.red)?,
+                green: clone_curve(&self.tone_curves.green)?,
+                blue: clone_curve(&self.tone_curves.blue)?,
+            },
+            color_mixer: self.color_mixer.clone(),
+            color_grading: self.color_grading.clone(),
+            effects: self.effects.clone(),
+            radial_masks: RadialMasksSettings { masks },
+        })
+    }
+
     pub fn validate(&self) -> Result<(), SettingsError> {
         self.geometry.validate()?;
         self.basics.validate()?;

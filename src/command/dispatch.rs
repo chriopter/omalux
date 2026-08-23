@@ -6,8 +6,8 @@ use super::{
     },
 };
 use grainroom::develop::{
-    DevelopStage, ParameterKind, ParameterUnit, PresetCatalog, apply_parameter_overrides,
-    load_preset_file, parameter_registry,
+    DevelopStage, ParameterKind, ParameterOverrideError, ParameterUnit, PresetCatalog,
+    apply_parameter_overrides, load_preset_file, parameter_registry,
 };
 use grainroom::{
     io::{
@@ -22,7 +22,6 @@ use grainroom::{
 };
 use serde_json::json;
 use std::{
-    collections::HashSet,
     ffi::OsStr,
     fs::File,
     io::{self, Write},
@@ -204,16 +203,22 @@ fn validate_develop(
             return CommandExit::Usage;
         }
     };
-    let mut ids = HashSet::new();
-    if let Some(duplicate) = arguments
+    if let Some((_, duplicate)) = arguments
         .overrides
         .iter()
-        .map(|value| value.parameter_id())
-        .find(|id| !ids.insert(*id))
+        .enumerate()
+        .find(|(index, value)| {
+            arguments.overrides[..*index]
+                .iter()
+                .any(|previous| previous.parameter_id() == value.parameter_id())
+        })
     {
         human_error(
             stderr,
-            &format!("parameter {duplicate:?} is overridden twice"),
+            &format!(
+                "parameter {:?} is overridden twice",
+                duplicate.parameter_id()
+            ),
         );
         return CommandExit::Usage;
     }
@@ -312,7 +317,11 @@ fn validate_develop(
         }
         PresetSelection::Document(document) => &document.settings,
     };
-    if apply_parameter_overrides(base_settings, &arguments.overrides).is_err() {
+    if let Err(error) = apply_parameter_overrides(base_settings, &arguments.overrides) {
+        if matches!(error, ParameterOverrideError::Allocation) {
+            human_error(stderr, "parameter override resources are unavailable");
+            return CommandExit::Unavailable;
+        }
         human_error(stderr, "parameter overrides do not form valid settings");
         return CommandExit::Usage;
     }

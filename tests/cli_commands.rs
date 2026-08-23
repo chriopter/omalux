@@ -1,3 +1,4 @@
+use grainroom::develop::{CurvePoint, DevelopSettings, PresetDocument};
 use serde_json::Value;
 use std::{
     fs,
@@ -189,6 +190,68 @@ fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
             .success()
     );
     assert_eq!(fs::read(grain_a).unwrap(), fs::read(grain_b).unwrap());
+}
+
+#[test]
+fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("input.png");
+    let output = directory.path().join("output.jpg");
+    let neutral_output = directory.path().join("neutral.jpg");
+    let preset_path = directory.path().join("color.json");
+    image::save_buffer_with_format(
+        &input,
+        &[40_u8, 90, 180, 160, 80, 20],
+        2,
+        1,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.7 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    let preset = PresetDocument::new("color-v1-cli", "Color V1 CLI", settings);
+    fs::write(&preset_path, preset.to_canonical_json().unwrap()).unwrap();
+
+    let neutral = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(&input)
+        .arg("--output")
+        .arg(&neutral_output)
+        .output()
+        .unwrap();
+    assert!(neutral.status.success());
+
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .arg("develop")
+        .arg("--input")
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .arg("--preset-file")
+        .arg(&preset_path)
+        .arg("--set")
+        .arg("color_mixer.blue.saturation=25")
+        .arg("--set")
+        .arg("color_grading.midtones.hue_degrees=215")
+        .arg("--set")
+        .arg("color_grading.midtones.saturation=20")
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(json(&result)["develop_working_set"]["profile"], "color_v1");
+    assert!(output.exists());
+    assert_ne!(
+        image::open(&output).unwrap().to_rgb8(),
+        image::open(&neutral_output).unwrap().to_rgb8()
+    );
+    assert!(result.stderr.is_empty());
 }
 
 #[test]

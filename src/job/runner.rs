@@ -1,7 +1,7 @@
 use crate::{
     develop::{
-        DevelopPipeline, DevelopSettings, PipelineError, PresetCatalog, apply_parameter_overrides,
-        estimate_develop_working_set,
+        DevelopPipeline, DevelopSettings, ParameterOverrideError, PipelineError, PresetCatalog,
+        apply_parameter_overrides, estimate_develop_working_set,
     },
     io::{
         LimitError,
@@ -121,7 +121,7 @@ impl DevelopJobRunner {
             )
         })?;
         report.develop_working_set = summary;
-        if summary.estimated_peak_bytes > job.decode.limits.max_working_bytes {
+        if summary.estimated_peak_bytes() > job.decode.limits.max_working_bytes {
             return Err(DevelopJobFailure::new(
                 JobStage::ResolveSettings,
                 JobErrorCode::ResourceLimit,
@@ -247,7 +247,10 @@ impl DevelopJobRunner {
         } else {
             apply_parameter_overrides(&document.settings, overrides)
                 .map(Cow::Owned)
-                .map_err(|_| JobErrorCode::InvalidOptions)
+                .map_err(|error| match error {
+                    ParameterOverrideError::Allocation => JobErrorCode::ResourceLimit,
+                    _ => JobErrorCode::InvalidOptions,
+                })
         }
     }
 
@@ -491,7 +494,7 @@ mod tests {
         let working_set = report.develop_working_set;
         // Develop is 32 bytes, scene render is 48, and their sequential sum
         // would be 80. The job reports the true phase maximum.
-        assert_eq!(working_set.estimated_peak_bytes, 48);
+        assert_eq!(working_set.estimated_peak_bytes(), 48);
         assert_eq!(
             report.output_signal_relation,
             Some(super::ReportSignalRelation::LinearizedDisplayReferred)

@@ -50,12 +50,13 @@ external preset is opened. `--preset` and `--preset-file` are mutually
 exclusive, duplicate `--set` IDs are rejected, and external preset JSON is read
 through the bounded no-follow loader.
 
-The current job resource proof admits the bounded PointwiseV1 profile:
-pointwise Basics controls except Clarity, plus Fade, Vignette, and Grain. Supported
+The current job resource proof admits the bounded PointwiseV1 and ColorV1 profiles:
+pointwise Basics controls except Clarity, Fade, Vignette, Grain, structured
+tone curves from preset JSON, and scalar Color Mixer/Color Grading controls. Supported
 presets and `--set` overrides are applied before encoding. The final report is
-schema version 3 and names the output format, codec provenance, profile, and
-its exact estimated peak. Clarity,
-geometry, curves, color operations, radial masks, Bloom, Halation, and
+schema version 3 and names the output format, codec provenance, selected
+profile, and its exact estimated peak. Clarity, geometry, radial masks, Bloom,
+Halation, and
 Sharpness remain fail-closed with `unproven_pipeline_budget` and exit 69 after
 decode, before develop mutation or output creation.
 

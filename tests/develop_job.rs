@@ -5,8 +5,8 @@ use std::{
 
 use grainroom::{
     develop::{
-        CpuImage, DevelopSettings, DevelopWorkingSetProfile, LocalAdjustments, ParameterOverride,
-        PresetDocument, RadialMask, RgbaPixel, estimate_develop_working_set,
+        CpuImage, CurvePoint, DevelopSettings, DevelopWorkingSetProfile, LocalAdjustments,
+        ParameterOverride, PresetDocument, RadialMask, RgbaPixel, estimate_develop_working_set,
     },
     io::{
         AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeError, DecodeOptions,
@@ -349,7 +349,74 @@ fn pointwise_preset_is_applied_to_the_encoded_artifact() {
         .unwrap();
     assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
     assert_eq!(encoder.observed.lock().unwrap()[0].1, 0.36_f32);
-    assert_eq!(report.develop_working_set.estimated_peak_bytes, 64);
+    assert_eq!(report.develop_working_set.estimated_peak_bytes(), 64);
+}
+
+#[test]
+fn structured_curve_preset_and_scalar_color_overrides_run_as_color_v1() {
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.master.points = vec![
+        CurvePoint { x: 0.0, y: 0.0 },
+        CurvePoint { x: 0.5, y: 0.7 },
+        CurvePoint { x: 1.0, y: 1.0 },
+    ];
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+        source_identity: source_identity(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut request = job();
+    request.preset = PresetSelection::document(PresetDocument::new(
+        "color-v1-job",
+        "Color V1 job",
+        settings,
+    ));
+    request.overrides = vec![
+        ParameterOverride::scalar("basics.contrast", 8.0),
+        ParameterOverride::scalar("color_mixer.red.saturation", 20.0),
+        ParameterOverride::scalar("color_grading.midtones.hue_degrees", 210.0),
+        ParameterOverride::scalar("color_grading.midtones.saturation", 15.0),
+    ];
+    request.decode.limits.max_working_bytes = 176;
+
+    let report = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &request,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        report.develop_working_set.profile(),
+        Some(grainroom::job::ReportDevelopWorkingSetProfile::ColorV1)
+    );
+    assert_eq!(report.develop_working_set.estimated_peak_bytes(), 176);
+    assert_ne!(encoder.observed.lock().unwrap()[0].1, 0.18);
+
+    let rejected_encoder = FakeEncoder::default();
+    request.decode.limits.max_working_bytes = 175;
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &request,
+            &decoder,
+            &rejected_encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
+    assert_eq!(
+        failure.report.develop_working_set.estimated_peak_bytes(),
+        176
+    );
+    assert!(rejected_encoder.calls.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -372,7 +439,7 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
             &mut Stages::default(),
         )
         .unwrap();
-    assert_eq!(report.develop_working_set.estimated_peak_bytes, 64);
+    assert_eq!(report.develop_working_set.estimated_peak_bytes(), 64);
     assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
 
     let rejected_encoder = FakeEncoder::default();
@@ -390,7 +457,10 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
         .unwrap_err();
     assert_eq!(failure.error.stage, JobStage::ResolveSettings);
     assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
-    assert_eq!(failure.report.develop_working_set.estimated_peak_bytes, 64);
+    assert_eq!(
+        failure.report.develop_working_set.estimated_peak_bytes(),
+        64
+    );
     assert!(rejected_encoder.calls.lock().unwrap().is_empty());
 }
 
@@ -429,17 +499,11 @@ fn grain_seed_depends_on_content_not_renamed_paths() {
 }
 
 #[test]
-fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
+fn every_unprofiled_spatial_stage_family_is_fail_closed_before_develop() {
     let mut clarity = DevelopSettings::default();
     clarity.basics.clarity = 1.0;
     let mut geometry = DevelopSettings::default();
     geometry.geometry.straighten_degrees = 1.0;
-    let mut curves = DevelopSettings::default();
-    curves.tone_curves.master.points[1].y = 0.75;
-    let mut mixer = DevelopSettings::default();
-    mixer.color_mixer.red.saturation = 1.0;
-    let mut grading = DevelopSettings::default();
-    grading.color_grading.midtones.saturation = 1.0;
     let mut radial = DevelopSettings::default();
     radial.radial_masks.masks.push(RadialMask {
         id: "resource-test".to_owned(),
@@ -465,11 +529,9 @@ fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
     let mut sharpness = DevelopSettings::default();
     sharpness.effects.sharpness = 1.0;
 
-    for (index, settings) in [
-        clarity, geometry, curves, mixer, grading, radial, bloom, halation, sharpness,
-    ]
-    .into_iter()
-    .enumerate()
+    for (index, settings) in [clarity, geometry, radial, bloom, halation, sharpness]
+        .into_iter()
+        .enumerate()
     {
         let decoder = FakeDecoder {
             photo: decoded(),

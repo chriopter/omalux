@@ -65,12 +65,14 @@ impl From<SignalRelation> for ReportSignalRelation {
 #[serde(rename_all = "snake_case")]
 pub enum ReportDevelopWorkingSetProfile {
     PointwiseV1,
+    ColorV1,
 }
 
 impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
     fn from(value: DevelopWorkingSetProfile) -> Self {
         match value {
             DevelopWorkingSetProfile::PointwiseV1 => Self::PointwiseV1,
+            DevelopWorkingSetProfile::ColorV1 => Self::ColorV1,
         }
     }
 }
@@ -79,34 +81,47 @@ impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
 /// For RAW this is the maximum of develop and later scene-render phases.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DevelopWorkingSetSummary {
-    pub estimated_peak_bytes: u64,
+    encoded_peak_and_profile: u64,
 }
 
 impl DevelopWorkingSetSummary {
+    // Every reviewed job peak is a sum/max of RGBA-f32 image bytes, scanlines,
+    // and 56-byte PCHIP segments, so bit zero is structurally free.
+    const COLOR_V1_TAG: u64 = 1;
+    const PEAK_MASK: u64 = !Self::COLOR_V1_TAG;
+
     const fn pending() -> Self {
         Self {
-            estimated_peak_bytes: 0,
+            encoded_peak_and_profile: 0,
         }
     }
 
-    pub(crate) const fn from_profile(
+    pub(crate) fn from_profile(
         profile: DevelopWorkingSetProfile,
         estimated_peak_bytes: u64,
     ) -> Self {
-        debug_assert!(estimated_peak_bytes > 0);
-        match profile {
-            DevelopWorkingSetProfile::PointwiseV1 => Self {
-                estimated_peak_bytes,
-            },
+        debug_assert!(estimated_peak_bytes > 0 && estimated_peak_bytes & Self::COLOR_V1_TAG == 0);
+        let tag = match profile {
+            DevelopWorkingSetProfile::PointwiseV1 => 0,
+            DevelopWorkingSetProfile::ColorV1 => Self::COLOR_V1_TAG,
+        };
+        Self {
+            encoded_peak_and_profile: estimated_peak_bytes | tag,
         }
     }
 
     pub const fn profile(self) -> Option<ReportDevelopWorkingSetProfile> {
-        if self.estimated_peak_bytes == 0 {
+        if self.encoded_peak_and_profile == 0 {
             None
-        } else {
+        } else if self.encoded_peak_and_profile & Self::COLOR_V1_TAG == 0 {
             Some(ReportDevelopWorkingSetProfile::PointwiseV1)
+        } else {
+            Some(ReportDevelopWorkingSetProfile::ColorV1)
         }
+    }
+
+    pub const fn estimated_peak_bytes(self) -> u64 {
+        self.encoded_peak_and_profile & Self::PEAK_MASK
     }
 }
 
@@ -117,7 +132,7 @@ impl Serialize for DevelopWorkingSetSummary {
     {
         let mut value = serializer.serialize_struct("DevelopWorkingSetSummary", 2)?;
         value.serialize_field("profile", &self.profile())?;
-        value.serialize_field("estimated_peak_bytes", &self.estimated_peak_bytes)?;
+        value.serialize_field("estimated_peak_bytes", &self.estimated_peak_bytes())?;
         value.end()
     }
 }
@@ -208,5 +223,24 @@ impl DevelopJobReport {
                 code: JobErrorCode::Internal,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_profile_tag_preserves_the_full_even_peak_domain() {
+        let peak = u64::MAX - 1;
+        for profile in [
+            DevelopWorkingSetProfile::PointwiseV1,
+            DevelopWorkingSetProfile::ColorV1,
+        ] {
+            let summary = DevelopWorkingSetSummary::from_profile(profile, peak);
+            assert_eq!(summary.estimated_peak_bytes(), peak);
+            assert_eq!(summary.profile(), Some(profile.into()));
+        }
+        assert_eq!(std::mem::size_of::<DevelopWorkingSetSummary>(), 8);
     }
 }
