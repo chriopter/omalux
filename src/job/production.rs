@@ -1,4 +1,4 @@
-//! Production Qt-free decoder and JPEG publication services.
+//! Production Qt-free decoder and publication services.
 
 use std::{fs::File, io, os::unix::fs::FileExt, path::Path};
 
@@ -7,14 +7,15 @@ use rustix::fs::{self, FileType, Mode, OFlags};
 use crate::{
     io::{
         AtomicOutputOptions, AtomicOutputOutcome, DecodeError, DecodeOptions, EncodeCancellation,
-        EncodeError, EncodeOptions, JpegEncodeInput, JpegEncodeRequest, OutputFormat,
-        ResourceLimits,
+        EncodeError, EncodeOptions, HeicEncodeRequest, JpegEncodeInput, JpegEncodeRequest,
+        OutputFormat, ResourceLimits,
         raster::{RasterCancellation, decode_raster_file},
         raw::{RawCancellation, RawExecutionOptions, decode_raw_file, trusted_dcraw_execution},
     },
     job::{
-        CancellationToken, DecodedSource, DisplayReferred, EncodeReceipt, PhotoDecoder,
-        PhotoEncoder, PublicationRequest, PublicationStatus, WorkingArtifact,
+        CancellationToken, DecodedSource, DisplayReferred, EncodeReceipt, EncodeSummary,
+        HeicNclxSummary, PhotoDecoder, PhotoEncoder, PublicationRequest, PublicationStatus,
+        ReportDigest, WorkingArtifact,
     },
 };
 
@@ -76,6 +77,7 @@ impl ProductionPhotoDecoder {
         options: &DecodeOptions,
         cancellation: &CancellationToken,
     ) -> Result<DecodedSource, DecodeError> {
+        let source_lease = file.try_clone().map_err(DecodeError::Input)?;
         let stat = fs::fstat(&file).map_err(|error| {
             DecodeError::Input(io::Error::from_raw_os_error(error.raw_os_error()))
         })?;
@@ -103,10 +105,14 @@ impl ProductionPhotoDecoder {
                 .ok_or(DecodeError::RawBackendUnavailable)?;
             decode_raw_file(file, source_name, options, execution, &raw)
         }?;
-        Ok(DecodedSource {
-            photo: result.0,
-            source_identity: result.1,
-        })
+        let decoded = DecodedSource::from_held_file(result.0, source_lease)
+            .map_err(|error| DecodeError::Input(io::Error::other(error)))?;
+        if decoded.source_identity() != result.1 {
+            return Err(DecodeError::Input(io::Error::other(
+                "source identity changed across the held descriptor",
+            )));
+        }
+        Ok(decoded)
     }
 }
 
@@ -129,6 +135,40 @@ pub struct ProductionJpegEncoder {
     limits: ResourceLimits,
 }
 
+/// Codec-dispatching production encoder used by the CLI and GUI adapters.
+/// The display artifact is borrowed directly by the selected backend.
+#[derive(Clone, Copy, Debug)]
+pub struct ProductionPhotoEncoder {
+    limits: ResourceLimits,
+}
+
+impl ProductionPhotoEncoder {
+    pub const fn new(limits: ResourceLimits) -> Self {
+        Self { limits }
+    }
+}
+
+impl PhotoEncoder for ProductionPhotoEncoder {
+    type Error = EncodeError;
+
+    fn encode_display(
+        &self,
+        publication: PublicationRequest<'_>,
+        artifact: &WorkingArtifact<DisplayReferred>,
+        options: &EncodeOptions,
+        cancellation: &CancellationToken,
+    ) -> Result<EncodeReceipt, Self::Error> {
+        match options.format {
+            OutputFormat::Jpeg => {
+                encode_jpeg_display(self.limits, publication, artifact, options, cancellation)
+            }
+            OutputFormat::Heic => {
+                encode_heic_display(self.limits, publication, artifact, options, cancellation)
+            }
+        }
+    }
+}
+
 impl ProductionJpegEncoder {
     pub const fn new(limits: ResourceLimits) -> Self {
         Self { limits }
@@ -145,33 +185,100 @@ impl PhotoEncoder for ProductionJpegEncoder {
         options: &EncodeOptions,
         cancellation: &CancellationToken,
     ) -> Result<EncodeReceipt, Self::Error> {
-        if options.format != OutputFormat::Jpeg {
-            return Err(EncodeError::UnsupportedFormat);
-        }
-        let encode_cancellation = EncodeCancellation::from_flag(cancellation.shared_flag());
-        let report = crate::io::encode_jpeg(JpegEncodeRequest {
-            input: JpegEncodeInput {
-                image: artifact.image(),
-                signal_relation: artifact.signal_relation(),
-                metadata: artifact.metadata(),
+        encode_jpeg_display(self.limits, publication, artifact, options, cancellation)
+    }
+}
+
+fn encode_jpeg_display(
+    limits: ResourceLimits,
+    publication: PublicationRequest<'_>,
+    artifact: &WorkingArtifact<DisplayReferred>,
+    options: &EncodeOptions,
+    cancellation: &CancellationToken,
+) -> Result<EncodeReceipt, EncodeError> {
+    if options.format != OutputFormat::Jpeg {
+        return Err(EncodeError::UnsupportedFormat);
+    }
+    let encode_cancellation = EncodeCancellation::from_flag(cancellation.shared_flag());
+    let report = crate::io::encode_jpeg(JpegEncodeRequest {
+        input: JpegEncodeInput {
+            image: artifact.image(),
+            signal_relation: artifact.signal_relation(),
+            metadata: artifact.metadata(),
+        },
+        destination: publication.destination,
+        source_identity: Some(publication.source.identity()),
+        encode: *options,
+        atomic: AtomicOutputOptions::default().with_overwrite(publication.overwrite),
+        limits: &limits,
+        cancellation: &encode_cancellation,
+    })?;
+    let publication = match report.outcome {
+        AtomicOutputOutcome::PublishedAndDurable => PublicationStatus::PublishedAndDurable,
+        AtomicOutputOutcome::PublishedButNotDurable => PublicationStatus::PublishedButNotDurable,
+    };
+    Ok(EncodeReceipt {
+        bytes_written: report.output_bytes,
+        publication,
+        summary: Some(EncodeSummary::Jpeg {
+            quality: report.quality,
+            icc_sha256: ReportDigest(report.icc.sha256),
+            clipped_samples: report.clipped_samples,
+            alpha_flattened_pixels: report.alpha_flattened_pixels,
+        }),
+    })
+}
+
+fn encode_heic_display(
+    limits: ResourceLimits,
+    publication: PublicationRequest<'_>,
+    artifact: &WorkingArtifact<DisplayReferred>,
+    options: &EncodeOptions,
+    cancellation: &CancellationToken,
+) -> Result<EncodeReceipt, EncodeError> {
+    if options.format != OutputFormat::Heic {
+        return Err(EncodeError::UnsupportedFormat);
+    }
+    let encode_cancellation = EncodeCancellation::from_flag(cancellation.shared_flag());
+    let report = crate::io::encode_heic(HeicEncodeRequest {
+        input: JpegEncodeInput {
+            image: artifact.image(),
+            signal_relation: artifact.signal_relation(),
+            metadata: artifact.metadata(),
+        },
+        destination: publication.destination,
+        source_identity: Some(publication.source.identity()),
+        encode: *options,
+        atomic: AtomicOutputOptions::default().with_overwrite(publication.overwrite),
+        limits: &limits,
+        cancellation: &encode_cancellation,
+    })?;
+    let publication = publication_status(report.outcome);
+    Ok(EncodeReceipt {
+        bytes_written: report.output_bytes,
+        publication,
+        summary: Some(EncodeSummary::Heic {
+            quality: report.quality,
+            bit_depth: report.bit_depth,
+            libheif_version: report.libheif_version,
+            encoder: report.encoder,
+            icc_sha256: ReportDigest(report.icc.sha256),
+            nclx: HeicNclxSummary {
+                color_primaries: report.nclx.color_primaries,
+                transfer_characteristics: report.nclx.transfer_characteristics,
+                matrix_coefficients: report.nclx.matrix_coefficients,
+                full_range: report.nclx.full_range,
             },
-            destination: publication.destination,
-            source_identity: Some(publication.source_identity),
-            encode: *options,
-            atomic: AtomicOutputOptions::default().with_overwrite(publication.overwrite),
-            limits: &self.limits,
-            cancellation: &encode_cancellation,
-        })?;
-        let publication = match report.outcome {
-            AtomicOutputOutcome::PublishedAndDurable => PublicationStatus::PublishedAndDurable,
-            AtomicOutputOutcome::PublishedButNotDurable => {
-                PublicationStatus::PublishedButNotDurable
-            }
-        };
-        Ok(EncodeReceipt {
-            bytes_written: report.output_bytes,
-            publication,
-        })
+            clipped_samples: report.clipped_samples,
+            alpha_flattened_pixels: report.alpha_flattened_pixels,
+        }),
+    })
+}
+
+fn publication_status(outcome: AtomicOutputOutcome) -> PublicationStatus {
+    match outcome {
+        AtomicOutputOutcome::PublishedAndDurable => PublicationStatus::PublishedAndDurable,
+        AtomicOutputOutcome::PublishedButNotDurable => PublicationStatus::PublishedButNotDurable,
     }
 }
 
@@ -226,7 +333,7 @@ mod tests {
                 &CancellationToken::new(),
             )
             .unwrap();
-        assert_eq!(result.source_identity, identity);
+        assert_eq!(result.source_identity(), identity);
         assert_eq!(
             result.photo.source_digest(),
             crate::io::SourceDigestV1::from_bytes(&stdfs::read(moved).unwrap())
@@ -249,7 +356,7 @@ mod tests {
                 &CancellationToken::new(),
             )
             .unwrap();
-        assert_eq!(result.source_identity, identity);
+        assert_eq!(result.source_identity(), identity);
         assert_eq!(
             result.photo.source_digest(),
             crate::io::SourceDigestV1::from_bytes(b"synthetic raw source")
@@ -324,6 +431,119 @@ mod tests {
         assert_eq!(decoded.dimensions(), (1, 1));
     }
 
+    #[cfg(feature = "heic")]
+    #[test]
+    fn fake_raw_runs_once_through_scene_render_and_publishes_ten_bit_heic() {
+        use crate::{
+            develop::{ParameterOverride, PresetCatalog},
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::{
+                DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput, EncodeSummary,
+                NoProgress, PresetSelection, ReportSignalRelation,
+            },
+        };
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.nef");
+        let output = directory.path().join("developed.heic");
+        stdfs::write(&input, b"synthetic raw source").unwrap();
+        let limits = ResourceLimits::default();
+        let job = DevelopJob {
+            input,
+            output: output.clone(),
+            decode: DecodeOptions::default(),
+            output_options: DevelopOutput::new(
+                OutputFormat::Heic,
+                90,
+                OutputProfile::Srgb,
+                MetadataPolicy::StripLocation,
+                AlphaPolicy::Reject,
+                SdrRangePolicy::ClipAndReport,
+            ),
+            overwrite: OverwritePolicy::Forbid,
+            preset: PresetSelection::CatalogId("neutral".to_owned()),
+            overrides: vec![ParameterOverride::scalar("basics.brightness", 35.0)],
+        };
+        let decoder = ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path()));
+        let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &job,
+                &decoder,
+                &ProductionPhotoEncoder::new(limits),
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
+
+        assert_eq!(
+            report.input_signal_relation,
+            Some(ReportSignalRelation::SceneRelatedRaw)
+        );
+        assert!(report.scene_render.is_some());
+        assert!(matches!(
+            report.encoding.as_deref(),
+            Some(EncodeSummary::Heic { bit_depth: 10, .. })
+        ));
+        assert!(matches!(
+            report.outcome,
+            DevelopJobOutcome::PublishedAndDurable { bytes_written } if bytes_written > 0
+        ));
+        assert!(
+            stdfs::read(output)
+                .unwrap()
+                .windows(4)
+                .any(|window| window == b"ftyp")
+        );
+    }
+
+    #[cfg(feature = "heic")]
+    #[test]
+    fn production_heic_adapter_propagates_cancellation_without_publication() {
+        use crate::{
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::DecodedArtifact,
+        };
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.jpg");
+        let output = directory.path().join("cancelled.heic");
+        jpeg(&input, [30, 60, 90]);
+        let limits = ResourceLimits::default();
+        let decoded = ProductionPhotoDecoder::new()
+            .decode_path_once(&input, &DecodeOptions::default(), &CancellationToken::new())
+            .unwrap();
+        let (photo, source) = decoded.into_parts();
+        let DecodedArtifact::Display(artifact) =
+            DecodedArtifact::try_from_photo(photo, &limits).unwrap()
+        else {
+            panic!("raster must be display-referred");
+        };
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let options = EncodeOptions {
+            format: OutputFormat::Heic,
+            quality: 90,
+            profile: OutputProfile::Srgb,
+            metadata: MetadataPolicy::StripLocation,
+            alpha: AlphaPolicy::Reject,
+            range: SdrRangePolicy::ClipAndReport,
+        };
+        assert!(matches!(
+            ProductionPhotoEncoder::new(limits).encode_display(
+                PublicationRequest {
+                    destination: &output,
+                    source: &source,
+                    overwrite: OverwritePolicy::Forbid,
+                },
+                &artifact,
+                &options,
+                &cancellation,
+            ),
+            Err(EncodeError::Cancelled)
+        ));
+        assert!(!output.exists());
+    }
+
     #[test]
     fn corrupt_raster_magic_never_falls_back_to_raw() {
         let directory = tempdir().unwrap();
@@ -384,5 +604,68 @@ mod tests {
             .unwrap_err();
         assert_eq!(failure.error.code, JobErrorCode::Cancelled);
         assert!(!output.exists());
+    }
+
+    #[test]
+    fn runner_holds_the_same_open_source_lease_through_encoder_commit() {
+        use crate::{
+            develop::PresetCatalog,
+            io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
+            job::{DevelopJob, DevelopJobRunner, DevelopOutput, NoProgress, PresetSelection},
+        };
+
+        struct LeaseCheckingEncoder;
+        impl PhotoEncoder for LeaseCheckingEncoder {
+            type Error = EncodeError;
+
+            fn encode_display(
+                &self,
+                publication: PublicationRequest<'_>,
+                _artifact: &WorkingArtifact<DisplayReferred>,
+                _options: &EncodeOptions,
+                _cancellation: &CancellationToken,
+            ) -> Result<EncodeReceipt, Self::Error> {
+                assert!(publication.source.held_file().metadata().is_ok());
+                assert_eq!(
+                    publication.source.identity(),
+                    crate::io::SourceFileIdentity::from_file(publication.source.held_file())
+                        .unwrap()
+                );
+                Ok(EncodeReceipt {
+                    bytes_written: 1,
+                    publication: PublicationStatus::PublishedAndDurable,
+                    summary: None,
+                })
+            }
+        }
+
+        let directory = tempdir().unwrap();
+        let input = directory.path().join("source.png");
+        jpeg(&input, [30, 60, 90]);
+        let job = DevelopJob {
+            input,
+            output: directory.path().join("virtual.jpg"),
+            decode: DecodeOptions::default(),
+            output_options: DevelopOutput::new(
+                OutputFormat::Jpeg,
+                90,
+                OutputProfile::Srgb,
+                MetadataPolicy::StripLocation,
+                AlphaPolicy::Reject,
+                SdrRangePolicy::ClipAndReport,
+            ),
+            overwrite: OverwritePolicy::Forbid,
+            preset: PresetSelection::CatalogId("neutral".to_owned()),
+            overrides: Vec::new(),
+        };
+        DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
+            .run(
+                &job,
+                &ProductionPhotoDecoder::new(),
+                &LeaseCheckingEncoder,
+                &CancellationToken::new(),
+                &mut NoProgress,
+            )
+            .unwrap();
     }
 }

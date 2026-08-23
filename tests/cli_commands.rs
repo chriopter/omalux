@@ -36,6 +36,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     let probe = run(&["probe", "--json"]);
     assert!(probe.status.success());
     assert!(json(&probe)["raw"]["available"].is_boolean());
+    assert!(json(&probe)["heic"]["available"].is_boolean());
 
     for output in [presets, preset, parameters, probe] {
         assert!(output.stderr.is_empty());
@@ -164,7 +165,7 @@ fn pointwise_cli_controls_change_jpeg_and_grain_is_rename_deterministic() {
         let result = develop(&input, &output, Some(setting));
         assert!(result.status.success(), "{name}: {:?}", result);
         let report = json(&result);
-        assert_eq!(report["schema_version"], 2);
+        assert_eq!(report["schema_version"], 3);
         assert_eq!(report["develop_working_set"]["profile"], "pointwise_v1");
         assert_ne!(
             image::open(output).unwrap().to_rgb8().into_raw(),
@@ -278,6 +279,7 @@ fn legacy_headless_is_a_typed_usage_error() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument '--headless'"));
 }
 
+#[cfg(not(feature = "heic"))]
 #[test]
 fn unavailable_heic_does_not_open_or_create_any_requested_file() {
     let directory = tempfile::tempdir().unwrap();
@@ -303,6 +305,31 @@ fn unavailable_heic_does_not_open_or_create_any_requested_file() {
     assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 0);
 }
 
+#[cfg(not(feature = "heic"))]
+#[test]
+fn unavailable_heic_still_reports_option_usage_before_any_file_io() {
+    use rustix::fs::Mode;
+
+    let directory = tempfile::tempdir().unwrap();
+    let preset = directory.path().join("preset.json");
+    rustix::fs::mkfifoat(rustix::fs::CWD, &preset, Mode::RUSR | Mode::WUSR).unwrap();
+    let output = directory.path().join("must-not-exist.heic");
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(directory.path().join("missing.png"))
+        .arg("--output")
+        .arg(&output)
+        .arg("--preset-file")
+        .arg(&preset)
+        .args(["--max-source-bytes", "0", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    assert!(result.stdout.is_empty());
+    assert!(preset.exists());
+    assert!(!output.exists());
+}
+
 #[test]
 fn invalid_resource_limits_precede_external_preset_io() {
     use rustix::fs::Mode;
@@ -326,6 +353,184 @@ fn invalid_resource_limits_precede_external_preset_io() {
     assert_eq!(result.status.code(), Some(2));
     assert!(preset_fifo.exists());
     assert!(!output.exists());
+}
+
+#[cfg(feature = "heic")]
+#[test]
+fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("gradient.png");
+    let output = directory.path().join("developed.heic");
+    let mut pixels = Vec::new();
+    for y in 0_u8..3 {
+        for x in 0_u8..5 {
+            pixels.extend_from_slice(&[x * 40, y * 70, x * 20 + y * 15]);
+        }
+    }
+    image::save_buffer_with_format(
+        &input,
+        &pixels,
+        5,
+        3,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .args([
+            "--format",
+            "heic",
+            "--quality",
+            "90",
+            "--set",
+            "basics.brightness=10",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert!(result.stderr.is_empty());
+    let report = json(&result);
+    assert_eq!(report["schema_version"], 3);
+    assert_eq!(report["output_format"], "heic");
+    assert_eq!(report["encoding"]["format"], "heic");
+    assert_eq!(report["encoding"]["quality"], 90);
+    assert_eq!(report["encoding"]["bit_depth"], 10);
+    assert_eq!(report["encoding"]["nclx"]["color_primaries"], 1);
+    assert_eq!(report["encoding"]["nclx"]["transfer_characteristics"], 13);
+    assert_eq!(report["encoding"]["nclx"]["matrix_coefficients"], 1);
+    assert_eq!(report["encoding"]["nclx"]["full_range"], true);
+    assert!(
+        report["encoding"]["encoder"]
+            .as_str()
+            .unwrap()
+            .contains("x265")
+    );
+    assert!(
+        !report["encoding"]["libheif_version"]
+            .as_str()
+            .unwrap()
+            .is_empty()
+    );
+    let rendered = serde_json::to_string(&report).unwrap();
+    assert!(!rendered.contains(directory.path().to_str().unwrap()));
+    let bytes = fs::read(&output).unwrap();
+    assert!(bytes.windows(4).any(|window| window == b"ftyp"));
+    unsafe { assert_heic_dimensions_and_depth(&bytes, 5, 3, 10) };
+}
+
+#[cfg(feature = "heic")]
+unsafe fn assert_heic_dimensions_and_depth(bytes: &[u8], width: u32, height: u32, depth: i32) {
+    use libheif_sys as heif;
+    use std::ptr;
+
+    let context = unsafe { heif::heif_context_alloc() };
+    assert!(!context.is_null());
+    let read = unsafe {
+        heif::heif_context_read_from_memory_without_copy(
+            context,
+            bytes.as_ptr().cast(),
+            bytes.len(),
+            ptr::null(),
+        )
+    };
+    assert_eq!(read.code, heif::heif_error_code_heif_error_Ok);
+    let mut handle = ptr::null_mut();
+    let primary = unsafe { heif::heif_context_get_primary_image_handle(context, &mut handle) };
+    assert_eq!(primary.code, heif::heif_error_code_heif_error_Ok);
+    assert_eq!(
+        unsafe { heif::heif_image_handle_get_width(handle) },
+        i32::try_from(width).unwrap()
+    );
+    assert_eq!(
+        unsafe { heif::heif_image_handle_get_height(handle) },
+        i32::try_from(height).unwrap()
+    );
+    assert_eq!(
+        unsafe { heif::heif_image_handle_get_luma_bits_per_pixel(handle) },
+        depth
+    );
+    unsafe {
+        heif::heif_image_handle_release(handle);
+        heif::heif_context_free(context);
+    }
+}
+
+#[cfg(feature = "heic")]
+#[test]
+fn heic_collision_and_output_limit_are_transactional() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("input.png");
+    image::save_buffer_with_format(
+        &input,
+        &[20_u8, 40, 60],
+        1,
+        1,
+        image::ColorType::Rgb8,
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+    let alias = directory.path().join("alias.heic");
+    fs::hard_link(&input, &alias).unwrap();
+    let collision = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&alias)
+        .args(["--format", "heic", "--overwrite", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(collision.status.code(), Some(1));
+    assert_eq!(json(&collision)["outcome"]["code"], "destination_conflict");
+    assert_eq!(fs::read(&alias).unwrap(), fs::read(&input).unwrap());
+
+    let limited = directory.path().join("limited.heic");
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&limited)
+        .args(["--format", "heic", "--max-output-bytes", "64", "--json"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(1));
+    assert_eq!(json(&result)["outcome"]["code"], "resource_limit");
+    assert!(!limited.exists());
+    assert!(
+        !fs::read_dir(directory.path())
+            .unwrap()
+            .flatten()
+            .any(|entry| entry
+                .file_name()
+                .to_string_lossy()
+                .contains("grainroom-tmp"))
+    );
+}
+
+#[cfg(feature = "heic")]
+#[test]
+fn invalid_heic_options_precede_preset_fifo_and_input_io() {
+    use rustix::fs::Mode;
+
+    let directory = tempfile::tempdir().unwrap();
+    let preset = directory.path().join("preset.json");
+    rustix::fs::mkfifoat(rustix::fs::CWD, &preset, Mode::RUSR | Mode::WUSR).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_grainroom"))
+        .args(["develop", "--input"])
+        .arg(directory.path().join("missing.png"))
+        .arg("--output")
+        .arg(directory.path().join("missing.heic"))
+        .arg("--preset-file")
+        .arg(&preset)
+        .args(["--max-source-bytes", "0"])
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    assert!(preset.exists());
 }
 
 #[cfg(target_os = "linux")]

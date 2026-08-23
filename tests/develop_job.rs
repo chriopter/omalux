@@ -12,7 +12,7 @@ use grainroom::{
         AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeError, DecodeOptions,
         DecodedPhoto, Diagnostic, EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy,
         OutputFormat, OutputProfile, OverwritePolicy, ResourceLimits, SdrRangePolicy,
-        SignalRelation, SourceDigestV1, SourceFileIdentity,
+        SignalRelation, SourceDigestV1,
     },
     job::{
         CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
@@ -26,7 +26,6 @@ struct FakeDecoder {
     photo: DecodedPhoto,
     cancel_after_decode: bool,
     calls: Arc<Mutex<Vec<&'static str>>>,
-    source_identity: SourceFileIdentity,
 }
 
 impl PhotoDecoder for FakeDecoder {
@@ -42,10 +41,8 @@ impl PhotoDecoder for FakeDecoder {
         if self.cancel_after_decode {
             cancellation.cancel();
         }
-        Ok(DecodedSource {
-            photo: self.photo.clone(),
-            source_identity: self.source_identity,
-        })
+        DecodedSource::from_held_file(self.photo.clone(), tempfile::tempfile().unwrap())
+            .map_err(|_| DecodeError::InvalidOptions)
     }
 }
 
@@ -105,6 +102,7 @@ impl PhotoEncoder for FakeEncoder {
         Ok(EncodeReceipt {
             bytes_written: 37,
             publication: self.publication,
+            summary: None,
         })
     }
 }
@@ -147,10 +145,6 @@ fn decoded() -> DecodedPhoto {
     .unwrap()
 }
 
-fn source_identity() -> SourceFileIdentity {
-    SourceFileIdentity::from_file(&tempfile::tempfile().unwrap()).unwrap()
-}
-
 fn job() -> DevelopJob {
     DevelopJob {
         input: "/virtual/input.raw".into(),
@@ -177,7 +171,6 @@ fn display_job_bypasses_scene_render() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: calls.clone(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder {
         calls: calls.clone(),
@@ -218,7 +211,6 @@ fn cancellation_after_decoder_prevents_all_later_work() {
         photo: decoded(),
         cancel_after_decode: true,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let failure = DevelopJobRunner::built_in()
@@ -242,7 +234,6 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let report = DevelopJobRunner::built_in()
         .unwrap()
@@ -256,7 +247,7 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         .unwrap();
     let json = serde_json::to_string(&report).unwrap();
     assert!(json.contains("io.omacom.grainroom.develop-job-report"));
-    assert!(json.contains("\"schema_version\":2"));
+    assert!(json.contains("\"schema_version\":3"));
     assert!(json.contains("\"profile\":\"pointwise_v1\""));
     assert!(json.contains("\"estimated_peak_bytes\":64"));
     assert!(!json.contains("/virtual/"));
@@ -270,7 +261,6 @@ fn invalid_preset_fails_after_decode_but_before_develop_or_encode() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut request = job();
@@ -296,7 +286,6 @@ fn pointwise_override_is_applied_to_the_encoded_artifact() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut request = job();
@@ -340,7 +329,6 @@ fn pointwise_preset_is_applied_to_the_encoded_artifact() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut request = job();
@@ -370,7 +358,6 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder::default();
     let mut exact = job();
@@ -417,7 +404,6 @@ fn grain_seed_depends_on_content_not_renamed_paths() {
             photo: decoded(),
             cancel_after_decode: false,
             calls: Arc::default(),
-            source_identity: source_identity(),
         };
         let encoder = FakeEncoder::default();
         let mut request = job();
@@ -489,7 +475,6 @@ fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
             photo: decoded(),
             cancel_after_decode: false,
             calls: Arc::default(),
-            source_identity: source_identity(),
         };
         let encoder = FakeEncoder::default();
         let mut request = job();
@@ -522,7 +507,6 @@ fn publication_commit_is_not_reinterpreted_as_late_cancellation() {
         photo: decoded(),
         cancel_after_decode: false,
         calls: Arc::default(),
-        source_identity: source_identity(),
     };
     let encoder = FakeEncoder {
         publication: PublicationStatus::PublishedButNotDurable,

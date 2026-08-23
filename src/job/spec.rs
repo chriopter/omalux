@@ -54,6 +54,10 @@ impl DevelopOutput {
         self.as_encode_options().validate()
     }
 
+    pub const fn format(&self) -> OutputFormat {
+        self.format
+    }
+
     pub(crate) const fn as_encode_options(&self) -> EncodeOptions {
         EncodeOptions {
             format: self.format,

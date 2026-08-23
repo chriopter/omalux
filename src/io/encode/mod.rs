@@ -11,7 +11,8 @@ use std::sync::{
 };
 
 pub use heic::{
-    HeicCapability, HeicEncodeReport, HeicEncodeRequest, encode_heic, probe_heic_capability,
+    HeicCapability, HeicEncodeReport, HeicEncodeRequest, HeicNclx, encode_heic,
+    probe_heic_capability,
 };
 pub use jpeg::{JpegEncodeRequest, encode_jpeg};
 pub use metadata::MetadataWriteReport;

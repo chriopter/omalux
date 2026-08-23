@@ -113,6 +113,9 @@ fn production_file_reads_back_pixels_icc_nclx_and_sanitized_exif() {
         &cancellation,
     ))
     .unwrap();
+    assert_eq!(report.bit_depth, 10);
+    assert!(!report.libheif_version.is_empty());
+    assert_eq!(report.nclx, grainroom::io::HeicNclx::SRGB_FULL_RANGE);
     assert!(report.metadata.gps_removed);
     let bytes = fs::read(output).unwrap();
     unsafe { assert_libheif_readback(&bytes, &report) };

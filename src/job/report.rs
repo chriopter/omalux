@@ -8,7 +8,7 @@ use crate::{
 use super::{JobErrorCode, JobStage};
 
 pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.grainroom.develop-job-report";
-pub const DEVELOP_JOB_REPORT_VERSION: u32 = 2;
+pub const DEVELOP_JOB_REPORT_VERSION: u32 = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReportDigest(pub [u8; 32]);
@@ -34,6 +34,22 @@ impl Serialize for ReportDigest {
 pub enum ReportSignalRelation {
     SceneRelatedRaw,
     LinearizedDisplayReferred,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReportOutputFormat {
+    Jpeg,
+    Heic,
+}
+
+impl From<crate::io::OutputFormat> for ReportOutputFormat {
+    fn from(value: crate::io::OutputFormat) -> Self {
+        match value {
+            crate::io::OutputFormat::Jpeg => Self::Jpeg,
+            crate::io::OutputFormat::Heic => Self::Heic,
+        }
+    }
 }
 
 impl From<SignalRelation> for ReportSignalRelation {
@@ -131,6 +147,35 @@ pub enum DevelopJobOutcome {
     Failure { stage: JobStage, code: JobErrorCode },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "format", rename_all = "snake_case")]
+pub enum EncodeSummary {
+    Jpeg {
+        quality: u8,
+        icc_sha256: ReportDigest,
+        clipped_samples: u64,
+        alpha_flattened_pixels: u64,
+    },
+    Heic {
+        quality: u8,
+        bit_depth: u8,
+        libheif_version: String,
+        encoder: String,
+        icc_sha256: ReportDigest,
+        nclx: HeicNclxSummary,
+        clipped_samples: u64,
+        alpha_flattened_pixels: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+pub struct HeicNclxSummary {
+    pub color_primaries: u16,
+    pub transfer_characteristics: u16,
+    pub matrix_coefficients: u16,
+    pub full_range: bool,
+}
+
 /// Stable machine report. It deliberately contains neither paths nor filenames.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct DevelopJobReport {
@@ -139,8 +184,10 @@ pub struct DevelopJobReport {
     pub source_digest_v1: Option<ReportDigest>,
     pub input_signal_relation: Option<ReportSignalRelation>,
     pub output_signal_relation: Option<ReportSignalRelation>,
+    pub output_format: Option<ReportOutputFormat>,
     pub develop_working_set: DevelopWorkingSetSummary,
     pub scene_render: Option<SceneRenderSummary>,
+    pub encoding: Option<Box<EncodeSummary>>,
     pub outcome: DevelopJobOutcome,
 }
 
@@ -152,8 +199,10 @@ impl DevelopJobReport {
             source_digest_v1: None,
             input_signal_relation: None,
             output_signal_relation: None,
+            output_format: None,
             develop_working_set: DevelopWorkingSetSummary::pending(),
             scene_render: None,
+            encoding: None,
             outcome: DevelopJobOutcome::Failure {
                 stage: JobStage::Validate,
                 code: JobErrorCode::Internal,

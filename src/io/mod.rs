@@ -19,9 +19,9 @@ pub use atomic::{
 };
 pub use digest::SourceDigestV1;
 pub use encode::{
-    EncodeCancellation, HeicCapability, HeicEncodeReport, HeicEncodeRequest, JpegEncodeInput,
-    JpegEncodeReport, JpegEncodeRequest, MetadataWriteReport, PreparedDisplayRgb, encode_heic,
-    encode_jpeg, prepare_display_rgb8, probe_heic_capability,
+    EncodeCancellation, HeicCapability, HeicEncodeReport, HeicEncodeRequest, HeicNclx,
+    JpegEncodeInput, JpegEncodeReport, JpegEncodeRequest, MetadataWriteReport, PreparedDisplayRgb,
+    encode_heic, encode_jpeg, prepare_display_rgb8, probe_heic_capability,
 };
 pub use error::{
     AtomicOutputError, DecodeError, DigestError, EncodeError, ErrorCode, LimitError, MetadataKind,

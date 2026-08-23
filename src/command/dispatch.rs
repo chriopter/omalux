@@ -16,7 +16,7 @@ use grainroom::{
     },
     job::{
         CancellationToken, DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput,
-        JobErrorCode, JobStage, PresetSelection, ProductionJpegEncoder, ProductionPhotoDecoder,
+        JobErrorCode, JobStage, PresetSelection, ProductionPhotoDecoder, ProductionPhotoEncoder,
         ProgressSink,
     },
 };
@@ -217,12 +217,6 @@ fn validate_develop(
         );
         return CommandExit::Usage;
     }
-    // V1 intentionally rejects HEIC before preset or input I/O and before any
-    // destination can be created.
-    if format == DevelopFormat::Heic {
-        return emit_unavailable(arguments.json, stdout, stderr, "heic_encoder");
-    }
-
     // All option-only contracts precede external preset I/O. A malformed
     // resource budget must not touch even a FIFO or inaccessible preset path.
     let mut limits = ResourceLimits::default();
@@ -249,8 +243,12 @@ fn validate_develop(
         AlphaArg::FlattenBlack => AlphaPolicy::Flatten([0.0; 3]),
         AlphaArg::Flatten(rgb) => AlphaPolicy::Flatten(rgb.map(|value| f32::from(value) / 255.0)),
     };
+    let output_format = match format {
+        DevelopFormat::Jpeg => OutputFormat::Jpeg,
+        DevelopFormat::Heic => OutputFormat::Heic,
+    };
     let output_options = DevelopOutput::new(
-        OutputFormat::Jpeg,
+        output_format,
         arguments.quality,
         OutputProfile::Srgb,
         match arguments.metadata {
@@ -264,6 +262,25 @@ fn validate_develop(
     if decode.validate().is_err() || output_options.validate().is_err() {
         human_error(stderr, "develop options are invalid");
         return CommandExit::Usage;
+    }
+
+    // A binary built without the optional backend rejects otherwise-valid
+    // HEIC options before preset/input I/O or destination creation.
+    #[cfg(not(feature = "heic"))]
+    if format == DevelopFormat::Heic {
+        return emit_unavailable(arguments.json, stdout, stderr, "heic_encoder");
+    }
+
+    // Capability probing is option-only and deliberately precedes any
+    // external preset/input access. Production HEIC v1 is a 10-bit x265 path.
+    #[cfg(feature = "heic")]
+    if format == DevelopFormat::Heic
+        && !matches!(
+            grainroom::io::probe_heic_capability(),
+            Ok(capability) if capability.ten_bit
+        )
+    {
+        return emit_unavailable(arguments.json, stdout, stderr, "heic_encoder");
     }
 
     let catalog = match PresetCatalog::built_in() {
@@ -315,7 +332,7 @@ fn validate_develop(
     };
     let runner = DevelopJobRunner::new(catalog);
     let decoder = ProductionPhotoDecoder::new();
-    let encoder = ProductionJpegEncoder::new(limits);
+    let encoder = ProductionPhotoEncoder::new(limits);
     let cancellation = CancellationToken::new();
     let _signal_guard = match ActiveCancellation::install(cancellation.clone()) {
         Ok(guard) => guard,
@@ -459,7 +476,9 @@ fn emit_unavailable(
 fn failure_exit(code: JobErrorCode) -> CommandExit {
     match code {
         JobErrorCode::Cancelled => CommandExit::Cancelled,
-        JobErrorCode::RawBackend | JobErrorCode::UnprovenPipelineBudget => CommandExit::Unavailable,
+        JobErrorCode::RawBackend
+        | JobErrorCode::EncoderBackendUnavailable
+        | JobErrorCode::UnprovenPipelineBudget => CommandExit::Unavailable,
         JobErrorCode::InvalidOptions => CommandExit::Usage,
         JobErrorCode::Internal => CommandExit::Internal,
         _ => CommandExit::Failed,
@@ -492,6 +511,7 @@ fn error_name(code: JobErrorCode) -> &'static str {
         JobErrorCode::Encode => "encode",
         JobErrorCode::OutputIo => "output_io",
         JobErrorCode::DestinationConflict => "destination_conflict",
+        JobErrorCode::EncoderBackendUnavailable => "encoder_backend_unavailable",
         JobErrorCode::UnprovenPipelineBudget => "unproven_pipeline_budget",
         JobErrorCode::Internal => "internal",
     }
@@ -608,22 +628,47 @@ fn list_parameters(
 }
 
 fn probe(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Write) -> CommandExit {
-    let available = grainroom::io::raw::trusted_dcraw_execution().is_ok();
+    let raw_available = grainroom::io::raw::trusted_dcraw_execution().is_ok();
+    #[cfg(feature = "heic")]
+    let heic = grainroom::io::probe_heic_capability().ok();
+    #[cfg(not(feature = "heic"))]
+    let heic: Option<grainroom::io::HeicCapability> = None;
     if json_output {
         write_json(
             stdout,
-            &json!({"raw": {"available": available, "backend": "libraw-dcraw-emu"}}),
+            &json!({
+                "raw": {"available": raw_available, "backend": "libraw-dcraw-emu"},
+                "heic": {
+                    "available": heic.as_ref().is_some_and(|value| value.ten_bit),
+                    "backend": "libheif-x265",
+                    "libheif_version": heic.as_ref().map(|value| value.libheif_version.as_str()),
+                    "encoder": heic.as_ref().map(|value| value.encoder.as_str()),
+                    "eight_bit": heic.as_ref().is_some_and(|value| value.eight_bit),
+                    "ten_bit": heic.as_ref().is_some_and(|value| value.ten_bit),
+                }
+            }),
             stderr,
         )
     } else if writeln!(
         stdout,
         "raw\tlibraw-dcraw-emu\t{}",
-        if available {
+        if raw_available {
             "available"
         } else {
             "unavailable"
         }
     )
+    .and_then(|()| {
+        writeln!(
+            stdout,
+            "heic\tlibheif-x265\t{}",
+            if heic.as_ref().is_some_and(|value| value.ten_bit) {
+                "available"
+            } else {
+                "unavailable"
+            }
+        )
+    })
     .is_ok()
     {
         CommandExit::Success

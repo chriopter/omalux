@@ -19,6 +19,7 @@ pub enum JobErrorCode {
     Encode,
     OutputIo,
     DestinationConflict,
+    EncoderBackendUnavailable,
     UnprovenPipelineBudget,
     Internal,
 }
@@ -39,6 +40,7 @@ impl From<crate::io::ErrorCode> for JobErrorCode {
             ErrorCode::Encode => Self::Encode,
             ErrorCode::OutputIo => Self::OutputIo,
             ErrorCode::DestinationConflict => Self::DestinationConflict,
+            ErrorCode::EncoderBackendUnavailable => Self::EncoderBackendUnavailable,
             ErrorCode::Internal => Self::Internal,
         }
     }
@@ -65,7 +67,7 @@ impl std::error::Error for DevelopJobError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DevelopJobFailure {
     pub error: DevelopJobError,
-    pub report: DevelopJobReport,
+    pub report: Box<DevelopJobReport>,
 }
 
 impl DevelopJobFailure {
@@ -73,7 +75,7 @@ impl DevelopJobFailure {
         report.outcome = DevelopJobOutcome::Failure { stage, code };
         Self {
             error: DevelopJobError { stage, code },
-            report,
+            report: Box::new(report),
         }
     }
 }

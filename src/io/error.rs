@@ -17,6 +17,7 @@ pub enum ErrorCode {
     Encode = 30,
     OutputIo = 31,
     DestinationConflict = 32,
+    EncoderBackendUnavailable = 33,
     Internal = 70,
 }
 
@@ -217,7 +218,7 @@ impl StableErrorCode for EncodeError {
     fn error_code(&self) -> ErrorCode {
         match self {
             Self::HeicBackendNotBuilt | Self::HeicBackendUnavailable => {
-                ErrorCode::UnsupportedFormat
+                ErrorCode::EncoderBackendUnavailable
             }
             Self::UnsupportedFormat => ErrorCode::UnsupportedFormat,
             Self::UnsupportedProfile | Self::InvalidOptions | Self::AlphaPresent { .. } => {

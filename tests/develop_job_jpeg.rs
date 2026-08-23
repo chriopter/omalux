@@ -7,7 +7,7 @@ use grainroom::{
         DecodeOptions, DecodedPhoto, Diagnostic, EncodeCancellation, EncodeError, EncodeOptions,
         MetadataBundle, MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy,
         RawMatrixSource, RawProcessingProvenance, ResourceLimits, SdrRangePolicy, SignalRelation,
-        SourceDigestV1, SourceFileIdentity, WhiteBalanceProvenance, encode_jpeg,
+        SourceDigestV1, WhiteBalanceProvenance, encode_jpeg,
     },
     job::{
         CancellationToken, DecodedSource, DevelopJob, DevelopJobOutcome, DevelopJobRunner,
@@ -32,11 +32,11 @@ impl PhotoDecoder for HeldSyntheticDecoder {
         _options: &DecodeOptions,
         _cancellation: &CancellationToken,
     ) -> Result<DecodedSource, Self::Error> {
-        Ok(DecodedSource {
-            photo: self.photo.clone(),
-            source_identity: SourceFileIdentity::from_file(&self.source)
-                .map_err(|_| DecodeError::InvalidOptions)?,
-        })
+        DecodedSource::from_held_file(
+            self.photo.clone(),
+            self.source.try_clone().map_err(DecodeError::Input)?,
+        )
+        .map_err(|_| DecodeError::InvalidOptions)
     }
 }
 
@@ -66,7 +66,7 @@ impl PhotoEncoder for AtomicJpegEncoder<'_> {
                 metadata: artifact.metadata(),
             },
             destination: publication.destination,
-            source_identity: Some(publication.source_identity),
+            source_identity: Some(publication.source.identity()),
             encode: *options,
             atomic: AtomicOutputOptions::default().with_overwrite(publication.overwrite),
             limits: self.limits,
@@ -77,6 +77,7 @@ impl PhotoEncoder for AtomicJpegEncoder<'_> {
             publication: self
                 .reported_publication
                 .unwrap_or(PublicationStatus::PublishedAndDurable),
+            summary: None,
         })
     }
 }

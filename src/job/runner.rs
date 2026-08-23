@@ -63,6 +63,7 @@ impl DevelopJobRunner {
                 report,
             ));
         }
+        report.output_format = Some(job.output_options.format().into());
         progress.stage_completed(JobStage::Validate);
 
         self.check_cancelled(JobStage::Decode, cancellation, &report)?;
@@ -72,9 +73,9 @@ impl DevelopJobRunner {
                 DevelopJobFailure::new(JobStage::Decode, stable_code(&error).into(), report.clone())
             })?;
         self.check_cancelled(JobStage::Decode, cancellation, &report)?;
-        let source_identity = decoded.source_identity;
-        let artifact = DecodedArtifact::try_from_photo(decoded.photo, &job.decode.limits).map_err(
-            |error| {
+        let (photo, source_lease) = decoded.into_parts();
+        let artifact =
+            DecodedArtifact::try_from_photo(photo, &job.decode.limits).map_err(|error| {
                 let code = match error {
                     crate::io::DecodedPhotoError::Limit(_) => JobErrorCode::ResourceLimit,
                     crate::io::DecodedPhotoError::Image(_)
@@ -83,8 +84,7 @@ impl DevelopJobRunner {
                     }
                 };
                 DevelopJobFailure::new(JobStage::Decode, code, report.clone())
-            },
-        )?;
+            })?;
         let digest = match &artifact {
             DecodedArtifact::Scene(value) => value.source_digest(),
             DecodedArtifact::Display(value) => value.source_digest(),
@@ -175,7 +175,7 @@ impl DevelopJobRunner {
             .encode_display(
                 PublicationRequest {
                     destination: &job.output,
-                    source_identity,
+                    source: &source_lease,
                     overwrite: job.overwrite,
                 },
                 &display,
@@ -189,6 +189,7 @@ impl DevelopJobRunner {
         // a visible destination as a retryable cancellation afterwards.
         progress.stage_completed(JobStage::Encode);
         progress.stage_completed(JobStage::Complete);
+        report.encoding = receipt.summary.map(Box::new);
         report.outcome = match receipt.publication {
             PublicationStatus::PublishedAndDurable => DevelopJobOutcome::PublishedAndDurable {
                 bytes_written: receipt.bytes_written,
@@ -350,8 +351,7 @@ mod tests {
             EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy, OutputFormat,
             OutputProfile, OverwritePolicy, RawBackendName, RawMatrixSource,
             RawProcessingProvenance, ResourceLimits, SdrRangePolicy, SignalRelation,
-            SourceDigestV1, SourceFileIdentity, WhiteBalanceProvenance,
-            color::SceneToDisplayTransform,
+            SourceDigestV1, WhiteBalanceProvenance, color::SceneToDisplayTransform,
         },
         job::{
             CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
@@ -394,11 +394,8 @@ mod tests {
                 &ResourceLimits::default(),
             )
             .unwrap();
-            Ok(DecodedSource {
-                photo,
-                source_identity: SourceFileIdentity::from_file(&tempfile::tempfile().unwrap())
-                    .unwrap(),
-            })
+            DecodedSource::from_held_file(photo, tempfile::tempfile().unwrap())
+                .map_err(|_| DecodeError::InvalidOptions)
         }
     }
 
@@ -432,6 +429,7 @@ mod tests {
             Ok(EncodeReceipt {
                 bytes_written: 1,
                 publication: PublicationStatus::PublishedAndDurable,
+                summary: None,
             })
         }
     }

@@ -31,11 +31,31 @@ pub struct HeicEncodeReport {
     pub height: u32,
     pub quality: u8,
     pub output_bytes: u64,
+    pub bit_depth: u8,
+    pub libheif_version: String,
     pub encoder: String,
+    pub nclx: HeicNclx,
     pub icc: IccProfileProvenance,
     pub clipped_samples: u64,
     pub alpha_flattened_pixels: u64,
     pub metadata: MetadataWriteReport,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HeicNclx {
+    pub color_primaries: u16,
+    pub transfer_characteristics: u16,
+    pub matrix_coefficients: u16,
+    pub full_range: bool,
+}
+
+impl HeicNclx {
+    pub const SRGB_FULL_RANGE: Self = Self {
+        color_primaries: 1,
+        transfer_characteristics: 13,
+        matrix_coefficients: 1,
+        full_range: true,
+    };
 }
 
 #[cfg(not(feature = "heic"))]
@@ -73,8 +93,8 @@ mod backend {
         )?;
         let mut failure = None;
         let mut output_bytes = 0;
-        let mut encoder_name = String::new();
-        let outcome = write_atomic_output_for_source(
+        let mut codec_report = None;
+        let publication = write_atomic_output_for_source(
             request.destination,
             request.source_identity,
             request.atomic,
@@ -88,8 +108,8 @@ mod backend {
                 );
                 match result {
                     Ok(report) => {
-                        output_bytes = report.0;
-                        encoder_name = report.1;
+                        output_bytes = report.output_bytes;
+                        codec_report = Some(report);
                         Ok(())
                     }
                     Err(error) => {
@@ -98,15 +118,19 @@ mod backend {
                     }
                 }
             },
-        )
-        .map_err(|error| map_atomic(error, failure))?;
+        );
+        let outcome = publication_outcome(publication, failure)?;
+        let codec_report = codec_report.ok_or(EncodeError::Encode)?;
         Ok(HeicEncodeReport {
             outcome,
             width: prepared.width,
             height: prepared.height,
             quality: request.encode.quality,
             output_bytes,
-            encoder: encoder_name,
+            bit_depth: codec_report.bit_depth,
+            libheif_version: codec_report.libheif_version,
+            encoder: codec_report.encoder,
+            nclx: HeicNclx::SRGB_FULL_RANGE,
             icc: prepared.icc_provenance,
             clipped_samples: prepared.clipped_samples,
             alpha_flattened_pixels: prepared.alpha_flattened_pixels,
@@ -298,12 +322,15 @@ mod backend {
         quality: u8,
         maximum: u64,
         cancellation: &EncodeCancellation,
-    ) -> Result<(u64, String), InnerFailure> {
+    ) -> Result<CodecReport, InnerFailure> {
         unsafe {
             if cancellation.cancelled() {
                 return Err(InnerFailure::Cancelled);
             }
             let _library = LibraryGuard::new().map_err(InnerFailure::from)?;
+            let libheif_version = CStr::from_ptr(heif::heif_get_version())
+                .to_string_lossy()
+                .into_owned();
             let context = Context::new().map_err(InnerFailure::from)?;
             let encoder = Encoder::x265(context.0).map_err(InnerFailure::from)?;
             check(heif::heif_encoder_set_lossy_quality(
@@ -311,7 +338,7 @@ mod backend {
                 i32::from(quality),
             ))
             .map_err(InnerFailure::from)?;
-            let image = Image::rgb8(prepared.width, prepared.height, &prepared.rgb8)?;
+            let image = Image::rgb10_from_rgb8(prepared.width, prepared.height, &prepared.rgb8)?;
             image.attach_profiles(&prepared.icc)?;
             let options = EncodingOptions::new()?;
             let mut handle = ptr::null_mut();
@@ -362,8 +389,23 @@ mod backend {
             if cancellation.cancelled() {
                 return Err(InnerFailure::Cancelled);
             }
-            Ok((state.written, encoder.name()))
+            Ok(CodecReport {
+                output_bytes: state.written,
+                // The input plane and selected capability are fixed to 10 bit;
+                // the public capability probe independently reopens a coded
+                // result and verifies that depth survives the backend.
+                bit_depth: 10,
+                libheif_version,
+                encoder: encoder.name(),
+            })
         }
+    }
+
+    struct CodecReport {
+        output_bytes: u64,
+        bit_depth: u8,
+        libheif_version: String,
+        encoder: String,
     }
 
     unsafe extern "C" fn write_callback(
@@ -452,6 +494,19 @@ mod backend {
             }
             (AtomicOutputError::Write(_), Some(InnerFailure::Codec)) => EncodeError::Encode,
             (error, _) => EncodeError::Output(error),
+        }
+    }
+
+    fn publication_outcome(
+        result: Result<AtomicOutputOutcome, AtomicOutputError>,
+        failure: Option<InnerFailure>,
+    ) -> Result<AtomicOutputOutcome, EncodeError> {
+        match result {
+            Ok(outcome) => Ok(outcome),
+            Err(AtomicOutputError::PublishedButNotDurable(_)) if failure.is_none() => {
+                Ok(AtomicOutputOutcome::PublishedButNotDurable)
+            }
+            Err(error) => Err(map_atomic(error, failure)),
         }
     }
 
@@ -600,7 +655,11 @@ mod backend {
             }
             Ok(image)
         }
-        unsafe fn rgb8(width: u32, height: u32, rgb: &[u8]) -> Result<Self, InnerFailure> {
+        unsafe fn rgb10_from_rgb8(
+            width: u32,
+            height: u32,
+            rgb: &[u8],
+        ) -> Result<Self, InnerFailure> {
             let w = i32::try_from(width).map_err(|_| InnerFailure::Codec)?;
             let h = i32::try_from(height).map_err(|_| InnerFailure::Codec)?;
             let mut image = ptr::null_mut();
@@ -609,7 +668,7 @@ mod backend {
                     w,
                     h,
                     heif::heif_colorspace_heif_colorspace_RGB,
-                    heif::heif_chroma_heif_chroma_interleaved_RGB,
+                    heif::heif_chroma_heif_chroma_interleaved_RRGGBB_LE,
                     &mut image,
                 )
             })
@@ -621,7 +680,7 @@ mod backend {
                     heif::heif_channel_heif_channel_interleaved,
                     w,
                     h,
-                    8,
+                    10,
                 )
             })
             .map_err(InnerFailure::from)?;
@@ -633,23 +692,34 @@ mod backend {
                     &mut stride,
                 )
             };
-            let row = usize::try_from(width)
+            let input_row = usize::try_from(width)
                 .ok()
                 .and_then(|v| v.checked_mul(3))
                 .ok_or(InnerFailure::Codec)?;
+            let output_row = input_row.checked_mul(2).ok_or(InnerFailure::Codec)?;
             if plane.is_null()
-                || stride < row
+                || stride < output_row
                 || rgb.len()
-                    != row
+                    != input_row
                         .checked_mul(height as usize)
                         .ok_or(InnerFailure::Codec)?
             {
                 return Err(InnerFailure::Codec);
             }
             for y in 0..height as usize {
-                unsafe {
-                    ptr::copy_nonoverlapping(rgb.as_ptr().add(y * row), plane.add(y * stride), row)
-                };
+                for (sample, value) in rgb[y * input_row..(y + 1) * input_row]
+                    .iter()
+                    .copied()
+                    .enumerate()
+                {
+                    let value = ((u32::from(value) * 1023 + 127) / 255) as u16;
+                    let value = value.to_le_bytes();
+                    let offset = y * stride + sample * 2;
+                    unsafe {
+                        *plane.add(offset) = value[0];
+                        *plane.add(offset + 1) = value[1];
+                    }
+                }
             }
             Ok(image)
         }
@@ -780,6 +850,17 @@ mod backend {
             assert_eq!(file_result.code, heif::heif_error_code_heif_error_Ok);
             assert_eq!(state.written, 0);
             assert!(state.failure.is_none());
+        }
+
+        #[test]
+        fn visible_but_not_durable_publication_is_a_non_retryable_success() {
+            let result = publication_outcome(
+                Err(AtomicOutputError::PublishedButNotDurable(io::Error::other(
+                    "fault injection",
+                ))),
+                None,
+            );
+            assert_eq!(result.unwrap(), AtomicOutputOutcome::PublishedButNotDurable);
         }
 
         #[test]

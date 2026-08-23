@@ -76,6 +76,7 @@ mod tests {
         assert!(stderr.contains("unexpected argument '--headless'"));
     }
 
+    #[cfg(not(feature = "heic"))]
     #[test]
     fn unavailable_heic_emits_no_progress_stream_or_file_io() {
         let base = [
