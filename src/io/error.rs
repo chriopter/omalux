@@ -57,6 +57,10 @@ pub enum LimitError {
         requested: u64,
         maximum: u64,
     },
+    OutputBytes {
+        requested: u64,
+        maximum: u64,
+    },
     MetadataBytes {
         kind: MetadataKind,
         requested: u64,
@@ -84,6 +88,9 @@ impl fmt::Display for LimitError {
             }
             Self::WorkingBytes { requested, maximum } => {
                 write!(f, "working bytes {requested} exceed {maximum}")
+            }
+            Self::OutputBytes { requested, maximum } => {
+                write!(f, "encoded bytes {requested} exceed {maximum}")
             }
             Self::MetadataBytes {
                 kind,
@@ -178,11 +185,16 @@ impl StableErrorCode for DecodeError {
 #[non_exhaustive]
 pub enum EncodeError {
     UnsupportedFormat,
+    UnsupportedProfile,
     InvalidOptions,
     OutOfRange,
     ColorManagement,
+    SceneToDisplayRenderingRequired,
+    AlphaPresent { pixel: u64 },
+    Metadata,
+    Cancelled,
     Encode,
-    Output(io::Error),
+    Output(AtomicOutputError),
     Limit(LimitError),
 }
 impl fmt::Display for EncodeError {
@@ -190,15 +202,29 @@ impl fmt::Display for EncodeError {
         write!(f, "encode failed ({:?})", self.error_code())
     }
 }
-impl std::error::Error for EncodeError {}
+impl std::error::Error for EncodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Output(error) => Some(error),
+            Self::Limit(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 impl StableErrorCode for EncodeError {
     fn error_code(&self) -> ErrorCode {
         match self {
             Self::UnsupportedFormat => ErrorCode::UnsupportedFormat,
-            Self::InvalidOptions => ErrorCode::InvalidOptions,
-            Self::OutOfRange | Self::ColorManagement => ErrorCode::ColorManagement,
+            Self::UnsupportedProfile | Self::InvalidOptions | Self::AlphaPresent { .. } => {
+                ErrorCode::InvalidOptions
+            }
+            Self::OutOfRange | Self::ColorManagement | Self::SceneToDisplayRenderingRequired => {
+                ErrorCode::ColorManagement
+            }
+            Self::Metadata => ErrorCode::Metadata,
+            Self::Cancelled => ErrorCode::Cancelled,
             Self::Encode => ErrorCode::Encode,
-            Self::Output(_) => ErrorCode::OutputIo,
+            Self::Output(error) => error.error_code(),
             Self::Limit(_) => ErrorCode::ResourceLimit,
         }
     }

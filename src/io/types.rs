@@ -460,6 +460,18 @@ pub struct EncodeOptions {
     pub alpha: AlphaPolicy,
     pub range: SdrRangePolicy,
 }
+impl Default for EncodeOptions {
+    fn default() -> Self {
+        Self {
+            format: OutputFormat::Jpeg,
+            quality: 90,
+            profile: OutputProfile::Srgb,
+            metadata: MetadataPolicy::StripLocation,
+            alpha: AlphaPolicy::Reject,
+            range: SdrRangePolicy::ClipAndReport,
+        }
+    }
+}
 impl EncodeOptions {
     pub fn validate(&self) -> Result<(), EncodeError> {
         if !(1..=100).contains(&self.quality) {
@@ -488,13 +500,11 @@ mod tests {
     #[test]
     fn quality_and_flatten_are_validated() {
         let mut o = EncodeOptions {
-            format: OutputFormat::Jpeg,
-            quality: 90,
-            profile: OutputProfile::Srgb,
-            metadata: MetadataPolicy::StripLocation,
             alpha: AlphaPolicy::Flatten([0.0, 0.0, 0.0]),
-            range: SdrRangePolicy::ClipAndReport,
+            ..Default::default()
         };
+        assert_eq!(o.quality, 90);
+        assert_eq!(o.metadata, MetadataPolicy::StripLocation);
         assert!(o.validate().is_ok());
         o.quality = 0;
         assert!(o.validate().is_err());

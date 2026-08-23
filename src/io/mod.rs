@@ -7,6 +7,7 @@
 mod atomic;
 pub mod color;
 mod digest;
+pub mod encode;
 mod error;
 mod limits;
 pub mod raster;
@@ -22,7 +23,10 @@ pub use error::{
     AtomicOutputError, DecodeError, DigestError, EncodeError, ErrorCode, LimitError, MetadataKind,
     StableErrorCode,
 };
-pub use limits::{DecodeWorkingSetProfile, ResourceLimits, WorkingSetEstimate};
+pub use limits::{
+    DecodeWorkingSetProfile, EncodeWorkingSetEstimate, EncodeWorkingSetProfile, ResourceLimits,
+    WorkingSetEstimate,
+};
 pub use types::{
     AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeOptions, DecodedPhoto,
     DecodedPhotoError, Diagnostic, DiagnosticCode, DiagnosticSeverity, EncodeOptions,
