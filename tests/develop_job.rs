@@ -5,8 +5,8 @@ use std::{
 
 use grainroom::{
     develop::{
-        CpuImage, DevelopSettings, LocalAdjustments, ParameterOverride, PresetDocument, RadialMask,
-        RgbaPixel,
+        CpuImage, DevelopSettings, DevelopWorkingSetProfile, LocalAdjustments, ParameterOverride,
+        PresetDocument, RadialMask, RgbaPixel, estimate_develop_working_set,
     },
     io::{
         AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeError, DecodeOptions,
@@ -284,6 +284,50 @@ fn non_neutral_override_is_rejected_until_pipeline_budget_is_proven() {
     request
         .overrides
         .push(ParameterOverride::scalar("basics.brightness", 25.0));
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &request,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::UnprovenPipelineBudget);
+    assert!(encoder.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn proven_pointwise_profile_remains_job_gated_until_the_adapter_is_reviewed() {
+    let mut settings = DevelopSettings::default();
+    settings.basics.brightness = 12.0;
+    settings.effects.fade = 5.0;
+    settings.effects.grain.amount = 24.0;
+    let estimate = estimate_develop_working_set(
+        2,
+        1,
+        &settings,
+        &ResourceLimits::default().with_max_working_bytes(64),
+    )
+    .unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::PointwiseV1);
+    assert_eq!(estimate.peak_bytes, 64);
+
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+        source_identity: source_identity(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut request = job();
+    request.preset = PresetSelection::document(PresetDocument::new(
+        "pointwise-job-gate",
+        "Pointwise job gate",
+        settings,
+    ));
     let failure = DevelopJobRunner::built_in()
         .unwrap()
         .run(

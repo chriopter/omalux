@@ -57,6 +57,8 @@ fn develop_validates_format_ranges_overrides_and_stops_as_unavailable() {
         "90",
         "--set",
         "basics.contrast=-12.5",
+        "--set",
+        "effects.fade=5",
     ]);
     assert_eq!(valid.status.code(), Some(69));
     assert!(valid.stdout.is_empty());

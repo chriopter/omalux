@@ -255,6 +255,8 @@ fn pipeline_error_code(error: &PipelineError) -> JobErrorCode {
         PipelineError::InvalidSettings(_)
         | PipelineError::StageNotImplemented(_)
         | PipelineError::MissingRenderContext(_) => JobErrorCode::InvalidOptions,
+        PipelineError::ResourceProfileUnavailable(_) => JobErrorCode::UnprovenPipelineBudget,
+        PipelineError::ResourceLimit(_) => JobErrorCode::ResourceLimit,
         PipelineError::InvalidImage(_) | PipelineError::NumericFailure { .. } => {
             JobErrorCode::Internal
         }

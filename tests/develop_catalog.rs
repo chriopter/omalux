@@ -1,6 +1,8 @@
 use grainroom::develop::{
-    DevelopSettings, PresetCatalog, PresetCatalogError, PresetDocument, load_preset_file,
+    DevelopSettings, DevelopWorkingSetProfile, PresetCatalog, PresetCatalogError, PresetDocument,
+    estimate_develop_working_set, load_preset_file,
 };
+use grainroom::io::ResourceLimits;
 use std::{fs, io::Write};
 
 #[test]
@@ -14,6 +16,15 @@ fn built_in_catalog_is_canonical_neutral_and_searchable() {
         format!("{}\n", neutral.to_canonical_json().unwrap()),
         include_str!("../presets/builtin/neutral.json")
     );
+    let estimate = estimate_develop_working_set(
+        3,
+        2,
+        &neutral.settings,
+        &ResourceLimits::default().with_max_working_bytes(192),
+    )
+    .unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::PointwiseV1);
+    assert_eq!(estimate.peak_bytes, 192);
     assert!(catalog.get("missing").is_none());
 }
 
