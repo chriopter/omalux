@@ -7,8 +7,9 @@ programs separate so each part can evolve independently.
 
 - The root `grainroom` package is the Qt-free processing core and CLI. Its
   `src/develop/` and `src/io/` modules contain image math, decoding, color,
-  metadata, and bounded I/O contracts. `src/main.rs` is intentionally a small
-  process-level CLI entry point.
+  metadata, and bounded I/O contracts. Built-in preset JSON under
+  `presets/builtin/` is compiled into this package and validated canonically.
+  `src/main.rs` is intentionally a small process-level CLI entry point.
 - `crates/grainroom-gui/` is the only Qt package. Its `src/main.rs` starts Qt,
   `src/backend/` exposes the CXX-Qt API used by QML, and its build script owns
   QML registration and shader baking. The installed executable is
@@ -49,3 +50,8 @@ workspace path dependency to the exact same released core version. Installers
 must place both `grainroom` and `grainroom-gui` in the executable search path
 and install the desktop entry below `share/applications/`; only the GUI package
 requires Qt at build and runtime.
+
+`cargo package --workspace` verifies the two archives together through Cargo's
+temporary registry. Core verification therefore compiles the embedded preset
+catalog from the packaged `presets/builtin/` files, while the GUI archive is
+verified against the exact packaged core version.

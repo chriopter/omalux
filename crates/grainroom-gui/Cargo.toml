@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Qt Quick desktop interface for Grainroom"
+homepage = "https://github.com/chriopter/grainroom"
+repository = "https://github.com/chriopter/grainroom"
 
 [dependencies]
 cxx = "1.0"
