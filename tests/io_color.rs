@@ -1,7 +1,7 @@
 use grainroom::{
     develop::RgbaPixel,
     io::{
-        ResourceLimits, SdrRangePolicy,
+        ResourceLimits, SdrRangePolicy, SignalRelation,
         color::{
             ColorError, ColorWorkingSetProfile, RasterChannel, RasterToWorkingTransform,
             WorkingToSrgbTransform, estimate_color_working_set, linear_rec2020_profile,
@@ -33,9 +33,10 @@ fn srgb_transfer_and_primary_goldens_land_in_linear_rec2020() {
         [0.0, 0.0, 1.0, 1.0],
     ];
     let mut output = blank(source.len());
-    RasterToWorkingTransform::new(&srgb_profile())
+    let limits = ResourceLimits::default();
+    RasterToWorkingTransform::new(&srgb_profile(&limits).unwrap(), &limits)
         .unwrap()
-        .transform_scanline(&source, &mut output, &ResourceLimits::default())
+        .transform_scanline(&source, &mut output, &limits)
         .unwrap();
 
     for channel in [output[1].red(), output[1].green(), output[1].blue()] {
@@ -77,9 +78,10 @@ fn rec2020_primaries_gray_and_d65_are_identity() {
         [1.0, 1.0, 1.0, 0.5],
     ];
     let mut output = blank(source.len());
-    RasterToWorkingTransform::new(&linear_rec2020_profile().unwrap())
+    let limits = ResourceLimits::default();
+    RasterToWorkingTransform::new(&linear_rec2020_profile(&limits).unwrap(), &limits)
         .unwrap()
-        .transform_scanline(&source, &mut output, &ResourceLimits::default())
+        .transform_scanline(&source, &mut output, &limits)
         .unwrap();
     for (output, input) in output.iter().zip(source) {
         for (actual, expected) in [output.red(), output.green(), output.blue()]
@@ -101,21 +103,26 @@ fn roundtrip_is_close_and_alpha_is_bit_exact_including_subnormal() {
         [0.9, 0.4, 0.1, 1.0],
     ];
     let mut working = blank(source.len());
-    RasterToWorkingTransform::new(&srgb_profile())
+    let limits = ResourceLimits::default();
+    let decode_report = RasterToWorkingTransform::new(&srgb_profile(&limits).unwrap(), &limits)
         .unwrap()
-        .transform_scanline(&source, &mut working, &ResourceLimits::default())
+        .transform_scanline(&source, &mut working, &limits)
         .unwrap();
+    assert_eq!(
+        decode_report.working_signal_relation,
+        SignalRelation::LinearizedDisplayReferred
+    );
     let mut encoded = [[0.0; 4]; 3];
-    let report = WorkingToSrgbTransform::new()
+    let report = WorkingToSrgbTransform::new(&limits)
         .unwrap()
-        .transform_scanline(
-            &working,
-            &mut encoded,
-            SdrRangePolicy::Reject,
-            &ResourceLimits::default(),
-        )
+        .transform_scanline(&working, &mut encoded, SdrRangePolicy::Reject, &limits)
         .unwrap();
     assert_eq!(report.clipped_samples, 0);
+    assert_eq!(
+        report.working_signal_relation,
+        SignalRelation::LinearizedDisplayReferred
+    );
+    assert_eq!(report.lcms_version, grainroom::io::color::lcms_version());
     for (actual, expected) in encoded.into_iter().zip(source) {
         for (actual, expected) in actual.into_iter().zip(expected).take(3) {
             assert_close(actual, expected, 2.5e-4);
@@ -126,13 +133,15 @@ fn roundtrip_is_close_and_alpha_is_bit_exact_including_subnormal() {
 
 #[test]
 fn raster_input_is_bounded_and_errors_are_transactional() {
-    let transform = RasterToWorkingTransform::new(&srgb_profile()).unwrap();
+    let limits = ResourceLimits::default();
+    let transform =
+        RasterToWorkingTransform::new(&srgb_profile(&limits).unwrap(), &limits).unwrap();
     for invalid in [-f32::MIN_POSITIVE, 1.0001, f32::NAN, f32::INFINITY] {
         let source = [[invalid, 0.5, 0.5, 1.0]];
         let original = RgbaPixel::new(9.0, -2.0, 4.0, 0.25).unwrap();
         let mut destination = [original];
         assert_eq!(
-            transform.transform_scanline(&source, &mut destination, &ResourceLimits::default()),
+            transform.transform_scanline(&source, &mut destination, &limits),
             Err(ColorError::InvalidRasterSample {
                 pixel: 0,
                 channel: RasterChannel::Red,
@@ -145,16 +154,12 @@ fn raster_input_is_bounded_and_errors_are_transactional() {
 #[test]
 fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
     let source = [RgbaPixel::new(4.0, -1.0, 0.5, 0.375).unwrap()];
-    let transform = WorkingToSrgbTransform::new().unwrap();
+    let limits = ResourceLimits::default();
+    let transform = WorkingToSrgbTransform::new(&limits).unwrap();
     let original = [[0.2, 0.3, 0.4, 0.5]];
     let mut rejected = original;
     assert!(matches!(
-        transform.transform_scanline(
-            &source,
-            &mut rejected,
-            SdrRangePolicy::Reject,
-            &ResourceLimits::default()
-        ),
+        transform.transform_scanline(&source, &mut rejected, SdrRangePolicy::Reject, &limits),
         Err(ColorError::OutputOutOfRange { .. })
     ));
     assert_eq!(rejected, original);
@@ -165,7 +170,7 @@ fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
             &source,
             &mut clipped,
             SdrRangePolicy::ClipAndReport,
-            &ResourceLimits::default(),
+            &limits,
         )
         .unwrap();
     assert!(report.clipped_samples >= 1);
@@ -180,31 +185,43 @@ fn hdr_working_output_requires_explicit_reject_or_clip_policy() {
 #[test]
 fn transforms_are_deterministic_and_resource_estimates_are_enforced() {
     let source = [[0.13, 0.47, 0.81, 0.7]; 4];
-    let transform = RasterToWorkingTransform::new(&srgb_profile()).unwrap();
+    let limits = ResourceLimits::default();
+    let profile = srgb_profile(&limits).unwrap();
+    let profile_bytes = profile.icc_provenance().bytes
+        + linear_rec2020_profile(&limits)
+            .unwrap()
+            .icc_provenance()
+            .bytes;
+    let transform = RasterToWorkingTransform::new(&profile, &limits).unwrap();
     let mut first = blank(4);
     let mut second = blank(4);
     transform
-        .transform_scanline(&source, &mut first, &ResourceLimits::default())
+        .transform_scanline(&source, &mut first, &limits)
         .unwrap();
     transform
-        .transform_scanline(&source, &mut second, &ResourceLimits::default())
+        .transform_scanline(&source, &mut second, &limits)
         .unwrap();
     assert_eq!(first, second);
 
-    assert_eq!(
+    let estimate = estimate_color_working_set(
+        4,
+        ColorWorkingSetProfile::RasterToWorking,
+        profile_bytes,
+        &limits,
+    )
+    .unwrap();
+    assert_eq!(estimate.scratch_bytes, 64);
+    assert_eq!(estimate.serialized_profile_bytes, profile_bytes);
+    assert_eq!(estimate.accounted_bytes, profile_bytes + 64);
+    let mut constrained = limits;
+    constrained.max_working_bytes = profile_bytes + 63;
+    assert!(matches!(
         estimate_color_working_set(
             4,
             ColorWorkingSetProfile::RasterToWorking,
-            &ResourceLimits::default()
-        )
-        .unwrap()
-        .scratch_bytes,
-        64
-    );
-    let mut limits = ResourceLimits::default();
-    limits.max_working_bytes = 63;
-    assert!(matches!(
-        estimate_color_working_set(4, ColorWorkingSetProfile::RasterToWorking, &limits),
+            profile_bytes,
+            &constrained
+        ),
         Err(ColorError::Limit(
             grainroom::io::LimitError::WorkingBytes { .. }
         ))

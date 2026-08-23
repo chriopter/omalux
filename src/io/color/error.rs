@@ -11,6 +11,16 @@ pub enum RasterChannel {
     Alpha,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PngColorChunk {
+    Cicp,
+    Iccp,
+    Srgb,
+    Gamma,
+    Chromaticities,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ColorError {
@@ -39,7 +49,11 @@ pub enum ColorError {
     },
     Allocation,
     IncompletePngDeclaration,
-    ConflictingPngDeclaration,
+    DuplicatePngDeclaration(PngColorChunk),
+    InvalidPngSrgbIntent,
+    InvalidPngCicp,
+    UnsupportedPngCicp,
+    UnsupportedHdrPngCicp,
     InvalidPngGamma,
     InvalidPngChromaticity,
 }
@@ -79,8 +93,18 @@ impl fmt::Display for ColorError {
             Self::IncompletePngDeclaration => {
                 formatter.write_str("PNG gAMA and cHRM declarations must be supplied together")
             }
-            Self::ConflictingPngDeclaration => {
-                formatter.write_str("PNG sRGB declaration conflicts with gAMA or cHRM")
+            Self::DuplicatePngDeclaration(chunk) => {
+                write!(formatter, "PNG contains duplicate {chunk:?} declarations")
+            }
+            Self::InvalidPngSrgbIntent => {
+                formatter.write_str("PNG sRGB rendering intent is invalid")
+            }
+            Self::InvalidPngCicp => formatter.write_str("PNG cICP fields are invalid for RGB"),
+            Self::UnsupportedPngCicp => {
+                formatter.write_str("PNG cICP color space is not supported")
+            }
+            Self::UnsupportedHdrPngCicp => {
+                formatter.write_str("PNG PQ/HLG cICP requires the future HDR decode path")
             }
             Self::InvalidPngGamma => formatter.write_str("PNG gAMA value is invalid"),
             Self::InvalidPngChromaticity => {

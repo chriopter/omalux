@@ -8,10 +8,9 @@ mod png;
 mod profile;
 mod transform;
 
-pub use error::{ColorError, RasterChannel};
+pub use error::{ColorError, PngColorChunk, RasterChannel};
 pub use png::{
-    Chromaticity, PngChromaticities, PngColorDeclarations, PngProfileKind, SynthesizedPngProfile,
-    synthesize_png_profile,
+    PngChunk, PngColorDeclarations, SynthesizedPngProfile, resolve_png_color_declarations,
 };
 pub use profile::{
     ResolvedInputProfile, RgbProfile, assumed_srgb_profile, embedded_rgb_profile, lcms_version,

@@ -26,6 +26,50 @@ pub enum WhiteBalanceProvenance {
     Unknown,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IccProfileProvenance {
+    pub sha256: [u8; 32],
+    pub bytes: u64,
+    pub lcms_version: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PngCicpFields {
+    pub color_primaries: u8,
+    pub transfer_function: u8,
+    pub matrix_coefficients: u8,
+    pub video_full_range: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PngChrmFields {
+    pub white_x: u32,
+    pub white_y: u32,
+    pub red_x: u32,
+    pub red_y: u32,
+    pub green_x: u32,
+    pub green_y: u32,
+    pub blue_x: u32,
+    pub blue_y: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PngColorDeclarationsProvenance {
+    pub cicp: Option<PngCicpFields>,
+    pub embedded_icc: Option<IccProfileProvenance>,
+    pub srgb_rendering_intent: Option<u8>,
+    pub gamma_times_100000: Option<u32>,
+    pub chromaticities_times_100000: Option<PngChrmFields>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PngSelectedColorSource {
+    Cicp,
+    EmbeddedIcc,
+    Srgb,
+    ChromaticitiesAndGamma,
+}
+
 /// Audit information only; it is not proof of colorimetric accuracy.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -33,8 +77,14 @@ pub enum ColorProvenance {
     EmbeddedIcc {
         profile_sha256: [u8; 32],
         profile_bytes: u64,
+        lcms_version: u32,
     },
     DeclaredSrgb,
+    PngDeclared {
+        selected: PngSelectedColorSource,
+        declarations: PngColorDeclarationsProvenance,
+        resolved_profile: IccProfileProvenance,
+    },
     AssumedSrgb {
         reason: AssumedProfileReason,
     },

@@ -23,7 +23,9 @@ impl Default for ResourceLimits {
             max_working_bytes: 1 << 30,
             max_metadata_component_bytes: 64 << 20,
             max_total_metadata_bytes: 128 << 20,
-            max_icc_bytes: 16 << 20,
+            // ICC parsing occurs in native LCMS. Keep the default materially
+            // below general metadata limits to reduce hostile-profile surface.
+            max_icc_bytes: 4 << 20,
         }
     }
 }
@@ -183,6 +185,7 @@ mod tests {
     use super::*;
     #[test]
     fn exact_estimate_is_conservative() {
+        assert_eq!(ResourceLimits::default().max_icc_bytes, 4 << 20);
         let e = ResourceLimits::default()
             .estimate_working_set(10, 20, DecodeWorkingSetProfile::RasterRgba16)
             .unwrap();

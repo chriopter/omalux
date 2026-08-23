@@ -2,9 +2,12 @@ use std::fmt;
 
 /// One straight-alpha pixel in Grainroom's normative CPU working space.
 ///
-/// RGB is scene-linear Rec.2020 with a D65 white point. RGB values are finite
-/// but intentionally unbounded: negative scene values and values above 1.0
-/// are valid and must survive intermediate processing. Alpha is straight (not
+/// RGB is linear Rec.2020 with a D65 white point. Whether those values are
+/// scene-referred (for example, RAW) or linearized display-referred (for
+/// example, JPEG/PNG) is carried separately by the I/O `SignalRelation` and
+/// must not be inferred from this pixel container. RGB values are finite but
+/// intentionally unbounded: negative values and values above 1.0 are valid
+/// and must survive intermediate processing. Alpha is straight (not
 /// premultiplied), finite, and constrained to the inclusive range 0.0..=1.0.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RgbaPixel {
