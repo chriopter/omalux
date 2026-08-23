@@ -137,6 +137,20 @@ Build or test the Qt-free core alone with `cargo build -p omalux` and
 `cargo test -p omalux`. The GUI embeds QML only; photo decoding,
 development, and encoding remain in the shared Rust core.
 
+The GUI has no repeating idle timers. Its Omarchy theme integration uses one
+Qt event-loop filesystem watcher, and completed preview workers terminate
+instead of polling. Measure an optimized no-photo idle window with:
+
+```bash
+cargo build --release -p omalux-gui
+scripts/benchmark-gui-idle.sh
+```
+
+The benchmark settles for 10 seconds, samples for 30 seconds, rejects retained
+child processes, and requires average process CPU below 1% of one core. Pass an
+already-supported public test image with `--input PATH` to measure the settled
+post-preview state; `--platform wayland` exercises an on-screen window.
+
 ## Install and package
 
 Install both executables from a checkout with matching package versions:

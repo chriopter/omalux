@@ -66,9 +66,20 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "startThemeWatcher"]
         fn start_theme_watcher(self: Pin<&mut Self>);
+
+        #[qinvokable]
+        #[cxx_name = "reloadTheme"]
+        fn reload_theme(self: Pin<&mut Self>);
     }
 
     impl cxx_qt::Threading for PhotoBackend {}
+
+    unsafe extern "C++" {
+        include!("theme_watcher.h");
+
+        #[cxx_name = "installThemeWatcher"]
+        fn install_theme_watcher(backend: Pin<&mut PhotoBackend>);
+    }
 }
 
 use core::pin::Pin;
@@ -85,15 +96,13 @@ use self::develop::{
 };
 use self::export::{absolute_local_path, display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
-use self::theme::{ThemeColors, load_omarchy_theme, omarchy_current_theme_path};
+use self::theme::{ThemeColors, load_omarchy_theme};
 use cxx_qt_lib::{QString, QUrl};
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use omalux::develop::{DevelopSettings, apply_parameter_overrides, parse_parameter_override};
 use omalux::io::OutputFormat;
 use omalux::job::{CancellationToken, DevelopJobOutcome, DevelopJobReport};
 use serde::Serialize;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::VecDeque,
     path::{Path, PathBuf},
@@ -127,7 +136,6 @@ pub struct PhotoBackendRust {
     preview_queue: PreviewQueue,
     preview_cancellation: Option<CancellationToken>,
     export_cancellation: Option<CancellationToken>,
-    theme_watcher: Option<RecommendedWatcher>,
 }
 
 struct PreviewRequest {
@@ -362,7 +370,6 @@ impl Default for PhotoBackendRust {
             preview_queue: PreviewQueue::default(),
             preview_cancellation: None,
             export_cancellation: None,
-            theme_watcher: None,
         }
     }
 }
@@ -596,47 +603,15 @@ impl qobject::PhotoBackend {
 
     pub fn start_theme_watcher(mut self: Pin<&mut Self>) {
         self.as_mut().apply_theme(load_omarchy_theme());
+        qobject::install_theme_watcher(self);
+    }
 
-        let Some(current_theme) = omarchy_current_theme_path() else {
-            return;
-        };
-        let pending = Arc::new(AtomicBool::new(false));
-        let pending_from_event = Arc::clone(&pending);
-        let qt_thread = self.qt_thread();
-        let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-            if event.is_err() || pending_from_event.swap(true, Ordering::AcqRel) {
-                return;
-            }
-            let pending_after_update = Arc::clone(&pending_from_event);
-            if qt_thread
-                .queue(move |mut backend| {
-                    // Theme switches replace Omarchy's `current` symlink, so
-                    // rebuild the watches after every relevant filesystem event.
-                    pending_after_update.store(false, Ordering::Release);
-                    backend.as_mut().start_theme_watcher();
-                })
-                .is_err()
-            {
-                pending_from_event.store(false, Ordering::Release);
-            }
-        });
-
-        let Ok(mut watcher) = watcher else {
-            return;
-        };
-        let omarchy_state = current_theme
-            .parent()
-            .and_then(Path::parent)
-            .map(Path::to_path_buf);
-        let watches_state = omarchy_state
-            .as_ref()
-            .is_some_and(|path| watcher.watch(path, RecursiveMode::NonRecursive).is_ok());
-        let watches_theme = watcher
-            .watch(&current_theme, RecursiveMode::Recursive)
-            .is_ok();
-        if watches_state || watches_theme {
-            self.as_mut().rust_mut().theme_watcher = Some(watcher);
+    pub fn reload_theme(mut self: Pin<&mut Self>) {
+        let theme = load_omarchy_theme();
+        if std::env::var_os("OMALUX_THEME_WATCH_TRACE").is_some() {
+            eprintln!("omalux-theme-reload:{}", theme.background);
         }
+        self.as_mut().apply_theme(theme);
     }
 
     fn apply_theme(mut self: Pin<&mut Self>, theme: ThemeColors) {

@@ -12,10 +12,12 @@ fn main() {
     ]);
 
     CxxQtBuilder::new_qml_module(qml_module)
+        .include_dir("src/backend")
         .qt_module("Gui")
         .qt_module("Network")
         .qt_module("Quick")
         .qt_module("QuickControls2")
         .file("src/backend/mod.rs")
+        .cpp_file("src/backend/theme_watcher.cpp")
         .build();
 }
