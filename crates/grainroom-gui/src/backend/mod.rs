@@ -132,6 +132,7 @@ pub struct PhotoBackendRust {
 
 struct PreviewRequest {
     revision: u64,
+    operation_revision: u64,
     source: PathBuf,
     settings: DevelopSettings,
 }
@@ -170,6 +171,7 @@ impl PreviewQueue {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum OperationKind {
+    Preview,
     Export,
     SaveOriginal,
 }
@@ -220,7 +222,7 @@ fn export_completion(
     match result {
         Ok(report) => {
             let serialized = serde_json::to_value(&report).ok();
-            match report.outcome {
+            match &report.outcome {
                 DevelopJobOutcome::PublishedAndDurable { .. } => (
                     "published_and_durable",
                     false,
@@ -245,6 +247,45 @@ fn export_completion(
         }
         Err(error) => {
             let report = match &error {
+                GuiJobError::Develop(failure) => serde_json::to_value(failure.report.as_ref()).ok(),
+                GuiJobError::Setup(_) => None,
+            };
+            ("failure", false, error.to_string(), report)
+        }
+    }
+}
+
+fn preview_completion(
+    result: &Result<PreviewArtifact, GuiJobError>,
+) -> (&'static str, bool, String, Option<serde_json::Value>) {
+    match result {
+        Ok(artifact) => {
+            let report = artifact.report();
+            let serialized = serde_json::to_value(report).ok();
+            match &report.outcome {
+                DevelopJobOutcome::PublishedAndDurable { .. } => (
+                    "published_and_durable",
+                    false,
+                    "Ready · CPU developed preview".to_owned(),
+                    serialized,
+                ),
+                DevelopJobOutcome::PublishedButNotDurable { .. } => (
+                    "published_but_not_durable",
+                    true,
+                    "Preview ready with durability warning: directory sync not confirmed"
+                        .to_owned(),
+                    serialized,
+                ),
+                DevelopJobOutcome::Failure { .. } => (
+                    "failure",
+                    false,
+                    "Preview development reported a failed outcome".to_owned(),
+                    serialized,
+                ),
+            }
+        }
+        Err(error) => {
+            let report = match error {
                 GuiJobError::Develop(failure) => serde_json::to_value(failure.report.as_ref()).ok(),
                 GuiJobError::Setup(_) => None,
             };
@@ -399,8 +440,17 @@ impl qobject::PhotoBackend {
         }
         self.as_mut().rust_mut().preview_queue.cancel_pending();
         self.as_mut().set_loading(false);
-        self.as_mut()
-            .set_status(QString::from("Development cancelled"));
+        let revision = self.as_mut().rust_mut().operations.begin();
+        self.as_mut().finish_operation(
+            OperationRecord {
+                revision,
+                kind: OperationKind::Preview,
+                outcome: "cancelled",
+                warning: false,
+                report: None,
+            },
+            "Development cancelled".to_owned(),
+        );
     }
 
     pub fn select_preset(mut self: Pin<&mut Self>, id: &QString) {
@@ -625,11 +675,13 @@ impl qobject::PhotoBackend {
             return;
         };
         let revision = self.rust().preview_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        let operation_revision = self.as_mut().rust_mut().operations.begin();
         if let Some(cancellation) = self.as_mut().rust_mut().preview_cancellation.take() {
             cancellation.cancel();
         }
         let request = PreviewRequest {
             revision,
+            operation_revision,
             source,
             settings: self.rust().settings.clone(),
         };
@@ -650,29 +702,34 @@ impl qobject::PhotoBackend {
             let result = develop_preview(&request.source, request.settings, &cancellation);
             let _ = qt_thread.queue(move |mut backend| {
                 backend.as_mut().rust_mut().preview_cancellation = None;
-                if backend.rust().preview_revision.load(Ordering::SeqCst) == request.revision {
+                let is_latest_preview =
+                    backend.rust().preview_revision.load(Ordering::SeqCst) == request.revision;
+                let (outcome, warning, status, report) = preview_completion(&result);
+                if is_latest_preview {
                     backend.as_mut().set_loading(false);
-                    match result {
-                        Ok(artifact) => {
-                            if let Ok(report) = serde_json::to_string(artifact.report()) {
-                                backend
-                                    .as_mut()
-                                    .set_last_preview_report_json(QString::from(&report));
-                            }
-                            let preview_url = QUrl::from_local_file(&QString::from(
-                                artifact.path().to_string_lossy().as_ref(),
-                            ));
-                            backend.as_mut().rust_mut().generated_preview = Some(artifact);
-                            backend.as_mut().set_preview_url(preview_url);
+                    if let Ok(artifact) = result {
+                        if let Ok(report) = serde_json::to_string(artifact.report()) {
                             backend
                                 .as_mut()
-                                .set_status(QString::from("Ready · CPU developed preview"));
+                                .set_last_preview_report_json(QString::from(&report));
                         }
-                        Err(error) => backend
-                            .as_mut()
-                            .set_status(QString::from(&error.to_string())),
+                        let preview_url = QUrl::from_local_file(&QString::from(
+                            artifact.path().to_string_lossy().as_ref(),
+                        ));
+                        backend.as_mut().rust_mut().generated_preview = Some(artifact);
+                        backend.as_mut().set_preview_url(preview_url);
                     }
                 }
+                backend.as_mut().finish_operation(
+                    OperationRecord {
+                        revision: request.operation_revision,
+                        kind: OperationKind::Preview,
+                        outcome,
+                        warning,
+                        report,
+                    },
+                    status,
+                );
                 let next = backend.as_mut().rust_mut().preview_queue.worker_completed();
                 if let Some(next) = next {
                     backend.as_mut().launch_preview(next);
@@ -714,6 +771,7 @@ mod preview_queue_tests {
     fn request(revision: u64) -> PreviewRequest {
         PreviewRequest {
             revision,
+            operation_revision: revision,
             source: PathBuf::from(format!("source-{revision}")),
             settings: DevelopSettings::default(),
         }
@@ -815,6 +873,55 @@ mod preview_queue_tests {
             "exported",
         );
         assert_eq!(status, "saved");
+        assert_eq!(tracker.history.len(), 2);
+    }
+
+    #[test]
+    fn preview_completion_cannot_overwrite_a_newer_export_status() {
+        let mut tracker = OperationTracker::default();
+        let preview = tracker.begin();
+        let export = tracker.begin();
+        let mut status = "encoding";
+        complete(
+            &mut tracker,
+            &mut status,
+            export,
+            OperationKind::Export,
+            "exported",
+        );
+        complete(
+            &mut tracker,
+            &mut status,
+            preview,
+            OperationKind::Preview,
+            "preview-ready",
+        );
+        assert_eq!(status, "exported");
+        assert_eq!(tracker.history.len(), 2);
+    }
+
+    #[test]
+    fn preview_started_after_save_owns_the_newer_main_status() {
+        let mut tracker = OperationTracker::default();
+        let save = tracker.begin();
+        let preview = tracker.begin();
+        let mut status = "developing-preview";
+        complete(
+            &mut tracker,
+            &mut status,
+            save,
+            OperationKind::SaveOriginal,
+            "saved",
+        );
+        assert_eq!(status, "developing-preview");
+        complete(
+            &mut tracker,
+            &mut status,
+            preview,
+            OperationKind::Preview,
+            "preview-ready",
+        );
+        assert_eq!(status, "preview-ready");
         assert_eq!(tracker.history.len(), 2);
     }
 

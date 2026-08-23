@@ -4,7 +4,8 @@ A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
 
 The default core build has no HEIC dependency. Optional production HEIC export
-uses the dynamic system libheif and its x265 encoder:
+uses the dynamic system libheif and its x265 encoder; the desktop GUI enables
+that feature by default because HEIC is offered in its export dialog:
 
 ```bash
 cargo build --features heic
@@ -24,7 +25,7 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 - Decode raster and full-resolution RAW sources through the bounded production decoder
 - Render previews and exports through the same CPU development pipeline
 - Follow the active Omarchy color theme live, including theme switches while running
-- Switch between Crop, Edit, Presets, and real file/EXIF metadata panels in a compact two-row tool grid
+- Switch between Edit, Presets, and real file/EXIF metadata panels in a compact tool grid
 - Edit groups all controls under Basics, Color, and Effects; Grain remains live, with Size and Midtones in a collapsible advanced section
 - Select presets from the validated core preset catalog
 - Save the unchanged original or export JPEG/HEIC at adjustable quality, with resolution and size estimates
@@ -34,7 +35,7 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 
 ## Keyboard
 
-- `1`–`4`: open Crop, Edit, Presets, or Metadata; `Tab` and `[`/`]` cycle panels
+- `1`–`3`: open Edit, Presets, or Metadata; `Tab` and `[`/`]` cycle panels
 - `J`/`K` or `Down`/`Up`: select a parameter
 - `H`/`L` or `Left`/`Right`: adjust it; hold `Shift` for larger steps
 - `G`, `S`, `M`: jump to Grain, Size, or Midtones

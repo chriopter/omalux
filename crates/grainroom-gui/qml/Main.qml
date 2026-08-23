@@ -31,7 +31,7 @@ ApplicationWindow {
     readonly property real sidebarWidth: 316
 
     property real zoom: 1.0
-    property int selectedPanel: 1
+    property int selectedPanel: 0
     property int selectedParameter: 0
     property bool grainAdvancedExpanded: false
     property bool shortcutsVisible: false
@@ -255,36 +255,23 @@ ApplicationWindow {
             selectedParameter = 0
     }
 
-    function activeMockPanel() {
-        switch (selectedPanel) {
-        case 0: return cropPanel
-        default: return null
-        }
-    }
-
     function moveActiveParameter(direction) {
-        if (selectedPanel === 1)
+        if (selectedPanel === 0)
             moveParameter(direction)
-        else if (activeMockPanel())
-            activeMockPanel().moveSelection(direction)
     }
 
     function adjustActiveParameter(direction, coarse) {
-        if (selectedPanel === 1)
+        if (selectedPanel === 0)
             adjustParameter(direction, coarse)
-        else if (activeMockPanel())
-            activeMockPanel().adjustSelection(direction, coarse)
     }
 
     function resetActiveParameter() {
-        if (selectedPanel === 1)
+        if (selectedPanel === 0)
             resetParameter()
-        else if (activeMockPanel())
-            activeMockPanel().resetSelection()
     }
 
     function selectPanel(index) {
-        selectedPanel = (index + 4) % 4
+        selectedPanel = (index + 3) % 3
     }
 
     function movePanel(direction) {
@@ -514,36 +501,34 @@ ApplicationWindow {
                 window.selectPanel(1)
             } else if (keyText === "3") {
                 window.selectPanel(2)
-            } else if (keyText === "4") {
-                window.selectPanel(3)
             } else if (keyText === "[") {
                 window.movePanel(-1)
             } else if (keyText === "]") {
                 window.movePanel(1)
-            } else if (window.selectedPanel <= 1
+            } else if (window.selectedPanel === 0
                        && (event.key === Qt.Key_Down || keyText === "j")) {
                 window.moveActiveParameter(1)
-            } else if (window.selectedPanel <= 1
+            } else if (window.selectedPanel === 0
                        && (event.key === Qt.Key_Up || keyText === "k")) {
                 window.moveActiveParameter(-1)
-            } else if (window.selectedPanel <= 1
+            } else if (window.selectedPanel === 0
                        && (event.key === Qt.Key_Left || keyText === "h")) {
                 window.adjustActiveParameter(-1, coarse)
-            } else if (window.selectedPanel <= 1
+            } else if (window.selectedPanel === 0
                        && (event.key === Qt.Key_Right || keyText === "l")) {
                 window.adjustActiveParameter(1, coarse)
             } else if (keyText === "g") {
-                window.selectPanel(1)
+                window.selectPanel(0)
                 window.selectParameter(18)
             } else if (keyText === "s") {
-                window.selectPanel(1)
+                window.selectPanel(0)
                 window.selectParameter(19)
             } else if (keyText === "m") {
-                window.selectPanel(1)
+                window.selectPanel(0)
                 window.selectParameter(20)
-            } else if (keyText === "a" && window.selectedPanel === 1) {
+            } else if (keyText === "a" && window.selectedPanel === 0) {
                 window.toggleGrainAdvanced()
-            } else if (keyText === "r" && window.selectedPanel <= 1) {
+            } else if (keyText === "r" && window.selectedPanel === 0) {
                 window.resetActiveParameter()
             } else if (keyText === "o") {
                 openDialog.open()
@@ -836,8 +821,8 @@ ApplicationWindow {
                             GridLayout {
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                columns: 2
-                                rows: 2
+                                columns: 3
+                                rows: 1
                                 rowSpacing: 1
                                 columnSpacing: 1
 
@@ -845,22 +830,11 @@ ApplicationWindow {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    symbol: "⌗"
-                                    label: "Crop"
-                                    selected: window.selectedPanel === 0
-                                    onClicked: window.selectPanel(0)
-                                    Accessible.name: "Crop · 1"
-                                }
-
-                                ToolTabButton {
-                                    theme: window
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
                                     symbol: "≡"
                                     label: "Edit"
-                                    selected: window.selectedPanel === 1
-                                    onClicked: window.selectPanel(1)
-                                    Accessible.name: "Edit · 2"
+                                    selected: window.selectedPanel === 0
+                                    onClicked: window.selectPanel(0)
+                                    Accessible.name: "Edit · 1"
                                 }
 
                                 ToolTabButton {
@@ -869,9 +843,9 @@ ApplicationWindow {
                                     Layout.fillHeight: true
                                     symbol: "◆"
                                     label: "Presets"
-                                    selected: window.selectedPanel === 2
-                                    onClicked: window.selectPanel(2)
-                                    Accessible.name: "Presets · 3"
+                                    selected: window.selectedPanel === 1
+                                    onClicked: window.selectPanel(1)
+                                    Accessible.name: "Presets · 2"
                                 }
 
                                 ToolTabButton {
@@ -880,9 +854,9 @@ ApplicationWindow {
                                     Layout.fillHeight: true
                                     symbol: "ⓘ"
                                     label: "Meta"
-                                    selected: window.selectedPanel === 3
-                                    onClicked: window.selectPanel(3)
-                                    Accessible.name: "Metadata · 4"
+                                    selected: window.selectedPanel === 2
+                                    onClicked: window.selectPanel(2)
+                                    Accessible.name: "Metadata · 3"
                                 }
                             }
                         }
@@ -897,12 +871,6 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             currentIndex: window.selectedPanel
-
-                            CropPanel {
-                                id: cropPanel
-                                theme: window
-                                photoReady: sourceImage.status === Image.Ready
-                            }
 
                             GrainPanel {
                                 id: grainPanel
@@ -956,7 +924,7 @@ ApplicationWindow {
                     spacing: 18
 
                     Text {
-                        text: "[1–4] PANELS"
+                        text: "[1–3] PANELS"
                         color: window.accentColor
                         font.family: window.monoFont
                         font.pixelSize: 10
@@ -994,7 +962,7 @@ ApplicationWindow {
                     Item { Layout.fillWidth: true }
 
                     Text {
-                        visible: window.selectedPanel <= 1 && window.width >= 1050
+                        visible: window.selectedPanel === 0 && window.width >= 1050
                         text: "[↑/↓] SELECT  [←/→] ADJUST  [⇧] FAST  [R] RESET"
                         color: window.mutedColor
                         font.family: window.monoFont
@@ -1226,7 +1194,7 @@ ApplicationWindow {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "1–4         CROP / EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
+                        text: "1–3         EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 12

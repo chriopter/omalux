@@ -8,7 +8,7 @@ homepage = "https://github.com/chriopter/grainroom"
 repository = "https://github.com/chriopter/grainroom"
 
 [features]
-default = []
+default = ["heic"]
 heic = ["grainroom/heic"]
 
 [dependencies]
