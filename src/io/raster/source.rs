@@ -66,6 +66,9 @@ pub(super) fn read_once(
         limits
             .check_source_bytes(next)
             .map_err(DecodeError::Limit)?;
+        bytes
+            .try_reserve(count)
+            .map_err(|_| DecodeError::Limit(crate::io::LimitError::Allocation))?;
         bytes.extend_from_slice(&chunk[..count]);
     }
     let digest = SourceDigestV1::from_bytes(&bytes);

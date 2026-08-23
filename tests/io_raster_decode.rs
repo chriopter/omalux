@@ -100,6 +100,15 @@ fn exif(orientation: u16, gps: bool) -> Vec<u8> {
     bytes
 }
 
+fn duplicate_orientation_exif(first: u16, second: u16) -> Vec<u8> {
+    let mut bytes = exif(first, false);
+    bytes[8..10].copy_from_slice(&2_u16.to_le_bytes());
+    let mut entry = bytes[10..22].to_vec();
+    entry[8..10].copy_from_slice(&second.to_le_bytes());
+    bytes.splice(22..22, entry);
+    bytes
+}
+
 fn insert_before_idat(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     let mut offset = 8_usize;
     while &png[offset + 4..offset + 8] != b"IDAT" {
@@ -330,6 +339,16 @@ fn jpeg_all_orientations_embedded_icc_and_cmyk_guard_are_explicit() {
         ),
         Err(DecodeError::UnsupportedFormat)
     ));
+
+    let duplicate = jpeg_bytes(2, 3, &pixels, Some(duplicate_orientation_exif(6, 3)));
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "duplicate-orientation.jpg", &duplicate),
+            &DecodeOptions::default(),
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::Metadata)
+    ));
 }
 
 #[test]
@@ -408,6 +427,92 @@ fn png_declaration_priority_duplicates_crc_and_unsupported_types_are_rejected() 
 }
 
 #[test]
+fn png_higher_priority_cicp_ignores_malformed_and_oversized_lower_iccp() {
+    let directory = TempDir::new().unwrap();
+    for (name, lower) in [
+        ("malformed-lower.png", b"not-an-iccp".to_vec()),
+        ("oversized-lower.png", vec![0x41; 4096]),
+    ] {
+        let mut bytes = png_bytes(
+            1,
+            1,
+            png::ColorType::Rgb,
+            png::BitDepth::Eight,
+            &[10, 20, 30],
+        );
+        insert_before_idat(&mut bytes, b"iCCP", &lower);
+        insert_before_idat(&mut bytes, b"cICP", &[1, 13, 0, 1]);
+        let mut options = DecodeOptions::default();
+        options.limits.max_icc_bytes = 1024;
+        let photo = decode_raster(
+            write_source(&directory, name, &bytes),
+            &options,
+            &RasterCancellation::default(),
+        )
+        .unwrap();
+        assert!(matches!(
+            photo.color(),
+            ColorProvenance::PngDeclared {
+                selected: PngSelectedColorSource::Cicp,
+                ..
+            }
+        ));
+    }
+
+    let mut duplicate = png_bytes(1, 1, png::ColorType::Rgb, png::BitDepth::Eight, &[0, 0, 0]);
+    insert_before_idat(&mut duplicate, b"cICP", &[1, 13, 0, 1]);
+    insert_before_idat(&mut duplicate, b"cICP", &[1, 13, 0, 1]);
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "duplicate-selected.png", &duplicate),
+            &DecodeOptions::default(),
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::ColorManagement)
+    ));
+}
+
+#[test]
+fn selected_iccp_rejects_trailing_zlib_and_decompression_bombs() {
+    let directory = TempDir::new().unwrap();
+    let make_png = |payload: &[u8]| {
+        let mut bytes = png_bytes(1, 1, png::ColorType::Rgb, png::BitDepth::Eight, &[0, 0, 0]);
+        let mut chunk = b"profile\0\0".to_vec();
+        chunk.extend_from_slice(payload);
+        insert_before_idat(&mut bytes, b"iCCP", &chunk);
+        bytes
+    };
+    let limits = ResourceLimits::default();
+    let icc = srgb_profile(&limits).unwrap().to_icc(&limits).unwrap();
+    let mut zlib = ZlibEncoder::new(Vec::new(), Compression::default());
+    zlib.write_all(&icc).unwrap();
+    let mut trailing = zlib.finish().unwrap();
+    trailing.extend_from_slice(b"trailing");
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "trailing.png", &make_png(&trailing)),
+            &DecodeOptions::default(),
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::CorruptInput)
+    ));
+
+    let mut zlib = ZlibEncoder::new(Vec::new(), Compression::best());
+    zlib.write_all(&vec![0_u8; 128 * 1024]).unwrap();
+    let bomb = zlib.finish().unwrap();
+    let mut options = DecodeOptions::default();
+    options.limits.max_icc_bytes = 1024;
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "bomb-icc.png", &make_png(&bomb)),
+            &options,
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::Limit(_))
+    ));
+}
+
+#[test]
 fn bmp_padding_and_top_down_rows_are_handled_by_the_decoder() {
     let directory = TempDir::new().unwrap();
     let pixels = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255];
@@ -425,6 +530,48 @@ fn bmp_padding_and_top_down_rows_are_handled_by_the_decoder() {
     bmp[pixel_offset..pixel_offset + row * 2].rotate_left(row);
     let top_down = decode(&write_source(&directory, "top-down.bmp", &bmp));
     assert_eq!(top_down.image().pixels().len(), 4);
+}
+
+#[test]
+fn bmp_v4_v5_unsupported_color_spaces_are_typed_rejections() {
+    let directory = TempDir::new().unwrap();
+    let mut rgba = Vec::new();
+    BmpEncoder::new(&mut rgba)
+        .write_image(&[1, 2, 3, 255], 1, 1, ExtendedColorType::Rgba8)
+        .unwrap();
+    let declared = decode(&write_source(&directory, "srgb-v4.bmp", &rgba));
+    assert!(matches!(declared.color(), ColorProvenance::DeclaredSrgb));
+
+    for (name, value) in [
+        ("calibrated.bmp", 0_u32),
+        ("linked.bmp", 0x4c49_4e4b),
+        ("embedded.bmp", 0x4d42_4544),
+    ] {
+        let mut unsupported = rgba.clone();
+        unsupported[70..74].copy_from_slice(&value.to_le_bytes());
+        assert!(matches!(
+            decode_raster(
+                write_source(&directory, name, &unsupported),
+                &DecodeOptions::default(),
+                &RasterCancellation::default()
+            ),
+            Err(DecodeError::ColorManagement)
+        ));
+    }
+
+    let mut v5_profile = rgba;
+    v5_profile[14..18].copy_from_slice(&124_u32.to_le_bytes());
+    v5_profile.resize(134, 0);
+    v5_profile[126..130].copy_from_slice(&124_u32.to_le_bytes());
+    v5_profile[130..134].copy_from_slice(&4_u32.to_le_bytes());
+    assert!(matches!(
+        decode_raster(
+            write_source(&directory, "v5-profile.bmp", &v5_profile),
+            &DecodeOptions::default(),
+            &RasterCancellation::default()
+        ),
+        Err(DecodeError::ColorManagement)
+    ));
 }
 
 #[test]

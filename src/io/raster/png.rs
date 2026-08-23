@@ -5,37 +5,42 @@ use crate::io::{
     color::{PngChunk, PngColorDeclarations, resolve_png_color_declarations},
 };
 
-use super::{RasterCancellation, RasterPayload, metadata, resolve_missing, validate_dimensions};
+use super::{
+    RasterCancellation, RasterPayload, allocation_error, metadata, resolve_missing, try_zeroed,
+    validate_dimensions,
+};
 
 pub(super) fn decode(
     bytes: &[u8],
     options: &DecodeOptions,
     cancellation: &RasterCancellation,
 ) -> Result<RasterPayload, DecodeError> {
-    let raw = scan_chunks(bytes, options)?;
-    let metadata_total = raw
-        .iccp
-        .value
-        .as_ref()
-        .map_or(0_u64, |value| value.len() as u64)
-        .checked_add(raw.exif.as_ref().map_or(0_u64, |value| value.len() as u64))
-        .ok_or(DecodeError::Limit(
-            crate::io::LimitError::ArithmeticOverflow,
-        ))?;
-    options
-        .limits
-        .check_metadata_total(metadata_total)
-        .map_err(DecodeError::Limit)?;
+    let raw = scan_chunks(bytes, options, cancellation)?;
     let sixteen = raw.bit_depth == 16;
     let pixels = validate_dimensions(raw.width, raw.height, sixteen, &options.limits)?;
     let gray = raw.color_type == 0;
-    if gray && raw.iccp.value.is_some() {
+    let iccp_selected = raw.cicp.value.is_none()
+        && !raw.cicp.duplicate
+        && (raw.iccp.value.is_some() || raw.iccp.duplicate);
+    if gray && iccp_selected {
         return Err(DecodeError::ColorManagement);
     }
+    let exif_slice = raw.exif.map(|location| location.data(bytes));
+    let icc = if iccp_selected && !raw.iccp.duplicate {
+        let location = raw.iccp.value.ok_or(DecodeError::CorruptInput)?;
+        Some(decompress_selected_iccp(
+            location.data(bytes),
+            exif_slice.map_or(0, <[u8]>::len),
+            options,
+            cancellation,
+        )?)
+    } else {
+        None
+    };
     let declarations = PngColorDeclarations {
         cicp: raw.cicp,
         iccp: PngChunk {
-            value: raw.iccp.value.as_deref(),
+            value: icc.as_deref(),
             duplicate: raw.iccp.duplicate,
         },
         srgb_rendering_intent: raw.srgb,
@@ -63,7 +68,7 @@ pub(super) fn decode(
     } else {
         resolve_missing(options)?
     };
-    let exif = metadata::normalize_exif(raw.exif.as_deref(), &options.limits)?;
+    let exif = metadata::normalize_exif(exif_slice, &options.limits, cancellation)?;
     if cancellation.cancelled() {
         return Err(DecodeError::Cancelled);
     }
@@ -86,7 +91,7 @@ pub(super) fn decode(
     let output_size = reader.output_buffer_size().ok_or(DecodeError::Limit(
         crate::io::LimitError::ArithmeticOverflow,
     ))?;
-    let mut decoded = vec![0_u8; output_size];
+    let mut decoded = try_zeroed(output_size)?;
     let output = reader
         .next_frame(&mut decoded)
         .map_err(|_| DecodeError::CorruptInput)?;
@@ -116,7 +121,10 @@ pub(super) fn decode(
         .ok_or(DecodeError::Limit(
             crate::io::LimitError::ArithmeticOverflow,
         ))?;
-    let mut encoded = Vec::with_capacity(pixels);
+    let mut encoded = Vec::new();
+    encoded
+        .try_reserve_exact(pixels)
+        .map_err(|_| allocation_error())?;
     for row in decoded[..expected].chunks_exact(row_bytes) {
         if cancellation.cancelled() {
             return Err(DecodeError::Cancelled);
@@ -161,20 +169,36 @@ fn expand(channels: usize, sample: impl Fn(usize) -> f32) -> [f32; 4] {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ChunkLocation {
+    start: usize,
+    end: usize,
+}
+
+impl ChunkLocation {
+    fn data(self, bytes: &[u8]) -> &[u8] {
+        &bytes[self.start..self.end]
+    }
+}
+
 struct PngRaw {
     width: u32,
     height: u32,
     bit_depth: u8,
     color_type: u8,
     cicp: PngChunk<PngCicpFields>,
-    iccp: PngChunk<Vec<u8>>,
+    iccp: PngChunk<ChunkLocation>,
     srgb: PngChunk<u8>,
     gamma: PngChunk<u32>,
     chrm: PngChunk<PngChrmFields>,
-    exif: Option<Vec<u8>>,
+    exif: Option<ChunkLocation>,
 }
 
-fn scan_chunks(bytes: &[u8], options: &DecodeOptions) -> Result<PngRaw, DecodeError> {
+fn scan_chunks(
+    bytes: &[u8],
+    options: &DecodeOptions,
+    cancellation: &RasterCancellation,
+) -> Result<PngRaw, DecodeError> {
     if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         return Err(DecodeError::CorruptInput);
     }
@@ -189,6 +213,11 @@ fn scan_chunks(bytes: &[u8], options: &DecodeOptions) -> Result<PngRaw, DecodeEr
     let mut saw_idat = false;
     let mut saw_iend = false;
     while offset < bytes.len() {
+        if cancellation.cancelled() {
+            return Err(DecodeError::Cancelled);
+        }
+        let kind_start = offset.checked_add(4).ok_or(DecodeError::CorruptInput)?;
+        let kind_end = kind_start.checked_add(4).ok_or(DecodeError::CorruptInput)?;
         let length_bytes: [u8; 4] = bytes
             .get(offset..offset.checked_add(4).ok_or(DecodeError::CorruptInput)?)
             .ok_or(DecodeError::CorruptInput)?
@@ -197,11 +226,11 @@ fn scan_chunks(bytes: &[u8], options: &DecodeOptions) -> Result<PngRaw, DecodeEr
         let length = usize::try_from(u32::from_be_bytes(length_bytes))
             .map_err(|_| DecodeError::CorruptInput)?;
         let kind: [u8; 4] = bytes
-            .get(offset + 4..offset + 8)
+            .get(kind_start..kind_end)
             .ok_or(DecodeError::CorruptInput)?
             .try_into()
             .map_err(|_| DecodeError::CorruptInput)?;
-        let data_start = offset + 8;
+        let data_start = offset.checked_add(8).ok_or(DecodeError::CorruptInput)?;
         let data_end = data_start
             .checked_add(length)
             .ok_or(DecodeError::CorruptInput)?;
@@ -216,7 +245,12 @@ fn scan_chunks(bytes: &[u8], options: &DecodeOptions) -> Result<PngRaw, DecodeEr
             .map_err(|_| DecodeError::CorruptInput)?;
         let mut crc = crc32fast::Hasher::new();
         crc.update(&kind);
-        crc.update(data);
+        for chunk in data.chunks(64 * 1024) {
+            if cancellation.cancelled() {
+                return Err(DecodeError::Cancelled);
+            }
+            crc.update(chunk);
+        }
         if crc.finalize() != u32::from_be_bytes(stored_crc) {
             return Err(DecodeError::CorruptInput);
         }
@@ -295,13 +329,30 @@ fn scan_chunks(bytes: &[u8], options: &DecodeOptions) -> Result<PngRaw, DecodeEr
                     },
                 );
             }
-            b"iCCP" => insert(&mut iccp, decompress_iccp(data, options)?),
+            // First pass records structure only. The selected iCCP is the only
+            // declaration inflated during the resolution pass.
+            b"iCCP" => insert(
+                &mut iccp,
+                ChunkLocation {
+                    start: data_start,
+                    end: data_end,
+                },
+            ),
             b"eXIf" if exif.is_none() => {
                 options
                     .limits
                     .check_metadata_component(MetadataKind::Exif, data.len())
                     .map_err(DecodeError::Limit)?;
-                exif = Some(data.to_vec());
+                options
+                    .limits
+                    .check_metadata_total(u64::try_from(data.len()).map_err(|_| {
+                        DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow)
+                    })?)
+                    .map_err(DecodeError::Limit)?;
+                exif = Some(ChunkLocation {
+                    start: data_start,
+                    end: data_end,
+                });
             }
             b"eXIf" => return Err(DecodeError::CorruptInput),
             b"IEND" => {
@@ -340,7 +391,12 @@ fn insert<T>(chunk: &mut PngChunk<T>, value: T) {
     }
 }
 
-fn decompress_iccp(data: &[u8], options: &DecodeOptions) -> Result<Vec<u8>, DecodeError> {
+fn decompress_selected_iccp(
+    data: &[u8],
+    exif_bytes: usize,
+    options: &DecodeOptions,
+    cancellation: &RasterCancellation,
+) -> Result<Vec<u8>, DecodeError> {
     let nul = data
         .iter()
         .position(|byte| *byte == 0)
@@ -349,31 +405,100 @@ fn decompress_iccp(data: &[u8], options: &DecodeOptions) -> Result<Vec<u8>, Deco
         return Err(DecodeError::CorruptInput);
     }
     let compressed = data.get(nul + 2..).ok_or(DecodeError::CorruptInput)?;
-    let maximum = options.limits.max_icc_bytes;
-    let mut decoder = flate2::read::ZlibDecoder::new(compressed);
+    options
+        .limits
+        .check_metadata_component(MetadataKind::Icc, compressed.len())
+        .map_err(DecodeError::Limit)?;
+    let exif_u64 = u64::try_from(exif_bytes)
+        .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    let compressed_u64 = u64::try_from(compressed.len())
+        .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    options
+        .limits
+        .check_metadata_total(
+            exif_u64
+                .checked_add(compressed_u64)
+                .ok_or(DecodeError::Limit(
+                    crate::io::LimitError::ArithmeticOverflow,
+                ))?,
+        )
+        .map_err(DecodeError::Limit)?;
+    let maximum = options.limits.max_icc_bytes.min(
+        options
+            .limits
+            .max_total_metadata_bytes
+            .saturating_sub(exif_u64),
+    );
+    let peak = compressed_u64
+        .checked_add(maximum)
+        .and_then(|value| value.checked_add(exif_u64))
+        .ok_or(DecodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    if peak > options.limits.max_working_bytes {
+        return Err(DecodeError::Limit(crate::io::LimitError::WorkingBytes {
+            requested: peak,
+            maximum: options.limits.max_working_bytes,
+        }));
+    }
+    let mut decoder = flate2::bufread::ZlibDecoder::new(Cursor::new(compressed));
     let mut profile = Vec::new();
-    {
-        let mut bounded = decoder.by_ref().take(maximum.saturating_add(1));
-        bounded
-            .read_to_end(&mut profile)
+    let reserve = usize::try_from(maximum.min(64 * 1024))
+        .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    profile
+        .try_reserve_exact(reserve)
+        .map_err(|_| allocation_error())?;
+    let mut chunk = [0_u8; 32 * 1024];
+    loop {
+        if cancellation.cancelled() {
+            return Err(DecodeError::Cancelled);
+        }
+        let count = decoder
+            .read(&mut chunk)
             .map_err(|_| DecodeError::CorruptInput)?;
+        if count == 0 {
+            break;
+        }
+        let next = u64::try_from(profile.len())
+            .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?
+            .checked_add(
+                u64::try_from(count)
+                    .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?,
+            )
+            .ok_or(DecodeError::Limit(
+                crate::io::LimitError::ArithmeticOverflow,
+            ))?;
+        if next > maximum {
+            return Err(DecodeError::Limit(crate::io::LimitError::MetadataBytes {
+                kind: MetadataKind::Icc,
+                requested: next,
+                maximum,
+            }));
+        }
+        profile.try_reserve(count).map_err(|_| allocation_error())?;
+        profile.extend_from_slice(&chunk[..count]);
+    }
+    if usize::try_from(decoder.get_ref().position()).ok() != Some(compressed.len()) {
+        return Err(DecodeError::CorruptInput);
     }
     options
         .limits
         .check_metadata_component(MetadataKind::Icc, profile.len())
         .map_err(DecodeError::Limit)?;
-    let mut trailing = [0_u8; 1];
-    if decoder
-        .read(&mut trailing)
-        .map_err(|_| DecodeError::CorruptInput)?
-        != 0
-    {
-        return Err(DecodeError::Limit(crate::io::LimitError::MetadataBytes {
-            kind: MetadataKind::Icc,
-            requested: maximum.saturating_add(1),
-            maximum,
-        }));
-    }
+    options
+        .limits
+        .check_metadata_total(
+            exif_u64
+                .checked_add(
+                    u64::try_from(profile.len()).map_err(|_| {
+                        DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow)
+                    })?,
+                )
+                .ok_or(DecodeError::Limit(
+                    crate::io::LimitError::ArithmeticOverflow,
+                ))?,
+        )
+        .map_err(DecodeError::Limit)?;
     Ok(profile)
 }
 
@@ -388,5 +513,27 @@ fn color_type_number(color: png::ColorType) -> u8 {
         png::ColorType::Indexed => 3,
         png::ColorType::GrayscaleAlpha => 4,
         png::ColorType::Rgba => 6,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::{Compression, write::ZlibEncoder};
+    use std::io::Write;
+
+    #[test]
+    fn selected_iccp_inflate_observes_cancellation() {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+        encoder.write_all(&vec![7_u8; 128 * 1024]).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut data = b"profile\0\0".to_vec();
+        data.extend_from_slice(&compressed);
+        let cancellation = RasterCancellation::default();
+        cancellation.cancel();
+        assert!(matches!(
+            decompress_selected_iccp(&data, 0, &DecodeOptions::default(), &cancellation),
+            Err(DecodeError::Cancelled)
+        ));
     }
 }

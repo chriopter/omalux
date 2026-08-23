@@ -15,10 +15,7 @@ use std::{
 };
 
 use crate::{
-    develop::{
-        CpuImage, RgbaPixel,
-        orientation::{ExifOrientation, apply_exif_orientation},
-    },
+    develop::{CpuImage, RgbaPixel},
     io::{
         DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic, MetadataBundle,
         ResourceLimits, SignalRelation,
@@ -70,8 +67,12 @@ pub fn decode_raster(
     }
     let transform = RasterToWorkingTransform::new(&payload.resolved.profile, &options.limits)
         .map_err(map_color)?;
-    let mut working =
-        vec![RgbaPixel::new(0.0, 0.0, 0.0, 1.0).expect("finite neutral"); payload.encoded.len()];
+    let neutral = RgbaPixel::new(0.0, 0.0, 0.0, 1.0).map_err(|_| DecodeError::CorruptInput)?;
+    let mut working = Vec::new();
+    working
+        .try_reserve_exact(payload.encoded.len())
+        .map_err(|_| allocation_error())?;
+    working.resize(payload.encoded.len(), neutral);
     let width = usize::try_from(payload.width)
         .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
     for (source_row, destination_row) in
@@ -89,7 +90,7 @@ pub fn decode_raster(
     drop(std::mem::take(&mut payload.encoded));
     let image = CpuImage::new(payload.width, payload.height, working)
         .map_err(|_| DecodeError::CorruptInput)?;
-    let image = apply_orientation(image, payload.orientation)?;
+    let image = apply_orientation(image, payload.orientation, cancellation)?;
     let metadata = MetadataBundle::try_new(payload.exif.take(), None, None, true, &options.limits)
         .map_err(DecodeError::Limit)?;
     payload
@@ -107,19 +108,64 @@ pub fn decode_raster(
     .map_err(map_photo)
 }
 
-fn apply_orientation(image: CpuImage, value: u8) -> Result<CpuImage, DecodeError> {
-    let orientation = match value {
-        1 => ExifOrientation::Normal,
-        2 => ExifOrientation::MirrorHorizontal,
-        3 => ExifOrientation::Rotate180,
-        4 => ExifOrientation::MirrorVertical,
-        5 => ExifOrientation::Transpose,
-        6 => ExifOrientation::Rotate90Clockwise,
-        7 => ExifOrientation::Transverse,
-        8 => ExifOrientation::Rotate270Clockwise,
-        _ => ExifOrientation::Normal,
+fn apply_orientation(
+    image: CpuImage,
+    value: u8,
+    cancellation: &RasterCancellation,
+) -> Result<CpuImage, DecodeError> {
+    if cancellation.cancelled() {
+        return Err(DecodeError::Cancelled);
+    }
+    if value == 1 {
+        return Ok(image);
+    }
+    let (width, height) = if value >= 5 {
+        (image.height(), image.width())
+    } else {
+        (image.width(), image.height())
     };
-    apply_exif_orientation(&image, orientation).map_err(|_| DecodeError::CorruptInput)
+    let count = usize::try_from(u64::from(width) * u64::from(height))
+        .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(count)
+        .map_err(|_| allocation_error())?;
+    for y in 0..height {
+        if cancellation.cancelled() {
+            return Err(DecodeError::Cancelled);
+        }
+        for x in 0..width {
+            let (source_x, source_y) = match value {
+                2 => (image.width() - 1 - x, y),
+                3 => (image.width() - 1 - x, image.height() - 1 - y),
+                4 => (x, image.height() - 1 - y),
+                5 => (y, x),
+                6 => (y, image.height() - 1 - x),
+                7 => (image.width() - 1 - y, image.height() - 1 - x),
+                8 => (image.width() - 1 - y, x),
+                _ => return Err(DecodeError::Metadata),
+            };
+            let index = usize::try_from(
+                u64::from(source_y) * u64::from(image.width()) + u64::from(source_x),
+            )
+            .map_err(|_| DecodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+            pixels.push(image.pixels()[index]);
+        }
+    }
+    CpuImage::new(width, height, pixels).map_err(|_| DecodeError::CorruptInput)
+}
+
+fn allocation_error() -> DecodeError {
+    DecodeError::Limit(crate::io::LimitError::Allocation)
+}
+
+fn try_zeroed(length: usize) -> Result<Vec<u8>, DecodeError> {
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(length)
+        .map_err(|_| allocation_error())?;
+    bytes.resize(length, 0);
+    Ok(bytes)
 }
 
 fn resolve_missing(options: &DecodeOptions) -> Result<ResolvedInputProfile, DecodeError> {

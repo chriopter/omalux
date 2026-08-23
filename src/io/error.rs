@@ -40,6 +40,7 @@ pub enum LimitError {
     InvalidConfiguration,
     EmptyDimensions,
     ArithmeticOverflow,
+    Allocation,
     PixelCount {
         requested: u64,
         maximum: u64,
@@ -71,6 +72,7 @@ impl fmt::Display for LimitError {
             }
             Self::EmptyDimensions => f.write_str("image dimensions must be non-zero"),
             Self::ArithmeticOverflow => f.write_str("resource estimate overflowed"),
+            Self::Allocation => f.write_str("bounded allocation failed"),
             Self::PixelCount { requested, maximum } => {
                 write!(f, "pixel count {requested} exceeds {maximum}")
             }
