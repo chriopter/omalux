@@ -1,9 +1,13 @@
 use crate::{
-    develop::CpuImage,
-    io::{EncodeError, EncodeOptions, MetadataBundle, ResourceLimits, SignalRelation},
+    develop::{CpuImage, RgbaPixel},
+    io::{
+        EncodeError, EncodeOptions, EncodeWorkingSetProfile, MetadataBundle, OutputFormat,
+        OutputProfile, ResourceLimits, SignalRelation,
+        color::{ColorError, WorkingToSrgbTransform, srgb_profile},
+    },
 };
 
-use super::{EncodeCancellation, MetadataWriteReport};
+use super::{EncodeCancellation, MetadataWriteReport, metadata::sanitize_metadata};
 
 pub struct JpegEncodeInput<'a> {
     pub image: &'a CpuImage,
@@ -24,12 +28,323 @@ pub struct PreparedDisplayRgb {
     pub metadata_report: MetadataWriteReport,
 }
 
+/// Produces deterministic encoded-sRGB bytes without invoking an image codec.
 pub fn prepare_display_rgb8(
     input: JpegEncodeInput<'_>,
     options: &EncodeOptions,
     limits: &ResourceLimits,
     cancellation: &EncodeCancellation,
 ) -> Result<PreparedDisplayRgb, EncodeError> {
-    let _ = (input, options, limits, cancellation);
-    Err(EncodeError::Encode)
+    // This semantic gate deliberately precedes all allocations and metadata
+    // work. RAW requires the separate scene-to-display renderer.
+    if input.signal_relation == SignalRelation::SceneRelatedRaw {
+        return Err(EncodeError::SceneToDisplayRenderingRequired);
+    }
+    if cancellation.cancelled() {
+        return Err(EncodeError::Cancelled);
+    }
+    options.validate()?;
+    if options.format != OutputFormat::Jpeg {
+        return Err(EncodeError::UnsupportedFormat);
+    }
+    if options.profile != OutputProfile::Srgb {
+        return Err(EncodeError::UnsupportedProfile);
+    }
+    input.image.validate().map_err(|_| EncodeError::Encode)?;
+    let (width, height) = (input.image.width(), input.image.height());
+    if width > u16::MAX.into() || height > u16::MAX.into() {
+        return Err(EncodeError::InvalidOptions);
+    }
+
+    preflight_alpha(input.image, options, cancellation)?;
+    let sanitized = sanitize_metadata(input.metadata, options.metadata, limits, || {
+        cancellation.cancelled()
+    })?;
+    let profile = srgb_profile(limits).map_err(map_color)?;
+    let icc_provenance = profile.icc_provenance();
+    let icc = profile.to_icc(limits).map_err(map_color)?;
+    let metadata_bytes = u64::try_from(icc.len())
+        .ok()
+        .and_then(|value| {
+            value.checked_add(sanitized.exif.as_ref().map_or(0, |exif| exif.len() as u64))
+        })
+        .ok_or(EncodeError::Limit(
+            crate::io::LimitError::ArithmeticOverflow,
+        ))?;
+    let estimate = limits
+        .estimate_encode_working_set(
+            width,
+            height,
+            EncodeWorkingSetProfile::JpegRgb8,
+            metadata_bytes,
+        )
+        .map_err(EncodeError::Limit)?;
+    let rgb_len = usize::try_from(estimate.encoded_rgb_bytes)
+        .map_err(|_| EncodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    let mut rgb8 = Vec::new();
+    rgb8.try_reserve_exact(rgb_len)
+        .map_err(|_| EncodeError::Limit(crate::io::LimitError::Allocation))?;
+
+    let row_width = usize::try_from(width)
+        .map_err(|_| EncodeError::Limit(crate::io::LimitError::ArithmeticOverflow))?;
+    let transform = WorkingToSrgbTransform::new(limits).map_err(map_color)?;
+    let mut destination_row = Vec::new();
+    destination_row
+        .try_reserve_exact(row_width)
+        .map_err(|_| EncodeError::Limit(crate::io::LimitError::Allocation))?;
+    destination_row.resize(row_width, [0.0_f32; 4]);
+    let mut flattened_row = Vec::new();
+    if matches!(options.alpha, crate::io::AlphaPolicy::Flatten(_)) {
+        flattened_row
+            .try_reserve_exact(row_width)
+            .map_err(|_| EncodeError::Limit(crate::io::LimitError::Allocation))?;
+    }
+    let mut clipped_samples = 0_u64;
+    let mut alpha_flattened_pixels = 0_u64;
+    for source_row in input.image.pixels().chunks_exact(row_width) {
+        if cancellation.cancelled() {
+            return Err(EncodeError::Cancelled);
+        }
+        let transformed_source = match options.alpha {
+            crate::io::AlphaPolicy::Reject => source_row,
+            crate::io::AlphaPolicy::Flatten(background) => {
+                flattened_row.clear();
+                for pixel in source_row {
+                    if pixel.alpha() != 1.0 {
+                        alpha_flattened_pixels =
+                            alpha_flattened_pixels
+                                .checked_add(1)
+                                .ok_or(EncodeError::Limit(
+                                    crate::io::LimitError::ArithmeticOverflow,
+                                ))?;
+                    }
+                    flattened_row.push(flatten(pixel, background)?);
+                }
+                &flattened_row
+            }
+        };
+        let report = transform
+            .transform_scanline(
+                transformed_source,
+                &mut destination_row,
+                input.signal_relation,
+                options.range,
+                limits,
+            )
+            .map_err(map_color)?;
+        clipped_samples =
+            clipped_samples
+                .checked_add(report.clipped_samples)
+                .ok_or(EncodeError::Limit(
+                    crate::io::LimitError::ArithmeticOverflow,
+                ))?;
+        for pixel in &destination_row {
+            rgb8.extend(pixel[..3].iter().map(|sample| quantize_u8(*sample)));
+        }
+    }
+    debug_assert_eq!(rgb8.len(), rgb_len);
+    if cancellation.cancelled() {
+        return Err(EncodeError::Cancelled);
+    }
+    Ok(PreparedDisplayRgb {
+        width,
+        height,
+        rgb8,
+        icc,
+        icc_provenance,
+        clipped_samples,
+        alpha_flattened_pixels,
+        exif: sanitized.exif,
+        metadata_report: sanitized.report,
+    })
+}
+
+fn preflight_alpha(
+    image: &CpuImage,
+    options: &EncodeOptions,
+    cancellation: &EncodeCancellation,
+) -> Result<(), EncodeError> {
+    if !matches!(options.alpha, crate::io::AlphaPolicy::Reject) {
+        return Ok(());
+    }
+    let width = usize::try_from(image.width()).map_err(|_| EncodeError::InvalidOptions)?;
+    for (row, pixels) in image.pixels().chunks_exact(width).enumerate() {
+        if cancellation.cancelled() {
+            return Err(EncodeError::Cancelled);
+        }
+        if let Some(column) = pixels.iter().position(|pixel| pixel.alpha() != 1.0) {
+            let pixel = row
+                .checked_mul(width)
+                .and_then(|value| value.checked_add(column))
+                .and_then(|value| u64::try_from(value).ok())
+                .ok_or(EncodeError::InvalidOptions)?;
+            return Err(EncodeError::AlphaPresent { pixel });
+        }
+    }
+    Ok(())
+}
+
+fn flatten(pixel: &RgbaPixel, background: [f32; 3]) -> Result<RgbaPixel, EncodeError> {
+    let alpha = f64::from(pixel.alpha());
+    let inverse = 1.0 - alpha;
+    let values = [pixel.red(), pixel.green(), pixel.blue()].map(f64::from);
+    let mut output = [0.0_f32; 3];
+    for index in 0..3 {
+        let value = values[index] * alpha + f64::from(background[index]) * inverse;
+        if !value.is_finite() || value > f64::from(f32::MAX) || value < f64::from(f32::MIN) {
+            return Err(EncodeError::ColorManagement);
+        }
+        output[index] = value as f32;
+    }
+    RgbaPixel::new(output[0], output[1], output[2], 1.0).map_err(|_| EncodeError::ColorManagement)
+}
+
+fn quantize_u8(sample: f32) -> u8 {
+    debug_assert!((0.0..=1.0).contains(&sample));
+    (f64::from(sample) * 255.0 + 0.5).floor() as u8
+}
+
+fn map_color(error: ColorError) -> EncodeError {
+    match error {
+        ColorError::Limit(error) => EncodeError::Limit(error),
+        ColorError::OutputOutOfRange { .. } => EncodeError::OutOfRange,
+        ColorError::SceneToDisplayRenderingRequired => EncodeError::SceneToDisplayRenderingRequired,
+        _ => EncodeError::ColorManagement,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        develop::RgbaPixel,
+        io::{AlphaPolicy, MetadataPolicy, SdrRangePolicy},
+    };
+
+    fn image(pixels: &[[f32; 4]]) -> CpuImage {
+        CpuImage::new(
+            u32::try_from(pixels.len()).unwrap(),
+            1,
+            pixels
+                .iter()
+                .map(|value| RgbaPixel::new(value[0], value[1], value[2], value[3]).unwrap())
+                .collect(),
+        )
+        .unwrap()
+    }
+
+    fn prepare(
+        image: &CpuImage,
+        options: &EncodeOptions,
+    ) -> Result<PreparedDisplayRgb, EncodeError> {
+        prepare_display_rgb8(
+            JpegEncodeInput {
+                image,
+                signal_relation: SignalRelation::LinearizedDisplayReferred,
+                metadata: &MetadataBundle::default(),
+            },
+            options,
+            &ResourceLimits::default(),
+            &EncodeCancellation::default(),
+        )
+    }
+
+    #[test]
+    fn neutral_quantization_has_exact_goldens() {
+        let source = image(&[
+            [0.0, 0.0, 0.0, 1.0],
+            [0.18, 0.18, 0.18, 1.0],
+            [1.0, 1.0, 1.0, 1.0],
+        ]);
+        let first = prepare(&source, &EncodeOptions::default()).unwrap();
+        let second = prepare(&source, &EncodeOptions::default()).unwrap();
+        assert_eq!(first.rgb8, [0, 0, 0, 118, 118, 118, 255, 255, 255]);
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn scene_related_is_rejected_before_other_options() {
+        let source = image(&[[0.0, 0.0, 0.0, 0.5]]);
+        let cancellation = EncodeCancellation::default();
+        cancellation.cancel();
+        let error = prepare_display_rgb8(
+            JpegEncodeInput {
+                image: &source,
+                signal_relation: SignalRelation::SceneRelatedRaw,
+                metadata: &MetadataBundle::default(),
+            },
+            &EncodeOptions::default(),
+            &ResourceLimits::default(),
+            &cancellation,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            EncodeError::SceneToDisplayRenderingRequired
+        ));
+    }
+
+    #[test]
+    fn alpha_reject_and_linear_flatten_are_explicit() {
+        let source = image(&[[0.8, 0.2, 0.1, 0.5]]);
+        assert!(matches!(
+            prepare(&source, &EncodeOptions::default()),
+            Err(EncodeError::AlphaPresent { pixel: 0 })
+        ));
+        let options = EncodeOptions {
+            alpha: AlphaPolicy::Flatten([0.2, 0.2, 0.2]),
+            ..Default::default()
+        };
+        let flattened = prepare(&source, &options).unwrap();
+        let expected = image(&[[0.5, 0.2, 0.15, 1.0]]);
+        assert_eq!(
+            flattened.rgb8,
+            prepare(&expected, &EncodeOptions::default()).unwrap().rgb8
+        );
+        assert_eq!(flattened.alpha_flattened_pixels, 1);
+    }
+
+    #[test]
+    fn range_reject_and_clip_are_reported() {
+        let source = image(&[[4.0, -1.0, 0.5, 1.0]]);
+        let reject = EncodeOptions {
+            range: SdrRangePolicy::Reject,
+            ..Default::default()
+        };
+        assert!(matches!(
+            prepare(&source, &reject),
+            Err(EncodeError::OutOfRange)
+        ));
+        let clipped = prepare(&source, &EncodeOptions::default()).unwrap();
+        assert!(clipped.clipped_samples > 0);
+    }
+
+    #[test]
+    fn cancellation_and_unsupported_contracts_are_loud() {
+        let source = image(&[[0.2, 0.2, 0.2, 1.0]]);
+        let cancellation = EncodeCancellation::default();
+        cancellation.cancel();
+        assert!(matches!(
+            prepare_display_rgb8(
+                JpegEncodeInput {
+                    image: &source,
+                    signal_relation: SignalRelation::LinearizedDisplayReferred,
+                    metadata: &MetadataBundle::default(),
+                },
+                &EncodeOptions::default(),
+                &ResourceLimits::default(),
+                &cancellation,
+            ),
+            Err(EncodeError::Cancelled)
+        ));
+        let heic = EncodeOptions {
+            format: OutputFormat::Heic,
+            metadata: MetadataPolicy::StripAll,
+            ..Default::default()
+        };
+        assert!(matches!(
+            prepare(&source, &heic),
+            Err(EncodeError::UnsupportedFormat)
+        ));
+    }
 }
