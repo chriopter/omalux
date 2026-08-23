@@ -6,6 +6,7 @@
 mod error;
 mod png;
 mod profile;
+mod scene_render;
 mod transform;
 
 pub use error::{ColorError, PngColorChunk, RasterChannel};
@@ -15,6 +16,10 @@ pub use png::{
 pub use profile::{
     ResolvedInputProfile, RgbProfile, assumed_srgb_profile, embedded_rgb_profile, lcms_version,
     linear_rec2020_profile, srgb_profile,
+};
+pub use scene_render::{
+    SceneRenderAlgorithm, SceneRenderError, SceneRenderReport, SceneRenderWorkingSetEstimate,
+    SceneToDisplayTransform, estimate_scene_render_working_set,
 };
 pub use transform::{
     ColorTransformReport, ColorWorkingSetEstimate, ColorWorkingSetProfile,
