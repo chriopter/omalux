@@ -1,9 +1,8 @@
 # Grain model and provenance
 
 Grainroom's normative CPU grain is an adaptation of the film-grain model shared
-by darktable and RawTherapee. The existing preview shader was independently
-written from the same model; neither upstream application implements it as a
-GLSL shader.
+by darktable and RawTherapee. Preview and production export both execute this
+same CPU implementation; Grainroom contains no alternate grain renderer.
 
 Primary references:
 
@@ -28,10 +27,10 @@ The adapted model retains these defining properties:
    Grain code never receives a filename or path, so renaming a source cannot
    change an already resolved edit.
 
-The CPU kernel and shader use a compact simplex-noise formulation instead of the
-upstream CPU permutation table. The simplex algorithm is by Stefan Gustavson;
-the scalar Rust operation order and vectorized GLSL are based on the
-MIT-licensed Ashima Arts `webgl-noise` snapshot
+The CPU kernel uses a compact simplex-noise formulation instead of the upstream
+CPU permutation table. The simplex algorithm is by Stefan Gustavson; the scalar
+Rust implementation is adapted from the MIT-licensed Ashima Arts `webgl-noise`
+snapshot
 [`6abed1e77ed1e18b181627c35f688eb30c9fe75e`](https://github.com/ashima/webgl-noise/tree/6abed1e77ed1e18b181627c35f688eb30c9fe75e).
 Its full copyright and MIT permission notice is retained verbatim in
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). The GPL notices on
