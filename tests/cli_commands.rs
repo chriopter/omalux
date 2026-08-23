@@ -241,6 +241,10 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
         .arg("color_grading.midtones.hue_degrees=215")
         .arg("--set")
         .arg("color_grading.midtones.saturation=20")
+        .arg("--set")
+        .arg("basics.clarity=20")
+        .arg("--set")
+        .arg("effects.sharpness=15")
         .arg("--json")
         .output()
         .unwrap();
@@ -249,7 +253,7 @@ fn external_structured_curve_and_scalar_color_overrides_run_as_color_v1() {
     assert_eq!(report["schema_version"], 3);
     assert_eq!(report["output_format"], "jpeg");
     assert_eq!(report["encoding"]["format"], "jpeg");
-    assert_eq!(report["develop_working_set"]["profile"], "color_v1");
+    assert_eq!(report["develop_working_set"]["profile"], "color_spatial_v1");
     assert!(output.exists());
     assert_ne!(
         image::open(&output).unwrap().to_rgb8(),
@@ -467,6 +471,10 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
             "color_grading.midtones.hue_degrees=215",
             "--set",
             "color_grading.midtones.saturation=20",
+            "--set",
+            "basics.clarity=20",
+            "--set",
+            "effects.bloom=15",
             "--json",
         ])
         .output()
@@ -483,7 +491,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     assert_eq!(report["encoding"]["nclx"]["transfer_characteristics"], 13);
     assert_eq!(report["encoding"]["nclx"]["matrix_coefficients"], 1);
     assert_eq!(report["encoding"]["nclx"]["full_range"], true);
-    assert_eq!(report["develop_working_set"]["profile"], "color_v1");
+    assert_eq!(report["develop_working_set"]["profile"], "color_spatial_v1");
     assert!(
         report["encoding"]["encoder"]
             .as_str()

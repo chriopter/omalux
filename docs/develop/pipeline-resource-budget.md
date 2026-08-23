@@ -54,7 +54,7 @@ effects auxiliary = min(width, 128) * (min(height, 64) + 16) * 4
 Thus `stage_scratch_bytes` is `12 * pixels` plus the maximum active auxiliary
 term. The clarity term is exact for its canonical 128x64 tiling. The effects
 term is conservative: smaller residual kernels and pyramid levels may use less
-memory, but never more. Exact-estimate and peak-minus-one tests exercise every
+memory, but never more. Declared-estimate and peak-minus-one tests exercise every
 admitted family and verify that the gate runs before the transaction or any
 pixel mutation.
 
@@ -95,6 +95,23 @@ arrays. Allocation failure while preparing any curve is typed and precedes the
 first pixel write; the outer transactional image provides the same atomicity
 for later stage/numeric failures. As for `PointwiseV1`, allocator-internal
 rounding is outside the requested-payload contract.
+
+## `ColorSpatialV1`
+
+When at least one ColorV1 stage and at least one SpatialV1 stage are active,
+the selected profile is `ColorSpatialV1`. The two stage families execute
+sequentially, so their scratch payloads are never resident together. Its
+declared peak is therefore:
+
+```
+source + transactional images       32 * width * height
+stage scratch                        max(ColorV1 scratch, SpatialV1 scratch)
+----------------------------------------------------------------------------
+peak                                  sum of the rows above
+```
+
+Tests cover both a color-dominant and a spatial-dominant union and reject
+peak-minus-one before the transaction, pixel mutation, or encoder call.
 
 ## Allocation audit and gates
 

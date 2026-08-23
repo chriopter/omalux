@@ -242,11 +242,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn compact_profile_tag_preserves_the_full_even_peak_domain() {
-        let peak = u64::MAX - 1;
+    fn compact_profile_tag_preserves_the_full_aligned_peak_domain() {
+        let peak = u64::MAX - 3;
         for profile in [
             DevelopWorkingSetProfile::PointwiseV1,
             DevelopWorkingSetProfile::ColorV1,
+            DevelopWorkingSetProfile::SpatialV1,
+            DevelopWorkingSetProfile::ColorSpatialV1,
         ] {
             let summary = DevelopWorkingSetSummary::from_profile(profile, peak);
             assert_eq!(summary.estimated_peak_bytes(), peak);

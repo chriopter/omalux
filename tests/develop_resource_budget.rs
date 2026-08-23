@@ -235,6 +235,58 @@ fn mixer_and_grading_add_no_heap_scratch() {
 }
 
 #[test]
+fn color_spatial_v1_uses_the_larger_sequential_scratch_peak() {
+    let mut color_dominant = DevelopSettings::default();
+    color_dominant.tone_curves.master.points = max_curve(0.10);
+    color_dominant.tone_curves.red.points = max_curve(0.20);
+    color_dominant.tone_curves.green.points = max_curve(0.30);
+    color_dominant.tone_curves.blue.points = max_curve(0.40);
+    color_dominant.basics.clarity = 20.0;
+    let color_peak = 384 + 4 * 31 * 7 * 8;
+    let color_estimate = estimate_develop_working_set(
+        4,
+        3,
+        &color_dominant,
+        &ResourceLimits::default().with_max_working_bytes(color_peak),
+    )
+    .unwrap();
+    assert_eq!(
+        color_estimate.profile,
+        DevelopWorkingSetProfile::ColorSpatialV1
+    );
+    assert_eq!(color_estimate.stage_scratch_bytes, 4 * 31 * 7 * 8);
+
+    let mut spatial_dominant = DevelopSettings::default();
+    spatial_dominant.tone_curves.master.points[1].y = 0.8;
+    spatial_dominant.basics.clarity = 20.0;
+    let spatial_peak = 1_744;
+    let exact = ResourceLimits::default().with_max_working_bytes(spatial_peak);
+    let spatial_estimate = estimate_develop_working_set(4, 3, &spatial_dominant, &exact).unwrap();
+    assert_eq!(
+        spatial_estimate.profile,
+        DevelopWorkingSetProfile::ColorSpatialV1
+    );
+    assert_eq!(spatial_estimate.stage_scratch_bytes, 1_360);
+    assert_eq!(spatial_estimate.peak_bytes, spatial_peak);
+
+    let mut rendered = image(4, 3);
+    DevelopPipeline
+        .process_bounded(&mut rendered, &spatial_dominant, &exact)
+        .unwrap();
+    let below = ResourceLimits::default().with_max_working_bytes(spatial_peak - 1);
+    let mut rejected = image(4, 3);
+    let original = rejected.clone();
+    assert_eq!(
+        DevelopPipeline.process_bounded(&mut rejected, &spatial_dominant, &below),
+        Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
+            requested: spatial_peak,
+            maximum: spatial_peak - 1,
+        }))
+    );
+    assert_eq!(rejected, original);
+}
+
+#[test]
 fn malformed_curve_is_rejected_before_clone_or_mutation() {
     let mut settings = DevelopSettings::default();
     settings.tone_curves.master.points = vec![

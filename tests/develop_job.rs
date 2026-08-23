@@ -464,10 +464,11 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
 }
 
 #[test]
-fn spatial_job_reports_profile_and_rejects_peak_minus_one_before_develop() {
+fn color_spatial_job_reports_json_profile_and_rejects_peak_minus_one_before_develop() {
     let mut settings = DevelopSettings::default();
     settings.basics.clarity = 35.0;
-    let preset = PresetDocument::new("spatial-job-gate", "Spatial job gate", settings);
+    settings.tone_curves.master.points[1].y = 0.8;
+    let preset = PresetDocument::new("color-spatial-job-gate", "Color spatial job gate", settings);
 
     let decoder = FakeDecoder {
         photo: decoded(),
@@ -488,11 +489,14 @@ fn spatial_job_reports_profile_and_rejects_peak_minus_one_before_develop() {
             &mut Stages::default(),
         )
         .unwrap();
-    assert_eq!(report.develop_working_set.estimated_peak_bytes, 632);
+    assert_eq!(report.develop_working_set.estimated_peak_bytes(), 632);
     assert_eq!(
         report.develop_working_set.profile(),
-        Some(grainroom::job::ReportDevelopWorkingSetProfile::SpatialV1)
+        Some(grainroom::job::ReportDevelopWorkingSetProfile::ColorSpatialV1)
     );
+    let json = serde_json::to_string(&report).unwrap();
+    assert!(json.contains("\"profile\":\"color_spatial_v1\""));
+    assert!(json.contains("\"estimated_peak_bytes\":632"));
 
     let rejected_encoder = FakeEncoder::default();
     let mut below = job();
@@ -511,7 +515,10 @@ fn spatial_job_reports_profile_and_rejects_peak_minus_one_before_develop() {
         .unwrap_err();
     assert_eq!(failure.error.stage, JobStage::ResolveSettings);
     assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
-    assert_eq!(failure.report.develop_working_set.estimated_peak_bytes, 632);
+    assert_eq!(
+        failure.report.develop_working_set.estimated_peak_bytes(),
+        632
+    );
     assert_eq!(stages.0, [JobStage::Validate, JobStage::Decode]);
     assert!(rejected_encoder.calls.lock().unwrap().is_empty());
 }

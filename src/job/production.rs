@@ -397,7 +397,11 @@ mod tests {
             ),
             overwrite: OverwritePolicy::Forbid,
             preset: PresetSelection::CatalogId("neutral".to_owned()),
-            overrides: vec![ParameterOverride::scalar("basics.brightness", 35.0)],
+            overrides: vec![
+                ParameterOverride::scalar("basics.brightness", 35.0),
+                ParameterOverride::scalar("basics.clarity", 20.0),
+                ParameterOverride::scalar("color_mixer.red.saturation", 15.0),
+            ],
         };
         let decoder = ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path()));
         let report = DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
@@ -421,8 +425,11 @@ mod tests {
         assert!(report.scene_render.is_some());
         assert_eq!(
             report.develop_working_set.profile(),
-            Some(crate::job::ReportDevelopWorkingSetProfile::PointwiseV1)
+            Some(crate::job::ReportDevelopWorkingSetProfile::ColorSpatialV1)
         );
+        // The RAW job peak is the maximum of its sequential develop and scene
+        // render phases; the spatial develop phase dominates for this 1x1 case.
+        assert_eq!(report.develop_working_set.estimated_peak_bytes(), 316);
         assert!(matches!(
             report.outcome,
             DevelopJobOutcome::PublishedAndDurable { bytes_written } if bytes_written > 0
