@@ -1,6 +1,6 @@
 use grainroom::develop::{
     CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopStage, PipelineError,
-    ResolvedGrainSeed, RgbaPixel,
+    RgbaPixel,
 };
 
 fn active_grain() -> DevelopSettings {
@@ -67,9 +67,7 @@ fn source_digest_identity_is_stable_and_content_sensitive() {
 
 #[test]
 fn explicit_fixed_seed_repeats_exactly_and_preserves_scene_contract() {
-    let context = DevelopRenderContext::from_resolved_grain_seed(
-        ResolvedGrainSeed::fixed_for_tests(0x1234_5678_9abc_def0),
-    );
+    let context = DevelopRenderContext::from_source_digest([0x5a; 32]);
     let source = CpuImage::new(
         3,
         1,
@@ -102,8 +100,7 @@ fn active_oversized_grain_maps_to_a_transactional_effects_error() {
     )
     .unwrap();
     let original = image.clone();
-    let context =
-        DevelopRenderContext::from_resolved_grain_seed(ResolvedGrainSeed::fixed_for_tests(1));
+    let context = DevelopRenderContext::from_source_digest([1; 32]);
     assert_eq!(
         DevelopPipeline.process_with_context(&mut image, &active_grain(), Some(&context),),
         Err(PipelineError::NumericFailure {

@@ -204,10 +204,10 @@ impl EncodeOptions {
         if !(1..=100).contains(&self.quality) {
             return Err(EncodeError::InvalidOptions);
         }
-        if let AlphaPolicy::Flatten(rgb) = self.alpha {
-            if !rgb.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)) {
-                return Err(EncodeError::InvalidOptions);
-            }
+        if let AlphaPolicy::Flatten(rgb) = self.alpha
+            && !rgb.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+        {
+            return Err(EncodeError::InvalidOptions);
         }
         Ok(())
     }

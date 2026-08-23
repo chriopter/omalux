@@ -16,8 +16,9 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ResolvedGrainSeed(u64);
 
 impl ResolvedGrainSeed {
-    /// Constructs a fixed seed for deterministic tests and golden fixtures.
-    pub const fn fixed_for_tests(value: u64) -> Self {
+    /// Constructs a fixed seed for crate-local deterministic tests.
+    #[cfg(test)]
+    pub(crate) const fn fixed_for_tests(value: u64) -> Self {
         Self(value)
     }
 
@@ -59,11 +60,6 @@ impl DevelopRenderContext {
         Self {
             grain_seed: ResolvedGrainSeed(state),
         }
-    }
-
-    /// Constructs a context from an explicitly resolved seed.
-    pub const fn from_resolved_grain_seed(grain_seed: ResolvedGrainSeed) -> Self {
-        Self { grain_seed }
     }
 
     pub(crate) const fn grain_seed(self) -> ResolvedGrainSeed {

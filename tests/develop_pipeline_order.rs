@@ -1,7 +1,7 @@
 use grainroom::develop::settings::CurvePoint;
 use grainroom::develop::{
     CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, LocalAdjustments, RadialMask,
-    ResolvedGrainSeed, RgbaPixel,
+    RgbaPixel,
 };
 
 #[test]
@@ -99,9 +99,7 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
     settings.effects.grain.amount = 37.0;
     settings.effects.grain.size_iso = 4000.0;
     settings.effects.grain.midtone_response = 80.0;
-    let context = DevelopRenderContext::from_resolved_grain_seed(
-        ResolvedGrainSeed::fixed_for_tests(0x1234_5678_9abc_def0),
-    );
+    let context = DevelopRenderContext::from_source_digest([0x5a; 32]);
 
     DevelopPipeline
         .process_with_context(&mut image, &settings, Some(&context))
@@ -123,7 +121,7 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    assert_eq!(stable_pixel_hash(&image), 0x0942_28ff_fafa_98b6);
+    assert_eq!(stable_pixel_hash(&image), 0xdfd0_e478_0ba6_2837);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {
@@ -137,4 +135,28 @@ fn stable_pixel_hash(image: &CpuImage) -> u64 {
         }
     }
     hash
+}
+
+#[test]
+fn vignette_then_sharpness_then_grain_order_has_a_focused_golden() {
+    let pixels = (0..20)
+        .map(|index| {
+            let x = (index % 5) as f32;
+            let y = (index / 5) as f32;
+            RgbaPixel::new(0.1 + x * 0.13, 0.2 + y * 0.11, 0.8 - x * 0.07, 1.0).unwrap()
+        })
+        .collect();
+    let mut image = CpuImage::new(5, 4, pixels).unwrap();
+    let mut settings = DevelopSettings::default();
+    settings.effects.vignette = -30.0;
+    settings.effects.sharpness = 45.0;
+    settings.effects.grain.amount = 32.0;
+    settings.effects.grain.size_iso = 4000.0;
+    settings.effects.grain.midtone_response = 80.0;
+    let context = DevelopRenderContext::from_source_digest([0xa7; 32]);
+
+    DevelopPipeline
+        .process_with_context(&mut image, &settings, Some(&context))
+        .unwrap();
+    assert_eq!(stable_pixel_hash(&image), 0xf266_0623_f923_cc58);
 }

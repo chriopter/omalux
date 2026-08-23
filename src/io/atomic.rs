@@ -146,12 +146,10 @@ fn reject_collision(
 ) -> Result<(), AtomicOutputError> {
     #[cfg(unix)]
     if let (Ok(input_metadata), Some(output_metadata)) = (fs::metadata(input), destination_metadata)
+        && input_metadata.dev() == output_metadata.dev()
+        && input_metadata.ino() == output_metadata.ino()
     {
-        if input_metadata.dev() == output_metadata.dev()
-            && input_metadata.ino() == output_metadata.ino()
-        {
-            return Err(AtomicOutputError::InputOutputCollision);
-        }
+        return Err(AtomicOutputError::InputOutputCollision);
     }
     let input = fs::canonicalize(input).map_err(AtomicOutputError::Create)?;
     let output_parent = destination
