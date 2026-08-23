@@ -50,6 +50,8 @@ pub struct WorkingSetEstimate {
 pub enum EncodeWorkingSetProfile {
     /// Resident RGBA-f32 image, RGB8 output and bounded scanline scratch.
     JpegRgb8,
+    /// RGB8 preparation plus conservative opaque libheif/x265 native storage.
+    HeicRgb8X265,
 }
 
 /// Exact bounded variable-size inputs to the audited JPEG memory model.
@@ -251,7 +253,7 @@ impl ResourceLimits {
             .checked_mul(16)
             .ok_or(LimitError::ArithmeticOverflow)?;
         let encoded_rgb_bytes = match profile {
-            EncodeWorkingSetProfile::JpegRgb8 => pixels
+            EncodeWorkingSetProfile::JpegRgb8 | EncodeWorkingSetProfile::HeicRgb8X265 => pixels
                 .checked_mul(3)
                 .ok_or(LimitError::ArithmeticOverflow)?,
         };
@@ -290,7 +292,7 @@ impl ResourceLimits {
                 .checked_add(14)
                 .ok_or(LimitError::ArithmeticOverflow)?
         };
-        let codec_metadata_scratch_bytes = JPEG_HEADER_BUFFER
+        let jpeg_metadata_scratch = JPEG_HEADER_BUFFER
             .max(
                 JPEG_JFIF_BUFFER
                     .checked_add(exif_segment)
@@ -309,15 +311,36 @@ impl ResourceLimits {
             .and_then(|value| value.checked_add(metadata.output_icc_bytes))
             .and_then(|value| value.checked_add(metadata.transform_profile_bytes))
             .ok_or(LimitError::ArithmeticOverflow)?;
-        let codec_peak_bytes = resident_image_bytes
-            .checked_add(encoded_rgb_bytes)
-            .and_then(|value| value.checked_add(metadata.input_metadata_bytes))
-            // Prepared buffers plus the encoder-owned copies.
-            .and_then(|value| value.checked_add(metadata.output_exif_bytes.checked_mul(2)?))
-            .and_then(|value| value.checked_add(metadata.output_icc_bytes.checked_mul(2)?))
-            .and_then(|value| value.checked_add(JPEG_ENCODER_FIXED_HEAP))
-            .and_then(|value| value.checked_add(codec_metadata_scratch_bytes))
-            .ok_or(LimitError::ArithmeticOverflow)?;
+        let (codec_metadata_scratch_bytes, codec_peak_bytes) = match profile {
+            EncodeWorkingSetProfile::JpegRgb8 => {
+                let peak = resident_image_bytes
+                    .checked_add(encoded_rgb_bytes)
+                    .and_then(|value| value.checked_add(metadata.input_metadata_bytes))
+                    .and_then(|value| value.checked_add(metadata.output_exif_bytes.checked_mul(2)?))
+                    .and_then(|value| value.checked_add(metadata.output_icc_bytes.checked_mul(2)?))
+                    .and_then(|value| value.checked_add(JPEG_ENCODER_FIXED_HEAP))
+                    .and_then(|value| value.checked_add(jpeg_metadata_scratch))
+                    .ok_or(LimitError::ArithmeticOverflow)?;
+                (jpeg_metadata_scratch, peak)
+            }
+            EncodeWorkingSetProfile::HeicRgb8X265 => {
+                // libheif/x265 does not expose an allocator or hard memory
+                // ceiling. Charge a deliberately conservative 96 B/pixel
+                // native allowance plus duplicated attached metadata. This is
+                // a preflight policy, not a native-process RLIMIT.
+                let native_allowance = pixels
+                    .checked_mul(96)
+                    .ok_or(LimitError::ArithmeticOverflow)?;
+                let peak = resident_image_bytes
+                    .checked_add(encoded_rgb_bytes)
+                    .and_then(|value| value.checked_add(metadata.input_metadata_bytes))
+                    .and_then(|value| value.checked_add(metadata.output_exif_bytes.checked_mul(2)?))
+                    .and_then(|value| value.checked_add(metadata.output_icc_bytes.checked_mul(2)?))
+                    .and_then(|value| value.checked_add(native_allowance))
+                    .ok_or(LimitError::ArithmeticOverflow)?;
+                (native_allowance, peak)
+            }
+        };
         let peak_bytes = preparation_peak_bytes.max(codec_peak_bytes);
         if peak_bytes > self.max_working_bytes {
             return Err(LimitError::WorkingBytes {

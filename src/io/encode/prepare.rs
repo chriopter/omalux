@@ -43,6 +43,16 @@ pub fn prepare_display_rgb8(
     limits: &ResourceLimits,
     cancellation: &EncodeCancellation,
 ) -> Result<PreparedDisplayRgb, EncodeError> {
+    prepare_display_rgb8_for(input, options, OutputFormat::Jpeg, limits, cancellation)
+}
+
+pub(crate) fn prepare_display_rgb8_for(
+    input: JpegEncodeInput<'_>,
+    options: &EncodeOptions,
+    expected_format: OutputFormat,
+    limits: &ResourceLimits,
+    cancellation: &EncodeCancellation,
+) -> Result<PreparedDisplayRgb, EncodeError> {
     // This semantic gate deliberately precedes all allocations and metadata
     // work. RAW requires the separate scene-to-display renderer.
     if input.signal_relation == SignalRelation::SceneRelatedRaw {
@@ -52,7 +62,7 @@ pub fn prepare_display_rgb8(
         return Err(EncodeError::Cancelled);
     }
     options.validate()?;
-    if options.format != OutputFormat::Jpeg {
+    if options.format != expected_format {
         return Err(EncodeError::UnsupportedFormat);
     }
     if options.profile != OutputProfile::Srgb {
@@ -92,7 +102,10 @@ pub fn prepare_display_rgb8(
         .estimate_encode_working_set(
             width,
             height,
-            EncodeWorkingSetProfile::JpegRgb8,
+            match expected_format {
+                OutputFormat::Jpeg => EncodeWorkingSetProfile::JpegRgb8,
+                OutputFormat::Heic => EncodeWorkingSetProfile::HeicRgb8X265,
+            },
             JpegMetadataFootprint {
                 input_metadata_bytes,
                 output_exif_bytes: metadata_plan.output_bytes(),

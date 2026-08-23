@@ -184,6 +184,8 @@ impl StableErrorCode for DecodeError {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum EncodeError {
+    HeicBackendNotBuilt,
+    HeicBackendUnavailable,
     UnsupportedFormat,
     UnsupportedProfile,
     InvalidOptions,
@@ -214,6 +216,9 @@ impl std::error::Error for EncodeError {
 impl StableErrorCode for EncodeError {
     fn error_code(&self) -> ErrorCode {
         match self {
+            Self::HeicBackendNotBuilt | Self::HeicBackendUnavailable => {
+                ErrorCode::UnsupportedFormat
+            }
             Self::UnsupportedFormat => ErrorCode::UnsupportedFormat,
             Self::UnsupportedProfile | Self::InvalidOptions | Self::AlphaPresent { .. } => {
                 ErrorCode::InvalidOptions
