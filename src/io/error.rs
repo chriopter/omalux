@@ -1,0 +1,206 @@
+use std::{fmt, io};
+
+/// Stable process-facing error categories. Numeric values are append-only.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(i32)]
+pub enum ErrorCode {
+    InputIo = 10,
+    UnsupportedFormat = 11,
+    CorruptInput = 12,
+    ColorManagement = 13,
+    Metadata = 14,
+    RawBackend = 15,
+    ResourceLimit = 16,
+    InvalidOptions = 17,
+    Encode = 30,
+    OutputIo = 31,
+    DestinationConflict = 32,
+    Internal = 70,
+}
+
+pub trait StableErrorCode {
+    fn error_code(&self) -> ErrorCode;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MetadataKind {
+    Exif,
+    Xmp,
+    Iptc,
+    Icc,
+    Total,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LimitError {
+    EmptyDimensions,
+    ArithmeticOverflow,
+    PixelCount {
+        requested: u64,
+        maximum: u64,
+    },
+    DecodedBytes {
+        requested: u64,
+        maximum: u64,
+    },
+    WorkingBytes {
+        requested: u64,
+        maximum: u64,
+    },
+    MetadataBytes {
+        kind: MetadataKind,
+        requested: u64,
+        maximum: u64,
+    },
+}
+
+impl fmt::Display for LimitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyDimensions => f.write_str("image dimensions must be non-zero"),
+            Self::ArithmeticOverflow => f.write_str("resource estimate overflowed"),
+            Self::PixelCount { requested, maximum } => {
+                write!(f, "pixel count {requested} exceeds {maximum}")
+            }
+            Self::DecodedBytes { requested, maximum } => {
+                write!(f, "decoded bytes {requested} exceed {maximum}")
+            }
+            Self::WorkingBytes { requested, maximum } => {
+                write!(f, "working bytes {requested} exceed {maximum}")
+            }
+            Self::MetadataBytes {
+                kind,
+                requested,
+                maximum,
+            } => write!(f, "{kind:?} bytes {requested} exceed {maximum}"),
+        }
+    }
+}
+
+impl std::error::Error for LimitError {}
+impl StableErrorCode for LimitError {
+    fn error_code(&self) -> ErrorCode {
+        ErrorCode::ResourceLimit
+    }
+}
+
+#[derive(Debug)]
+pub enum DigestError {
+    Read(io::Error),
+}
+impl fmt::Display for DigestError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("source content could not be read")
+    }
+}
+impl std::error::Error for DigestError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Read(e) => Some(e),
+        }
+    }
+}
+impl StableErrorCode for DigestError {
+    fn error_code(&self) -> ErrorCode {
+        ErrorCode::InputIo
+    }
+}
+
+#[derive(Debug)]
+pub enum DecodeError {
+    Input(io::Error),
+    UnsupportedFormat,
+    CorruptInput,
+    ColorManagement,
+    Metadata,
+    RawBackendUnavailable,
+    Limit(LimitError),
+    InvalidOptions,
+}
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "decode failed ({:?})", self.error_code())
+    }
+}
+impl std::error::Error for DecodeError {}
+impl StableErrorCode for DecodeError {
+    fn error_code(&self) -> ErrorCode {
+        match self {
+            Self::Input(_) => ErrorCode::InputIo,
+            Self::UnsupportedFormat => ErrorCode::UnsupportedFormat,
+            Self::CorruptInput => ErrorCode::CorruptInput,
+            Self::ColorManagement => ErrorCode::ColorManagement,
+            Self::Metadata => ErrorCode::Metadata,
+            Self::RawBackendUnavailable => ErrorCode::RawBackend,
+            Self::Limit(_) => ErrorCode::ResourceLimit,
+            Self::InvalidOptions => ErrorCode::InvalidOptions,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum EncodeError {
+    UnsupportedFormat,
+    InvalidOptions,
+    OutOfRange,
+    ColorManagement,
+    Encode,
+    Output(io::Error),
+    Limit(LimitError),
+}
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "encode failed ({:?})", self.error_code())
+    }
+}
+impl std::error::Error for EncodeError {}
+impl StableErrorCode for EncodeError {
+    fn error_code(&self) -> ErrorCode {
+        match self {
+            Self::UnsupportedFormat => ErrorCode::UnsupportedFormat,
+            Self::InvalidOptions => ErrorCode::InvalidOptions,
+            Self::OutOfRange | Self::ColorManagement => ErrorCode::ColorManagement,
+            Self::Encode => ErrorCode::Encode,
+            Self::Output(_) => ErrorCode::OutputIo,
+            Self::Limit(_) => ErrorCode::ResourceLimit,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum AtomicOutputError {
+    InvalidDestination,
+    DestinationExists,
+    DestinationSymlink,
+    InputOutputCollision,
+    InvalidPermissions,
+    Create(io::Error),
+    Write(io::Error),
+    Sync(io::Error),
+    Publish(io::Error),
+    Cleanup(io::Error),
+}
+
+impl fmt::Display for AtomicOutputError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "atomic output failed ({:?})", self.error_code())
+    }
+}
+
+impl std::error::Error for AtomicOutputError {}
+
+impl StableErrorCode for AtomicOutputError {
+    fn error_code(&self) -> ErrorCode {
+        match self {
+            Self::DestinationExists | Self::DestinationSymlink | Self::InputOutputCollision => {
+                ErrorCode::DestinationConflict
+            }
+            Self::InvalidDestination | Self::InvalidPermissions => ErrorCode::InvalidOptions,
+            Self::Create(_)
+            | Self::Write(_)
+            | Self::Sync(_)
+            | Self::Publish(_)
+            | Self::Cleanup(_) => ErrorCode::OutputIo,
+        }
+    }
+}

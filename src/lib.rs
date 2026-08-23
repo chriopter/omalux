@@ -1,5 +1,6 @@
 mod backend;
 pub mod develop;
+pub mod io;
 
 /// Keeps the CXX-Qt backend and its generated QML registration linked into the
 /// application binary while exposing the develop foundation as a Rust library.
