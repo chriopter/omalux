@@ -58,5 +58,6 @@ sum. A limit failure is reported before develop mutation or encoder dispatch.
 `DevelopJobReport` has a versioned schema and deliberately excludes input and
 output paths, filenames, service error strings and wall-clock timing. It keeps
 only stable stage/error categories, content identity, signal relations,
-bounded profile/byte estimates, and deterministic processing counters. Adding
-the working-set summary advances the report schema to version 2.
+bounded profile/byte estimates, deterministic processing counters, output
+format, and path-free codec provenance. Production codec dispatch advances the
+report schema to version 3.

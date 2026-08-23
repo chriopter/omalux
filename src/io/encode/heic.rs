@@ -526,7 +526,7 @@ mod backend {
                 .get_or_init(|| Mutex::new(()))
                 .lock()
                 .map_err(|_| EncodeError::HeicBackendUnavailable)?;
-            check(unsafe { heif::heif_init(ptr::null_mut()) })?;
+            check_backend(unsafe { heif::heif_init(ptr::null_mut()) })?;
             Ok(Self { _lock: lock })
         }
     }
@@ -566,7 +566,9 @@ mod backend {
                 return Err(EncodeError::HeicBackendUnavailable);
             }
             let mut encoder = ptr::null_mut();
-            check(unsafe { heif::heif_context_get_encoder(context, descriptor, &mut encoder) })?;
+            check_backend(unsafe {
+                heif::heif_context_get_encoder(context, descriptor, &mut encoder)
+            })?;
             if encoder.is_null() {
                 return Err(EncodeError::HeicBackendUnavailable);
             }
@@ -788,6 +790,16 @@ mod backend {
             Err(EncodeError::Encode)
         }
     }
+
+    fn check_backend(error: heif::heif_error) -> Result<(), EncodeError> {
+        if error.code == heif::heif_error_code_heif_error_Ok {
+            Ok(())
+        } else if error.code == heif::heif_error_code_heif_error_Memory_allocation_error {
+            Err(EncodeError::Limit(LimitError::Allocation))
+        } else {
+            Err(EncodeError::HeicBackendUnavailable)
+        }
+    }
     fn map_inner(error: InnerFailure) -> EncodeError {
         match error {
             InnerFailure::Cancelled => EncodeError::Cancelled,
@@ -861,6 +873,30 @@ mod backend {
                 None,
             );
             assert_eq!(result.unwrap(), AtomicOutputOutcome::PublishedButNotDurable);
+        }
+
+        #[test]
+        fn plugin_loading_and_encoder_acquisition_failures_keep_backend_category() {
+            let plugin = heif::heif_error {
+                code: heif::heif_error_code_heif_error_Plugin_loading_error,
+                subcode: 0,
+                message: ptr::null(),
+            };
+            assert!(matches!(
+                check_backend(plugin),
+                Err(EncodeError::HeicBackendUnavailable)
+            ));
+
+            let allocation = heif::heif_error {
+                code: heif::heif_error_code_heif_error_Memory_allocation_error,
+                subcode: 0,
+                message: ptr::null(),
+            };
+            assert!(matches!(
+                check_backend(allocation),
+                Err(EncodeError::Limit(LimitError::Allocation))
+            ));
+            assert!(check_backend(ok()).is_ok());
         }
 
         #[test]
