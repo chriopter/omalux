@@ -7,7 +7,39 @@ use rustix::fs::{self, FileType, Mode, OFlags};
 /// External preset documents are intentionally small declarative JSON files.
 pub const MAX_EXTERNAL_PRESET_BYTES: u64 = 1024 * 1024;
 
-const BUILTIN_PRESETS: &[&str] = &[include_str!("../../presets/builtin/neutral.json")];
+// Keep this manifest explicit: Cargo follows every include at package time and
+// reviewers can audit the complete public catalog without build-time scanning.
+// `PresetCatalog::from_documents` still sorts by stable ID before exposure.
+const BUILTIN_PRESETS: &[&str] = &[
+    include_str!("../../presets/builtin/community-amber-grain.json"),
+    include_str!("../../presets/builtin/community-daylight-25.json"),
+    include_str!("../../presets/builtin/community-desert-signal.json"),
+    include_str!("../../presets/builtin/community-honey-hour.json"),
+    include_str!("../../presets/builtin/community-muted-alloy.json"),
+    include_str!("../../presets/builtin/community-quiet-negative.json"),
+    include_str!("../../presets/builtin/community-roseglass.json"),
+    include_str!("../../presets/builtin/community-studio-cut.json"),
+    include_str!("../../presets/builtin/community-sunwashed-instant.json"),
+    include_str!("../../presets/builtin/neutral.json"),
+    include_str!("../../presets/builtin/personal-adams-style.json"),
+    include_str!("../../presets/builtin/personal-blitz.json"),
+    include_str!("../../presets/builtin/personal-blume.json"),
+    include_str!("../../presets/builtin/personal-c300-adbvanced.json"),
+    include_str!("../../presets/builtin/personal-kerry.json"),
+    include_str!("../../presets/builtin/personal-kirche-2.json"),
+    include_str!("../../presets/builtin/personal-kirche.json"),
+    include_str!("../../presets/builtin/personal-lampe-1.json"),
+    include_str!("../../presets/builtin/personal-mantel.json"),
+    include_str!("../../presets/builtin/personal-metallbauer.json"),
+    include_str!("../../presets/builtin/personal-pflanze.json"),
+    include_str!("../../presets/builtin/personal-street.json"),
+    include_str!("../../presets/builtin/personal-verbania.json"),
+    include_str!("../../presets/builtin/series-alpine-contrast.json"),
+    include_str!("../../presets/builtin/series-alpine-cross.json"),
+    include_str!("../../presets/builtin/series-alpine-neutral.json"),
+    include_str!("../../presets/builtin/series-cedar-deep.json"),
+    include_str!("../../presets/builtin/series-cedar-fade.json"),
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresetCatalog {
