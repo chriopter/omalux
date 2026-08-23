@@ -8,7 +8,9 @@ use crate::develop::{
 };
 
 #[cfg(test)]
-use crate::develop::color::{oklab_to_linear_rec2020, rec2020_luminance};
+use crate::develop::color::{
+    REC2020_LUMA, oklab_to_linear_rec2020, rec2020_luminance, rec2020_luminance_f64,
+};
 
 const BAND_COUNT: usize = 8;
 const DEFAULT_SMOOTHING: f32 = 50.0;
@@ -243,5 +245,33 @@ mod tests {
         let below = weighted_circular_mean(band_weights(midpoint - epsilon, 50.0), values);
         let above = weighted_circular_mean(band_weights(midpoint + epsilon, 50.0), values);
         assert!(wrap_radians(above - below).min(wrap_radians(below - above)) <= 1.0e-4);
+    }
+
+    #[test]
+    fn quiet_negative_preserves_cancellation_dominated_near_black_luminance() {
+        let catalog = crate::develop::PresetCatalog::built_in().unwrap();
+        let settings = &catalog
+            .get("community-quiet-negative")
+            .unwrap()
+            .settings
+            .color_mixer;
+        // Captures the finite Clarity output that exposed the bug without
+        // depending on a decoder, external image, or filesystem path.
+        let source = [-0.000_170_067_96, -0.000_050_636_245, 0.001_321_164_4];
+        let prepared = PreparedColorMixer::new(settings);
+        let lch = oklab_to_oklch(linear_rec2020_to_oklab(source));
+        let gate = smoothstep(1.0e-5, 5.0e-4, lch[1]);
+        let luminance =
+            gate * weighted_sum(band_weights(lch[2], DEFAULT_SMOOTHING), prepared.luminance);
+        let target = exposure_target_luminance(source, 2.0 * f64::from(luminance)).unwrap();
+        let output = prepared.apply(source).unwrap();
+        assert!(output.into_iter().all(f32::is_finite));
+        let residual = (rec2020_luminance_f64(output) - target).abs();
+        let weighted_magnitude = source
+            .into_iter()
+            .zip(REC2020_LUMA)
+            .map(|(channel, weight)| (f64::from(channel) * f64::from(weight)).abs())
+            .sum::<f64>();
+        assert!(residual <= 8.0 * f64::from(f32::EPSILON) * weighted_magnitude);
     }
 }

@@ -192,7 +192,11 @@ fn exponent_and_cancellation_sweep_never_silently_misses_y() {
                 let actual = f64::from(pixel.red()) * 0.262_700_2
                     + f64::from(pixel.green()) * 0.677_998_1
                     + f64::from(pixel.blue()) * 0.059_301_7;
-                let tolerance = 64.0 * f64::from(f32::EPSILON) * (1.0 + target.abs());
+                let weighted_magnitude = f64::from(pixel.red()).abs() * 0.262_700_2
+                    + f64::from(pixel.green()).abs() * 0.677_998_1
+                    + f64::from(pixel.blue()).abs() * 0.059_301_7;
+                let tolerance = (64.0 * f64::from(f32::EPSILON) * target.abs())
+                    .max(8.0 * f64::from(f32::EPSILON) * weighted_magnitude);
                 assert!((actual - target).abs() <= tolerance);
                 assert_eq!(pixel.alpha(), 0.52);
             }

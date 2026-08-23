@@ -209,19 +209,19 @@ fn luminance_residual_tolerance(target_luminance: f64) -> f64 {
 }
 
 fn conversion_luminance_tolerance(target_luminance: f64, rgb: Rgb) -> f64 {
-    // A zero or cancellation-dominated Y can still require non-zero channels
-    // to retain the requested OKLab hue/chroma. Account for the unavoidable
-    // f32 channel quantization in the Rec.2020 dot product instead of scaling
-    // the entire acceptance bound only by a near-zero target.
+    // A cancellation-dominated Y can require non-zero channels to retain the
+    // requested OKLab hue/chroma. Bound the unavoidable f32 channel
+    // quantization by the weighted channel magnitudes. For ordinary positive,
+    // negative, and HDR colors their sum tracks |Y|, so the stricter relative
+    // target tolerance below still dominates. Only cancellation raises this
+    // representability floor.
     let strict = luminance_residual_tolerance(target_luminance);
-    if target_luminance != 0.0 {
-        return strict;
-    }
-    let channel_scale = rgb
+    let dot_product_magnitude = rgb
         .into_iter()
-        .map(|channel| f64::from(channel).abs())
-        .fold(1.0, f64::max);
-    strict.max(8.0 * f64::from(f32::EPSILON) * channel_scale)
+        .zip(REC2020_LUMA_F64)
+        .map(|(channel, weight)| (f64::from(channel) * weight).abs())
+        .sum::<f64>();
+    strict.max(8.0 * f64::from(f32::EPSILON) * dot_product_magnitude)
 }
 
 fn luminance_residual_is_acceptable(actual: f64, target: f64, tolerance: f64) -> bool {
@@ -493,7 +493,7 @@ mod tests {
                 Ok(rgb) => {
                     assert!(
                         (rec2020_luminance_f64(rgb) - f64::from(target)).abs()
-                            <= luminance_residual_tolerance(f64::from(target))
+                            <= conversion_luminance_tolerance(f64::from(target), rgb)
                     );
                     assert!(rgb.into_iter().all(f32::is_finite));
                 }
@@ -594,12 +594,27 @@ mod tests {
                     match oklab_to_linear_rec2020_preserving_luminance(lab, target) {
                         Ok(output) => assert!(
                             (rec2020_luminance_f64(output) - target).abs()
-                                <= luminance_residual_tolerance(target)
+                                <= conversion_luminance_tolerance(target, output)
                         ),
                         Err(ColorMathError::TargetLuminanceNotReached) => {}
                         Err(error) => panic!("representable target failed unexpectedly: {error:?}"),
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn non_cancelling_normal_minimum_normal_and_hdr_targets_stay_strict() {
+        for magnitude in [f32::MIN_POSITIVE, 1.0, 1.0e20, f32::MAX * 0.25] {
+            for sign in [-1.0, 1.0] {
+                let value = sign * magnitude;
+                let rgb = [value; 3];
+                let target = rec2020_luminance_f64(rgb);
+                assert_eq!(
+                    conversion_luminance_tolerance(target, rgb),
+                    luminance_residual_tolerance(target)
+                );
             }
         }
     }
