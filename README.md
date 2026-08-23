@@ -91,16 +91,23 @@ Launch the separately packaged desktop sibling explicitly with
 executable and never searches `PATH` for it. Linux launch holds and verifies
 the regular sibling without following symlinks before executing the held file.
 
-A development request can already be validated without touching its files:
+Run a real neutral, color-managed JPEG development job through the Qt-free
+core. The decoder opens the source once, output defaults to no-overwrite atomic
+publication, quality defaults to 90, and progress is written to stderr:
 
 ```bash
-grainroom develop --input photo.raw --output result.jpg \
-  --preset neutral --set basics.contrast=10 --quality 90
+grainroom develop --input photo.jpg --output result.jpg \
+  --preset neutral --quality 90 --progress human
 ```
 
-Until production decoder/encoder services are connected, a valid request exits
-explicitly as unavailable and never creates the output. See
-[`docs/cli.md`](docs/cli.md) for the complete contract.
+JPEG, PNG, BMP, and supported camera RAW inputs are accepted. V1 exports JPEG;
+HEIC requests exit 69 before touching presets, input, or output. Active presets
+and `--set` overrides also remain fail-closed with exit 69 until their complete
+pipeline working-set budget is proven; the neutral path is production-wired.
+Use `--json` for the path-free final report and `--progress json` for path-free
+stage events on stderr. SIGINT cancels with exit 130. See
+[`docs/cli.md`](docs/cli.md) for flags, resource limits, exit codes, metadata and
+alpha policy, and the `published_but_not_durable` commit-point contract.
 
 ## Requirements
 

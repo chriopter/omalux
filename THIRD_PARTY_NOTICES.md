@@ -122,3 +122,24 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+## Ctrl-C handling and platform support crates
+
+The Qt-free CLI uses `ctrlc` for cooperative SIGINT cancellation. Its direct
+and platform-specific transitive crates are:
+
+- `ctrlc` 3.5.2, authored by Antti Keränen — MIT OR Apache-2.0;
+- `nix` 0.31.3, the rust-nix project developers — MIT;
+- `cfg_aliases` 0.2.2, authored by Zicklag — MIT;
+- `libc` 0.2.189, the Rust libc developers — MIT OR Apache-2.0;
+- `dispatch2` 0.3.1 — Zlib OR Apache-2.0 OR MIT (Apple targets only);
+- `block2` 0.6.2, `objc2` 0.6.4, and `objc2-encode` 4.1.0, authored by
+  Mads Marquart and contributors — MIT (Apple targets only);
+- `windows-sys` 0.61.2 and `windows-link` 0.2.1, the windows-rs project —
+  MIT OR Apache-2.0 (Windows targets only).
+
+`bitflags` and `cfg-if`, also used by these crates, are already listed in the
+raster-codec dependency notice. Grainroom selects the MIT option wherever it
+is offered; the complete MIT terms are reproduced in the rust-lcms2 section
+above. Alternative Apache-2.0 and Zlib terms remain in the published crate
+source distributions.

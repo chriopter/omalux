@@ -5,7 +5,10 @@ the GUI loader or CLI/export job path; those integrations must call this API
 explicitly and preserve the checked `DecodedPhoto` color/signal invariants.
 
 Grainroom stages the source once while computing its content digest, then gives
-that private immutable copy to the installed LibRaw `dcraw_emu`. The fixed
+that private immutable copy to the installed LibRaw `dcraw_emu`. Production
+and capability probing share one resolver and bounded behavior handshake over
+the fixed `/usr/bin/dcraw_emu` and `/usr/local/bin/dcraw_emu` candidates; they
+never search `PATH`. The fixed
 production arguments request camera white balance when available, embedded
 matrix use, highlight clipping, AHD demosaic, linear 16-bit full resolution,
 Rec.2020, and a private PPM output file:

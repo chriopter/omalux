@@ -14,6 +14,8 @@ grainroom develop --input PATH --output PATH
                   [--unprofiled assume-srgb|reject]
                   [--metadata preserve-safe|strip-location|strip-all]
                   [--alpha reject|flatten-black|flatten=#RRGGBB]
+                  [--max-source-bytes BYTES] [--max-pixels COUNT]
+                  [--max-working-bytes BYTES] [--max-output-bytes BYTES]
                   [--overwrite] [--json] [--progress none|human|json]
 grainroom presets list [--json]
 grainroom presets show ID [--json]
@@ -33,19 +35,44 @@ hardlinks there.
 Paths remain native `PathBuf`/`OsString` values, so non-UTF-8 Linux filenames
 are not converted or logged.
 
-`develop` resolves a built-in preset and validates all typed overrides as one
-transaction. `--preset` and `--preset-file` are mutually exclusive, and
-duplicate `--set` parameter IDs are rejected. An external preset path is kept
-opaque until production services are wired, so this validation phase performs
-no file I/O. Output format is
-inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or `.heif` when
-`--format` is absent. The command does not inspect the input or destination at
-this stage. The typed job boundary exists, but a valid request remains
-unavailable until production decoder and encoder services are wired; no
-destination is created.
-Because execution is unavailable, every `--progress` mode currently emits no
-progress events. JSON mode emits only the final unavailable object on stdout;
-human mode emits only the final diagnostic on stderr.
+`develop` runs the production decoder, relation-typed develop job, and atomic
+JPEG encoder. JPEG, PNG, BMP, and camera RAW inputs are signature-routed after
+one `O_NOFOLLOW` source open; the digest, source identity, and decoded bytes all
+come from that same descriptor. RAW additionally requires a trusted functional
+`dcraw_emu` at `/usr/bin/dcraw_emu` or `/usr/local/bin/dcraw_emu`.
+
+Output format is inferred case-insensitively from `.jpg`, `.jpeg`, `.heic`, or
+`.heif` when `--format` is absent. V1 produces real JPEG only. HEIC is rejected
+with exit 69 before preset, input, or destination I/O and cannot leave an
+output file. Options and resource limits are likewise validated before an
+external preset is opened. `--preset` and `--preset-file` are mutually
+exclusive, duplicate `--set` IDs are rejected, and external preset JSON is read
+through the bounded no-follow loader.
+
+The current job resource proof admits the allocation-free neutral develop path.
+An active preset or any `--set` override remains fail-closed with
+`unproven_pipeline_budget` and exit 69 after decode, before develop mutation or
+output creation. This is deliberate and must not be interpreted as successful
+application of active settings.
+
+The destination defaults to no-overwrite atomic publication. `--overwrite`
+permits replacement of an existing regular file, while source/destination inode
+collisions and symlinks remain rejected. JPEG is sRGB with an embedded profile;
+quality defaults to 90. Safe metadata policy, alpha handling, SDR clipping, and
+the supplied resource limits are applied at the encoder boundary.
+
+`--progress human` writes completed stage names to stderr. `--progress json`
+writes one path-free JSON event per completed stage to stderr. The final compact
+JSON report selected by `--json` is written only to stdout and contains a
+content digest, signal relations, scene-render summary where applicable, and
+publication outcome—never paths. Human mode writes a path-free summary.
+SIGINT cooperatively cancels the active decoder/renderer/encoder and exits 130;
+pre-commit cancellation leaves no destination.
+
+`published_and_durable` means the destination and its directory were synced.
+`published_but_not_durable` means the destination is already visible but the
+directory sync failed; this remains a successful commit-point report and must
+not be blindly retried.
 
 Catalog, registry, and probe commands produce human-readable stdout by default
 (`list` output is TSV) and compact JSON with `--json`. Probe considers only
@@ -56,18 +83,21 @@ not a sandbox for arbitrary programs. Capture pipes are nonblocking and
 bounded, the original process-group leader stays unreaped while same-group
 survivors are killed, and even a detached process holding a pipe cannot delay
 the probe beyond its deadline.
-Probe JSON reports only the backend name and functional availability, never
-executable paths. A JSON-mode unavailable develop result is
-also path-free JSON on stdout. Other diagnostics are human-readable on stderr
-and avoid echoing input/output paths.
+Probe and production decoding call the same fixed-candidate resolver and
+bounded behavior handshake, so reported availability cannot name a backend the
+production decoder would refuse. Probe JSON reports only the backend name and
+functional availability, never executable paths. Diagnostics avoid echoing
+input/output paths.
 
 ## Exit status
 
 - `0`: success, help, or version;
+- `1`: operational input, decode, encode, output, or destination failure;
 - `2`: usage, range, unknown preset, duplicate override, or invalid format;
-- `69`: a validated operation is currently unavailable, including a missing
-  packaged GUI sibling or the not-yet-wired develop executor;
+- `69`: unavailable codec/backend, missing packaged GUI sibling, or an active
+  develop request whose pipeline working-set proof is not yet complete;
 - `70`: internal failure.
+- `130`: cancelled by SIGINT before publication.
 
 When `gui` starts successfully, the child application's ordinary 0–255 exit
 status is propagated.
