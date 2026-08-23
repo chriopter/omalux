@@ -1,6 +1,4 @@
-use grainroom::develop::{
-    CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, PipelineError, RgbaPixel,
-};
+use grainroom::develop::{CpuImage, DevelopPipeline, DevelopSettings, RgbaPixel};
 
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 
@@ -106,16 +104,6 @@ fn negative_and_hdr_values_remain_finite_and_unclipped() {
     assert!(output.into_iter().all(f64::is_finite));
     assert!(output[0] < 0.0);
     assert!(output[2] > 1.0);
-}
-
-#[test]
-fn clarity_remains_an_explicit_unsupported_capability() {
-    let mut settings = DevelopSettings::default();
-    settings.basics.clarity = 1.0;
-    assert_eq!(
-        DevelopPipeline.preflight(&settings),
-        Err(PipelineError::StageNotImplemented(DevelopStage::Basics))
-    );
 }
 
 fn render_gray(value: f64, configure: impl FnOnce(&mut DevelopSettings)) -> [f64; 3] {

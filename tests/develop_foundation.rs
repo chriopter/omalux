@@ -272,7 +272,7 @@ fn implemented_stages_preflight_and_process_non_neutral_settings() {
     cases.push((DevelopStage::Geometry, settings));
 
     let mut settings = DevelopSettings::default();
-    settings.basics.contrast = 10.0;
+    settings.basics.clarity = 10.0;
     cases.push((DevelopStage::Basics, settings));
 
     let mut settings = DevelopSettings::default();
@@ -433,10 +433,6 @@ fn valid_image() -> CpuImage {
 
 fn unsupported_settings_by_stage() -> Vec<(DevelopStage, DevelopSettings)> {
     let mut cases = Vec::new();
-
-    let mut settings = DevelopSettings::default();
-    settings.basics.clarity = 1.0;
-    cases.push((DevelopStage::Basics, settings));
 
     let mut settings = DevelopSettings::default();
     let mut mask = radial_mask("active");

@@ -8,7 +8,7 @@ stored back as `f32`.
 ## Basic adjustments
 
 The canonical order is white balance, exposure, whites/blacks,
-highlights/shadows, contrast, saturation, then vibrance.
+highlights/shadows, contrast, clarity, saturation, then vibrance.
 
 - Brightness is exposure: slider value `b` maps to `EV = b / 100`, and every
   RGB channel is multiplied by `2^EV`.
@@ -22,6 +22,38 @@ highlights/shadows, contrast, saturation, then vibrance.
 - Vibrance uses the same luminance-preserving interpolation, but attenuates a
   positive adjustment by `(1 - occupancy)^2`, where `occupancy` is the
   normalized RGB range. A negative adjustment is linear.
+
+### Clarity
+
+Clarity is an independently specified, self-guided base/detail filter rather
+than a second unsharp mask. Rec.2020 luminance `Y` is mapped to the signed,
+unbounded guide `I = asinh(Y / 0.18)`, so negative and HDR scene values remain
+defined. Two separable 17x17 box passes with radius `r = 8` form the guided
+base:
+
+```text
+mean = box(I, r)
+variance = max(box(I * I, r) - mean * mean, 0)
+a = variance / (variance + 0.04)
+b = mean * (1 - a)
+base = box(a, r) * I + box(b, r)
+detail = I - base
+bounded_detail = detail / sqrt(1 + (detail / 0.5)^2)
+I' = I + (clarity / 100) * bounded_detail
+```
+
+The luminance delta `0.18 * (sinh(I') - sinh(I))` is added equally to all RGB
+channels. This preserves straight alpha and absolute RGB opponent differences;
+it is also stable at zero luminance and chromatic cancellation. Conversion back
+to finite `f32` saturates only at the storage type's extrema. Amount zero exits
+before allocating or touching pixels and is byte-exact.
+
+Both box passes use global full-frame Reflect101 coordinates and fixed-order
+`f64` accumulation. The logical source halo is `2r = 16` pixels, making any
+tile split bit-identical to a full-frame pass. Radius is measured in post-geometry
+level-zero image pixels. The implementation retains three `f32` scalar planes
+(12 bytes per pixel) and reuses two bounded `f64` tile scratch buffers; at the
+default 128x64 tile the scratch is below 200 KiB.
 
 ### Temperature and tint
 
@@ -116,6 +148,19 @@ of production raw-processing behavior:
 
 - darktable snapshot `943d74a`: [exposure.c](https://github.com/darktable-org/darktable/blob/943d74a/src/iop/exposure.c), [colorbalancergb.c](https://github.com/darktable-org/darktable/blob/943d74a/src/iop/colorbalancergb.c), [temperature.c](https://github.com/darktable-org/darktable/blob/943d74a/src/iop/temperature.c), [rgbcurve.c](https://github.com/darktable-org/darktable/blob/943d74a/src/iop/rgbcurve.c), and [curve_tools.c](https://github.com/darktable-org/darktable/blob/943d74a/src/common/curve_tools.c).
 - RawTherapee snapshot `498f623`: [curves.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623/rtengine/curves.cc) and [diagonalcurves.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623/rtengine/diagonalcurves.cc).
+
+For clarity terminology and production context, the comparative reading also
+included darktable snapshot `943d74a`
+[guided_filter.c](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/common/guided_filter.c),
+[diffuse.c](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/iop/diffuse.c),
+[atrous.c](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/iop/atrous.c),
+and [bilat.c](https://github.com/darktable-org/darktable/blob/943d74a50e5baeecee26005cf20309e32f487949/src/iop/bilat.c),
+plus RawTherapee snapshot `498f623`
+[guidedfilter.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623784e33fd9a7077fcd8937fe0734033366/rtengine/guidedfilter.cc)
+and [iplocalcontrast.cc](https://github.com/RawTherapee/RawTherapee/blob/498f623784e33fd9a7077fcd8937fe0734033366/rtengine/iplocalcontrast.cc).
+These GPL implementations supplied concepts only; Grainroom's signed guide,
+constants, bounded-detail mapping, tile contract, and Rust implementation are
+independent and retain no copied code or coefficients.
 
 The upstream curve implementations have their own interpolation, limiting, and
 lookup strategies. WP1's weighted-harmonic PCHIP coefficients, exact segment

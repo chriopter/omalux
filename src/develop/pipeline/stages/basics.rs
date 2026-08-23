@@ -1,7 +1,9 @@
 use crate::develop::{
-    CpuImage, DevelopStage, PipelineError, RgbaPixel,
+    CpuImage, PipelineError, RgbaPixel,
     settings::{BasicsSettings, LocalAdjustments},
 };
+
+mod clarity;
 
 // Grainroom's independent WP1 formulas and reference material are documented
 // in docs/develop/wp1-math.md.
@@ -10,29 +12,33 @@ const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const MIDDLE_GRAY: f64 = 0.18;
 const LUMA_EPSILON: f64 = 1.0e-6;
 
-pub(super) fn supports(settings: &BasicsSettings) -> bool {
-    // Clarity needs a spatial/local-contrast stage and is intentionally not
-    // approximated by the global WP1 pass.
-    settings.clarity == 0.0
+pub(super) fn supports(_settings: &BasicsSettings) -> bool {
+    true
 }
 
 pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(), PipelineError> {
-    if !supports(settings) {
-        return Err(PipelineError::StageNotImplemented(DevelopStage::Basics));
-    }
     if settings.is_neutral() {
         return Ok(());
     }
 
     let prepared = PreparedBasics::from_settings(settings);
+    if settings.clarity == 0.0 {
+        for pixel in image.pixels_mut() {
+            prepared.apply_pixel(pixel);
+        }
+        return Ok(());
+    }
     for pixel in image.pixels_mut() {
-        prepared.apply_pixel(pixel);
+        prepared.apply_pre_clarity(pixel);
+    }
+    clarity::apply(image, settings.clarity);
+    for pixel in image.pixels_mut() {
+        prepared.apply_post_clarity(pixel);
     }
     Ok(())
 }
 
 /// Prepared normative WP1 point operations shared with local adjustments.
-/// Spatial clarity is deliberately absent; it remains loudly unsupported.
 pub(super) struct PreparedBasics {
     white_balance: [[f64; 3]; 3],
     brightness_ev: f64,
@@ -85,6 +91,35 @@ impl PreparedBasics {
         rgb = whites_blacks(rgb, self.whites, self.blacks);
         rgb = highlights_shadows(rgb, self.highlights, self.shadows);
         rgb = contrast_around_middle_gray(rgb, self.contrast);
+        rgb = saturation_adjustment(rgb, self.saturation);
+        rgb = vibrance_adjustment(rgb, self.vibrance);
+        pixel.red = rgb[0] as f32;
+        pixel.green = rgb[1] as f32;
+        pixel.blue = rgb[2] as f32;
+    }
+
+    fn apply_pre_clarity(&self, pixel: &mut RgbaPixel) {
+        let mut rgb = [
+            f64::from(pixel.red),
+            f64::from(pixel.green),
+            f64::from(pixel.blue),
+        ];
+        rgb = multiply_matrix(self.white_balance, rgb);
+        rgb = exposure(rgb, self.brightness_ev);
+        rgb = whites_blacks(rgb, self.whites, self.blacks);
+        rgb = highlights_shadows(rgb, self.highlights, self.shadows);
+        rgb = contrast_around_middle_gray(rgb, self.contrast);
+        pixel.red = rgb[0] as f32;
+        pixel.green = rgb[1] as f32;
+        pixel.blue = rgb[2] as f32;
+    }
+
+    fn apply_post_clarity(&self, pixel: &mut RgbaPixel) {
+        let mut rgb = [
+            f64::from(pixel.red),
+            f64::from(pixel.green),
+            f64::from(pixel.blue),
+        ];
         rgb = saturation_adjustment(rgb, self.saturation);
         rgb = vibrance_adjustment(rgb, self.vibrance);
         pixel.red = rgb[0] as f32;
