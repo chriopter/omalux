@@ -19,7 +19,7 @@ pub(super) struct Rect {
     pub(super) height: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct Plane {
     width: usize,
     height: usize,
