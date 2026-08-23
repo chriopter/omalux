@@ -42,7 +42,7 @@ effect immediately after that call.
 ## Bounded composable develop execution
 
 The job resolves catalog/document settings and typed overrides before selecting
-an explicit component profile. PointwiseV1 executes brightness, contrast,
+an explicit component profile. PointwiseV1 executes Exposure EV, brightness, contrast,
 highlights, shadows, whites, blacks, saturation, vibrance, temperature, tint,
 fade, vignette, and deterministic content-digest grain. ColorV1 additionally
 executes structured tone curves from preset JSON plus scalar color mixer and

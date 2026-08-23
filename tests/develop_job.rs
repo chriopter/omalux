@@ -291,7 +291,7 @@ fn pointwise_override_is_applied_to_the_encoded_artifact() {
     let mut request = job();
     request
         .overrides
-        .push(ParameterOverride::scalar("basics.brightness", 25.0));
+        .push(ParameterOverride::scalar("basics.exposure_ev", 0.25));
     let report = DevelopJobRunner::built_in()
         .unwrap()
         .run(

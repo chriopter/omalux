@@ -7,10 +7,12 @@ stored back as `f32`.
 
 ## Basic adjustments
 
-The canonical order is white balance, exposure, whites/blacks,
+The canonical order is white balance, Exposure EV, brightness, whites/blacks,
 highlights/shadows, contrast, clarity, saturation, then vibrance.
 
-- Brightness is exposure: slider value `b` maps to `EV = b / 100`, and every
+- Exposure EV is dedicated scene-linear compensation in `[-4,+4]`; every RGB
+  channel is multiplied by `2^EV` before the legacy brightness control.
+- Brightness remains a finer exposure control: slider value `b` maps to `EV = b / 100`, and every
   RGB channel is multiplied by `2^EV`.
 - Contrast uses 18% as its fulcrum. For luminance `Y > 0`, slider value `c`
   gives `Y' = 0.18 * (Y / 0.18)^(2^(c/100))`. RGB is scaled by `Y'/Y`.
@@ -116,8 +118,12 @@ c = h_i*m_i
 
 Evaluation finds the segment by binary search. Stored nodes are returned
 directly, including nodes closer together than a uniform lookup-table cell.
-Below 0 and above 1, the curve extends linearly using its first or last endpoint
-derivative.
+Schema-v2 curves accept 2 through 32 nodes in the bounded scene-linear range
+`[-4,4]` for both axes. Their domain must include `[0,1]`; a seven-node curve
+may therefore start at `x=-0.6` and end at `x=1.6`. Below the first node and
+above the last node, the curve extends linearly using that endpoint and its
+PCHIP derivative. Negative and HDR inputs inside the extended domain are
+evaluated by their actual segment rather than by a fixed `[0,1]` boundary.
 
 The master curve operates on Rec.2020 luminance. Stability is measured relative
 to the pixel's chroma scale as `r = abs(Y) / max(abs(R), abs(G), abs(B))`, not by

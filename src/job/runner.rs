@@ -451,7 +451,7 @@ mod tests {
     #[test]
     fn raw_pointwise_runs_once_and_job_peak_is_phase_maximum() {
         let mut settings = DevelopSettings::default();
-        settings.basics.brightness = 100.0;
+        settings.basics.exposure_ev = 1.0;
         let mut job = DevelopJob {
             input: "input.raw".into(),
             output: "output.jpg".into(),

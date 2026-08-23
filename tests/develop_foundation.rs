@@ -138,7 +138,7 @@ fn preset_parser_rejects_unknown_versions_and_fields() {
 #[test]
 fn parameter_registry_is_stable_unique_and_well_ranged() {
     let registry = parameter_registry();
-    assert_eq!(registry.len(), 86);
+    assert_eq!(registry.len(), 87);
     let unique: HashSet<_> = registry.iter().map(|definition| &definition.id).collect();
     assert_eq!(unique.len(), registry.len());
     for definition in &registry {
@@ -455,6 +455,7 @@ geometry.crop.x
 geometry.crop.y
 geometry.crop.width
 geometry.crop.height
+basics.exposure_ev
 basics.brightness
 basics.contrast
 basics.clarity

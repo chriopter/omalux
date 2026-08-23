@@ -52,7 +52,8 @@ through the bounded no-follow loader.
 
 The current job resource proof composes explicit PointwiseV1, ColorV1,
 SpatialV1, GeometryV1, and RadialMasksV1 components. These cover pointwise Basics,
-Fade, Vignette, Grain, structured tone curves, scalar Color Mixer/Color Grading,
+Exposure EV, Fade, Vignette, Grain, structured extended-domain tone curves,
+scalar Color Mixer/Color Grading,
 global Clarity, Bloom, Halation, Sharpness, crop/rotate/projective geometry, and
 analytic radial masks with non-negative local sharpness. Supported presets and
 `--set` overrides are applied before encoding. The schema-version-4 report names

@@ -25,13 +25,13 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
 
     let preset = run(&["presets", "show", "neutral", "--json"]);
     assert!(preset.status.success());
-    assert_eq!(json(&preset)["schema_version"], 1);
+    assert_eq!(json(&preset)["schema_version"], 2);
 
     let parameters = run(&["parameters", "list", "--json"]);
     assert!(parameters.status.success());
     assert_eq!(
         json(&parameters)["parameters"].as_array().unwrap().len(),
-        86
+        87
     );
 
     let probe = run(&["probe", "--json"]);
@@ -70,6 +70,8 @@ fn develop_validates_format_ranges_and_runs_pointwise_settings() {
         .args([
             "--quality",
             "90",
+            "--set",
+            "basics.exposure_ev=0.5",
             "--set",
             "basics.contrast=-12.5",
             "--set",
@@ -482,6 +484,8 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
             "basics.clarity=20",
             "--set",
             "effects.bloom=15",
+            "--set",
+            "basics.exposure_ev=0.5",
             "--json",
         ])
         .output()

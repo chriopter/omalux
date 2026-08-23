@@ -288,6 +288,7 @@ fn geometry_masks_compose_explicitly_with_color_and_spatial_profiles() {
 fn every_component_profile_combination_has_an_atomic_exact_gate() {
     for bits in 0_u8..16 {
         let mut settings = DevelopSettings::default();
+        settings.basics.exposure_ev = 0.25;
         if bits & 1 != 0 {
             settings.color_mixer.red.saturation = 5.0;
         }
