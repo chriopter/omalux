@@ -2,6 +2,7 @@ use super::{EncodeError, LimitError, MetadataKind, ResourceLimits, SourceDigestV
 use crate::develop::CpuImage;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SignalRelation {
     SceneReferred,
     LinearizedDisplayReferred,
@@ -27,6 +28,7 @@ pub enum WhiteBalanceProvenance {
 
 /// Audit information only; it is not proof of colorimetric accuracy.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ColorProvenance {
     EmbeddedIcc {
         profile_sha256: [u8; 32],
@@ -43,11 +45,13 @@ pub enum ColorProvenance {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DiagnosticSeverity {
     Information,
     Warning,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum DiagnosticCode {
     MissingProfileAssumedSrgb,
     UnsupportedProfileAssumedSrgb,
@@ -64,6 +68,7 @@ pub struct Diagnostic {
 
 /// Bounded metadata payload. It deliberately contains no source path or file name.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct MetadataBundle {
     exif: Option<Vec<u8>>,
     xmp: Option<Vec<u8>>,
@@ -114,6 +119,7 @@ impl MetadataBundle {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DecodedPhoto {
     pub image: CpuImage,
     pub metadata: MetadataBundle,
@@ -124,17 +130,20 @@ pub struct DecodedPhoto {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum UnprofiledPolicy {
     AssumeSrgbAndWarn,
     Reject,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum WhiteBalancePolicy {
     CameraThenDaylight,
     Daylight,
     Explicit([f32; 4]),
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RawDecodeOptions {
     pub white_balance: WhiteBalancePolicy,
     pub apply_orientation: bool,
@@ -148,6 +157,7 @@ impl Default for RawDecodeOptions {
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DecodeOptions {
     pub limits: ResourceLimits,
     pub unprofiled: UnprofiledPolicy,
@@ -162,35 +172,54 @@ impl Default for DecodeOptions {
         }
     }
 }
+impl DecodeOptions {
+    pub fn validate(&self) -> Result<(), super::DecodeError> {
+        self.limits.validate().map_err(super::DecodeError::Limit)?;
+        if let WhiteBalancePolicy::Explicit(multipliers) = self.raw.white_balance
+            && !multipliers
+                .iter()
+                .all(|value| value.is_finite() && *value > 0.0 && *value <= 64.0)
+        {
+            return Err(super::DecodeError::InvalidOptions);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum OutputFormat {
     Jpeg,
     Heic,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum OutputProfile {
     Srgb,
     DisplayP3,
     Rec2020,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum MetadataPolicy {
     PreserveSafe,
     StripLocation,
     StripAll,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum AlphaPolicy {
     Reject,
     Flatten([f32; 3]),
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum SdrRangePolicy {
     ClipAndReport,
     Reject,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct EncodeOptions {
     pub format: OutputFormat,
     pub quality: u8,
@@ -237,5 +266,15 @@ mod tests {
         assert!(o.validate().is_ok());
         o.quality = 0;
         assert!(o.validate().is_err());
+    }
+    #[test]
+    fn explicit_white_balance_is_finite_positive_and_bounded() {
+        let mut o = DecodeOptions::default();
+        for bad in [0.0, -1.0, f32::NAN, f32::INFINITY, 65.0] {
+            o.raw.white_balance = WhiteBalancePolicy::Explicit([1.0, bad, 1.0, 1.0]);
+            assert!(o.validate().is_err());
+        }
+        o.raw.white_balance = WhiteBalancePolicy::Explicit([2.0, 1.0, 1.5, 1.0]);
+        assert!(o.validate().is_ok());
     }
 }

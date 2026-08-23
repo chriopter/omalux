@@ -10,13 +10,16 @@ mod error;
 mod limits;
 mod types;
 
-pub use atomic::{AtomicOutputOptions, OutputPermissions, OverwritePolicy, write_atomic_output};
+pub use atomic::{
+    AtomicOutputOptions, AtomicOutputOutcome, OutputPermissions, OverwritePolicy,
+    write_atomic_output,
+};
 pub use digest::SourceDigestV1;
 pub use error::{
     AtomicOutputError, DecodeError, DigestError, EncodeError, ErrorCode, LimitError, MetadataKind,
     StableErrorCode,
 };
-pub use limits::{ResourceLimits, WorkingSetEstimate};
+pub use limits::{DecodeWorkingSetProfile, ResourceLimits, WorkingSetEstimate};
 pub use types::{
     AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeOptions, DecodedPhoto, Diagnostic,
     DiagnosticCode, DiagnosticSeverity, EncodeOptions, MetadataBundle, MetadataPolicy,

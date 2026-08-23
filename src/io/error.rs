@@ -3,6 +3,7 @@ use std::{fmt, io};
 /// Stable process-facing error categories. Numeric values are append-only.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
+#[non_exhaustive]
 pub enum ErrorCode {
     InputIo = 10,
     UnsupportedFormat = 11,
@@ -23,6 +24,7 @@ pub trait StableErrorCode {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum MetadataKind {
     Exif,
     Xmp,
@@ -32,10 +34,16 @@ pub enum MetadataKind {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum LimitError {
+    InvalidConfiguration,
     EmptyDimensions,
     ArithmeticOverflow,
     PixelCount {
+        requested: u64,
+        maximum: u64,
+    },
+    SourceBytes {
         requested: u64,
         maximum: u64,
     },
@@ -57,10 +65,16 @@ pub enum LimitError {
 impl fmt::Display for LimitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidConfiguration => {
+                f.write_str("resource limits are internally inconsistent")
+            }
             Self::EmptyDimensions => f.write_str("image dimensions must be non-zero"),
             Self::ArithmeticOverflow => f.write_str("resource estimate overflowed"),
             Self::PixelCount { requested, maximum } => {
                 write!(f, "pixel count {requested} exceeds {maximum}")
+            }
+            Self::SourceBytes { requested, maximum } => {
+                write!(f, "source bytes {requested} exceed {maximum}")
             }
             Self::DecodedBytes { requested, maximum } => {
                 write!(f, "decoded bytes {requested} exceed {maximum}")
@@ -87,26 +101,35 @@ impl StableErrorCode for LimitError {
 #[derive(Debug)]
 pub enum DigestError {
     Read(io::Error),
+    Limit(LimitError),
 }
 impl fmt::Display for DigestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("source content could not be read")
+        match self {
+            Self::Read(_) => f.write_str("source content could not be read"),
+            Self::Limit(error) => error.fmt(f),
+        }
     }
 }
 impl std::error::Error for DigestError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Read(e) => Some(e),
+            Self::Limit(e) => Some(e),
         }
     }
 }
 impl StableErrorCode for DigestError {
     fn error_code(&self) -> ErrorCode {
-        ErrorCode::InputIo
+        match self {
+            Self::Read(_) => ErrorCode::InputIo,
+            Self::Limit(_) => ErrorCode::ResourceLimit,
+        }
     }
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum DecodeError {
     Input(io::Error),
     UnsupportedFormat,
@@ -139,6 +162,7 @@ impl StableErrorCode for DecodeError {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum EncodeError {
     UnsupportedFormat,
     InvalidOptions,
@@ -168,17 +192,22 @@ impl StableErrorCode for EncodeError {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum AtomicOutputError {
     InvalidDestination,
+    InvalidDestinationType,
     DestinationExists,
-    DestinationSymlink,
     InputOutputCollision,
     InvalidPermissions,
+    UnsupportedPlatform,
     Create(io::Error),
     Write(io::Error),
     Sync(io::Error),
     Publish(io::Error),
     Cleanup(io::Error),
+    /// The destination name is committed, but directory durability is unknown.
+    /// Callers must inspect the destination and must not blindly retry.
+    PublishedButNotDurable(io::Error),
 }
 
 impl fmt::Display for AtomicOutputError {
@@ -187,20 +216,35 @@ impl fmt::Display for AtomicOutputError {
     }
 }
 
-impl std::error::Error for AtomicOutputError {}
+impl std::error::Error for AtomicOutputError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Create(error)
+            | Self::Write(error)
+            | Self::Sync(error)
+            | Self::Publish(error)
+            | Self::Cleanup(error)
+            | Self::PublishedButNotDurable(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 impl StableErrorCode for AtomicOutputError {
     fn error_code(&self) -> ErrorCode {
         match self {
-            Self::DestinationExists | Self::DestinationSymlink | Self::InputOutputCollision => {
+            Self::DestinationExists | Self::InvalidDestinationType | Self::InputOutputCollision => {
                 ErrorCode::DestinationConflict
             }
-            Self::InvalidDestination | Self::InvalidPermissions => ErrorCode::InvalidOptions,
+            Self::InvalidDestination | Self::InvalidPermissions | Self::UnsupportedPlatform => {
+                ErrorCode::InvalidOptions
+            }
             Self::Create(_)
             | Self::Write(_)
             | Self::Sync(_)
             | Self::Publish(_)
-            | Self::Cleanup(_) => ErrorCode::OutputIo,
+            | Self::Cleanup(_)
+            | Self::PublishedButNotDurable(_) => ErrorCode::OutputIo,
         }
     }
 }

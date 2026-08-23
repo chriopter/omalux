@@ -2,7 +2,9 @@ use super::{LimitError, MetadataKind};
 
 /// Conservative process-wide limits applied before allocation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct ResourceLimits {
+    pub max_source_bytes: u64,
     pub max_pixels: u64,
     pub max_decoded_bytes: u64,
     pub max_working_bytes: u64,
@@ -14,9 +16,11 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
+            max_source_bytes: 1 << 30,
             max_pixels: 100_000_000,
             max_decoded_bytes: 1 << 30,
-            max_working_bytes: 4 << 30,
+            // A conservative desktop default; callers may explicitly raise it.
+            max_working_bytes: 1 << 30,
             max_metadata_component_bytes: 64 << 20,
             max_total_metadata_bytes: 128 << 20,
             max_icc_bytes: 16 << 20,
@@ -25,6 +29,7 @@ impl Default for ResourceLimits {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct WorkingSetEstimate {
     pub pixels: u64,
     pub decoded_bytes: u64,
@@ -34,17 +39,63 @@ pub struct WorkingSetEstimate {
     pub peak_bytes: u64,
 }
 
+/// Audited allocation shapes for supported decoder families. Backends must
+/// select a named profile instead of supplying optimistic byte counts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum DecodeWorkingSetProfile {
+    RasterRgba8,
+    RasterRgba16,
+    RawMosaic16FullResolution,
+}
+
+impl DecodeWorkingSetProfile {
+    const fn bytes(self) -> (u16, u16) {
+        match self {
+            Self::RasterRgba8 => (4, 8),
+            Self::RasterRgba16 => (8, 8),
+            // Mosaic plus conservative demosaic/profile-conversion scratch.
+            Self::RawMosaic16FullResolution => (2, 32),
+        }
+    }
+}
+
 impl ResourceLimits {
     /// Estimates decode storage plus two 16-byte RGBA f32 buffers and caller
     /// supplied scratch. Every operation is checked before an allocation.
+    pub fn validate(&self) -> Result<(), LimitError> {
+        if self.max_source_bytes == 0
+            || self.max_pixels == 0
+            || self.max_decoded_bytes == 0
+            || self.max_working_bytes == 0
+            || self.max_metadata_component_bytes == 0
+            || self.max_total_metadata_bytes == 0
+            || self.max_icc_bytes == 0
+            || self.max_metadata_component_bytes > self.max_total_metadata_bytes
+            || self.max_icc_bytes > self.max_total_metadata_bytes
+        {
+            return Err(LimitError::InvalidConfiguration);
+        }
+        Ok(())
+    }
+
+    pub fn check_source_bytes(&self, requested: u64) -> Result<(), LimitError> {
+        if requested > self.max_source_bytes {
+            return Err(LimitError::SourceBytes {
+                requested,
+                maximum: self.max_source_bytes,
+            });
+        }
+        Ok(())
+    }
+
     pub fn estimate_working_set(
         &self,
         width: u32,
         height: u32,
-        decoded_bytes_per_pixel: u16,
-        scratch_bytes_per_pixel: u16,
-        fixed_overhead: u64,
+        profile: DecodeWorkingSetProfile,
     ) -> Result<WorkingSetEstimate, LimitError> {
+        self.validate()?;
         if width == 0 || height == 0 {
             return Err(LimitError::EmptyDimensions);
         }
@@ -62,6 +113,7 @@ impl ResourceLimits {
                 .checked_mul(bytes)
                 .ok_or(LimitError::ArithmeticOverflow)
         };
+        let (decoded_bytes_per_pixel, scratch_bytes_per_pixel) = profile.bytes();
         let decoded_bytes = mul(u64::from(decoded_bytes_per_pixel))?;
         if decoded_bytes > self.max_decoded_bytes {
             return Err(LimitError::DecodedBytes {
@@ -76,7 +128,6 @@ impl ResourceLimits {
             .checked_add(cpu_image_bytes)
             .and_then(|v| v.checked_add(transactional_copy_bytes))
             .and_then(|v| v.checked_add(scratch_bytes))
-            .and_then(|v| v.checked_add(fixed_overhead))
             .ok_or(LimitError::ArithmeticOverflow)?;
         if peak_bytes > self.max_working_bytes {
             return Err(LimitError::WorkingBytes {
@@ -133,9 +184,9 @@ mod tests {
     #[test]
     fn exact_estimate_is_conservative() {
         let e = ResourceLimits::default()
-            .estimate_working_set(10, 20, 8, 4, 100)
+            .estimate_working_set(10, 20, DecodeWorkingSetProfile::RasterRgba16)
             .unwrap();
-        assert_eq!(e.peak_bytes, 8_900);
+        assert_eq!(e.peak_bytes, 9_600);
     }
     #[test]
     fn rejects_pixels_before_allocation() {
@@ -144,7 +195,7 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            l.estimate_working_set(2, 2, 1, 0, 0),
+            l.estimate_working_set(2, 2, DecodeWorkingSetProfile::RasterRgba8),
             Err(LimitError::PixelCount { .. })
         ));
     }
@@ -157,8 +208,25 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            l.estimate_working_set(u32::MAX, u32::MAX, u16::MAX, u16::MAX, u64::MAX),
+            l.estimate_working_set(
+                u32::MAX,
+                u32::MAX,
+                DecodeWorkingSetProfile::RawMosaic16FullResolution
+            ),
             Err(LimitError::ArithmeticOverflow)
         );
+    }
+    #[test]
+    fn source_and_configuration_are_bounded() {
+        let l = ResourceLimits::default();
+        assert!(matches!(
+            l.check_source_bytes(l.max_source_bytes + 1),
+            Err(LimitError::SourceBytes { .. })
+        ));
+        let invalid = ResourceLimits {
+            max_icc_bytes: l.max_total_metadata_bytes + 1,
+            ..l
+        };
+        assert_eq!(invalid.validate(), Err(LimitError::InvalidConfiguration));
     }
 }
