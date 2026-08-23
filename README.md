@@ -103,9 +103,10 @@ grainroom develop --input photo.jpg --output result.jpg \
 JPEG, PNG, BMP, and supported camera RAW inputs are accepted. The default build
 exports JPEG and rejects HEIC before requested-file I/O; `--features heic` adds
 10-bit libheif/x265 HEIC export with the same atomic publication contract. Estimator-
-approved PointwiseV1 presets and `--set` overrides run in production; settings
-that require an unproven allocation profile remain fail-closed with exit 69
-before development or output publication.
+approved composable PointwiseV1, ColorV1, SpatialV1, GeometryV1, and
+RadialMasksV1 presets and `--set` overrides run in production. Unsupported
+settings such as negative local sharpness remain fail-closed before development
+or output publication.
 Use `--json` for the path-free final report and `--progress json` for path-free
 stage events on stderr. SIGINT cancels with exit 130. See
 [`docs/cli.md`](docs/cli.md) for flags, resource limits, exit codes, metadata and

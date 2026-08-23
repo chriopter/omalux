@@ -7,9 +7,9 @@ scratch estimate.
 
 ## `PointwiseV1`
 
-`PointwiseV1` supports neutral geometry, neutral curves/mixer/grading/radial
-masks, Basics with clarity at zero, and Effects containing only fade, vignette,
-and grain. Brightness, contrast, highlights, shadows, whites, blacks,
+`PointwiseV1` is the always-present base family. With all optional families
+inactive it supports Basics with clarity at zero and Effects containing only
+fade, vignette, and grain. Brightness, contrast, highlights, shadows, whites, blacks,
 saturation, vibrance, temperature, and tint are pointwise and supported.
 
 The exact requested image-payload peak is:
@@ -32,7 +32,7 @@ source storage outside `CpuImage` are not newly allocated by this operation.
 ## `SpatialV1`
 
 `SpatialV1` adds global clarity, bloom, halation, and sharpness to the
-`PointwiseV1` stages. Geometry and radial masks remain fail-closed. The profile
+`PointwiseV1` stages. The profile
 charges the source and transaction above plus the largest sequential spatial
 stage; spatial stages do not run concurrently.
 
@@ -96,12 +96,14 @@ first pixel write; the outer transactional image provides the same atomicity
 for later stage/numeric failures. As for `PointwiseV1`, allocator-internal
 rounding is outside the requested-payload contract.
 
-## `ColorSpatialV1`
+## Explicit family composition
 
-When at least one ColorV1 stage and at least one SpatialV1 stage are active,
-the selected profile is `ColorSpatialV1`. The two stage families execute
-sequentially, so their scratch payloads are never resident together. Its
-declared peak is therefore:
+The selected profile is an explicit component record: `pointwise_v1` is always
+true and `color_v1`, `spatial_v1`, `geometry_v1`, and `radial_masks_v1` state
+which reviewed optional families are active. This avoids an ambiguous packed
+tag and composes all family combinations without inventing a variant for each
+one. Color and spatial stages execute sequentially, so their scratch payloads
+are never resident together. Their declared peak is:
 
 ```
 source + transactional images       32 * width * height
@@ -113,26 +115,47 @@ peak                                  sum of the rows above
 Tests cover both a color-dominant and a spatial-dominant union and reject
 peak-minus-one before the transaction, pixel mutation, or encoder call.
 
+## `GeometryV1`
+
+Geometry uses fallible exact-reserve output buffers. Orthogonal transforms and
+projective resampling each request one full RGBA-f32 image; when both are
+active, the orthogonal result and projective output overlap for a two-image
+stage peak. A following crop overlaps its exact pixel-aligned ROI output with
+the preceding result. Crop-only settings request only that ROI. The estimator
+uses the same edge rounding and post-rotation dimensions as the renderer.
+
+Geometry runs while the original source and outer transaction are resident.
+After it commits, later-family estimates use the cropped dimensions. The
+reported job peak is the maximum of these sequential phases.
+
+## `RadialMasksV1`
+
+Active masks are processed sequentially. Coverage is analytic in global pixel
+coordinates, so there is no heap mask plane. Each mask requests one exact ROI
+RGBA-f32 output. Non-inverted masks use their clipped rotated-ellipse bound;
+inverted masks use the full frame. The normative seven-tap local-sharpness
+kernel and its seven-value horizontal scratch are fixed stack arrays. Thus the
+heap scratch is exactly `16 * max(active ROI pixels)`. Negative local sharpness
+remains unsupported and fails before mutation.
+
 ## Allocation audit and gates
 
 | Stage | Current variable allocation | Bounded status |
 |---|---|---|
-| Geometry | full output/crop/resample image | gated pending geometry profile |
+| Geometry | fallible full output/crop/resample images | `GeometryV1` |
 | Basics point operations | none | `PointwiseV1` |
 | Clarity | three full f32 planes plus bounded f64 tile scratch | `SpatialV1` |
 | Tone curves | fallible exact-reserve segment vectors; fixed stack coefficient work | `ColorV1` |
 | Color mixer/grading | fixed stack arrays only | `ColorV1` |
-| Radial masks | ROI output and optional sharpness halo/scratch | gated pending ROI/mask profile |
+| Radial masks | fallible exact ROI output; kernel/scratch on stack | `RadialMasksV1` |
 | Bloom/halation | full scalar planes and bounded pyramid levels | `SpatialV1` |
 | Sharpness | full luma/blur planes and spatial scratch | `SpatialV1` |
 | Fade/vignette/grain | none | `PointwiseV1` |
 
-An active gated stage returns `ResourceProfileUnavailable(stage)` during
-preflight, before the transactional copy is allocated and before mutation.
-This is an intentional contract boundary, not an optimistic estimate. Future
-profiles must account for simultaneous source, transaction, output/ROI planes,
-pyramid levels, and tile scratch, and must make all covered heap allocations
-fallible before being enabled.
+Unsupported negative local sharpness returns a typed capability/profile error
+before the transactional copy is allocated and before mutation. Every covered
+heap allocation uses fallible reservation and maps allocation failure to the
+resource-limit category.
 
 `process_with_context` remains the compatibility API. Its full-image
 transaction copy is now fallible, but it does not claim a resource ceiling.

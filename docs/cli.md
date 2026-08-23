@@ -50,14 +50,15 @@ external preset is opened. `--preset` and `--preset-file` are mutually
 exclusive, duplicate `--set` IDs are rejected, and external preset JSON is read
 through the bounded no-follow loader.
 
-The current job resource proof admits four bounded profiles: PointwiseV1,
-ColorV1, SpatialV1, and their ColorSpatialV1 union. These cover pointwise Basics,
+The current job resource proof composes explicit PointwiseV1, ColorV1,
+SpatialV1, GeometryV1, and RadialMasksV1 components. These cover pointwise Basics,
 Fade, Vignette, Grain, structured tone curves, scalar Color Mixer/Color Grading,
-and global Clarity, Bloom, Halation, and Sharpness. Supported presets and `--set`
-overrides are applied before encoding. The schema-version-3 report names the
-output format, codec provenance, selected profile, and estimated peak. Geometry
-and radial masks remain fail-closed with `unproven_pipeline_budget` and exit 69
-after decode, before develop mutation or output creation.
+global Clarity, Bloom, Halation, Sharpness, crop/rotate/projective geometry, and
+analytic radial masks with non-negative local sharpness. Supported presets and
+`--set` overrides are applied before encoding. The schema-version-4 report names
+the output format, codec provenance, explicit profile components, and estimated
+peak. Negative local sharpness remains fail-closed before develop mutation or
+output creation.
 
 The destination defaults to no-overwrite atomic publication. `--overwrite`
 permits replacement of an existing regular file, while source/destination inode
