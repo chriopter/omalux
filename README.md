@@ -64,13 +64,31 @@ After building, run the automated end-to-end export check with:
 scripts/smoke-cli-export.sh ~/Downloads/example.jpg
 ```
 
-The Qt-free core executable currently provides stable process-level help and
-version output while its processing subcommands are built:
+The Qt-free core executable exposes machine-testable catalog, parameter, and
+backend commands without loading Qt:
 
 ```bash
 grainroom --help
-grainroom --version
+grainroom presets list
+grainroom presets show neutral
+grainroom parameters list
+grainroom probe
 ```
+
+Launch the separately packaged desktop sibling explicitly with
+`grainroom gui [--input PATH]`. The core resolves `grainroom-gui` beside its own
+executable and never searches `PATH` for it.
+
+A development request can already be validated without touching its files:
+
+```bash
+grainroom develop photo.raw --output result.jpg \
+  --preset neutral --set basics.contrast=10 --quality 90
+```
+
+Until the job/encoder boundary is connected, a valid request exits explicitly
+as unavailable and never creates the output. See [`docs/cli.md`](docs/cli.md)
+for the complete contract.
 
 ## Requirements
 
