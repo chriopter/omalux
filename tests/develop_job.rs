@@ -52,10 +52,12 @@ impl PhotoDecoder for FakeDecoder {
 #[derive(Clone)]
 struct FakeEncoder {
     calls: Arc<Mutex<Vec<&'static str>>>,
-    observed: Arc<Mutex<Vec<(SignalRelation, f32, Vec<[u32; 4]>)>>>,
+    observed: Arc<Mutex<Vec<ObservedArtifact>>>,
     publication: PublicationStatus,
     cancel_on_publish: bool,
 }
+
+type ObservedArtifact = (SignalRelation, f32, Vec<[u32; 4]>);
 
 impl Default for FakeEncoder {
     fn default() -> Self {
@@ -256,7 +258,7 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
     assert!(json.contains("io.omacom.grainroom.develop-job-report"));
     assert!(json.contains("\"schema_version\":2"));
     assert!(json.contains("\"profile\":\"pointwise_v1\""));
-    assert!(json.contains("\"job_peak_bytes\":64"));
+    assert!(json.contains("\"estimated_peak_bytes\":64"));
     assert!(!json.contains("/virtual/"));
     assert!(!json.contains("input.raw"));
     assert!(!json.contains("output.jpg"));
@@ -315,8 +317,8 @@ fn pointwise_override_is_applied_to_the_encoded_artifact() {
     let expected = f64::from(0.18_f32) * 2.0_f64.powf(0.25);
     assert_eq!(encoder.observed.lock().unwrap()[0].1, expected as f32);
     assert_eq!(
-        report.develop_working_set.unwrap().profile,
-        grainroom::job::ReportDevelopWorkingSetProfile::PointwiseV1
+        report.develop_working_set.profile(),
+        Some(grainroom::job::ReportDevelopWorkingSetProfile::PointwiseV1)
     );
 }
 
@@ -359,7 +361,7 @@ fn pointwise_preset_is_applied_to_the_encoded_artifact() {
         .unwrap();
     assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
     assert_eq!(encoder.observed.lock().unwrap()[0].1, 0.36_f32);
-    assert_eq!(report.develop_working_set.unwrap().job_peak_bytes, 64);
+    assert_eq!(report.develop_working_set.estimated_peak_bytes, 64);
 }
 
 #[test]
@@ -383,7 +385,7 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
             &mut Stages::default(),
         )
         .unwrap();
-    assert_eq!(report.develop_working_set.unwrap().job_peak_bytes, 64);
+    assert_eq!(report.develop_working_set.estimated_peak_bytes, 64);
     assert_eq!(*encoder.calls.lock().unwrap(), ["encode"]);
 
     let rejected_encoder = FakeEncoder::default();
@@ -401,10 +403,7 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
         .unwrap_err();
     assert_eq!(failure.error.stage, JobStage::ResolveSettings);
     assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
-    assert_eq!(
-        failure.report.develop_working_set.unwrap().job_peak_bytes,
-        64
-    );
+    assert_eq!(failure.report.develop_working_set.estimated_peak_bytes, 64);
     assert!(rejected_encoder.calls.lock().unwrap().is_empty());
 }
 

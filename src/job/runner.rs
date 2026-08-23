@@ -120,8 +120,8 @@ impl DevelopJobRunner {
                 report.clone(),
             )
         })?;
-        report.develop_working_set = Some(summary);
-        if summary.job_peak_bytes > job.decode.limits.max_working_bytes {
+        report.develop_working_set = summary;
+        if summary.estimated_peak_bytes > job.decode.limits.max_working_bytes {
             return Err(DevelopJobFailure::new(
                 JobStage::ResolveSettings,
                 JobErrorCode::ResourceLimit,
@@ -135,7 +135,6 @@ impl DevelopJobRunner {
                 self.process_artifact(
                     &mut scene,
                     settings.as_ref(),
-                    digest,
                     &job.decode.limits,
                     cancellation,
                     progress,
@@ -160,7 +159,6 @@ impl DevelopJobRunner {
                 self.process_artifact(
                     &mut display,
                     settings.as_ref(),
-                    digest,
                     &job.decode.limits,
                     cancellation,
                     progress,
@@ -208,20 +206,15 @@ impl DevelopJobRunner {
         &self,
         artifact: &mut WorkingArtifact<R>,
         settings: &DevelopSettings,
-        digest: crate::io::SourceDigestV1,
         limits: &crate::io::ResourceLimits,
         cancellation: &CancellationToken,
         progress: &mut impl ProgressSink,
         report: &DevelopJobReport,
     ) -> Result<(), DevelopJobFailure> {
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
+        let context = artifact.source_digest().develop_render_context();
         self.pipeline
-            .process_bounded_with_context(
-                artifact.image_mut(),
-                settings,
-                Some(&digest.develop_render_context()),
-                limits,
-            )
+            .process_bounded_with_context(artifact.image_mut(), settings, Some(&context), limits)
             .map_err(|error| {
                 DevelopJobFailure::new(
                     JobStage::Develop,
@@ -302,15 +295,10 @@ fn estimate_job_working_set(
     };
     let job_peak_bytes = post_develop_scene_peak_bytes
         .map_or(estimate.peak_bytes, |scene| scene.max(estimate.peak_bytes));
-    Ok(DevelopWorkingSetSummary {
-        profile: estimate.profile.into(),
-        source_image_bytes: estimate.source_image_bytes,
-        transactional_image_bytes: estimate.transactional_image_bytes,
-        stage_scratch_bytes: estimate.stage_scratch_bytes,
-        develop_peak_bytes: estimate.peak_bytes,
-        post_develop_scene_peak_bytes,
+    Ok(DevelopWorkingSetSummary::from_profile(
+        estimate.profile,
         job_peak_bytes,
-    })
+    ))
 }
 
 fn pipeline_error_code(error: &PipelineError) -> JobErrorCode {
@@ -502,10 +490,10 @@ mod tests {
             .unwrap();
         assert_eq!(calls.load(Ordering::Relaxed), 1);
         assert!(report.scene_render.is_some());
-        let working_set = report.develop_working_set.unwrap();
-        assert_eq!(working_set.develop_peak_bytes, 32);
-        assert_eq!(working_set.post_develop_scene_peak_bytes, Some(48));
-        assert_eq!(working_set.job_peak_bytes, 48);
+        let working_set = report.develop_working_set;
+        // Develop is 32 bytes, scene render is 48, and their sequential sum
+        // would be 80. The job reports the true phase maximum.
+        assert_eq!(working_set.estimated_peak_bytes, 48);
         assert_eq!(
             report.output_signal_relation,
             Some(super::ReportSignalRelation::LinearizedDisplayReferred)

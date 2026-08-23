@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Serialize, ser::SerializeStruct};
 
 use crate::{
     develop::DevelopWorkingSetProfile,
@@ -59,18 +59,51 @@ impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
     }
 }
 
-/// Exact requested image payload for the selected bounded develop profile.
-/// A RAW scene peak follows develop, so `job_peak_bytes` is the maximum of the
-/// two phases rather than their sum.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+/// Exact requested image-payload peak for the selected bounded profile.
+/// For RAW this is the maximum of develop and later scene-render phases.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DevelopWorkingSetSummary {
-    pub profile: ReportDevelopWorkingSetProfile,
-    pub source_image_bytes: u64,
-    pub transactional_image_bytes: u64,
-    pub stage_scratch_bytes: u64,
-    pub develop_peak_bytes: u64,
-    pub post_develop_scene_peak_bytes: Option<u64>,
-    pub job_peak_bytes: u64,
+    pub estimated_peak_bytes: u64,
+}
+
+impl DevelopWorkingSetSummary {
+    const fn pending() -> Self {
+        Self {
+            estimated_peak_bytes: 0,
+        }
+    }
+
+    pub(crate) const fn from_profile(
+        profile: DevelopWorkingSetProfile,
+        estimated_peak_bytes: u64,
+    ) -> Self {
+        debug_assert!(estimated_peak_bytes > 0);
+        match profile {
+            DevelopWorkingSetProfile::PointwiseV1 => Self {
+                estimated_peak_bytes,
+            },
+        }
+    }
+
+    pub const fn profile(self) -> Option<ReportDevelopWorkingSetProfile> {
+        if self.estimated_peak_bytes == 0 {
+            None
+        } else {
+            Some(ReportDevelopWorkingSetProfile::PointwiseV1)
+        }
+    }
+}
+
+impl Serialize for DevelopWorkingSetSummary {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut value = serializer.serialize_struct("DevelopWorkingSetSummary", 2)?;
+        value.serialize_field("profile", &self.profile())?;
+        value.serialize_field("estimated_peak_bytes", &self.estimated_peak_bytes)?;
+        value.end()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -106,7 +139,7 @@ pub struct DevelopJobReport {
     pub source_digest_v1: Option<ReportDigest>,
     pub input_signal_relation: Option<ReportSignalRelation>,
     pub output_signal_relation: Option<ReportSignalRelation>,
-    pub develop_working_set: Option<DevelopWorkingSetSummary>,
+    pub develop_working_set: DevelopWorkingSetSummary,
     pub scene_render: Option<SceneRenderSummary>,
     pub outcome: DevelopJobOutcome,
 }
@@ -119,7 +152,7 @@ impl DevelopJobReport {
             source_digest_v1: None,
             input_signal_relation: None,
             output_signal_relation: None,
-            develop_working_set: None,
+            develop_working_set: DevelopWorkingSetSummary::pending(),
             scene_render: None,
             outcome: DevelopJobOutcome::Failure {
                 stage: JobStage::Validate,
