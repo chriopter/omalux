@@ -1,7 +1,7 @@
 # Architecture
 
-Grainroom keeps application logic, interface tools, reusable controls, and GPU
-programs separate so each part can evolve independently.
+Grainroom keeps application logic, interface tools, and reusable controls
+separate so each part can evolve independently.
 
 ## Workspace packages
 
@@ -12,18 +12,18 @@ programs separate so each part can evolve independently.
   `src/main.rs` is intentionally a small process-level CLI entry point.
 - `crates/grainroom-gui/` is the only Qt package. Its `src/main.rs` starts Qt,
   `src/backend/` exposes the CXX-Qt API used by QML, and its build script owns
-  QML registration and shader baking. The installed executable is
-  `grainroom-gui`.
+  QML registration. The installed executable is `grainroom-gui`.
 
 The core package has no build script and no `cxx`, `cxx-qt`, `cxx-qt-lib`,
-`notify`, QML, or Qt Shader Baker dependency. This keeps batch processing and
+`notify` or QML dependency. This keeps batch processing and
 future CLI packages buildable on machines without Qt.
 
 ## GUI Rust
 
-- `crates/grainroom-gui/src/backend/loader.rs` loads standard images and develops RAW previews.
+- `crates/grainroom-gui/src/backend/develop.rs` adapts revisioned GUI requests to the shared production `DevelopJob` path.
+- `crates/grainroom-gui/src/backend/loader.rs` classifies sources for supplemental metadata display.
 - `crates/grainroom-gui/src/backend/metadata.rs` reads file, EXIF, and LibRaw metadata.
-- `crates/grainroom-gui/src/backend/export.rs` writes original, JPEG, and HEIC output.
+- `crates/grainroom-gui/src/backend/export.rs` normalizes local GUI paths; production photo output remains in the core.
 - `crates/grainroom-gui/src/backend/theme.rs` follows the active Omarchy theme.
 
 ## QML
@@ -31,12 +31,10 @@ future CLI packages buildable on machines without Qt.
 - `crates/grainroom-gui/qml/Main.qml` owns the application shell, navigation, and shared state.
 - `crates/grainroom-gui/qml/components/` contains reusable interface controls.
 - `crates/grainroom-gui/qml/tools/` contains one directory per editing or inspection tool.
-- `crates/grainroom-gui/qml/shaders/` contains only human-authored GPU source files.
 
-Each shader stage has one source file. `crates/grainroom-gui/build.rs` compiles
-those sources into Qt Shader Baker packages under Cargo's build directory and
-embeds them into the application. Generated `.qsb` files never live in the
-source tree.
+The GUI contains no alternate photo shader or rendered-export path. Preview
+and export both consume the CPU pipeline so a visible control cannot silently
+select different processing math.
 
 ## Packaging paths
 

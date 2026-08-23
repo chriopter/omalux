@@ -77,7 +77,7 @@ ApplicationWindow {
     }
 
     function localFileUrl(path) {
-        return encodeURI("file://" + path)
+        return backend.urlForLocalPath(path)
     }
 
     function normalizedCliFormat() {
@@ -426,7 +426,11 @@ ApplicationWindow {
                 return
             var status = backend.status
             console.log("grainroom: " + status)
-            if (window.cliExportStarted && status.indexOf("Saved ") === 0) {
+            if (window.cliExportStarted
+                    && status.indexOf("Published with durability warning:") === 0) {
+                console.warn("grainroom: export complete with durability warning")
+                Qt.exit(0)
+            } else if (window.cliExportStarted && status.indexOf("Saved ") === 0) {
                 console.log("grainroom: export complete")
                 Qt.exit(0)
             } else if (status.indexOf("Could not") === 0
@@ -1222,7 +1226,7 @@ ApplicationWindow {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "1–4         CROP / EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\nB           TOGGLE GRAIN BYPASS\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
+                        text: "1–4         CROP / EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
                         color: window.inkColor
                         font.family: window.monoFont
                         font.pixelSize: 12

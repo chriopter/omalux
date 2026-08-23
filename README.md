@@ -21,12 +21,12 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 ## MVP
 
 - Open JPEG, PNG, BMP and common camera RAW files
-- Decode a half-size RAW preview with LibRaw
-- Apply procedural monochrome grain live with a Qt Quick fragment shader
+- Decode raster and full-resolution RAW sources through the bounded production decoder
+- Render previews and exports through the same CPU development pipeline
 - Follow the active Omarchy color theme live, including theme switches while running
 - Switch between Crop, Edit, Presets, and real file/EXIF metadata panels in a compact two-row tool grid
 - Edit groups all controls under Basics, Color, and Effects; Grain remains live, with Size and Midtones in a collapsible advanced section
-- Try three generic preset mockups while the preset processing pipeline is still being built
+- Select presets from the validated core preset catalog
 - Save the unchanged original or export JPEG/HEIC at adjustable quality, with resolution and size estimates
 - Zoom from 25% to 800% with the mouse wheel or touchpad pinch, and pan enlarged photographs
 - Navigate the TUI-inspired develop panel with J/K or arrows, adjust with H/L, and press `?` for the complete keyboard reference
@@ -39,7 +39,7 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 - `H`/`L` or `Left`/`Right`: adjust it; hold `Shift` for larger steps
 - `G`, `S`, `M`: jump to Grain, Size, or Midtones
 - `A`: expand or collapse the Grain subparameters
-- `R`: reset the selected parameter; `B`: toggle grain bypass
+- `R`: reset the selected parameter
 - `-`/`+`: zoom; `0`: fit; `F`: image-only fullscreen (any key exits); `O`: open; `?` or `F1`: keyboard reference
 - `Ctrl+S`: choose Original, JPEG, or HEIC export
 - Standard `Ctrl+O`, `Ctrl+-`, `Ctrl++`, and `Ctrl+0` shortcuts remain available
@@ -52,7 +52,7 @@ Open a photograph directly:
 grainroom-gui --input ~/Pictures/photo.jpg
 ```
 
-Run the same Qt Quick grain shader and HEIC export path without dialogs:
+Run the same CPU development and HEIC export path without dialogs:
 
 ```bash
 grainroom-gui --headless \
@@ -67,7 +67,7 @@ grainroom-gui --headless \
 
 The GUI command's `--format` accepts `original`, `jpg`/`jpeg`, and
 `heic`/`heif`. The process
-returns a non-zero exit status when opening, rendering, or encoding fails.
+returns a non-zero exit status when decoding, developing, or encoding fails.
 
 After building, run the automated end-to-end export check with:
 
@@ -122,8 +122,8 @@ Core and CLI:
 
 Desktop GUI additionally requires:
 
-- Qt 6 with Qt Quick, Qt Quick Controls and Shader Tools
-- ImageMagick (`magick identify` reads metadata and encodes JPEG/HEIC exports)
+- Qt 6 with Qt Quick and Qt Quick Controls
+- ImageMagick (`magick identify` supplements the metadata panel)
 - A C++ compiler
 
 ## Run
@@ -133,10 +133,8 @@ cargo run --release -p grainroom-gui
 ```
 
 Build or test the Qt-free core alone with `cargo build -p grainroom` and
-`cargo test -p grainroom`. Qt Shader Baker is invoked only by the
-`grainroom-gui` package for
-`crates/grainroom-gui/qml/shaders/film_grain.frag`; the generated `.qsb`
-package is embedded into the desktop application.
+`cargo test -p grainroom`. The GUI embeds QML only; photo decoding,
+development, and encoding remain in the shared Rust core.
 
 ## Install and package
 

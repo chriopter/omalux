@@ -83,20 +83,9 @@ construct `ResolvedGrainSeed::fixed_for_tests`; production callers should
 prefer the content-digest constructor. Active grain without a context fails at
 preflight with `MissingRenderContext(Effects)` before caller-visible mutation.
 
-The current QML/LibRaw preview does not yet produce the normative scene-linear
-`CpuImage`, so it is deliberately not wired to this CPU pipeline. The actual
-source SHA-256 resolver and CPU decode/export bridge remain packaging/runtime
-TODOs. They must compute the source digest once, retain it across renames, and
-pass the resulting context to `process_with_context`; they must not derive it
-from display names or filesystem timestamps.
-
-The legacy preview shader is explicitly non-normative. In addition to
-attenuating procedural detail according to the on-screen source-pixel
-footprint, it still uses the older `+1.0` permutation polynomial while pinned
-Ashima commit `6abed1e…` and the normative CPU use `+10.0`. GPU migration must
-port the exact `mod289`, `permute`, skew/unskew, dot-product and accumulation
-operation order; provide the six SplitMix64-derived phases and global f64
-pixel-center/lattice decomposition; and replace display-RGB luminance, scalar
-float seed, and final `[0,1]` clamp with this CPU contract. Independent GLSL
-reference vectors and multi-seed 2-D PSD gates must pass before that shader is
-called export-parity rendering.
+The GUI preview and production export both run through `DevelopJobRunner`, the
+production decoder and the production encoder. The source-content digest is
+therefore computed by the held-source core path and supplies the normative
+render context for grain. Preview requests are coalesced and revisioned, while
+the resulting private JPEG is only a bounded display artifact; it is never an
+input to production export.

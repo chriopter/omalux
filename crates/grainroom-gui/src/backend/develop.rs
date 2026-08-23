@@ -9,8 +9,8 @@ use grainroom::{
         SdrRangePolicy, SourceFileIdentity, write_atomic_output_for_source,
     },
     job::{
-        CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, NoProgress,
-        PresetSelection, ProductionPhotoDecoder, ProductionPhotoEncoder,
+        CancellationToken, DevelopJob, DevelopJobFailure, DevelopJobReport, DevelopJobRunner,
+        DevelopOutput, NoProgress, PresetSelection, ProductionPhotoDecoder, ProductionPhotoEncoder,
     },
 };
 use serde_json::json;
@@ -22,6 +22,25 @@ use std::{
 };
 use tempfile::TempDir;
 
+#[derive(Debug)]
+pub(super) enum GuiJobError {
+    Setup(String),
+    Develop(DevelopJobFailure),
+}
+
+impl std::fmt::Display for GuiJobError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Setup(message) => formatter.write_str(message),
+            Self::Develop(failure) => write!(
+                formatter,
+                "Development failed at {:?} ({:?})",
+                failure.error.stage, failure.error.code
+            ),
+        }
+    }
+}
+
 /// A private, bounded JPEG owned by one completed preview generation.
 ///
 /// Keeping the directory handle in this value makes replacement and shutdown
@@ -29,11 +48,16 @@ use tempfile::TempDir;
 pub(super) struct PreviewArtifact {
     _directory: TempDir,
     path: PathBuf,
+    report: DevelopJobReport,
 }
 
 impl PreviewArtifact {
     pub(super) fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub(super) fn report(&self) -> &DevelopJobReport {
+        &self.report
     }
 
     #[cfg(test)]
@@ -97,15 +121,18 @@ pub(super) fn develop_preview(
     source: &Path,
     settings: DevelopSettings,
     cancellation: &CancellationToken,
-) -> Result<PreviewArtifact, String> {
+) -> Result<PreviewArtifact, GuiJobError> {
     let directory = tempfile::Builder::new()
         .prefix("grainroom-preview-")
         .tempdir()
-        .map_err(|error| format!("Could not create private preview storage: {error}"))?;
-    std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
-        .map_err(|error| format!("Could not secure private preview storage: {error}"))?;
+        .map_err(|error| {
+            GuiJobError::Setup(format!("Could not create private preview storage: {error}"))
+        })?;
+    std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).map_err(
+        |error| GuiJobError::Setup(format!("Could not secure private preview storage: {error}")),
+    )?;
     let path = directory.path().join("preview.jpg");
-    run_job(
+    let report = run_job(
         source,
         &path,
         settings,
@@ -118,6 +145,7 @@ pub(super) fn develop_preview(
     Ok(PreviewArtifact {
         _directory: directory,
         path,
+        report,
     })
 }
 
@@ -128,7 +156,7 @@ pub(super) fn export_photo(
     format: OutputFormat,
     quality: u8,
     cancellation: &CancellationToken,
-) -> Result<(), String> {
+) -> Result<DevelopJobReport, GuiJobError> {
     run_job(
         source,
         destination,
@@ -215,8 +243,9 @@ fn run_job(
     limits: ResourceLimits,
     overwrite: OverwritePolicy,
     cancellation: &CancellationToken,
-) -> Result<(), String> {
-    let catalog = PresetCatalog::built_in().map_err(|error| error.to_string())?;
+) -> Result<DevelopJobReport, GuiJobError> {
+    let catalog = PresetCatalog::built_in()
+        .map_err(|error| GuiJobError::Setup(format!("Built-in preset catalog failed: {error}")))?;
     let mut decode = DecodeOptions::default();
     decode.limits = limits;
     let job = DevelopJob {
@@ -247,13 +276,7 @@ fn run_job(
             cancellation,
             &mut NoProgress,
         )
-        .map(|_| ())
-        .map_err(|failure| {
-            format!(
-                "Development failed at {:?} ({:?})",
-                failure.error.stage, failure.error.code
-            )
-        })
+        .map_err(GuiJobError::Develop)
 }
 
 #[cfg(test)]
@@ -283,6 +306,14 @@ mod tests {
         let ids: Vec<String> = serde_json::from_str(&supported_parameters_json().unwrap()).unwrap();
         assert!(ids.iter().any(|id| id == "basics.contrast"));
         assert!(ids.iter().any(|id| id == "color_mixer.red.saturation"));
+        for spatial in [
+            "basics.clarity",
+            "effects.bloom",
+            "effects.halation",
+            "effects.sharpness",
+        ] {
+            assert!(ids.iter().any(|id| id == spatial));
+        }
         let clarity = parse_parameter_override("basics.clarity=100").unwrap();
         let clarity = apply_parameter_overrides(&DevelopSettings::default(), &[clarity]).unwrap();
         assert_eq!(
@@ -329,6 +360,25 @@ mod tests {
                 .unwrap();
             develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
         }
+    }
+
+    #[test]
+    fn combined_color_spatial_settings_reach_preview_and_report_the_real_profile() {
+        use grainroom::job::ReportDevelopWorkingSetProfile;
+
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        jpeg_fixture(input.path());
+        let overrides = [
+            parse_parameter_override("color_mixer.red.saturation=15").unwrap(),
+            parse_parameter_override("basics.clarity=12").unwrap(),
+            parse_parameter_override("effects.bloom=8").unwrap(),
+        ];
+        let settings = apply_parameter_overrides(&DevelopSettings::default(), &overrides).unwrap();
+        let preview = develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
+        assert_eq!(
+            preview.report().develop_working_set.profile(),
+            Some(ReportDevelopWorkingSetProfile::ColorSpatialV1)
+        );
     }
 
     #[test]

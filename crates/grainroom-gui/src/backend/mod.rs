@@ -29,12 +29,19 @@ pub mod qobject {
         #[qproperty(QString, theme_accent, cxx_name = "themeAccent")]
         #[qproperty(QString, theme_selection, cxx_name = "themeSelection")]
         #[qproperty(QString, status)]
+        #[qproperty(QString, operation_history_json, cxx_name = "operationHistoryJson")]
+        #[qproperty(QString, last_job_report_json, cxx_name = "lastJobReportJson")]
+        #[qproperty(QString, last_preview_report_json, cxx_name = "lastPreviewReportJson")]
         #[qproperty(bool, loading)]
         type PhotoBackend = super::PhotoBackendRust;
 
         #[qinvokable]
         #[cxx_name = "openPhoto"]
         fn open_photo(self: Pin<&mut Self>, url: &QUrl);
+
+        #[qinvokable]
+        #[cxx_name = "urlForLocalPath"]
+        fn url_for_local_path(self: Pin<&mut Self>, path: &QString) -> QUrl;
 
         #[qinvokable]
         #[cxx_name = "cancelDevelop"]
@@ -73,20 +80,24 @@ mod metadata;
 mod theme;
 
 use self::develop::{
-    PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview, export_photo,
-    save_original_atomic, settings_json, supported_parameters_json,
+    GuiJobError, PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview,
+    export_photo, save_original_atomic, settings_json, supported_parameters_json,
 };
-use self::export::{display_file_name, local_destination};
+use self::export::{absolute_local_path, display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
 use self::theme::{ThemeColors, load_omarchy_theme, omarchy_current_theme_path};
 use cxx_qt_lib::{QString, QUrl};
 use grainroom::develop::{DevelopSettings, apply_parameter_overrides, parse_parameter_override};
 use grainroom::io::OutputFormat;
-use grainroom::job::CancellationToken;
+use grainroom::job::{CancellationToken, DevelopJobOutcome, DevelopJobReport};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::{Path, PathBuf};
+use serde::Serialize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::{
+    collections::VecDeque,
+    path::{Path, PathBuf},
+};
 
 pub struct PhotoBackendRust {
     preview_url: QUrl,
@@ -103,11 +114,13 @@ pub struct PhotoBackendRust {
     theme_accent: QString,
     theme_selection: QString,
     status: QString,
+    operation_history_json: QString,
+    last_job_report_json: QString,
+    last_preview_report_json: QString,
     loading: bool,
     metadata_revision: AtomicU64,
     preview_revision: AtomicU64,
-    export_revision: AtomicU64,
-    save_revision: AtomicU64,
+    operations: OperationTracker,
     generated_preview: Option<PreviewArtifact>,
     source_path: Option<PathBuf>,
     settings: DevelopSettings,
@@ -154,8 +167,120 @@ impl PreviewQueue {
     }
 }
 
-fn should_report_export_completion(current: u64, completed: u64, published: bool) -> bool {
-    published || current == completed
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum OperationKind {
+    Export,
+    SaveOriginal,
+}
+
+#[derive(Debug, Serialize)]
+struct OperationRecord {
+    revision: u64,
+    kind: OperationKind,
+    outcome: &'static str,
+    warning: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    report: Option<serde_json::Value>,
+}
+
+#[derive(Default)]
+struct OperationTracker {
+    current: u64,
+    history: VecDeque<OperationRecord>,
+}
+
+impl OperationTracker {
+    const HISTORY_LIMIT: usize = 32;
+
+    fn begin(&mut self) -> u64 {
+        self.current = self
+            .current
+            .checked_add(1)
+            .expect("GUI operation revision exhausted");
+        self.current
+    }
+
+    fn complete(&mut self, record: OperationRecord) -> (bool, String) {
+        let updates_main_status = record.revision == self.current;
+        if self.history.len() == Self::HISTORY_LIMIT {
+            self.history.pop_front();
+        }
+        self.history.push_back(record);
+        let json = serde_json::to_string(&self.history).unwrap_or_else(|_| "[]".to_owned());
+        (updates_main_status, json)
+    }
+}
+
+fn export_completion(
+    result: Result<DevelopJobReport, GuiJobError>,
+    format: &str,
+    destination: &str,
+) -> (&'static str, bool, String, Option<serde_json::Value>) {
+    match result {
+        Ok(report) => {
+            let serialized = serde_json::to_value(&report).ok();
+            match report.outcome {
+                DevelopJobOutcome::PublishedAndDurable { .. } => (
+                    "published_and_durable",
+                    false,
+                    format!("Saved {format} · {destination}"),
+                    serialized,
+                ),
+                DevelopJobOutcome::PublishedButNotDurable { .. } => (
+                    "published_but_not_durable",
+                    true,
+                    format!(
+                        "Published with durability warning: directory sync not confirmed · {destination}"
+                    ),
+                    serialized,
+                ),
+                DevelopJobOutcome::Failure { .. } => (
+                    "failure",
+                    false,
+                    "Development reported a failed outcome".to_owned(),
+                    serialized,
+                ),
+            }
+        }
+        Err(error) => {
+            let report = match &error {
+                GuiJobError::Develop(failure) => serde_json::to_value(failure.report.as_ref()).ok(),
+                GuiJobError::Setup(_) => None,
+            };
+            ("failure", false, error.to_string(), report)
+        }
+    }
+}
+
+fn original_completion(
+    result: Result<grainroom::io::AtomicOutputOutcome, String>,
+    destination: &str,
+) -> (&'static str, bool, String) {
+    match result {
+        Ok(grainroom::io::AtomicOutputOutcome::PublishedAndDurable) => (
+            "published_and_durable",
+            false,
+            format!("Saved original · {destination}"),
+        ),
+        Ok(grainroom::io::AtomicOutputOutcome::PublishedButNotDurable) => (
+            "published_but_not_durable",
+            true,
+            format!(
+                "Published with durability warning: directory sync not confirmed · {destination}"
+            ),
+        ),
+        Ok(_) => (
+            "published",
+            false,
+            format!("Saved original · {destination}"),
+        ),
+        Err(error) => (
+            "failure",
+            false,
+            format!("Could not save original: {error}"),
+        ),
+    }
 }
 
 impl Default for PhotoBackendRust {
@@ -183,11 +308,13 @@ impl Default for PhotoBackendRust {
             theme_accent: QString::from(&theme.accent),
             theme_selection: QString::from(&theme.selection),
             status: QString::from("Open a JPEG or RAW photograph"),
+            operation_history_json: QString::from("[]"),
+            last_job_report_json: QString::from("{}"),
+            last_preview_report_json: QString::from("{}"),
             loading: false,
             metadata_revision: AtomicU64::new(0),
             preview_revision: AtomicU64::new(0),
-            export_revision: AtomicU64::new(0),
-            save_revision: AtomicU64::new(0),
+            operations: OperationTracker::default(),
             generated_preview: None,
             source_path: None,
             settings,
@@ -211,6 +338,11 @@ impl Drop for PhotoBackendRust {
 }
 
 impl qobject::PhotoBackend {
+    pub fn url_for_local_path(self: Pin<&mut Self>, path: &QString) -> QUrl {
+        let path = absolute_local_path(Path::new(&path.to_string()));
+        QUrl::from_local_file(&QString::from(path.to_string_lossy().as_ref()))
+    }
+
     pub fn open_photo(mut self: Pin<&mut Self>, url: &QUrl) {
         let Some(local_file) = url.to_local_file() else {
             self.as_mut()
@@ -218,7 +350,7 @@ impl qobject::PhotoBackend {
             return;
         };
 
-        let path = PathBuf::from(local_file.to_string());
+        let path = absolute_local_path(Path::new(&local_file.to_string()));
         if !path.is_file() {
             self.as_mut()
                 .set_status(QString::from("The selected file does not exist"));
@@ -322,23 +454,24 @@ impl qobject::PhotoBackend {
             return;
         };
 
-        let revision = self.rust().save_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        let revision = self.as_mut().rust_mut().operations.begin();
         self.as_mut().set_status(QString::from("Saving original…"));
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
             let result = save_original_atomic(&source, &destination);
             let _ = qt_thread.queue(move |mut backend| {
-                let current = backend.rust().save_revision.load(Ordering::SeqCst);
-                match result {
-                    Ok(_) => backend.as_mut().set_status(QString::from(&format!(
-                        "Saved original · {}",
-                        display_file_name(&destination)
-                    ))),
-                    Err(error) if current == revision => backend
-                        .as_mut()
-                        .set_status(QString::from(&format!("Could not save original: {error}"))),
-                    Err(_) => {}
-                }
+                let (outcome, warning, status) =
+                    original_completion(result, display_file_name(&destination));
+                backend.as_mut().finish_operation(
+                    OperationRecord {
+                        revision,
+                        kind: OperationKind::SaveOriginal,
+                        outcome,
+                        warning,
+                        report: None,
+                    },
+                    status,
+                );
             });
         });
     }
@@ -374,7 +507,7 @@ impl qobject::PhotoBackend {
         if let Some(cancellation) = self.as_mut().rust_mut().export_cancellation.take() {
             cancellation.cancel();
         }
-        let revision = self.rust().export_revision.fetch_add(1, Ordering::SeqCst) + 1;
+        let revision = self.as_mut().rust_mut().operations.begin();
         let cancellation = CancellationToken::new();
         self.as_mut().rust_mut().export_cancellation = Some(cancellation.clone());
         self.as_mut()
@@ -392,23 +525,19 @@ impl qobject::PhotoBackend {
                 &cancellation,
             );
             let _ = qt_thread.queue(move |mut backend| {
-                let current = backend.rust().export_revision.load(Ordering::SeqCst);
-                match result {
-                    // Publication is a commit point. A newer request must not
-                    // hide that this destination was successfully published.
-                    Ok(()) if should_report_export_completion(current, revision, true) => {
-                        backend.as_mut().set_status(QString::from(&format!(
-                            "Saved {format} · {}",
-                            display_file_name(&destination)
-                        )))
-                    }
-                    Ok(()) => unreachable!("published completions are always reportable"),
-                    Err(message) if should_report_export_completion(current, revision, false) => {
-                        backend.as_mut().set_status(QString::from(&message));
-                    }
-                    Err(_) => {}
-                }
-                if current == revision {
+                let (outcome, warning, status, report) =
+                    export_completion(result, &format, display_file_name(&destination));
+                backend.as_mut().finish_operation(
+                    OperationRecord {
+                        revision,
+                        kind: OperationKind::Export,
+                        outcome,
+                        warning,
+                        report,
+                    },
+                    status,
+                );
+                if backend.rust().operations.current == revision {
                     backend.as_mut().rust_mut().export_cancellation = None;
                 }
             });
@@ -525,6 +654,11 @@ impl qobject::PhotoBackend {
                     backend.as_mut().set_loading(false);
                     match result {
                         Ok(artifact) => {
+                            if let Ok(report) = serde_json::to_string(artifact.report()) {
+                                backend
+                                    .as_mut()
+                                    .set_last_preview_report_json(QString::from(&report));
+                            }
                             let preview_url = QUrl::from_local_file(&QString::from(
                                 artifact.path().to_string_lossy().as_ref(),
                             ));
@@ -534,7 +668,9 @@ impl qobject::PhotoBackend {
                                 .as_mut()
                                 .set_status(QString::from("Ready · CPU developed preview"));
                         }
-                        Err(message) => backend.as_mut().set_status(QString::from(&message)),
+                        Err(error) => backend
+                            .as_mut()
+                            .set_status(QString::from(&error.to_string())),
                     }
                 }
                 let next = backend.as_mut().rust_mut().preview_queue.worker_completed();
@@ -544,12 +680,35 @@ impl qobject::PhotoBackend {
             });
         });
     }
+
+    fn finish_operation(mut self: Pin<&mut Self>, record: OperationRecord, status: String) {
+        let report = record.report.clone();
+        let (updates_main_status, history) = self.as_mut().rust_mut().operations.complete(record);
+        self.as_mut()
+            .set_operation_history_json(QString::from(&history));
+        if updates_main_status {
+            if let Some(report) = report
+                && let Ok(json) = serde_json::to_string(&report)
+            {
+                self.as_mut().set_last_job_report_json(QString::from(&json));
+            }
+            self.as_mut().set_status(QString::from(&status));
+        }
+    }
 }
 
 #[cfg(test)]
 mod preview_queue_tests {
-    use super::{PreviewQueue, PreviewRequest, should_report_export_completion};
+    use super::{
+        OperationKind, OperationRecord, OperationTracker, PreviewQueue, PreviewRequest,
+        export_completion, original_completion,
+    };
+    use crate::backend::develop::develop_preview;
     use grainroom::develop::DevelopSettings;
+    use grainroom::{
+        io::AtomicOutputOutcome,
+        job::{CancellationToken, DevelopJobOutcome},
+    };
     use std::path::PathBuf;
 
     fn request(revision: u64) -> PreviewRequest {
@@ -576,10 +735,110 @@ mod preview_queue_tests {
         assert!(!queue.worker_active);
     }
 
+    fn record(revision: u64, kind: OperationKind) -> OperationRecord {
+        OperationRecord {
+            revision,
+            kind,
+            outcome: "published_and_durable",
+            warning: false,
+            report: None,
+        }
+    }
+
+    fn complete(
+        tracker: &mut OperationTracker,
+        main_status: &mut &'static str,
+        revision: u64,
+        kind: OperationKind,
+        status: &'static str,
+    ) {
+        let (updates_main, _) = tracker.complete(record(revision, kind));
+        if updates_main {
+            *main_status = status;
+        }
+    }
+
     #[test]
-    fn published_export_is_reported_even_after_a_newer_revision_starts() {
-        assert!(should_report_export_completion(2, 1, true));
-        assert!(!should_report_export_completion(2, 1, false));
-        assert!(should_report_export_completion(2, 2, false));
+    fn e1_e2_out_of_order_keeps_e2_main_status_and_both_history_events() {
+        let mut tracker = OperationTracker::default();
+        let e1 = tracker.begin();
+        let e2 = tracker.begin();
+        let mut status = "running-e2";
+        complete(&mut tracker, &mut status, e2, OperationKind::Export, "e2");
+        complete(&mut tracker, &mut status, e1, OperationKind::Export, "e1");
+        assert_eq!(status, "e2");
+        assert_eq!(tracker.history.len(), 2);
+    }
+
+    #[test]
+    fn s1_s2_out_of_order_keeps_s2_main_status_and_both_history_events() {
+        let mut tracker = OperationTracker::default();
+        let s1 = tracker.begin();
+        let s2 = tracker.begin();
+        let mut status = "running-s2";
+        complete(
+            &mut tracker,
+            &mut status,
+            s2,
+            OperationKind::SaveOriginal,
+            "s2",
+        );
+        complete(
+            &mut tracker,
+            &mut status,
+            s1,
+            OperationKind::SaveOriginal,
+            "s1",
+        );
+        assert_eq!(status, "s2");
+        assert_eq!(tracker.history.len(), 2);
+    }
+
+    #[test]
+    fn cross_export_save_out_of_order_never_overwrites_newer_main_status() {
+        let mut tracker = OperationTracker::default();
+        let export = tracker.begin();
+        let save = tracker.begin();
+        let mut status = "saving";
+        complete(
+            &mut tracker,
+            &mut status,
+            save,
+            OperationKind::SaveOriginal,
+            "saved",
+        );
+        complete(
+            &mut tracker,
+            &mut status,
+            export,
+            OperationKind::Export,
+            "exported",
+        );
+        assert_eq!(status, "saved");
+        assert_eq!(tracker.history.len(), 2);
+    }
+
+    #[test]
+    fn published_but_not_durable_is_a_successful_warning_for_both_paths() {
+        let (_, warning, status) =
+            original_completion(Ok(AtomicOutputOutcome::PublishedButNotDurable), "copy.jpg");
+        assert!(warning);
+        assert!(status.starts_with("Published with durability warning:"));
+
+        let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
+        let image = image::RgbImage::from_pixel(2, 2, image::Rgb([80, 120, 160]));
+        image.save(input.path()).unwrap();
+        let preview = develop_preview(
+            input.path(),
+            DevelopSettings::default(),
+            &CancellationToken::new(),
+        )
+        .unwrap();
+        let mut report = preview.report().clone();
+        report.outcome = DevelopJobOutcome::PublishedButNotDurable { bytes_written: 1 };
+        let (_, warning, status, serialized) = export_completion(Ok(report), "JPEG", "out.jpg");
+        assert!(warning);
+        assert!(status.starts_with("Published with durability warning:"));
+        assert!(serialized.is_some());
     }
 }

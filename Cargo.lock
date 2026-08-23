@@ -691,6 +691,7 @@ dependencies = [
  "image 0.25.10",
  "notify",
  "rustix",
+ "serde",
  "serde_json",
  "tempfile",
 ]
