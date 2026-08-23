@@ -213,12 +213,15 @@ fn conversion_luminance_tolerance(target_luminance: f64, rgb: Rgb) -> f64 {
     // to retain the requested OKLab hue/chroma. Account for the unavoidable
     // f32 channel quantization in the Rec.2020 dot product instead of scaling
     // the entire acceptance bound only by a near-zero target.
+    let strict = luminance_residual_tolerance(target_luminance);
+    if target_luminance != 0.0 {
+        return strict;
+    }
     let channel_scale = rgb
         .into_iter()
         .map(|channel| f64::from(channel).abs())
         .fold(1.0, f64::max);
-    luminance_residual_tolerance(target_luminance)
-        .max(8.0 * f64::from(f32::EPSILON) * channel_scale)
+    strict.max(8.0 * f64::from(f32::EPSILON) * channel_scale)
 }
 
 fn luminance_residual_is_acceptable(actual: f64, target: f64, tolerance: f64) -> bool {
