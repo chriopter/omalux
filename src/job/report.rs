@@ -66,6 +66,8 @@ impl From<SignalRelation> for ReportSignalRelation {
 pub enum ReportDevelopWorkingSetProfile {
     PointwiseV1,
     ColorV1,
+    SpatialV1,
+    ColorSpatialV1,
 }
 
 impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
@@ -73,6 +75,8 @@ impl From<DevelopWorkingSetProfile> for ReportDevelopWorkingSetProfile {
         match value {
             DevelopWorkingSetProfile::PointwiseV1 => Self::PointwiseV1,
             DevelopWorkingSetProfile::ColorV1 => Self::ColorV1,
+            DevelopWorkingSetProfile::SpatialV1 => Self::SpatialV1,
+            DevelopWorkingSetProfile::ColorSpatialV1 => Self::ColorSpatialV1,
         }
     }
 }
@@ -88,7 +92,9 @@ impl DevelopWorkingSetSummary {
     // Every reviewed job peak is a sum/max of RGBA-f32 image bytes, scanlines,
     // and 56-byte PCHIP segments, so bit zero is structurally free.
     const COLOR_V1_TAG: u64 = 1;
-    const PEAK_MASK: u64 = !Self::COLOR_V1_TAG;
+    const SPATIAL_V1_TAG: u64 = 2;
+    const PROFILE_MASK: u64 = Self::COLOR_V1_TAG | Self::SPATIAL_V1_TAG;
+    const PEAK_MASK: u64 = !Self::PROFILE_MASK;
 
     const fn pending() -> Self {
         Self {
@@ -100,10 +106,12 @@ impl DevelopWorkingSetSummary {
         profile: DevelopWorkingSetProfile,
         estimated_peak_bytes: u64,
     ) -> Self {
-        debug_assert!(estimated_peak_bytes > 0 && estimated_peak_bytes & Self::COLOR_V1_TAG == 0);
+        debug_assert!(estimated_peak_bytes > 0 && estimated_peak_bytes & Self::PROFILE_MASK == 0);
         let tag = match profile {
             DevelopWorkingSetProfile::PointwiseV1 => 0,
             DevelopWorkingSetProfile::ColorV1 => Self::COLOR_V1_TAG,
+            DevelopWorkingSetProfile::SpatialV1 => Self::SPATIAL_V1_TAG,
+            DevelopWorkingSetProfile::ColorSpatialV1 => Self::PROFILE_MASK,
         };
         Self {
             encoded_peak_and_profile: estimated_peak_bytes | tag,
@@ -113,10 +121,13 @@ impl DevelopWorkingSetSummary {
     pub const fn profile(self) -> Option<ReportDevelopWorkingSetProfile> {
         if self.encoded_peak_and_profile == 0 {
             None
-        } else if self.encoded_peak_and_profile & Self::COLOR_V1_TAG == 0 {
-            Some(ReportDevelopWorkingSetProfile::PointwiseV1)
         } else {
-            Some(ReportDevelopWorkingSetProfile::ColorV1)
+            match self.encoded_peak_and_profile & Self::PROFILE_MASK {
+                0 => Some(ReportDevelopWorkingSetProfile::PointwiseV1),
+                Self::COLOR_V1_TAG => Some(ReportDevelopWorkingSetProfile::ColorV1),
+                Self::SPATIAL_V1_TAG => Some(ReportDevelopWorkingSetProfile::SpatialV1),
+                _ => Some(ReportDevelopWorkingSetProfile::ColorSpatialV1),
+            }
         }
     }
 

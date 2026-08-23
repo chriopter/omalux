@@ -30,10 +30,10 @@ pub(super) fn apply(
     // Persisted effect order. Keep this stable because the operations do not
     // generally commute and preset rendering depends on it.
     if settings.bloom != 0.0 {
-        optical::apply_bloom(image, settings.bloom);
+        optical::apply_bloom(image, settings.bloom)?;
     }
     if settings.halation != 0.0 {
-        optical::apply_halation(image, settings.halation);
+        optical::apply_halation(image, settings.halation)?;
     }
     if settings.fade != 0.0 {
         tonal::apply_fade(image, settings.fade);
@@ -42,7 +42,7 @@ pub(super) fn apply(
         tonal::apply_vignette(image, settings.vignette);
     }
     if settings.sharpness != 0.0 {
-        tonal::apply_sharpness(image, settings.sharpness);
+        tonal::apply_sharpness(image, settings.sharpness)?;
     }
     if settings.grain.amount != 0.0 {
         let seed = context

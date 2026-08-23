@@ -9,6 +9,8 @@
 //! bytes. Pyramid construction retains only the current level and dimension
 //! metadata; the geometric low-resolution tail is bounded below 4/3 of a plane.
 
+use crate::{develop::PipelineError, io::LimitError};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Rect {
     pub(super) x: usize,
@@ -34,12 +36,28 @@ impl Plane {
         }
     }
 
-    pub(super) fn filled(width: usize, height: usize, value: f32) -> Self {
-        Self::new(width, height, vec![value; width * height])
+    pub(super) fn try_filled(
+        width: usize,
+        height: usize,
+        value: f32,
+    ) -> Result<Self, PipelineError> {
+        let length = width
+            .checked_mul(height)
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+        let mut pixels = Vec::new();
+        pixels
+            .try_reserve_exact(length)
+            .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
+        pixels.resize(length, value);
+        Ok(Self::new(width, height, pixels))
     }
 
     pub(super) fn pixels(&self) -> &[f32] {
         &self.pixels
+    }
+
+    pub(super) fn try_clone(&self) -> Result<Self, PipelineError> {
+        try_clone_plane(self)
     }
 
     fn sample(&self, x: isize, y: isize) -> f32 {
@@ -68,7 +86,7 @@ pub(super) fn gaussian_kernel(sigma: f64) -> Vec<f64> {
     kernel
 }
 
-pub(super) fn gaussian_blur(source: &Plane, sigma: f64) -> Plane {
+pub(super) fn gaussian_blur(source: &Plane, sigma: f64) -> Result<Plane, PipelineError> {
     gaussian_blur_tiled(source, sigma, 128, 64)
 }
 
@@ -77,12 +95,12 @@ pub(super) fn gaussian_blur_tiled(
     sigma: f64,
     tile_width: usize,
     tile_height: usize,
-) -> Plane {
-    let kernel = gaussian_kernel(sigma);
+) -> Result<Plane, PipelineError> {
+    let kernel = try_gaussian_kernel(sigma)?;
     if kernel.len() == 1 {
-        return source.clone();
+        return try_clone_plane(source);
     }
-    let mut output = Plane::filled(source.width, source.height, 0.0);
+    let mut output = Plane::try_filled(source.width, source.height, 0.0)?;
     let mut scratch = Vec::new();
     let tile_width = tile_width.max(1);
     let tile_height = tile_height.max(1);
@@ -94,10 +112,49 @@ pub(super) fn gaussian_blur_tiled(
                 width: tile_width.min(source.width - x),
                 height: tile_height.min(source.height - y),
             };
-            gaussian_roi(source, &mut output, roi, &kernel, &mut scratch);
+            gaussian_roi(source, &mut output, roi, &kernel, &mut scratch)?;
         }
     }
-    output
+    Ok(output)
+}
+
+fn try_gaussian_kernel(sigma: f64) -> Result<Vec<f64>, PipelineError> {
+    let radius = if sigma <= f64::EPSILON {
+        0
+    } else {
+        (sigma * 3.0).ceil() as usize
+    };
+    let length = radius
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(1))
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let mut kernel = Vec::new();
+    kernel
+        .try_reserve_exact(length)
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
+    if radius == 0 {
+        kernel.push(1.0);
+        return Ok(kernel);
+    }
+    let denominator = 2.0 * sigma * sigma;
+    for offset in -(radius as isize)..=(radius as isize) {
+        let distance = offset as f64;
+        kernel.push((-distance * distance / denominator).exp());
+    }
+    let sum: f64 = kernel.iter().sum();
+    for weight in &mut kernel {
+        *weight /= sum;
+    }
+    Ok(kernel)
+}
+
+fn try_clone_plane(source: &Plane) -> Result<Plane, PipelineError> {
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(source.pixels.len())
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
+    pixels.extend_from_slice(&source.pixels);
+    Ok(Plane::new(source.width, source.height, pixels))
 }
 
 /// Filters `roi` against `source`'s full extent. The scratch halo represents
@@ -109,10 +166,19 @@ fn gaussian_roi(
     roi: Rect,
     kernel: &[f64],
     scratch: &mut Vec<f32>,
-) {
+) -> Result<(), PipelineError> {
     let radius = kernel.len() / 2;
     let scratch_height = roi.height + 2 * radius;
-    scratch.resize(roi.width * scratch_height, 0.0);
+    let scratch_length = roi
+        .width
+        .checked_mul(scratch_height)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    if scratch_length > scratch.capacity() {
+        scratch
+            .try_reserve_exact(scratch_length - scratch.len())
+            .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
+    }
+    scratch.resize(scratch_length, 0.0);
 
     for scratch_y in 0..scratch_height {
         let global_y = roi.y as isize + scratch_y as isize - radius as isize;
@@ -136,34 +202,44 @@ fn gaussian_roi(
             output.pixels[(roi.y + local_y) * output.width + roi.x + local_x] = finite_f32(sum);
         }
     }
+    Ok(())
 }
 
 /// Applies a blur whose sigma is specified in level-zero pixels. The image is
 /// reduced until the residual sigma is at most 2.5 pixels, filtered once, then
 /// reconstructed through the recorded full-frame dimensions.
-pub(super) fn pyramid_blur(source: Plane, sigma_full: f64) -> Plane {
+pub(super) fn pyramid_blur(source: Plane, sigma_full: f64) -> Result<Plane, PipelineError> {
     if sigma_full <= f64::EPSILON {
-        return source;
+        return Ok(source);
     }
     let mut current = source;
     let mut dimensions = Vec::new();
     let mut residual_sigma = sigma_full;
     while residual_sigma > 2.5 && (current.width > 2 || current.height > 2) {
+        dimensions
+            .try_reserve_exact(1)
+            .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
         dimensions.push((current.width, current.height));
-        current = downsample2_reflect101(&current);
+        current = downsample2_reflect101(&current)?;
         residual_sigma *= 0.5;
     }
-    current = gaussian_blur(&current, residual_sigma.max(0.5));
+    current = gaussian_blur(&current, residual_sigma.max(0.5))?;
     for (width, height) in dimensions.into_iter().rev() {
-        current = upsample_bilinear(&current, width, height);
+        current = upsample_bilinear(&current, width, height)?;
     }
-    current
+    Ok(current)
 }
 
-fn downsample2_reflect101(source: &Plane) -> Plane {
+fn downsample2_reflect101(source: &Plane) -> Result<Plane, PipelineError> {
     let width = source.width.div_ceil(2);
     let height = source.height.div_ceil(2);
-    let mut pixels = Vec::with_capacity(width * height);
+    let length = width
+        .checked_mul(height)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(length)
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
     for y in 0..height {
         for x in 0..width {
             let x0 = (2 * x) as isize;
@@ -175,11 +251,17 @@ fn downsample2_reflect101(source: &Plane) -> Plane {
             pixels.push(finite_f32(sum * 0.25));
         }
     }
-    Plane::new(width, height, pixels)
+    Ok(Plane::new(width, height, pixels))
 }
 
-fn upsample_bilinear(source: &Plane, width: usize, height: usize) -> Plane {
-    let mut pixels = Vec::with_capacity(width * height);
+fn upsample_bilinear(source: &Plane, width: usize, height: usize) -> Result<Plane, PipelineError> {
+    let length = width
+        .checked_mul(height)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(length)
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
     let scale_x = source.width as f64 / width as f64;
     let scale_y = source.height as f64 / height as f64;
     for y in 0..height {
@@ -203,7 +285,7 @@ fn upsample_bilinear(source: &Plane, width: usize, height: usize) -> Plane {
             pixels.push(finite_f32(lerp(top, bottom, fy)));
         }
     }
-    Plane::new(width, height, pixels)
+    Ok(Plane::new(width, height, pixels))
 }
 
 fn lerp(left: f64, right: f64, fraction: f64) -> f64 {
@@ -238,7 +320,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(samples, vec![2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2]);
         let odd = Plane::new(3, 1, vec![1.0, 2.0, 9.0]);
-        assert_eq!(downsample2_reflect101(&odd).pixels(), &[1.5, 5.5]);
+        assert_eq!(downsample2_reflect101(&odd).unwrap().pixels(), &[1.5, 5.5]);
     }
 
     #[test]
@@ -258,10 +340,10 @@ mod tests {
             .collect();
         let source = Plane::new(37, 23, pixels);
         for sigma in [0.55, 1.3, 3.8, 7.0] {
-            let full = gaussian_blur_tiled(&source, sigma, 37, 23);
+            let full = gaussian_blur_tiled(&source, sigma, 37, 23).unwrap();
             for (tile_width, tile_height) in [(1, 1), (7, 5), (16, 8), (36, 22)] {
                 assert_eq!(
-                    gaussian_blur_tiled(&source, sigma, tile_width, tile_height),
+                    gaussian_blur_tiled(&source, sigma, tile_width, tile_height).unwrap(),
                     full,
                     "sigma={sigma}, tile={tile_width}x{tile_height}"
                 );
@@ -271,12 +353,12 @@ mod tests {
 
     #[test]
     fn gaussian_preserves_constant_and_impulse_energy() {
-        let constant = Plane::filled(31, 17, 0.3);
-        assert_eq!(gaussian_blur(&constant, 4.0), constant);
+        let constant = Plane::try_filled(31, 17, 0.3).unwrap();
+        assert_eq!(gaussian_blur(&constant, 4.0).unwrap(), constant);
 
         let mut impulse = vec![0.0; 41 * 41];
         impulse[20 * 41 + 20] = 1.0;
-        let filtered = gaussian_blur(&Plane::new(41, 41, impulse), 2.0);
+        let filtered = gaussian_blur(&Plane::new(41, 41, impulse), 2.0).unwrap();
         let energy: f64 = filtered
             .pixels()
             .iter()

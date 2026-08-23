@@ -14,6 +14,10 @@ pub enum DevelopWorkingSetProfile {
     /// PointwiseV1 plus bounded prepared tone curves and allocation-free
     /// color mixer/grading state.
     ColorV1,
+    /// Pointwise stages plus the reviewed full-frame clarity/effects family.
+    SpatialV1,
+    /// The union of the reviewed ColorV1 and SpatialV1 stage families.
+    ColorSpatialV1,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -164,11 +168,23 @@ fn estimate_validated_working_set(
     let color_active = !settings.tone_curves.is_neutral()
         || !settings.color_mixer.is_neutral()
         || !settings.color_grading.is_neutral();
-    let stage_scratch_bytes = if color_active {
+    let color_scratch_bytes = if color_active {
         stages::color_v1_heap_bytes(settings)?
     } else {
         0
     };
+    let spatial_active = settings.basics.clarity != 0.0
+        || settings.effects.bloom != 0.0
+        || settings.effects.halation != 0.0
+        || settings.effects.sharpness != 0.0;
+    let spatial_scratch_bytes = if spatial_active {
+        spatial_stage_scratch_bytes(width, height, pixels, settings)?
+    } else {
+        0
+    };
+    // Color and spatial stages execute sequentially, so their scratch peaks
+    // are alternatives rather than simultaneously resident payloads.
+    let stage_scratch_bytes = color_scratch_bytes.max(spatial_scratch_bytes);
     let peak_bytes = source_image_bytes
         .checked_add(transactional_image_bytes)
         .and_then(|bytes| bytes.checked_add(stage_scratch_bytes))
@@ -180,8 +196,12 @@ fn estimate_validated_working_set(
         }));
     }
     Ok(DevelopWorkingSetEstimate {
-        profile: if color_active {
+        profile: if color_active && spatial_active {
+            DevelopWorkingSetProfile::ColorSpatialV1
+        } else if color_active {
             DevelopWorkingSetProfile::ColorV1
+        } else if spatial_active {
+            DevelopWorkingSetProfile::SpatialV1
         } else {
             DevelopWorkingSetProfile::PointwiseV1
         },
@@ -197,19 +217,60 @@ fn unproven_stage(settings: &DevelopSettings) -> Option<DevelopStage> {
     if !settings.geometry.is_neutral() {
         return Some(DevelopStage::Geometry);
     }
-    if settings.basics.clarity != 0.0 {
-        return Some(DevelopStage::Basics);
-    }
     if !settings.radial_masks.is_neutral() {
         return Some(DevelopStage::RadialMasks);
     }
-    if settings.effects.bloom != 0.0
-        || settings.effects.halation != 0.0
-        || settings.effects.sharpness != 0.0
-    {
-        return Some(DevelopStage::Effects);
-    }
     None
+}
+
+fn spatial_stage_scratch_bytes(
+    width: u32,
+    height: u32,
+    pixels: u64,
+    settings: &DevelopSettings,
+) -> Result<u64, PipelineError> {
+    // All four covered algorithms retain at most three full f32 scalar
+    // planes. Covered stages execute sequentially, so their peaks do not add.
+    let planes = pixels
+        .checked_mul(12)
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?;
+    let tile_width = u64::from(width.min(128));
+    let tile_height = u64::from(height.min(64));
+
+    let clarity_aux = if settings.basics.clarity != 0.0 {
+        tile_width
+            .checked_mul(
+                tile_height
+                    .checked_add(16)
+                    .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
+            )
+            .and_then(|value| value.checked_mul(16))
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?
+    } else {
+        0
+    };
+    let effects_active = settings.effects.bloom != 0.0
+        || settings.effects.halation != 0.0
+        || settings.effects.sharpness != 0.0;
+    let effects_aux = if effects_active {
+        // Gaussian residual sigma is at most 2.5, hence radius <= 8 and a
+        // 17-value kernel. The 512-byte term conservatively covers all
+        // pyramid dimension entries (at most 32 pairs of usize on u64).
+        tile_width
+            .checked_mul(
+                tile_height
+                    .checked_add(16)
+                    .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?,
+            )
+            .and_then(|value| value.checked_mul(4))
+            .and_then(|value| value.checked_add(17 * 8 + 32 * 16))
+            .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))?
+    } else {
+        0
+    };
+    planes
+        .checked_add(clarity_aux.max(effects_aux))
+        .ok_or(PipelineError::ResourceLimit(LimitError::ArithmeticOverflow))
 }
 
 fn try_clone_image(image: &CpuImage) -> Result<CpuImage, PipelineError> {

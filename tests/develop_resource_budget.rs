@@ -78,12 +78,63 @@ fn bounded_render_is_transactional_and_matches_unbounded_render() {
 }
 
 #[test]
-fn every_unproven_spatial_family_fails_closed_before_rendering() {
-    let limits = ResourceLimits::default();
+fn spatial_v1_gates_each_spatial_family_at_its_conservative_peak() {
+    type SpatialCase = (fn(&mut DevelopSettings), u64);
+    let cases: [SpatialCase; 4] = [
+        (|settings| settings.basics.clarity = 50.0, 1_744),
+        (|settings| settings.effects.bloom = 50.0, 1_480),
+        (|settings| settings.effects.halation = 50.0, 1_480),
+        (|settings| settings.effects.sharpness = 50.0, 1_480),
+    ];
+    for (configure, peak) in cases {
+        let mut settings = DevelopSettings::default();
+        configure(&mut settings);
+        let exact = ResourceLimits::default().with_max_working_bytes(peak);
+        let estimate = estimate_develop_working_set(4, 3, &settings, &exact).unwrap();
+        assert_eq!(estimate.profile, DevelopWorkingSetProfile::SpatialV1);
+        assert_eq!(estimate.peak_bytes, peak);
 
-    let mut clarity = DevelopSettings::default();
-    clarity.basics.clarity = 1.0;
-    assert_unproven(&clarity, DevelopStage::Basics, &limits);
+        let mut candidate = image(4, 3);
+        DevelopPipeline
+            .process_bounded(&mut candidate, &settings, &exact)
+            .unwrap();
+
+        let below = ResourceLimits::default().with_max_working_bytes(peak - 1);
+        let mut rejected = image(4, 3);
+        let original = rejected.clone();
+        assert_eq!(
+            DevelopPipeline.process_bounded(&mut rejected, &settings, &below),
+            Err(PipelineError::ResourceLimit(LimitError::WorkingBytes {
+                requested: peak,
+                maximum: peak - 1,
+            }))
+        );
+        assert_eq!(rejected, original);
+    }
+}
+
+#[test]
+fn combined_spatial_stages_use_the_max_sequential_stage_peak() {
+    let mut settings = DevelopSettings::default();
+    settings.basics.clarity = 20.0;
+    settings.effects.bloom = 30.0;
+    settings.effects.halation = 40.0;
+    settings.effects.sharpness = 50.0;
+    let estimate = estimate_develop_working_set(
+        4,
+        3,
+        &settings,
+        &ResourceLimits::default().with_max_working_bytes(1_744),
+    )
+    .unwrap();
+    assert_eq!(estimate.profile, DevelopWorkingSetProfile::SpatialV1);
+    assert_eq!(estimate.stage_scratch_bytes, 1_360);
+    assert_eq!(estimate.peak_bytes, 1_744);
+}
+
+#[test]
+fn every_unproven_allocation_family_fails_closed_before_rendering() {
+    let limits = ResourceLimits::default();
 
     let mut geometry = DevelopSettings::default();
     geometry.geometry.quarter_turns_clockwise = 1;
@@ -107,16 +158,6 @@ fn every_unproven_spatial_family_fails_closed_before_rendering() {
         },
     });
     assert_unproven(&radial, DevelopStage::RadialMasks, &limits);
-
-    for configure in [
-        |settings: &mut DevelopSettings| settings.effects.bloom = 1.0,
-        |settings: &mut DevelopSettings| settings.effects.halation = 1.0,
-        |settings: &mut DevelopSettings| settings.effects.sharpness = 1.0,
-    ] {
-        let mut effects = DevelopSettings::default();
-        configure(&mut effects);
-        assert_unproven(&effects, DevelopStage::Effects, &limits);
-    }
 }
 
 fn max_curve(offset: f32) -> Vec<CurvePoint> {

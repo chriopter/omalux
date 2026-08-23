@@ -464,6 +464,59 @@ fn exact_pointwise_peak_succeeds_and_peak_minus_one_never_reaches_encoder() {
 }
 
 #[test]
+fn spatial_job_reports_profile_and_rejects_peak_minus_one_before_develop() {
+    let mut settings = DevelopSettings::default();
+    settings.basics.clarity = 35.0;
+    let preset = PresetDocument::new("spatial-job-gate", "Spatial job gate", settings);
+
+    let decoder = FakeDecoder {
+        photo: decoded(),
+        cancel_after_decode: false,
+        calls: Arc::default(),
+    };
+    let encoder = FakeEncoder::default();
+    let mut exact = job();
+    exact.preset = PresetSelection::document(preset.clone());
+    exact.decode.limits.max_working_bytes = 632;
+    let report = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &exact,
+            &decoder,
+            &encoder,
+            &CancellationToken::new(),
+            &mut Stages::default(),
+        )
+        .unwrap();
+    assert_eq!(report.develop_working_set.estimated_peak_bytes, 632);
+    assert_eq!(
+        report.develop_working_set.profile(),
+        Some(grainroom::job::ReportDevelopWorkingSetProfile::SpatialV1)
+    );
+
+    let rejected_encoder = FakeEncoder::default();
+    let mut below = job();
+    below.preset = PresetSelection::document(preset);
+    below.decode.limits.max_working_bytes = 631;
+    let mut stages = Stages::default();
+    let failure = DevelopJobRunner::built_in()
+        .unwrap()
+        .run(
+            &below,
+            &decoder,
+            &rejected_encoder,
+            &CancellationToken::new(),
+            &mut stages,
+        )
+        .unwrap_err();
+    assert_eq!(failure.error.stage, JobStage::ResolveSettings);
+    assert_eq!(failure.error.code, JobErrorCode::ResourceLimit);
+    assert_eq!(failure.report.develop_working_set.estimated_peak_bytes, 632);
+    assert_eq!(stages.0, [JobStage::Validate, JobStage::Decode]);
+    assert!(rejected_encoder.calls.lock().unwrap().is_empty());
+}
+
+#[test]
 fn grain_seed_depends_on_content_not_renamed_paths() {
     let mut settings = DevelopSettings::default();
     settings.effects.grain.amount = 61.0;
@@ -498,9 +551,7 @@ fn grain_seed_depends_on_content_not_renamed_paths() {
 }
 
 #[test]
-fn every_unprofiled_spatial_stage_family_is_fail_closed_before_develop() {
-    let mut clarity = DevelopSettings::default();
-    clarity.basics.clarity = 1.0;
+fn every_unprofiled_stage_family_is_fail_closed_before_develop() {
     let mut geometry = DevelopSettings::default();
     geometry.geometry.straighten_degrees = 1.0;
     let mut radial = DevelopSettings::default();
@@ -521,17 +572,7 @@ fn every_unprofiled_spatial_stage_family_is_fail_closed_before_develop() {
         },
     });
 
-    let mut bloom = DevelopSettings::default();
-    bloom.effects.bloom = 1.0;
-    let mut halation = DevelopSettings::default();
-    halation.effects.halation = 1.0;
-    let mut sharpness = DevelopSettings::default();
-    sharpness.effects.sharpness = 1.0;
-
-    for (index, settings) in [clarity, geometry, radial, bloom, halation, sharpness]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, settings) in [geometry, radial].into_iter().enumerate() {
         let decoder = FakeDecoder {
             photo: decoded(),
             cancel_after_decode: false,

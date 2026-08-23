@@ -29,6 +29,35 @@ through Rust's allocation API; `ResourceLimits` consistently excludes that
 allocator-internal overhead. Existing caller-owned settings, mask IDs, and
 source storage outside `CpuImage` are not newly allocated by this operation.
 
+## `SpatialV1`
+
+`SpatialV1` adds global clarity, bloom, halation, and sharpness to the
+`PointwiseV1` stages. Geometry and radial masks remain fail-closed. The profile
+charges the source and transaction above plus the largest sequential spatial
+stage; spatial stages do not run concurrently.
+
+Every covered stage retains at most three full `f32` scalar planes
+(`12 * pixels`). Clarity additionally retains two `f64` tile halos:
+
+```
+clarity auxiliary = min(width, 128) * (min(height, 64) + 16) * 16
+```
+
+The effects auxiliary bound covers a radius-eight Gaussian tile, its
+17-value `f64` kernel, and 32 pyramid dimension pairs:
+
+```
+effects auxiliary = min(width, 128) * (min(height, 64) + 16) * 4
+                  + 17 * 8 + 32 * 16
+```
+
+Thus `stage_scratch_bytes` is `12 * pixels` plus the maximum active auxiliary
+term. The clarity term is exact for its canonical 128x64 tiling. The effects
+term is conservative: smaller residual kernels and pyramid levels may use less
+memory, but never more. Exact-estimate and peak-minus-one tests exercise every
+admitted family and verify that the gate runs before the transaction or any
+pixel mutation.
+
 Successful settings validation is allocation-free: dynamic diagnostic paths
 are built only after a validation failure, and duplicate mask IDs use the
 schema's maximum-64 bounded pairwise scan instead of a `HashSet`. Bounded
@@ -73,12 +102,12 @@ rounding is outside the requested-payload contract.
 |---|---|---|
 | Geometry | full output/crop/resample image | gated pending geometry profile |
 | Basics point operations | none | `PointwiseV1` |
-| Clarity | three full f32 planes plus bounded f64 tile scratch | gated pending spatial profile |
+| Clarity | three full f32 planes plus bounded f64 tile scratch | `SpatialV1` |
 | Tone curves | fallible exact-reserve segment vectors; fixed stack coefficient work | `ColorV1` |
 | Color mixer/grading | fixed stack arrays only | `ColorV1` |
 | Radial masks | ROI output and optional sharpness halo/scratch | gated pending ROI/mask profile |
-| Bloom/halation | full scalar planes and bounded pyramid levels | gated pending spatial/pyramid profile |
-| Sharpness | full luma/blur planes and spatial scratch | gated pending spatial profile |
+| Bloom/halation | full scalar planes and bounded pyramid levels | `SpatialV1` |
+| Sharpness | full luma/blur planes and spatial scratch | `SpatialV1` |
 | Fade/vignette/grain | none | `PointwiseV1` |
 
 An active gated stage returns `ResourceProfileUnavailable(stage)` during

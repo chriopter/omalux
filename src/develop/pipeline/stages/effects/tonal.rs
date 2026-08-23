@@ -6,7 +6,10 @@
 //! coefficients, LUT, preset, or camera profile was consulted or copied.
 
 use super::super::spatial::{Plane, finite_f32, gaussian_blur, reflect101};
-use crate::develop::CpuImage;
+use crate::{
+    develop::{CpuImage, PipelineError},
+    io::LimitError,
+};
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
 
@@ -52,27 +55,24 @@ pub(super) fn apply_vignette(image: &mut CpuImage, amount: f32) {
     }
 }
 
-pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
+pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) -> Result<(), PipelineError> {
     if amount == 0.0 {
-        return;
+        return Ok(());
     }
     let width = image.width() as usize;
     let height = image.height() as usize;
-    let luminance = Plane::new(
-        width,
-        height,
-        image
-            .pixels()
-            .iter()
-            .map(|pixel| {
-                let value = f64::from(pixel.red) * REC2020_LUMA[0]
-                    + f64::from(pixel.green) * REC2020_LUMA[1]
-                    + f64::from(pixel.blue) * REC2020_LUMA[2];
-                finite_f32(value)
-            })
-            .collect(),
-    );
-    let blurred = gaussian_blur(&luminance, 1.0);
+    let mut luminance_pixels = Vec::new();
+    luminance_pixels
+        .try_reserve_exact(image.pixels().len())
+        .map_err(|_| PipelineError::ResourceLimit(LimitError::Allocation))?;
+    for pixel in image.pixels() {
+        let value = f64::from(pixel.red) * REC2020_LUMA[0]
+            + f64::from(pixel.green) * REC2020_LUMA[1]
+            + f64::from(pixel.blue) * REC2020_LUMA[2];
+        luminance_pixels.push(finite_f32(value));
+    }
+    let luminance = Plane::new(width, height, luminance_pixels);
+    let blurred = gaussian_blur(&luminance, 1.0)?;
     let strength = f64::from(amount) * 0.015;
     let threshold = 0.003;
     for ((pixel, source), low_pass) in image
@@ -88,6 +88,7 @@ pub(super) fn apply_sharpness(image: &mut CpuImage, amount: f32) {
         pixel.green = finite_f32(f64::from(pixel.green) + adjustment);
         pixel.blue = finite_f32(f64::from(pixel.blue) + adjustment);
     }
+    Ok(())
 }
 
 pub(super) fn sharpness_delta_at<F>(

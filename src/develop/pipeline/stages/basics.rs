@@ -31,7 +31,7 @@ pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(
     for pixel in image.pixels_mut() {
         prepared.apply_pre_clarity(pixel);
     }
-    clarity::apply(image, settings.clarity);
+    clarity::apply(image, settings.clarity)?;
     for pixel in image.pixels_mut() {
         prepared.apply_post_clarity(pixel);
     }

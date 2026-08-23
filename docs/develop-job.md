@@ -39,16 +39,18 @@ and encoding. The current pixel pipeline is transactional but not internally
 interruptible, so cancellation requested during a single pipeline call takes
 effect immediately after that call.
 
-## Bounded PointwiseV1 and ColorV1 execution
+## Bounded PointwiseV1, ColorV1, SpatialV1, and ColorSpatialV1 execution
 
 The job resolves catalog/document settings and typed overrides before selecting
-the reviewed `PointwiseV1` or `ColorV1` profile. PointwiseV1 executes brightness, contrast,
+one of the four reviewed profiles. PointwiseV1 executes brightness, contrast,
 highlights, shadows, whites, blacks, saturation, vibrance, temperature, tint,
 fade, vignette, and deterministic content-digest grain. ColorV1 additionally
 executes structured tone curves from preset JSON plus scalar color mixer and
-grading settings/overrides. Clarity, geometry, radial masks, bloom, halation, and sharpness remain
-fail-closed with `unproven_pipeline_budget` before the transactional image is
-created.
+grading settings/overrides. SpatialV1 additionally admits global clarity,
+bloom, halation, and sharpness with a conservative full-plane/tile peak.
+ColorSpatialV1 admits both families and uses the larger sequential scratch peak.
+Geometry and radial masks remain fail-closed with `unproven_pipeline_budget`
+before the transactional image is created.
 
 The develop peak is the resident source image plus its exact transactional
 copy. For RAW, scene-to-display follows after that copy has committed and been
