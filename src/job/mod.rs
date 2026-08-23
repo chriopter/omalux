@@ -8,7 +8,9 @@ mod runner;
 mod services;
 mod spec;
 
-pub use artifact::{DecodedArtifact, DisplayReferred, SceneRelated, WorkingArtifact};
+pub use artifact::{
+    ArtifactRelation, DecodedArtifact, DisplayReferred, SceneRelated, WorkingArtifact,
+};
 pub use error::{DevelopJobError, DevelopJobFailure, JobErrorCode};
 pub use progress::{CancellationToken, JobStage, NoProgress, ProgressSink};
 pub use report::{

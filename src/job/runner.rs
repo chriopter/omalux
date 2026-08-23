@@ -4,16 +4,15 @@ use crate::{
         apply_parameter_overrides,
     },
     io::{
-        ErrorCode, LimitError, SignalRelation,
+        LimitError,
         color::{SceneRenderError, SceneToDisplayTransform},
     },
 };
 
 use super::{
     CancellationToken, DecodedArtifact, DevelopJob, DevelopJobFailure, DevelopJobOutcome,
-    DevelopJobReport, DisplayReferred, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder,
-    PresetSelection, ProgressSink, ReportSignalRelation, SceneRenderSummary, WorkingArtifact,
-    services::stable_code,
+    DevelopJobReport, JobErrorCode, JobStage, PhotoDecoder, PhotoEncoder, PresetSelection,
+    ProgressSink, ReportSignalRelation, SceneRenderSummary, WorkingArtifact, services::stable_code,
 };
 
 #[derive(Clone, Debug)]
@@ -91,7 +90,7 @@ impl DevelopJobRunner {
             DecodedArtifact::Scene(value) => value.signal_relation(),
             DecodedArtifact::Display(value) => value.signal_relation(),
         };
-        report.source_digest_sha256 = Some(hex_digest(digest.as_bytes()));
+        report.source_digest_v1 = Some(hex_digest(digest.as_bytes()));
         report.input_signal_relation = Some(input_relation.into());
         progress.stage_completed(JobStage::Decode);
 
@@ -274,16 +273,6 @@ fn hex_digest(bytes: &[u8; 32]) -> String {
     encoded
 }
 
-#[allow(dead_code)]
-fn _display_relation_contract(_artifact: &WorkingArtifact<DisplayReferred>) -> SignalRelation {
-    SignalRelation::LinearizedDisplayReferred
-}
-
-#[allow(dead_code)]
-fn _stable_error_contract(code: ErrorCode) -> JobErrorCode {
-    code.into()
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -297,8 +286,9 @@ mod tests {
             ResourceLimits, SdrRangePolicy, SignalRelation, SourceDigestV1, WhiteBalanceProvenance,
         },
         job::{
-            CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, EncodeReceipt,
-            NoProgress, PhotoDecoder, PhotoEncoder, PresetSelection, WorkingArtifact,
+            CancellationToken, DevelopJob, DevelopJobRunner, DevelopOutput, DisplayReferred,
+            EncodeReceipt, NoProgress, PhotoDecoder, PhotoEncoder, PresetSelection,
+            WorkingArtifact,
         },
     };
 
@@ -346,7 +336,7 @@ mod tests {
         fn encode_display(
             &self,
             _output: &Path,
-            artifact: &WorkingArtifact<super::DisplayReferred>,
+            artifact: &WorkingArtifact<DisplayReferred>,
             _options: &EncodeOptions,
             _cancellation: &CancellationToken,
         ) -> Result<EncodeReceipt, Self::Error> {

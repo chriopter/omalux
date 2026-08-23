@@ -28,6 +28,9 @@ pub trait PhotoDecoder {
 }
 
 /// Encoder boundary accepts display-referred artifacts only.
+///
+/// A production implementation must publish through the atomic output API;
+/// cancellation or failure must not expose a partial destination.
 pub trait PhotoEncoder {
     type Error: StableErrorCode;
 
