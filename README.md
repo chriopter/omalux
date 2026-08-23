@@ -1,6 +1,7 @@
 # Grainroom
 
-A focused photo developer for Omarchy, built with Rust, CXX-Qt, Qt Quick and LibRaw.
+A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
+processing core/CLI from the CXX-Qt and Qt Quick desktop application.
 
 Implementation boundaries and directory responsibilities are documented in
 [`docs/architecture.md`](docs/architecture.md). The film-grain implementation
@@ -37,13 +38,13 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 Open a photograph directly:
 
 ```bash
-grainroom --input ~/Pictures/photo.jpg
+grainroom-gui --input ~/Pictures/photo.jpg
 ```
 
 Run the same Qt Quick grain shader and HEIC export path without dialogs:
 
 ```bash
-grainroom --headless \
+grainroom-gui --headless \
   --input ~/Pictures/photo.jpg \
   --output /tmp/photo-grainroom.heic \
   --format heic \
@@ -53,7 +54,8 @@ grainroom --headless \
   --midtones 100
 ```
 
-`--format` accepts `original`, `jpg`/`jpeg`, and `heic`/`heif`. The process
+The GUI command's `--format` accepts `original`, `jpg`/`jpeg`, and
+`heic`/`heif`. The process
 returns a non-zero exit status when opening, rendering, or encoding fails.
 
 After building, run the automated end-to-end export check with:
@@ -62,20 +64,36 @@ After building, run the automated end-to-end export check with:
 scripts/smoke-cli-export.sh ~/Downloads/example.jpg
 ```
 
+The Qt-free core executable currently provides stable process-level help and
+version output while its processing subcommands are built:
+
+```bash
+grainroom --help
+grainroom --version
+```
+
 ## Requirements
 
+Core and CLI:
+
 - Rust
+- Little CMS 2
+- LibRaw (`dcraw_emu` is used by RAW decoding)
+
+Desktop GUI additionally requires:
+
 - Qt 6 with Qt Quick, Qt Quick Controls and Shader Tools
-- LibRaw (`dcraw_emu` is used by the MVP)
 - ImageMagick (`magick identify` reads metadata and encodes JPEG/HEIC exports)
 - A C++ compiler
 
 ## Run
 
 ```bash
-cargo run --release
+cargo run --release -p grainroom-gui
 ```
 
-Qt Shader Baker compiles `qml/shaders/film_grain.frag` during the build. The generated
-`.qsb` package is embedded into the application and works with Qt's supported
-graphics backends.
+Build or test the Qt-free core alone with `cargo build -p grainroom` and
+`cargo test -p grainroom`. Qt Shader Baker is invoked only by the
+`grainroom-gui` package for
+`crates/grainroom-gui/qml/shaders/film_grain.frag`; the generated `.qsb`
+package is embedded into the desktop application.
