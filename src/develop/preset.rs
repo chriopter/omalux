@@ -1,5 +1,5 @@
 use super::{DevelopSettings, SettingsError};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::fmt;
 
 pub const PRESET_SCHEMA_VERSION: u32 = 2;
@@ -12,14 +12,78 @@ struct PresetEnvelope {
     schema_version: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PresetDocument {
     pub schema: String,
     pub schema_version: u32,
     pub id: String,
     pub name: String,
     pub settings: DevelopSettings,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PresetDocumentWire {
+    schema: String,
+    schema_version: u32,
+    id: String,
+    name: String,
+    settings: serde_json::Value,
+}
+
+impl<'de> Deserialize<'de> for PresetDocument {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = PresetDocumentWire::deserialize(deserializer)?;
+        if wire.schema != PRESET_SCHEMA_ID {
+            return Err(D::Error::custom("unsupported preset schema"));
+        }
+        if !matches!(
+            wire.schema_version,
+            LEGACY_PRESET_SCHEMA_VERSION | PRESET_SCHEMA_VERSION
+        ) {
+            return Err(D::Error::custom("unsupported preset schema version"));
+        }
+
+        let mut settings_value = wire.settings;
+        let basics = settings_value
+            .get_mut("basics")
+            .and_then(serde_json::Value::as_object_mut)
+            .ok_or_else(|| D::Error::custom("missing or invalid settings.basics"))?;
+        let has_exposure = basics.contains_key("exposure_ev");
+        match wire.schema_version {
+            LEGACY_PRESET_SCHEMA_VERSION => {
+                if has_exposure {
+                    return Err(D::Error::custom(
+                        "settings.basics.exposure_ev is unavailable in schema v1",
+                    ));
+                }
+                basics.insert("exposure_ev".to_owned(), serde_json::Value::from(0.0));
+            }
+            PRESET_SCHEMA_VERSION if !has_exposure => {
+                return Err(D::Error::missing_field("settings.basics.exposure_ev"));
+            }
+            PRESET_SCHEMA_VERSION => {}
+            _ => unreachable!("version checked above"),
+        }
+
+        let settings: DevelopSettings =
+            serde_json::from_value(settings_value).map_err(D::Error::custom)?;
+        let document = Self {
+            schema: wire.schema,
+            schema_version: PRESET_SCHEMA_VERSION,
+            id: wire.id,
+            name: wire.name,
+            settings,
+        };
+        if wire.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
+            validate_v1_curve_semantics(&document).map_err(D::Error::custom)?;
+        }
+        document.validate().map_err(D::Error::custom)?;
+        Ok(document)
+    }
 }
 
 impl PresetDocument {
@@ -71,14 +135,24 @@ impl PresetDocument {
             return Err(PresetError::UnsupportedVersion(envelope.schema_version));
         }
         let value: serde_json::Value = serde_json::from_str(json).map_err(PresetError::Json)?;
-        let mut document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
-        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
-            validate_v1_semantics(&value, &document)?;
-            document.schema_version = PRESET_SCHEMA_VERSION;
-        } else if value.pointer("/settings/basics/exposure_ev").is_none() {
+        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION
+            && value.pointer("/settings/basics/exposure_ev").is_some()
+        {
+            return Err(PresetError::FieldNotAvailable {
+                version: LEGACY_PRESET_SCHEMA_VERSION,
+                path: "settings.basics.exposure_ev",
+            });
+        }
+        if envelope.schema_version == PRESET_SCHEMA_VERSION
+            && value.pointer("/settings/basics/exposure_ev").is_none()
+        {
             return Err(PresetError::MissingRequiredField(
                 "settings.basics.exposure_ev",
             ));
+        }
+        let document: Self = serde_json::from_str(json).map_err(PresetError::Json)?;
+        if envelope.schema_version == LEGACY_PRESET_SCHEMA_VERSION {
+            validate_v1_semantics(&value, &document)?;
         }
         document.validate()?;
         Ok(document)
@@ -104,6 +178,10 @@ fn validate_v1_semantics(
             path: "settings.basics.exposure_ev",
         });
     }
+    validate_v1_curve_semantics(document)
+}
+
+fn validate_v1_curve_semantics(document: &PresetDocument) -> Result<(), PresetError> {
     for (path, curve) in [
         (
             "settings.tone_curves.master",

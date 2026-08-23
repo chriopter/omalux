@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct BasicsSettings {
     /// Scene-linear exposure compensation in photographic stops. Missing in
-    /// schema-v1 JSON means neutral exposure during migration.
-    #[serde(default)]
+    /// schema-v1 JSON means neutral exposure only through the version-aware
+    /// `PresetDocument` migration.
     pub exposure_ev: f32,
     pub brightness: f32,
     pub contrast: f32,

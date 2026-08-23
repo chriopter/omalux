@@ -105,6 +105,48 @@ fn extended_curve_interpolates_monotonically_and_extrapolates_signed_hdr() {
 }
 
 #[test]
+fn nonlinear_seven_point_pchip_has_extended_segment_goldens() {
+    let mut settings = DevelopSettings::default();
+    settings.tone_curves.red = ToneCurve {
+        points: [
+            (-0.6, -0.5),
+            (-0.3, -0.1),
+            (0.0, 0.05),
+            (0.2, 0.35),
+            (0.6, 0.5),
+            (1.0, 1.1),
+            (1.6, 1.8),
+        ]
+        .into_iter()
+        .map(|(x, y)| CurvePoint { x, y })
+        .collect(),
+    };
+    let inputs = [-0.9, -0.45, -0.15, 0.1, 0.4, 0.8, 1.3, 2.0];
+    let expected = [
+        -1.025,
+        -0.261_647_73,
+        -0.026_822_1,
+        0.203_325_12,
+        0.427_142_86,
+        0.763_823_5,
+        1.476_764_7,
+        2.186_666_7,
+    ];
+    let output = render(&inputs, &settings);
+    for (index, pixel) in output.pixels().iter().enumerate() {
+        assert!(
+            (pixel.red() - expected[index]).abs() < 2.0e-5,
+            "sample={index}: {} != {}",
+            pixel.red(),
+            expected[index]
+        );
+    }
+    // The first interior sample is deliberately not the straight secant
+    // midpoint, proving the cubic path is exercised in the negative domain.
+    assert!((output.pixels()[1].red() - -0.3).abs() > 0.03);
+}
+
+#[test]
 fn preset_v1_migrates_explicitly_and_v2_is_strict() {
     let migrated = PresetDocument::from_json(V1_NEUTRAL).unwrap();
     assert_eq!(migrated.schema_version, 2);
@@ -136,6 +178,13 @@ fn preset_v1_migrates_explicitly_and_v2_is_strict() {
             "settings.basics.exposure_ev"
         ))
     ));
+
+    let direct_v1: PresetDocument = serde_json::from_str(V1_NEUTRAL).unwrap();
+    assert_eq!(direct_v1, migrated);
+    assert!(serde_json::from_str::<PresetDocument>(&missing_v2).is_err());
+    let direct_v2: PresetDocument =
+        serde_json::from_str(&migrated.to_canonical_json().unwrap()).unwrap();
+    assert_eq!(direct_v2, migrated);
 }
 
 #[test]
