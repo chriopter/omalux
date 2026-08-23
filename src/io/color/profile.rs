@@ -1,8 +1,8 @@
-use lcms2::{CIExyY, CIExyYTRIPLE, ColorSpaceSignature, Intent, Profile, ToneCurve};
+use lcms2::{CIExyY, CIExyYTRIPLE, ColorSpaceSignature, Profile, ToneCurve};
 use sha2::{Digest, Sha256};
 use std::fmt;
 
-use super::ColorError;
+use super::{ColorError, transform::RasterToWorkingTransform};
 use crate::io::{
     AssumedProfileReason, ColorProvenance, Diagnostic, DiagnosticCode, DiagnosticSeverity,
     MetadataKind, ResourceLimits,
@@ -46,7 +46,8 @@ impl fmt::Debug for RgbProfile {
 }
 
 impl RgbProfile {
-    /// Opens bounded ICC bytes and rejects non-RGB or unusable input profiles.
+    /// Parses bounded ICC bytes and rejects non-RGB profiles. Actual input
+    /// transform compatibility is checked by `RasterToWorkingTransform::new`.
     pub fn from_icc(bytes: &[u8], limits: &ResourceLimits) -> Result<Self, ColorError> {
         if bytes.is_empty() {
             return Err(ColorError::EmptyProfile);
@@ -74,9 +75,6 @@ impl RgbProfile {
     fn validate_input(profile: Profile) -> Result<Self, ColorError> {
         if profile.color_space() != ColorSpaceSignature::RgbData {
             return Err(ColorError::UnsupportedColorSpace);
-        }
-        if !profile.is_intent_supported(Intent::RelativeColorimetric, 0) {
-            return Err(ColorError::UnsupportedProfile);
         }
         Ok(Self { inner: profile })
     }
@@ -115,6 +113,7 @@ pub fn linear_rec2020_profile() -> Result<RgbProfile, ColorError> {
 }
 
 /// An explicitly resolved source profile and its audit metadata.
+#[derive(Debug)]
 pub struct ResolvedInputProfile {
     pub profile: RgbProfile,
     pub provenance: ColorProvenance,
@@ -127,6 +126,7 @@ pub fn embedded_rgb_profile(
     limits: &ResourceLimits,
 ) -> Result<ResolvedInputProfile, ColorError> {
     let profile = RgbProfile::from_icc(bytes, limits)?;
+    RasterToWorkingTransform::new(&profile)?;
     let digest: [u8; 32] = Sha256::digest(bytes).into();
     Ok(ResolvedInputProfile {
         profile,
@@ -231,6 +231,26 @@ mod tests {
                 severity: DiagnosticSeverity::Warning,
                 code: DiagnosticCode::MissingProfileAssumedSrgb,
             }]
+        );
+    }
+
+    #[test]
+    fn embedded_rgb_profile_preflights_transform_compatibility() {
+        let mut broken = Profile::new_srgb();
+        for tag in [
+            lcms2::TagSignature::RedColorantTag,
+            lcms2::TagSignature::GreenColorantTag,
+            lcms2::TagSignature::BlueColorantTag,
+            lcms2::TagSignature::RedTRCTag,
+            lcms2::TagSignature::GreenTRCTag,
+            lcms2::TagSignature::BlueTRCTag,
+        ] {
+            assert!(broken.remove_tag(tag));
+        }
+        let bytes = broken.icc().unwrap();
+        assert_eq!(
+            embedded_rgb_profile(&bytes, &ResourceLimits::default()).unwrap_err(),
+            ColorError::UnsupportedProfile
         );
     }
 

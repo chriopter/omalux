@@ -29,6 +29,10 @@ pub enum ColorError {
         pixel: usize,
         channel: RasterChannel,
     },
+    OutputOutOfRange {
+        pixel: usize,
+        channel: RasterChannel,
+    },
     NonFiniteOutput {
         pixel: usize,
         channel: RasterChannel,
@@ -62,6 +66,10 @@ impl fmt::Display for ColorError {
             Self::InvalidRasterSample { pixel, channel } => write!(
                 formatter,
                 "encoded raster pixel {pixel} has an invalid {channel:?} sample"
+            ),
+            Self::OutputOutOfRange { pixel, channel } => write!(
+                formatter,
+                "output raster pixel {pixel} has an out-of-range {channel:?} sample"
             ),
             Self::NonFiniteOutput { pixel, channel } => write!(
                 formatter,
