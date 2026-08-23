@@ -41,5 +41,11 @@ source tree.
 
 - Core/CLI binary: `target/{debug,release}/grainroom`
 - Desktop GUI binary: `target/{debug,release}/grainroom-gui`
-- Desktop entry: `packaging/arch/grainroom.desktop` (`Exec=grainroom-gui`)
+- Desktop entry: `packaging/arch/grainroom.desktop` (`Exec=grainroom-gui %f`)
 - GUI-only source assets: `crates/grainroom-gui/qml/`
+
+Both Cargo packages are independently packageable. The GUI manifest binds its
+workspace path dependency to the exact same released core version. Installers
+must place both `grainroom` and `grainroom-gui` in the executable search path
+and install the desktop entry below `share/applications/`; only the GUI package
+requires Qt at build and runtime.

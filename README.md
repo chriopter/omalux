@@ -97,3 +97,41 @@ Build or test the Qt-free core alone with `cargo build -p grainroom` and
 `grainroom-gui` package for
 `crates/grainroom-gui/qml/shaders/film_grain.frag`; the generated `.qsb`
 package is embedded into the desktop application.
+
+## Install and package
+
+Install both executables from a checkout with matching package versions:
+
+```bash
+cargo install --path . --locked
+cargo install --path crates/grainroom-gui --locked
+```
+
+The first command installs the Qt-free `grainroom` core/CLI; the second installs
+the `grainroom-gui` desktop application and therefore requires Qt. Install and
+validate the desktop entry separately, for example for the current user:
+
+```bash
+install -Dm644 packaging/arch/grainroom.desktop \
+  ~/.local/share/applications/grainroom.desktop
+desktop-file-validate ~/.local/share/applications/grainroom.desktop
+```
+
+Distribution packages must ship both binaries in the executable search path
+and install `packaging/arch/grainroom.desktop` under
+`share/applications/grainroom.desktop`. The desktop entry passes one selected
+photo to `grainroom-gui` through `%f`.
+
+Before publishing source packages, validate both Cargo package manifests and
+their included files:
+
+```bash
+cargo package --allow-dirty --workspace
+```
+
+The GUI dependency pins the exact matching `grainroom` core version while also
+retaining its workspace path for local builds. Packaging the workspace together
+lets Cargo build and fully verify both archives against its temporary local
+registry before either package has been published. Release the core package
+before the GUI package so the same exact dependency can be resolved by the
+target registry.

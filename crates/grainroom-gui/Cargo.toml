@@ -9,7 +9,7 @@ description = "Qt Quick desktop interface for Grainroom"
 cxx = "1.0"
 cxx-qt = "0.9"
 cxx-qt-lib = { version = "0.9", features = ["full"] }
-grainroom = { path = "../.." }
+grainroom = { path = "../..", version = "=0.1.0" }
 notify = "8.2"
 
 [build-dependencies]
