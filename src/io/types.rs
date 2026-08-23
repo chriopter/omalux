@@ -520,6 +520,15 @@ mod tests {
         .unwrap();
         let digest = SourceDigestV1::from_bytes(b"decoded-photo-test");
         let limits = ResourceLimits::default();
+        let raw_processing = || RawProcessingProvenance {
+            backend: RawBackendName::LibRawDcrawEmu,
+            backend_version: None,
+            full_resolution: true,
+            linear_16_bit: true,
+            output_rec2020: true,
+            embedded_matrix_enabled: true,
+            ahd_demosaic: true,
+        };
         assert!(
             DecodedPhoto::new(
                 image.clone(),
@@ -540,6 +549,7 @@ mod tests {
                 ColorProvenance::RawMatrix {
                     matrix: RawMatrixSource::CameraDatabase,
                     white_balance: WhiteBalanceProvenance::Camera,
+                    processing: raw_processing(),
                 },
                 SignalRelation::LinearizedDisplayReferred,
                 Vec::new(),
@@ -548,6 +558,33 @@ mod tests {
             .unwrap_err(),
             DecodedPhotoError::ColorRelationMismatch
         );
+        let raw = DecodedPhoto::new(
+            image.clone(),
+            MetadataBundle::default(),
+            digest,
+            ColorProvenance::RawMatrix {
+                matrix: RawMatrixSource::CameraDatabase,
+                white_balance: WhiteBalanceProvenance::Camera,
+                processing: raw_processing(),
+            },
+            SignalRelation::SceneRelatedRaw,
+            Vec::new(),
+            &limits,
+        )
+        .unwrap();
+        assert_eq!(raw.signal_relation(), SignalRelation::SceneRelatedRaw);
+        assert!(matches!(
+            raw.color(),
+            ColorProvenance::RawMatrix {
+                processing: RawProcessingProvenance {
+                    backend: RawBackendName::LibRawDcrawEmu,
+                    output_rec2020: true,
+                    linear_16_bit: true,
+                    ..
+                },
+                ..
+            }
+        ));
         assert_eq!(
             DecodedPhoto::new(
                 image.clone(),

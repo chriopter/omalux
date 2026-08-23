@@ -27,7 +27,6 @@ pub use types::{
     DecodedPhotoError, Diagnostic, DiagnosticCode, DiagnosticSeverity, EncodeOptions,
     IccProfileProvenance, MetadataBundle, MetadataPolicy, OutputFormat, OutputProfile,
     PngChrmFields, PngCicpFields, PngColorDeclarationsProvenance, PngSelectedColorSource,
-    RawBackendName, RawDecodeOptions, RawMatrixSource,
-    RawProcessingProvenance, SdrRangePolicy, SignalRelation, UnprofiledPolicy, WhiteBalancePolicy,
-    WhiteBalanceProvenance,
+    RawBackendName, RawDecodeOptions, RawMatrixSource, RawProcessingProvenance, SdrRangePolicy,
+    SignalRelation, UnprofiledPolicy, WhiteBalancePolicy, WhiteBalanceProvenance,
 };

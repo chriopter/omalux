@@ -1,5 +1,9 @@
 # RAW Phase A
 
+This phase exposes a bounded library decoder contract. It is not yet wired to
+the GUI loader or CLI/export job path; those integrations must call this API
+explicitly and preserve the checked `DecodedPhoto` color/signal invariants.
+
 Grainroom stages the source once while computing its content digest, then gives
 that private immutable copy to the installed LibRaw `dcraw_emu`. The fixed
 production arguments request camera white balance when available, embedded

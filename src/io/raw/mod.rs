@@ -6,9 +6,9 @@ mod process;
 mod stage;
 
 use crate::io::{
-    ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, Diagnostic, DiagnosticCode,
-    DiagnosticSeverity, MetadataBundle, RawBackendName, RawMatrixSource, RawProcessingProvenance,
-    SignalRelation, WhiteBalancePolicy, WhiteBalanceProvenance,
+    ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, DecodedPhotoError, Diagnostic,
+    DiagnosticCode, DiagnosticSeverity, MetadataBundle, RawBackendName, RawMatrixSource,
+    RawProcessingProvenance, SignalRelation, WhiteBalancePolicy, WhiteBalanceProvenance,
 };
 pub use process::{RawCancellation, RawCapability, RawExecutionOptions, probe_dcraw_emu};
 use std::path::Path;
@@ -67,12 +67,12 @@ pub fn decode_raw(
         severity: DiagnosticSeverity::Warning,
         code: DiagnosticCode::UnknownRawMatrix,
     });
-    Ok(DecodedPhoto {
+    DecodedPhoto::new(
         image,
-        metadata: MetadataBundle::try_new(None, None, None, true, &options.limits)
+        MetadataBundle::try_new(None, None, None, true, &options.limits)
             .map_err(DecodeError::Limit)?,
-        source_digest: staged.digest,
-        color: ColorProvenance::RawMatrix {
+        staged.digest,
+        ColorProvenance::RawMatrix {
             matrix: RawMatrixSource::Unknown,
             white_balance,
             processing: RawProcessingProvenance {
@@ -85,9 +85,19 @@ pub fn decode_raw(
                 ahd_demosaic: true,
             },
         },
-        signal_relation: SignalRelation::SceneReferred,
+        SignalRelation::SceneRelatedRaw,
         diagnostics,
-    })
+        &options.limits,
+    )
+    .map_err(map_decoded_photo_error)
+}
+
+fn map_decoded_photo_error(error: DecodedPhotoError) -> DecodeError {
+    match error {
+        DecodedPhotoError::Limit(error) => DecodeError::Limit(error),
+        DecodedPhotoError::Image(_) => DecodeError::CorruptInput,
+        DecodedPhotoError::ColorRelationMismatch => DecodeError::ColorManagement,
+    }
 }
 
 #[cfg(test)]
@@ -126,18 +136,34 @@ mod tests {
             &RawCancellation::default(),
         )
         .unwrap();
-        assert_eq!((photo.image.width(), photo.image.height()), (1, 1));
-        assert!(photo.metadata.orientation_consumed());
+        assert_eq!((photo.image().width(), photo.image().height()), (1, 1));
+        assert!(photo.metadata().orientation_consumed());
+        assert_eq!(photo.signal_relation(), SignalRelation::SceneRelatedRaw);
+        assert!(matches!(
+            photo.color(),
+            ColorProvenance::RawMatrix {
+                processing: RawProcessingProvenance {
+                    backend: RawBackendName::LibRawDcrawEmu,
+                    full_resolution: true,
+                    linear_16_bit: true,
+                    output_rec2020: true,
+                    embedded_matrix_enabled: true,
+                    ahd_demosaic: true,
+                    ..
+                },
+                ..
+            }
+        ));
         for code in [
             DiagnosticCode::MetadataDropped,
             DiagnosticCode::OutputRangeClipped,
             DiagnosticCode::UnknownRawMatrix,
         ] {
-            assert!(photo.diagnostics.iter().any(|entry| entry.code == code));
+            assert!(photo.diagnostics().iter().any(|entry| entry.code == code));
         }
         assert_eq!(fs::read_dir(stage).unwrap().count(), 0);
         assert!(!d.path().join("SHOULD_NOT_EXIST").exists());
-        let digest = photo.source_digest;
+        let digest = photo.source_digest();
         fs::rename(&source, d.path().join("renamed.nef")).unwrap();
         let photo2 = decode_raw(
             d.path().join("renamed.nef"),
@@ -146,7 +172,7 @@ mod tests {
             &RawCancellation::default(),
         )
         .unwrap();
-        assert_eq!(digest, photo2.source_digest);
+        assert_eq!(digest, photo2.source_digest());
     }
     #[cfg(unix)]
     #[test]
