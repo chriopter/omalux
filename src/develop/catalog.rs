@@ -1,0 +1,217 @@
+use super::{PresetDocument, PresetError};
+use std::{fmt, fs::File, io::Read, path::Path};
+
+#[cfg(target_os = "linux")]
+use rustix::fs::{self, FileType, Mode, OFlags};
+
+/// External preset documents are intentionally small declarative JSON files.
+pub const MAX_EXTERNAL_PRESET_BYTES: u64 = 1024 * 1024;
+
+const BUILTIN_PRESETS: &[&str] = &[include_str!("../../presets/builtin/neutral.json")];
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PresetCatalog {
+    documents: Vec<PresetDocument>,
+}
+
+impl PresetCatalog {
+    /// Parses and validates the preset documents shipped with Grainroom.
+    ///
+    /// Built-ins must already be canonical JSON. This prevents a checked-in
+    /// document from changing identity when it is later serialized.
+    pub fn built_in() -> Result<Self, PresetCatalogError> {
+        let mut documents = Vec::new();
+        documents
+            .try_reserve_exact(BUILTIN_PRESETS.len())
+            .map_err(|_| PresetCatalogError::Allocation)?;
+        for json in BUILTIN_PRESETS {
+            let document = PresetDocument::from_json(json).map_err(PresetCatalogError::Preset)?;
+            let canonical = document
+                .to_canonical_json()
+                .map_err(PresetCatalogError::Preset)?;
+            if json.trim_end() != canonical {
+                return Err(PresetCatalogError::NonCanonical(document.id));
+            }
+            documents.push(document);
+        }
+        Self::from_documents(documents)
+    }
+
+    /// Builds a deterministic catalog from already parsed documents.
+    pub fn from_documents(mut documents: Vec<PresetDocument>) -> Result<Self, PresetCatalogError> {
+        for document in &mut documents {
+            document.validate().map_err(PresetCatalogError::Preset)?;
+            document.settings.canonicalize();
+            document.validate().map_err(PresetCatalogError::Preset)?;
+        }
+        documents.sort_by(|left, right| left.id.cmp(&right.id));
+        if let Some(pair) = documents.windows(2).find(|pair| pair[0].id == pair[1].id) {
+            return Err(PresetCatalogError::DuplicateId(pair[0].id.clone()));
+        }
+        Ok(Self { documents })
+    }
+
+    pub fn documents(&self) -> &[PresetDocument] {
+        &self.documents
+    }
+
+    pub fn get(&self, id: &str) -> Option<&PresetDocument> {
+        self.documents
+            .binary_search_by(|document| document.id.as_str().cmp(id))
+            .ok()
+            .map(|index| &self.documents[index])
+    }
+}
+
+/// Opens one external preset without following a final symlink, bounds it
+/// before and during reading, then delegates all schema checks to
+/// `PresetDocument::from_json`.
+pub fn load_preset_file(path: &Path) -> Result<PresetDocument, PresetCatalogError> {
+    load_preset_file_with_limit(path, MAX_EXTERNAL_PRESET_BYTES)
+}
+
+fn load_preset_file_with_limit(
+    path: &Path,
+    maximum: u64,
+) -> Result<PresetDocument, PresetCatalogError> {
+    #[cfg(target_os = "linux")]
+    let (mut file, advertised) = {
+        let fd = fs::open(
+            path,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|_| PresetCatalogError::FileOpen)?;
+        let stat = fs::fstat(&fd).map_err(|_| PresetCatalogError::FileRead)?;
+        if !FileType::from_raw_mode(stat.st_mode).is_file() {
+            return Err(PresetCatalogError::NotRegularFile);
+        }
+        let advertised =
+            u64::try_from(stat.st_size).map_err(|_| PresetCatalogError::FileTooLarge {
+                requested: u64::MAX,
+                maximum,
+            })?;
+        (File::from(fd), advertised)
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let (mut file, advertised) = {
+        // Grainroom targets Omarchy/Linux. Other platforms fail closed until
+        // an equivalent atomic NOFOLLOW open is implemented.
+        let _ = path;
+        return Err(PresetCatalogError::NoFollowUnsupported);
+    };
+
+    if advertised > maximum {
+        return Err(PresetCatalogError::FileTooLarge {
+            requested: advertised,
+            maximum,
+        });
+    }
+    let initial = usize::try_from(advertised).map_err(|_| PresetCatalogError::FileTooLarge {
+        requested: advertised,
+        maximum,
+    })?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(initial)
+        .map_err(|_| PresetCatalogError::Allocation)?;
+    let mut chunk = [0_u8; 16 * 1024];
+    loop {
+        let count = file
+            .read(&mut chunk)
+            .map_err(|_| PresetCatalogError::FileRead)?;
+        if count == 0 {
+            break;
+        }
+        let next = u64::try_from(bytes.len())
+            .ok()
+            .and_then(|length| length.checked_add(count as u64))
+            .ok_or(PresetCatalogError::FileTooLarge {
+                requested: u64::MAX,
+                maximum,
+            })?;
+        if next > maximum {
+            return Err(PresetCatalogError::FileTooLarge {
+                requested: next,
+                maximum,
+            });
+        }
+        bytes
+            .try_reserve_exact(count)
+            .map_err(|_| PresetCatalogError::Allocation)?;
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+    let json = std::str::from_utf8(&bytes).map_err(|_| PresetCatalogError::InvalidUtf8)?;
+    PresetDocument::from_json(json).map_err(PresetCatalogError::Preset)
+}
+
+#[derive(Debug)]
+pub enum PresetCatalogError {
+    Preset(PresetError),
+    DuplicateId(String),
+    NonCanonical(String),
+    FileOpen,
+    FileRead,
+    NotRegularFile,
+    FileTooLarge {
+        requested: u64,
+        maximum: u64,
+    },
+    InvalidUtf8,
+    Allocation,
+    #[cfg(not(target_os = "linux"))]
+    NoFollowUnsupported,
+}
+
+impl fmt::Display for PresetCatalogError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Preset(error) => write!(formatter, "invalid preset: {error}"),
+            Self::DuplicateId(id) => write!(formatter, "duplicate preset id {id:?}"),
+            Self::NonCanonical(id) => write!(formatter, "built-in preset {id:?} is not canonical"),
+            Self::FileOpen => formatter.write_str("could not safely open preset file"),
+            Self::FileRead => formatter.write_str("could not read preset file"),
+            Self::NotRegularFile => formatter.write_str("preset source is not a regular file"),
+            Self::FileTooLarge { requested, maximum } => {
+                write!(
+                    formatter,
+                    "preset contains {requested} bytes; maximum is {maximum}"
+                )
+            }
+            Self::InvalidUtf8 => formatter.write_str("preset is not UTF-8 JSON"),
+            Self::Allocation => formatter.write_str("preset allocation failed"),
+            #[cfg(not(target_os = "linux"))]
+            Self::NoFollowUnsupported => {
+                formatter.write_str("safe preset file opening is unsupported on this platform")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PresetCatalogError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Preset(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn external_loader_rejects_growth_past_its_limit() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("preset.json");
+        let mut file = File::create(&path).unwrap();
+        file.write_all(b"123456789").unwrap();
+        assert!(matches!(
+            load_preset_file_with_limit(&path, 8),
+            Err(PresetCatalogError::FileTooLarge { .. })
+        ));
+    }
+}

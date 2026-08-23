@@ -4,6 +4,7 @@
 //! metadata, and pixel processing. QML is a client of this API rather than the
 //! owner of edit state.
 
+pub mod catalog;
 mod color;
 mod context;
 mod image;
@@ -14,6 +15,7 @@ pub mod preset;
 pub mod settings;
 mod stage;
 
+pub use catalog::{MAX_EXTERNAL_PRESET_BYTES, PresetCatalog, PresetCatalogError, load_preset_file};
 pub use context::{DevelopRenderContext, ResolvedGrainSeed};
 pub use image::{CpuImage, ImageError, PixelChannel, PixelError, RgbaPixel};
 pub use parameters::{
