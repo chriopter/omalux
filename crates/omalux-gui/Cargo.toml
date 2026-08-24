@@ -16,6 +16,8 @@ cxx = "1.0"
 cxx-qt = "0.9"
 cxx-qt-lib = { version = "0.9", features = ["full"] }
 omalux = { path = "../..", version = "=0.1.0" }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "3"
@@ -27,4 +29,3 @@ rustix = { version = "1.1", features = ["fs"] }
 cxx-qt-build = { version = "0.9", features = ["link_qt_object_files"] }
 
 [dev-dependencies]
-image = { version = "0.25", default-features = false, features = ["jpeg"] }

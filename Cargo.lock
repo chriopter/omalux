@@ -1078,6 +1078,7 @@ dependencies = [
  "cxx-qt-lib",
  "image 0.25.10",
  "omalux",
+ "rayon",
  "rustix",
  "serde",
  "serde_json",

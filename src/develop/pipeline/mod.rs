@@ -151,6 +151,30 @@ impl DevelopPipeline {
 
 /// Reviewed requested-payload upper bound for proven stage combinations.
 /// Unsupported allocation families fail before any image allocation or mutation.
+/// Applies only the pointwise color stages: basics with clarity forced to
+/// zero, tone curves, color mixer, and color grading. Geometry, clarity,
+/// radial masks, and effects are deliberately excluded — every remaining
+/// operation maps each pixel independently of its neighbors and position, so
+/// the composition can be sampled into a lookup table for interactive
+/// previews. This is a preview aid, not the normative render: callers must
+/// still produce final output through the full pipeline.
+pub fn apply_point_color_operations(
+    image: &mut CpuImage,
+    settings: &DevelopSettings,
+) -> Result<(), PipelineError> {
+    let mut point_settings = settings.clone();
+    point_settings.basics.clarity = 0.0;
+    for stage in [
+        DevelopStage::Basics,
+        DevelopStage::ToneCurves,
+        DevelopStage::ColorMixer,
+        DevelopStage::ColorGrading,
+    ] {
+        stages::apply(stage, image, &point_settings, None)?;
+    }
+    Ok(())
+}
+
 pub fn estimate_develop_working_set(
     width: u32,
     height: u32,

@@ -92,7 +92,8 @@ mod theme;
 
 use self::develop::{
     GuiJobError, PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview,
-    export_photo, save_original_atomic, settings_json, supported_parameters_json,
+    develop_preview_fast, export_photo, save_original_atomic, settings_json,
+    supported_parameters_json,
 };
 use self::export::{absolute_local_path, display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
@@ -271,7 +272,14 @@ fn preview_completion(
 ) -> (&'static str, bool, String, Option<serde_json::Value>) {
     match result {
         Ok(artifact) => {
-            let report = artifact.report();
+            let Some(report) = artifact.report() else {
+                return (
+                    "published_and_durable",
+                    false,
+                    "Ready · fast preview".to_owned(),
+                    None,
+                );
+            };
             let serialized = serde_json::to_value(report).ok();
             match &report.outcome {
                 DevelopJobOutcome::PublishedAndDurable { .. } => (
@@ -678,12 +686,16 @@ impl qobject::PhotoBackend {
         self.as_mut().rust_mut().preview_cancellation = Some(cancellation.clone());
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = develop_preview(
-                &request.source,
-                request.settings.clone(),
-                request.full_resolution,
-                &cancellation,
-            );
+            let result = if request.full_resolution {
+                develop_preview(
+                    &request.source,
+                    request.settings.clone(),
+                    true,
+                    &cancellation,
+                )
+            } else {
+                develop_preview_fast(&request.source, request.settings.clone(), &cancellation)
+            };
             let _ = qt_thread.queue(move |mut backend| {
                 backend.as_mut().rust_mut().preview_cancellation = None;
                 let is_latest_preview =
@@ -692,7 +704,9 @@ impl qobject::PhotoBackend {
                 if is_latest_preview {
                     backend.as_mut().set_loading(false);
                     if let Ok(artifact) = result {
-                        if let Ok(report) = serde_json::to_string(artifact.report()) {
+                        if let Some(report) = artifact.report()
+                            && let Ok(report) = serde_json::to_string(report)
+                        {
                             backend
                                 .as_mut()
                                 .set_last_preview_report_json(QString::from(&report));
@@ -940,7 +954,7 @@ mod preview_queue_tests {
             &CancellationToken::new(),
         )
         .unwrap();
-        let mut report = preview.report().clone();
+        let mut report = preview.report().unwrap().clone();
         report.outcome = DevelopJobOutcome::PublishedButNotDurable { bytes_written: 1 };
         let (_, warning, status, serialized) = export_completion(Ok(report), "JPEG", "out.jpg");
         assert!(warning);

@@ -1,12 +1,13 @@
 use omalux::{
     develop::{
-        DevelopSettings, ParameterKind, PresetCatalog, PresetDocument, apply_parameter_overrides,
-        estimate_develop_working_set, parameter_registry, parse_parameter_override,
+        CpuImage, DevelopSettings, ParameterKind, PresetCatalog, PresetDocument, RgbaPixel,
+        apply_parameter_overrides, apply_point_color_operations, estimate_develop_working_set,
+        parameter_registry, parse_parameter_override,
     },
     io::{
         AlphaPolicy, AtomicOutputError, AtomicOutputOptions, AtomicOutputOutcome, DecodeOptions,
         MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy, ResourceLimits,
-        SdrRangePolicy, SourceFileIdentity, write_atomic_output_for_source,
+        SdrRangePolicy, SignalRelation, SourceFileIdentity, write_atomic_output_for_source,
     },
     job::{
         CancellationToken, DecodedSource, DevelopJob, DevelopJobFailure, DevelopJobReport,
@@ -49,7 +50,7 @@ impl std::fmt::Display for GuiJobError {
 pub(super) struct PreviewArtifact {
     _directory: TempDir,
     path: PathBuf,
-    report: DevelopJobReport,
+    report: Option<DevelopJobReport>,
 }
 
 impl PreviewArtifact {
@@ -57,8 +58,8 @@ impl PreviewArtifact {
         &self.path
     }
 
-    pub(super) fn report(&self) -> &DevelopJobReport {
-        &self.report
+    pub(super) fn report(&self) -> Option<&DevelopJobReport> {
+        self.report.as_ref()
     }
 
     #[cfg(test)]
@@ -152,7 +153,184 @@ pub(super) fn develop_preview(
     Ok(PreviewArtifact {
         _directory: directory,
         path,
-        report,
+        report: Some(report),
+    })
+}
+
+const LUT_SIZE: usize = 33;
+const LUT_MAX_LINEAR: f64 = 8.0;
+
+fn shaper_to_linear(t: f64) -> f64 {
+    // t in [0,1] maps to [0, LUT_MAX_LINEAR] with a v/(v+1)-style shaper so
+    // scene-linear RAW highlights stay inside the lattice.
+    let t_max = LUT_MAX_LINEAR / (LUT_MAX_LINEAR + 1.0);
+    let t = t * t_max;
+    t / (1.0 - t)
+}
+
+fn linear_to_shaper(v: f32) -> f32 {
+    let t_max = (LUT_MAX_LINEAR / (LUT_MAX_LINEAR + 1.0)) as f32;
+    let v = v.clamp(0.0, LUT_MAX_LINEAR as f32);
+    (v / (v + 1.0)) / t_max
+}
+
+/// Bakes the pointwise color stages into an RGB lattice by pushing the exact
+/// lattice image through the real pipeline code, so the fast path can never
+/// drift from the normative math beyond interpolation error.
+fn bake_point_lut(settings: &DevelopSettings) -> Result<Vec<[f32; 3]>, GuiJobError> {
+    let n = LUT_SIZE;
+    let mut pixels = Vec::with_capacity(n * n * n);
+    for b in 0..n {
+        for g in 0..n {
+            for r in 0..n {
+                let value = |index: usize| shaper_to_linear(index as f64 / (n - 1) as f64) as f32;
+                pixels.push(
+                    RgbaPixel::new(value(r), value(g), value(b), 1.0)
+                        .map_err(|_| GuiJobError::Setup("LUT lattice pixel".into()))?,
+                );
+            }
+        }
+    }
+    let mut lattice = CpuImage::new((n * n) as u32, n as u32, pixels)
+        .map_err(|_| GuiJobError::Setup("LUT lattice image".into()))?;
+    apply_point_color_operations(&mut lattice, settings)
+        .map_err(|error| GuiJobError::Setup(format!("LUT bake failed: {error}")))?;
+    Ok(lattice
+        .pixels()
+        .iter()
+        .map(|pixel| [pixel.red(), pixel.green(), pixel.blue()])
+        .collect())
+}
+
+fn lut_sample(lut: &[[f32; 3]], r: f32, g: f32, b: f32) -> [f32; 3] {
+    let n = LUT_SIZE;
+    let scale = (n - 1) as f32;
+    let locate = |v: f32| -> (usize, f32) {
+        let x = (linear_to_shaper(v) * scale).clamp(0.0, scale);
+        let low = (x as usize).min(n - 2);
+        (low, x - low as f32)
+    };
+    let (ri, rf) = locate(r);
+    let (gi, gf) = locate(g);
+    let (bi, bf) = locate(b);
+    let index = |r: usize, g: usize, b: usize| (b * n + g) * n + r;
+    let mut out = [0.0_f32; 3];
+    for channel in 0..3 {
+        let mut accumulate = 0.0_f32;
+        for (db, wb) in [(0, 1.0 - bf), (1, bf)] {
+            for (dg, wg) in [(0, 1.0 - gf), (1, gf)] {
+                for (dr, wr) in [(0, 1.0 - rf), (1, rf)] {
+                    accumulate += wb * wg * wr * lut[index(ri + dr, gi + dg, bi + db)][channel];
+                }
+            }
+        }
+        out[channel] = accumulate;
+    }
+    out
+}
+
+fn linear_rec2020_to_srgb8(pixel: &RgbaPixel) -> [u8; 3] {
+    const M: [[f32; 3]; 3] = [
+        [1.660_491, -0.587_641_1, -0.072_849_86],
+        [-0.124_550_47, 1.132_899_9, -0.008_349_423],
+        [-0.018_150_763, -0.100_578_9, 1.118_729_7],
+    ];
+    let rgb = [pixel.red(), pixel.green(), pixel.blue()];
+    core::array::from_fn(|row| {
+        let linear = (M[row][0] * rgb[0] + M[row][1] * rgb[1] + M[row][2] * rgb[2]).clamp(0.0, 1.0);
+        let encoded = if linear <= 0.003_130_8 {
+            12.92 * linear
+        } else {
+            1.055 * linear.powf(1.0 / 2.4) - 0.055
+        };
+        (encoded * 255.0 + 0.5) as u8
+    })
+}
+
+/// Interactive fast preview: cached proxy decode, LUT-applied point color,
+/// scene render for RAW, direct sRGB encode. Clarity, radial masks, and
+/// effects are intentionally deferred to the idle full-resolution pass.
+pub(super) fn develop_preview_fast(
+    source: &Path,
+    settings: DevelopSettings,
+    cancellation: &CancellationToken,
+) -> Result<PreviewArtifact, GuiJobError> {
+    use rayon::prelude::*;
+
+    let decoder = CachingProxyDecoder {
+        inner: ProductionPhotoDecoder::new(),
+        long_edge: PREVIEW_LONG_EDGE,
+    };
+    let mut decode = DecodeOptions::default();
+    decode.limits = preview_limits();
+    decode.proxy_long_edge = Some(PREVIEW_LONG_EDGE);
+    decode.raw.decode_cache = preview_raw_cache();
+    let decoded = decoder
+        .decode_path_once(source, &decode, cancellation)
+        .map_err(|error| GuiJobError::Setup(format!("preview decode failed: {error}")))?;
+    let photo = decoded.photo;
+
+    let lut = bake_point_lut(&settings)?;
+    let source_image = photo.image();
+    let mapped: Result<Vec<RgbaPixel>, GuiJobError> = source_image
+        .pixels()
+        .par_iter()
+        .map(|pixel| {
+            let mapped = lut_sample(&lut, pixel.red(), pixel.green(), pixel.blue());
+            RgbaPixel::new(mapped[0], mapped[1], mapped[2], pixel.alpha())
+                .map_err(|_| GuiJobError::Setup("preview pixel".into()))
+        })
+        .collect();
+    let mut image = CpuImage::new(source_image.width(), source_image.height(), mapped?)
+        .map_err(|_| GuiJobError::Setup("preview image".into()))?;
+
+    if photo.signal_relation() == SignalRelation::SceneRelatedRaw {
+        let transform = omalux::io::color::SceneToDisplayTransform::new();
+        let limits = preview_limits();
+        let width = image.width() as usize;
+        let source_pixels = image.pixels().to_vec();
+        for (row_index, row) in image.pixels_mut().chunks_mut(width).enumerate() {
+            transform
+                .transform_scanline(
+                    &source_pixels[row_index * width..row_index * width + row.len()],
+                    row,
+                    SignalRelation::SceneRelatedRaw,
+                    &limits,
+                )
+                .map_err(|error| {
+                    GuiJobError::Setup(format!("preview scene render failed: {error}"))
+                })?;
+        }
+    }
+
+    let width = image.width();
+    let height = image.height();
+    let mut rgb = Vec::with_capacity((width * height * 3) as usize);
+    for pixel in image.pixels() {
+        rgb.extend_from_slice(&linear_rec2020_to_srgb8(pixel));
+    }
+    let directory = tempfile::Builder::new()
+        .prefix("omalux-preview-")
+        .tempdir()
+        .map_err(|error| {
+            GuiJobError::Setup(format!("Could not create private preview storage: {error}"))
+        })?;
+    std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).map_err(
+        |error| GuiJobError::Setup(format!("Could not secure private preview storage: {error}")),
+    )?;
+    let path = directory.path().join("preview.jpg");
+    let buffer = image::RgbImage::from_raw(width, height, rgb)
+        .ok_or_else(|| GuiJobError::Setup("preview buffer".into()))?;
+    let mut encoded = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, 88)
+        .encode_image(&buffer)
+        .map_err(|error| GuiJobError::Setup(format!("preview encode failed: {error}")))?;
+    std::fs::write(&path, encoded)
+        .map_err(|error| GuiJobError::Setup(format!("preview write failed: {error}")))?;
+    Ok(PreviewArtifact {
+        _directory: directory,
+        path,
+        report: None,
     })
 }
 
@@ -632,7 +810,7 @@ mod tests {
         let preview =
             develop_preview(input.path(), settings, false, &CancellationToken::new()).unwrap();
         assert_eq!(
-            preview.report().develop_working_set.profile(),
+            preview.report().unwrap().develop_working_set.profile(),
             Some(ReportDevelopWorkingSetProfile::ColorSpatialV1)
         );
     }
@@ -650,7 +828,12 @@ mod tests {
             &CancellationToken::new(),
         )
         .unwrap();
-        let preview_profile = preview.report().develop_working_set.profile().unwrap();
+        let preview_profile = preview
+            .report()
+            .unwrap()
+            .develop_working_set
+            .profile()
+            .unwrap();
         assert!(preview_profile.geometry_v1);
         assert!(preview_profile.radial_masks_v1);
         assert!(preview_profile.color_v1);

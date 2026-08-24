@@ -28,7 +28,7 @@ pub use parameters::{
 };
 pub use pipeline::{
     DevelopPipeline, DevelopWorkingSetEstimate, DevelopWorkingSetProfile, PipelineError,
-    estimate_develop_working_set,
+    apply_point_color_operations, estimate_develop_working_set,
 };
 pub use preset::{PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
 pub use settings::{
