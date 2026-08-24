@@ -76,26 +76,28 @@ Item {
     onSettingsJsonChanged: synchronizeSettings()
     Component.onCompleted: synchronizeSettings()
 
+    readonly property var luminanceTrack: ["#17171c", "#eceaf2"]
     readonly property var basics: [
-        { "label": "Exposure", "from": -4, "to": 4, "suffix": " EV" },
-        { "label": "Brightness", "from": -100, "to": 100 },
+        { "label": "Exposure", "from": -4, "to": 4, "suffix": " EV", "track": luminanceTrack },
+        { "label": "Brightness", "from": -100, "to": 100, "track": luminanceTrack },
         { "label": "Contrast", "from": -100, "to": 100 },
         { "label": "Clarity", "from": -100, "to": 100 },
-        { "label": "Highlights", "from": -100, "to": 100 },
-        { "label": "Shadows", "from": -100, "to": 100 },
-        { "label": "Whites", "from": -100, "to": 100 },
-        { "label": "Blacks", "from": -100, "to": 100 }
+        { "label": "Highlights", "from": -100, "to": 100, "track": ["#55555e", "#eceaf2"] },
+        { "label": "Shadows", "from": -100, "to": 100, "track": ["#17171c", "#9a9aa4"] },
+        { "label": "Whites", "from": -100, "to": 100, "track": ["#55555e", "#ffffff"] },
+        { "label": "Blacks", "from": -100, "to": 100, "track": ["#000000", "#9a9aa4"] }
     ]
 
+    readonly property var hueTrack: ["#4fc3c3", "#5a6fd0", "#c05ad0", "#d05a5a", "#d0b05a", "#5ac06a", "#4fc3c3"]
     readonly property var colors: [
-        { "label": "Saturation", "from": -100, "to": 100, "suffix": "" },
-        { "label": "Vibrance", "from": -100, "to": 100, "suffix": "" },
-        { "label": "Temperature", "from": -100, "to": 100, "suffix": "" },
-        { "label": "Tint", "from": -100, "to": 100, "suffix": "" },
-        { "label": "Highlight amount", "from": 0, "to": 100, "suffix": "" },
-        { "label": "Highlight color", "from": -180, "to": 180, "suffix": "°" },
-        { "label": "Shadow amount", "from": 0, "to": 100, "suffix": "" },
-        { "label": "Shadow color", "from": -180, "to": 180, "suffix": "°" }
+        { "label": "Saturation", "from": -100, "to": 100, "suffix": "", "track": ["#8a8a92", "#e05555"] },
+        { "label": "Vibrance", "from": -100, "to": 100, "suffix": "", "track": ["#8a8a92", "#e07555"] },
+        { "label": "Temperature", "from": -100, "to": 100, "suffix": "", "track": ["#5a8ad0", "#e0954a"] },
+        { "label": "Tint", "from": -100, "to": 100, "suffix": "", "track": ["#5ac06a", "#d05ad0"] },
+        { "label": "Highlight amount", "from": 0, "to": 100, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
+        { "label": "Highlight color", "from": -180, "to": 180, "suffix": "°", "track": hueTrack },
+        { "label": "Shadow amount", "from": 0, "to": 100, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
+        { "label": "Shadow color", "from": -180, "to": 180, "suffix": "°", "track": hueTrack }
     ]
 
     function parameterAt(index) {
@@ -178,6 +180,7 @@ Item {
                     from: modelData.from
                     to: modelData.to
                     suffix: modelData.suffix || ""
+                    trackColors: modelData.track || []
                     initialValue: 0
                     supported: panel.parameterSupported([
                         "basics.exposure_ev", "basics.brightness", "basics.contrast", "basics.clarity",
@@ -211,6 +214,7 @@ Item {
                     from: modelData.from
                     to: modelData.to
                     suffix: modelData.suffix
+                    trackColors: modelData.track || []
                     initialValue: 0
                     supported: panel.parameterSupported([
                         "basics.saturation", "basics.vibrance", "basics.temperature",

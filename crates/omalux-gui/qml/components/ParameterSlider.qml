@@ -19,6 +19,7 @@ Item {
     property string suffix: ""
     property bool expandable: false
     property bool expanded: false
+    property var trackColors: []
     property alias value: slider.value
     readonly property bool selected: selectedParameter === parameterIndex
 
@@ -26,7 +27,7 @@ Item {
     signal selectionRequested(int index)
     signal valueCommitted(real value)
 
-    implicitHeight: 44
+    implicitHeight: 50
     Accessible.role: Accessible.Slider
     Accessible.name: label
     Accessible.description: Math.round(value) + suffix
@@ -118,10 +119,35 @@ Item {
                 x: slider.leftPadding
                 y: slider.topPadding + slider.availableHeight / 2 - height / 2
                 width: slider.availableWidth
-                height: 2
+                height: control.trackColors.length > 1 ? 3 : 2
                 color: control.theme.lineColor
+                opacity: control.trackColors.length > 1 && !control.selected ? 0.75 : 1.0
+
+                Component.onCompleted: {
+                    if (control.trackColors.length > 1) {
+                        const built = []
+                        for (let index = 0; index < control.trackColors.length; ++index)
+                            built.push(stopComponent.createObject(trackGradient, {
+                                position: index / (control.trackColors.length - 1),
+                                color: control.trackColors[index]
+                            }))
+                        trackGradient.stops = built
+                        gradient = trackGradient
+                    }
+                }
+
+                Gradient {
+                    id: trackGradient
+                    orientation: Gradient.Horizontal
+                }
+
+                Component {
+                    id: stopComponent
+                    GradientStop {}
+                }
 
                 Rectangle {
+                    visible: control.trackColors.length <= 1
                     width: slider.visualPosition * parent.width
                     height: parent.height
                     color: control.selected ? control.theme.accentColor : control.theme.mutedColor
