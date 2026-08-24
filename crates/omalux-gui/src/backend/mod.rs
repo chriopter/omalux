@@ -143,6 +143,9 @@ struct PreviewRequest {
     operation_revision: u64,
     source: PathBuf,
     settings: DevelopSettings,
+    /// Interactive requests develop a fast proxy; a refinement pass re-runs
+    /// the same settings at full resolution once the queue is idle.
+    full_resolution: bool,
 }
 
 #[derive(Default)]
@@ -659,6 +662,7 @@ impl qobject::PhotoBackend {
             operation_revision,
             source,
             settings: self.rust().settings.clone(),
+            full_resolution: false,
         };
         let next = self.as_mut().rust_mut().preview_queue.enqueue(request);
         self.as_mut().set_loading(true);
@@ -674,7 +678,12 @@ impl qobject::PhotoBackend {
         self.as_mut().rust_mut().preview_cancellation = Some(cancellation.clone());
         let qt_thread = self.qt_thread();
         std::thread::spawn(move || {
-            let result = develop_preview(&request.source, request.settings, &cancellation);
+            let result = develop_preview(
+                &request.source,
+                request.settings.clone(),
+                request.full_resolution,
+                &cancellation,
+            );
             let _ = qt_thread.queue(move |mut backend| {
                 backend.as_mut().rust_mut().preview_cancellation = None;
                 let is_latest_preview =
@@ -705,7 +714,20 @@ impl qobject::PhotoBackend {
                     },
                     status,
                 );
-                let next = backend.as_mut().rust_mut().preview_queue.worker_completed();
+                let mut next = backend.as_mut().rust_mut().preview_queue.worker_completed();
+                if next.is_none() && !request.full_resolution && is_latest_preview {
+                    // Idle after a proxy pass: refine the same settings at
+                    // full resolution so zoomed inspection stays sharp.
+                    next = backend
+                        .as_mut()
+                        .rust_mut()
+                        .preview_queue
+                        .enqueue(PreviewRequest {
+                            full_resolution: true,
+                            settings: request.settings,
+                            ..request
+                        });
+                }
                 if let Some(next) = next {
                     backend.as_mut().launch_preview(next);
                 }
@@ -749,6 +771,7 @@ mod preview_queue_tests {
             operation_revision: revision,
             source: PathBuf::from(format!("source-{revision}")),
             settings: DevelopSettings::default(),
+            full_resolution: false,
         }
     }
 
@@ -913,6 +936,7 @@ mod preview_queue_tests {
         let preview = develop_preview(
             input.path(),
             DevelopSettings::default(),
+            false,
             &CancellationToken::new(),
         )
         .unwrap();

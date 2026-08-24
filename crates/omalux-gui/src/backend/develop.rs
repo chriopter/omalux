@@ -121,6 +121,7 @@ pub(super) fn supported_parameters_json() -> Result<String, String> {
 pub(super) fn develop_preview(
     source: &Path,
     settings: DevelopSettings,
+    full_resolution: bool,
     cancellation: &CancellationToken,
 ) -> Result<PreviewArtifact, GuiJobError> {
     let directory = tempfile::Builder::new()
@@ -141,7 +142,11 @@ pub(super) fn develop_preview(
         88,
         preview_limits(),
         OverwritePolicy::Forbid,
-        Some(PREVIEW_LONG_EDGE),
+        if full_resolution {
+            None
+        } else {
+            Some(PREVIEW_LONG_EDGE)
+        },
         cancellation,
     )?;
     Ok(PreviewArtifact {
@@ -523,6 +528,7 @@ mod tests {
         let preview = develop_preview(
             input.path(),
             DevelopSettings::default(),
+            false,
             &CancellationToken::new(),
         )
         .unwrap();
@@ -548,13 +554,19 @@ mod tests {
         let neutral = develop_preview(
             input.path(),
             DevelopSettings::default(),
+            false,
             &CancellationToken::new(),
         )
         .unwrap();
         let local_settings: DevelopSettings =
             serde_json::from_str(&settings_json(&local_exposure_settings(1.0)).unwrap()).unwrap();
-        let local =
-            develop_preview(input.path(), local_settings, &CancellationToken::new()).unwrap();
+        let local = develop_preview(
+            input.path(),
+            local_settings,
+            false,
+            &CancellationToken::new(),
+        )
+        .unwrap();
         let sum = |path: &Path| {
             image::open(path)
                 .unwrap()
@@ -578,7 +590,7 @@ mod tests {
             omalux::develop::apply_parameter_overrides(&settings, &[value])
                 .map(|resolved| settings = resolved)
                 .unwrap();
-            develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
+            develop_preview(input.path(), settings, false, &CancellationToken::new()).unwrap();
         }
     }
 
@@ -596,6 +608,7 @@ mod tests {
             let preview = develop_preview(
                 input.path(),
                 built_in_settings(id).unwrap(),
+                false,
                 &CancellationToken::new(),
             )
             .unwrap_or_else(|error| panic!("built-in {id} failed in GUI preview: {error}"));
@@ -616,7 +629,8 @@ mod tests {
             parse_parameter_override("effects.bloom=8").unwrap(),
         ];
         let settings = apply_parameter_overrides(&DevelopSettings::default(), &overrides).unwrap();
-        let preview = develop_preview(input.path(), settings, &CancellationToken::new()).unwrap();
+        let preview =
+            develop_preview(input.path(), settings, false, &CancellationToken::new()).unwrap();
         assert_eq!(
             preview.report().develop_working_set.profile(),
             Some(ReportDevelopWorkingSetProfile::ColorSpatialV1)
@@ -629,8 +643,13 @@ mod tests {
         jpeg_fixture(input.path());
         let settings = geometry_radial_settings();
 
-        let preview =
-            develop_preview(input.path(), settings.clone(), &CancellationToken::new()).unwrap();
+        let preview = develop_preview(
+            input.path(),
+            settings.clone(),
+            false,
+            &CancellationToken::new(),
+        )
+        .unwrap();
         let preview_profile = preview.report().develop_working_set.profile().unwrap();
         assert!(preview_profile.geometry_v1);
         assert!(preview_profile.radial_masks_v1);
@@ -688,7 +707,15 @@ mod tests {
         jpeg_fixture(input.path());
         let cancellation = CancellationToken::new();
         cancellation.cancel();
-        assert!(develop_preview(input.path(), DevelopSettings::default(), &cancellation).is_err());
+        assert!(
+            develop_preview(
+                input.path(),
+                DevelopSettings::default(),
+                false,
+                &cancellation
+            )
+            .is_err()
+        );
     }
 
     #[test]
