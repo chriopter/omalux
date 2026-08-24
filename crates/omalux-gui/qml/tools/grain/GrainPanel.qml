@@ -138,13 +138,13 @@ Item {
 
     component GroupHeading: Text {
         Layout.fillWidth: true
-        Layout.topMargin: 8
-        Layout.bottomMargin: 2
+        Layout.topMargin: 14
+        Layout.bottomMargin: 4
         color: panel.theme.accentColor
         font.family: panel.theme.monoFont
-        font.pixelSize: 10
+        font.pixelSize: 15
         font.bold: true
-        font.letterSpacing: 1
+        font.letterSpacing: 1.2
     }
 
     ScrollView {

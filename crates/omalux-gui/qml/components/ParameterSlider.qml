@@ -26,7 +26,7 @@ Item {
     signal selectionRequested(int index)
     signal valueCommitted(real value)
 
-    implicitHeight: 58
+    implicitHeight: 44
     Accessible.role: Accessible.Slider
     Accessible.name: label
     Accessible.description: Math.round(value) + suffix
@@ -50,9 +50,9 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        anchors.topMargin: 4
-        anchors.bottomMargin: 3
-        spacing: 4
+        anchors.topMargin: 3
+        anchors.bottomMargin: 2
+        spacing: 0
 
         RowLayout {
             Layout.fillWidth: true
@@ -102,7 +102,7 @@ Item {
         Slider {
             id: slider
             Layout.fillWidth: true
-            Layout.preferredHeight: 20
+            Layout.preferredHeight: 16
             from: control.from
             to: control.to
             value: control.initialValue
