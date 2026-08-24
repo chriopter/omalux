@@ -18,7 +18,11 @@ highlights/shadows, contrast, clarity, saturation, then vibrance.
   gives `Y' = 0.18 * (Y / 0.18)^(2^(c/100))`. RGB is scaled by `Y'/Y`.
 - Whites, blacks, highlights, and shadows form smoothstep masks in the bounded
   coordinate `t = Y / (Y + 0.18)`. Their masked slider value is an exposure
-  gain. This keeps the adjustment scene-referred and unclipped.
+  gain. This keeps the adjustment scene-referred and unclipped. Shadows and
+  highlights apply as two sequential masked gains (shadows first): each gain is
+  a monotone map of luminance on its own, so the composition preserves tonal
+  order, whereas summing both EV terms in one step can invert strong opposing
+  adjustments.
 - Saturation interpolates each channel away from Rec.2020 luminance using the
   factor `1 + s/100`.
 - Vibrance uses the same luminance-preserving interpolation, but attenuates a

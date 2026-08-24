@@ -175,18 +175,23 @@ fn whites_blacks(rgb: [f64; 3], whites: f32, blacks: f32) -> [f64; 3] {
 }
 
 fn highlights_shadows(rgb: [f64; 3], highlights: f32, shadows: f32) -> [f64; 3] {
-    if highlights == 0.0 && shadows == 0.0 {
+    let rgb = masked_tonal_gain(rgb, shadows, |tone| 1.0 - smoothstep(0.10, 0.65, tone));
+    masked_tonal_gain(rgb, highlights, |tone| smoothstep(0.35, 0.90, tone))
+}
+
+// Shadows and highlights are applied sequentially: each masked gain is a
+// monotone map of luminance on its own, so their composition cannot reorder
+// tones, while summing both EV terms in one step can turn the combined slope
+// negative and invert highlights against lifted shadows.
+fn masked_tonal_gain(rgb: [f64; 3], amount: f32, mask: impl Fn(f64) -> f64) -> [f64; 3] {
+    if amount == 0.0 {
         return rgb;
     }
     let old_luminance = luminance(rgb);
     if old_luminance <= LUMA_EPSILON {
         return rgb;
     }
-    let tone = tonal_coordinate(old_luminance);
-    let shadow_mask = 1.0 - smoothstep(0.10, 0.65, tone);
-    let highlight_mask = smoothstep(0.35, 0.90, tone);
-    let ev = 2.0 * f64::from(shadows) / 100.0 * shadow_mask
-        + 2.0 * f64::from(highlights) / 100.0 * highlight_mask;
+    let ev = 2.0 * f64::from(amount) / 100.0 * mask(tonal_coordinate(old_luminance));
     with_luminance(rgb, old_luminance, old_luminance * ev.exp2())
 }
 
