@@ -149,3 +149,10 @@ source distributions.
 The GUI bundles three icons (edit, presets, info) from Feather Icons,
 Copyright (c) 2013-2023 Cole Bemis, under the MIT license. The complete
 MIT terms are reproduced in the rust-lcms2 section above.
+
+The history icon is from Lucide, Copyright (c) 2020-2024 Lucide
+Contributors, under the ISC license: permission to use, copy, modify,
+and/or distribute this software for any purpose with or without fee is
+hereby granted, provided that the above copyright notice and this
+permission notice appear in all copies. THE SOFTWARE IS PROVIDED "AS IS"
+AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE.

@@ -821,7 +821,7 @@ ApplicationWindow {
                             GridLayout {
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                columns: 3
+                                columns: 4
                                 rows: 1
                                 rowSpacing: 1
                                 columnSpacing: 1
@@ -846,6 +846,18 @@ ApplicationWindow {
                                     selected: window.selectedPanel === 1
                                     onClicked: window.selectPanel(1)
                                     Accessible.name: "Presets · 2"
+                                }
+
+                                ToolTabButton {
+                                    theme: window
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    enabled: false
+                                    opacity: 0.45
+                                    iconSource: "qrc:/icons/history.svg"
+                                    label: "History (bald)"
+                                    selected: false
+                                    Accessible.name: "History"
                                 }
 
                                 ToolTabButton {

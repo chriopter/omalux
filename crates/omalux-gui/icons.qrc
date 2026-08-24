@@ -4,5 +4,6 @@
     <file alias="edit.svg">qml/icons/edit.svg</file>
     <file alias="presets.svg">qml/icons/presets.svg</file>
     <file alias="info.svg">qml/icons/info.svg</file>
+    <file alias="history.svg">qml/icons/history.svg</file>
   </qresource>
 </RCC>
