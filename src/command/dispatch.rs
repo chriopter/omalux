@@ -243,6 +243,8 @@ fn validate_develop(
         UnprofiledArg::AssumeSrgb => UnprofiledPolicy::AssumeSrgbAndWarn,
         UnprofiledArg::Reject => UnprofiledPolicy::Reject,
     };
+    decode.proxy_long_edge = arguments.long_edge;
+    decode.raw.decode_cache = arguments.raw_decode_cache.clone();
     decode.raw.auto_tone = match arguments.raw_tone {
         crate::command::args::RawToneArg::Auto => true,
         crate::command::args::RawToneArg::Linear => false,

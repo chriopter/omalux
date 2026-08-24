@@ -410,7 +410,7 @@ pub enum WhiteBalancePolicy {
     Daylight,
     Explicit([f32; 4]),
 }
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RawDecodeOptions {
     pub white_balance: WhiteBalancePolicy,
@@ -418,6 +418,9 @@ pub struct RawDecodeOptions {
     /// Apply the versioned RAW auto-tone (auto exposure plus base tone)
     /// after decode so RAW sources respond comparably to raster sources.
     pub auto_tone: bool,
+    /// Reuse identical decoder output from this directory, keyed by source
+    /// digest and decode parameters. `None` disables caching.
+    pub decode_cache: Option<std::path::PathBuf>,
 }
 impl Default for RawDecodeOptions {
     fn default() -> Self {
@@ -425,15 +428,20 @@ impl Default for RawDecodeOptions {
             white_balance: WhiteBalancePolicy::CameraThenDaylight,
             apply_orientation: true,
             auto_tone: true,
+            decode_cache: None,
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DecodeOptions {
     pub limits: ResourceLimits,
     pub unprofiled: UnprofiledPolicy,
     pub raw: RawDecodeOptions,
+    /// Downscale the decoded image so its long edge does not exceed this
+    /// value before developing. Intended for fast proxy exports; `None`
+    /// keeps the full decoded resolution.
+    pub proxy_long_edge: Option<u32>,
 }
 impl Default for DecodeOptions {
     fn default() -> Self {
@@ -441,6 +449,7 @@ impl Default for DecodeOptions {
             limits: Default::default(),
             unprofiled: UnprofiledPolicy::AssumeSrgbAndWarn,
             raw: Default::default(),
+            proxy_long_edge: None,
         }
     }
 }

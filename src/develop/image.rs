@@ -114,6 +114,60 @@ impl CpuImage {
         &mut self.pixels
     }
 
+    /// Area-average downscale so the long edge does not exceed `long_edge`.
+    /// Returns a clone-free `None` when the image is already small enough.
+    /// Straight alpha is averaged like the color channels; exact coverage
+    /// weights keep the result deterministic and alias-free for reductions.
+    pub fn downscaled_to_long_edge(&self, long_edge: u32) -> Result<Option<Self>, ImageError> {
+        let source_long = self.width.max(self.height);
+        if long_edge == 0 || source_long <= long_edge {
+            return Ok(None);
+        }
+        let scale = f64::from(long_edge) / f64::from(source_long);
+        let target_width = ((f64::from(self.width) * scale).round() as u32).max(1);
+        let target_height = ((f64::from(self.height) * scale).round() as u32).max(1);
+        let x_ratio = f64::from(self.width) / f64::from(target_width);
+        let y_ratio = f64::from(self.height) / f64::from(target_height);
+        let mut pixels = Vec::with_capacity((target_width as usize) * (target_height as usize));
+        for target_y in 0..target_height {
+            let y0 = f64::from(target_y) * y_ratio;
+            let y1 = f64::from(target_y + 1) * y_ratio;
+            for target_x in 0..target_width {
+                let x0 = f64::from(target_x) * x_ratio;
+                let x1 = f64::from(target_x + 1) * x_ratio;
+                let mut sum = [0.0_f64; 4];
+                let mut weight_sum = 0.0_f64;
+                let mut source_y = y0.floor() as usize;
+                while (source_y as f64) < y1 && source_y < self.height as usize {
+                    let row_weight =
+                        (y1.min((source_y + 1) as f64) - y0.max(source_y as f64)).max(0.0);
+                    let mut source_x = x0.floor() as usize;
+                    while (source_x as f64) < x1 && source_x < self.width as usize {
+                        let column_weight =
+                            (x1.min((source_x + 1) as f64) - x0.max(source_x as f64)).max(0.0);
+                        let weight = row_weight * column_weight;
+                        let pixel = &self.pixels[source_y * self.width as usize + source_x];
+                        sum[0] += weight * f64::from(pixel.red);
+                        sum[1] += weight * f64::from(pixel.green);
+                        sum[2] += weight * f64::from(pixel.blue);
+                        sum[3] += weight * f64::from(pixel.alpha);
+                        weight_sum += weight;
+                        source_x += 1;
+                    }
+                    source_y += 1;
+                }
+                let n = weight_sum.max(1.0e-12);
+                pixels.push(RgbaPixel {
+                    red: (sum[0] / n) as f32,
+                    green: (sum[1] / n) as f32,
+                    blue: (sum[2] / n) as f32,
+                    alpha: ((sum[3] / n) as f32).clamp(0.0, 1.0),
+                });
+            }
+        }
+        Self::new(target_width, target_height, pixels).map(Some)
+    }
+
     /// Defensively verifies render buffers at pipeline boundaries. Stages may
     /// use crate-private channel access for performance, so non-finite output
     /// is rejected before it can be committed to a caller-visible image.

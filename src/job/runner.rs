@@ -85,6 +85,25 @@ impl DevelopJobRunner {
                 };
                 DevelopJobFailure::new(JobStage::Decode, code, report.clone())
             })?;
+        let mut artifact = artifact;
+        if let Some(long_edge) = job.decode.proxy_long_edge {
+            let image = match &mut artifact {
+                DecodedArtifact::Scene(value) => value.image_mut(),
+                DecodedArtifact::Display(value) => value.image_mut(),
+            };
+            match image.downscaled_to_long_edge(long_edge) {
+                Ok(Some(reduced)) => *image = reduced,
+                Ok(None) => {}
+                Err(_) => {
+                    return Err(DevelopJobFailure::new(
+                        JobStage::Decode,
+                        JobErrorCode::InvalidOptions,
+                        report,
+                    ));
+                }
+            }
+        }
+        let artifact = artifact;
         let digest = match &artifact {
             DecodedArtifact::Scene(value) => value.source_digest(),
             DecodedArtifact::Display(value) => value.source_digest(),

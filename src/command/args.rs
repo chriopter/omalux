@@ -106,6 +106,15 @@ pub(crate) struct DevelopArgs {
     #[arg(long, value_name = "BYTES")]
     pub(crate) max_output_bytes: Option<u64>,
 
+    /// Downscale the decoded image to this long edge before developing
+    /// (fast proxy export); full resolution when omitted.
+    #[arg(long, value_name = "PIXELS", value_parser = clap::value_parser!(u32).range(16..=65535))]
+    pub(crate) long_edge: Option<u32>,
+
+    /// Directory for reusable RAW decoder output keyed by source digest.
+    #[arg(long, value_name = "DIR")]
+    pub(crate) raw_decode_cache: Option<std::path::PathBuf>,
+
     /// Automatic exposure and base tone for camera RAW sources.
     #[arg(long, value_enum, default_value_t = RawToneArg::Auto)]
     pub(crate) raw_tone: RawToneArg,
