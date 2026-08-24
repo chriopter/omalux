@@ -2,6 +2,8 @@
 
 ![Omalux — RAW photo developer](docs/assets/screenshot.png)
 
+> **Status:** Currently polishing UI & Presets. ETA 10 days.
+
 A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
 
