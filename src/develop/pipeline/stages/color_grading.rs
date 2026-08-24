@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::develop::{
     CpuImage, DevelopStage, PipelineError,
     color::{
@@ -83,7 +85,7 @@ pub(super) fn apply(
     if prepared.neutral {
         return Ok(());
     }
-    for pixel in image.pixels_mut() {
+    image.pixels_mut().par_iter_mut().try_for_each(|pixel| {
         let adjusted = prepared
             .apply([pixel.red, pixel.green, pixel.blue])
             .map_err(|error| PipelineError::NumericFailure {
@@ -93,8 +95,8 @@ pub(super) fn apply(
         pixel.red = adjusted[0];
         pixel.green = adjusted[1];
         pixel.blue = adjusted[2];
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn grade_weights(lightness: f32, balance: f32, transition_width: f32) -> [f32; 3] {

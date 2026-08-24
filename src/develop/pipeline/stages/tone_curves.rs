@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::develop::{
     CpuImage, PipelineError,
     settings::{ToneCurve, ToneCurvesSettings},
@@ -30,7 +32,7 @@ pub(super) fn apply(
     let green = PreparedCurve::try_new(&settings.green)?;
     let blue = PreparedCurve::try_new(&settings.blue)?;
 
-    for pixel in image.pixels_mut() {
+    image.pixels_mut().par_iter_mut().for_each(|pixel| {
         let mut rgb = [
             f64::from(pixel.red),
             f64::from(pixel.green),
@@ -51,7 +53,7 @@ pub(super) fn apply(
         pixel.red = rgb[0] as f32;
         pixel.green = rgb[1] as f32;
         pixel.blue = rgb[2] as f32;
-    }
+    });
     Ok(())
 }
 

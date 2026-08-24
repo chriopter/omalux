@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::develop::{
     CpuImage, PipelineError, RgbaPixel,
     settings::{BasicsSettings, LocalAdjustments},
@@ -23,18 +25,21 @@ pub(super) fn apply(image: &mut CpuImage, settings: &BasicsSettings) -> Result<(
 
     let prepared = PreparedBasics::from_settings(settings);
     if settings.clarity == 0.0 {
-        for pixel in image.pixels_mut() {
-            prepared.apply_pixel(pixel);
-        }
+        image
+            .pixels_mut()
+            .par_iter_mut()
+            .for_each(|pixel| prepared.apply_pixel(pixel));
         return Ok(());
     }
-    for pixel in image.pixels_mut() {
-        prepared.apply_pre_clarity(pixel);
-    }
+    image
+        .pixels_mut()
+        .par_iter_mut()
+        .for_each(|pixel| prepared.apply_pre_clarity(pixel));
     clarity::apply(image, settings.clarity)?;
-    for pixel in image.pixels_mut() {
-        prepared.apply_post_clarity(pixel);
-    }
+    image
+        .pixels_mut()
+        .par_iter_mut()
+        .for_each(|pixel| prepared.apply_post_clarity(pixel));
     Ok(())
 }
 

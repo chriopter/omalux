@@ -9,8 +9,9 @@ use omalux::{
         SdrRangePolicy, SourceFileIdentity, write_atomic_output_for_source,
     },
     job::{
-        CancellationToken, DevelopJob, DevelopJobFailure, DevelopJobReport, DevelopJobRunner,
-        DevelopOutput, NoProgress, PresetSelection, ProductionPhotoDecoder, ProductionPhotoEncoder,
+        CancellationToken, DecodedSource, DevelopJob, DevelopJobFailure, DevelopJobReport,
+        DevelopJobRunner, DevelopOutput, NoProgress, PhotoDecoder, PresetSelection,
+        ProductionPhotoDecoder, ProductionPhotoEncoder,
     },
 };
 use serde_json::json;
@@ -140,6 +141,7 @@ pub(super) fn develop_preview(
         88,
         preview_limits(),
         OverwritePolicy::Forbid,
+        Some(PREVIEW_LONG_EDGE),
         cancellation,
     )?;
     Ok(PreviewArtifact {
@@ -165,6 +167,7 @@ pub(super) fn export_photo(
         quality,
         ResourceLimits::default(),
         OverwritePolicy::Replace,
+        None,
         cancellation,
     )
 }
@@ -226,11 +229,68 @@ fn copy_held_file(source: &File, size: u64, output: &mut File) -> io::Result<()>
     Ok(())
 }
 
+/// Interactive previews develop a bounded proxy so slider feedback stays
+/// far below perceptual latency; exports keep full resolution.
+const PREVIEW_LONG_EDGE: u32 = 2048;
+
 fn preview_limits() -> ResourceLimits {
-    // The preview is still full resolution until the core gains an audited
-    // downsampling decode profile, but its artifact is strictly capped and
-    // every decode/develop allocation remains core-bounded.
     ResourceLimits::default().with_max_output_bytes(64 << 20)
+}
+
+/// Decoder that memoizes the downscaled decode of the most recent source so
+/// interactive slider changes re-run only the develop stages, never the
+/// multi-second full decode. The cache key covers path, size, and mtime; the
+/// runner's own proxy step becomes a no-op on the already reduced image.
+struct CachingProxyDecoder {
+    inner: ProductionPhotoDecoder,
+    long_edge: u32,
+}
+
+type ProxyCacheKey = (std::path::PathBuf, u64, Option<std::time::SystemTime>, u32);
+static PROXY_CACHE: std::sync::Mutex<Option<(ProxyCacheKey, omalux::io::DecodedPhoto)>> =
+    std::sync::Mutex::new(None);
+
+impl PhotoDecoder for CachingProxyDecoder {
+    type Error = <ProductionPhotoDecoder as PhotoDecoder>::Error;
+
+    fn decode_path_once(
+        &self,
+        input: &Path,
+        options: &DecodeOptions,
+        cancellation: &CancellationToken,
+    ) -> Result<DecodedSource, Self::Error> {
+        let metadata = std::fs::metadata(input).ok();
+        let key: ProxyCacheKey = (
+            input.to_owned(),
+            metadata.as_ref().map(|m| m.len()).unwrap_or(0),
+            metadata.and_then(|m| m.modified().ok()),
+            self.long_edge,
+        );
+        if let Some((cached_key, photo)) = PROXY_CACHE.lock().unwrap().as_ref()
+            && *cached_key == key
+            && let Ok(file) = std::fs::File::open(input)
+            && let Ok(source) = DecodedSource::from_held_file(photo.clone(), file)
+        {
+            return Ok(source);
+        }
+        let mut decoded = self.inner.decode_path_once(input, options, cancellation)?;
+        decoded
+            .photo
+            .downscale_to_long_edge(self.long_edge)
+            .map_err(|_| omalux::io::DecodeError::CorruptInput)?;
+        *PROXY_CACHE.lock().unwrap() = Some((key, decoded.photo.clone()));
+        Ok(decoded)
+    }
+}
+
+fn preview_raw_cache() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| Path::new(&home).join(".cache")))?;
+    let directory = base.join("omalux").join("raw-decode");
+    std::fs::create_dir_all(&directory).ok()?;
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).ok();
+    Some(directory)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -242,12 +302,17 @@ fn run_job(
     quality: u8,
     limits: ResourceLimits,
     overwrite: OverwritePolicy,
+    proxy_long_edge: Option<u32>,
     cancellation: &CancellationToken,
 ) -> Result<DevelopJobReport, GuiJobError> {
     let catalog = PresetCatalog::built_in()
         .map_err(|error| GuiJobError::Setup(format!("Built-in preset catalog failed: {error}")))?;
     let mut decode = DecodeOptions::default();
     decode.limits = limits;
+    decode.proxy_long_edge = proxy_long_edge;
+    if proxy_long_edge.is_some() {
+        decode.raw.decode_cache = preview_raw_cache();
+    }
     let job = DevelopJob {
         input: source.to_owned(),
         output: destination.to_owned(),
@@ -268,15 +333,28 @@ fn run_job(
         )),
         overrides: Vec::new(),
     };
-    DevelopJobRunner::new(catalog)
-        .run(
+    let runner = DevelopJobRunner::new(catalog);
+    let encoder = ProductionPhotoEncoder::new(limits);
+    let outcome = match proxy_long_edge {
+        Some(long_edge) => runner.run(
             &job,
-            &ProductionPhotoDecoder::new(),
-            &ProductionPhotoEncoder::new(limits),
+            &CachingProxyDecoder {
+                inner: ProductionPhotoDecoder::new(),
+                long_edge,
+            },
+            &encoder,
             cancellation,
             &mut NoProgress,
-        )
-        .map_err(GuiJobError::Develop)
+        ),
+        None => runner.run(
+            &job,
+            &ProductionPhotoDecoder::new(),
+            &encoder,
+            cancellation,
+            &mut NoProgress,
+        ),
+    };
+    outcome.map_err(GuiJobError::Develop)
 }
 
 #[cfg(test)]

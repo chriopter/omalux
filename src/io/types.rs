@@ -359,6 +359,16 @@ impl DecodedPhoto {
     pub fn image(&self) -> &CpuImage {
         &self.image
     }
+
+    /// Area-average downscale of the decoded pixels so the long edge does
+    /// not exceed `long_edge`; a no-op when the image is already smaller.
+    pub fn downscale_to_long_edge(&mut self, long_edge: u32) -> Result<(), ImageError> {
+        if let Some(reduced) = self.image.downscaled_to_long_edge(long_edge)? {
+            self.image = reduced;
+        }
+        Ok(())
+    }
+
     pub fn metadata(&self) -> &MetadataBundle {
         &self.metadata
     }
