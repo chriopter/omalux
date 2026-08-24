@@ -243,6 +243,10 @@ fn validate_develop(
         UnprofiledArg::AssumeSrgb => UnprofiledPolicy::AssumeSrgbAndWarn,
         UnprofiledArg::Reject => UnprofiledPolicy::Reject,
     };
+    decode.raw.auto_tone = match arguments.raw_tone {
+        crate::command::args::RawToneArg::Auto => true,
+        crate::command::args::RawToneArg::Linear => false,
+    };
     let alpha = match arguments.alpha {
         AlphaArg::Reject => AlphaPolicy::Reject,
         AlphaArg::FlattenBlack => AlphaPolicy::Flatten([0.0; 3]),

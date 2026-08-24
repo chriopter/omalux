@@ -1,6 +1,7 @@
 //! Full-resolution RAW Phase-A decoding through the installed LibRaw
 //! `dcraw_emu` compatibility executable.
 
+mod auto_tone;
 mod ppm;
 mod process;
 mod stage;
@@ -80,7 +81,11 @@ fn decode_staged(
         execution,
         cancellation,
     )?;
-    let image = ppm::parse_ppm16(staged.open_output()?, &options.limits, cancellation.flag())?;
+    let mut image = ppm::parse_ppm16(staged.open_output()?, &options.limits, cancellation.flag())?;
+    if options.raw.auto_tone {
+        auto_tone::apply(&mut image);
+    }
+    let image = image;
     let (white_balance, mut diagnostics) = match options.raw.white_balance {
         WhiteBalancePolicy::CameraThenDaylight => (
             WhiteBalanceProvenance::Unknown,

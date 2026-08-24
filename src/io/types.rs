@@ -415,12 +415,16 @@ pub enum WhiteBalancePolicy {
 pub struct RawDecodeOptions {
     pub white_balance: WhiteBalancePolicy,
     pub apply_orientation: bool,
+    /// Apply the versioned RAW auto-tone (auto exposure plus base tone)
+    /// after decode so RAW sources respond comparably to raster sources.
+    pub auto_tone: bool,
 }
 impl Default for RawDecodeOptions {
     fn default() -> Self {
         Self {
             white_balance: WhiteBalancePolicy::CameraThenDaylight,
             apply_orientation: true,
+            auto_tone: true,
         }
     }
 }

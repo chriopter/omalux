@@ -105,6 +105,18 @@ pub(crate) struct DevelopArgs {
     /// Maximum encoded output bytes accepted.
     #[arg(long, value_name = "BYTES")]
     pub(crate) max_output_bytes: Option<u64>,
+
+    /// Automatic exposure and base tone for camera RAW sources.
+    #[arg(long, value_enum, default_value_t = RawToneArg::Auto)]
+    pub(crate) raw_tone: RawToneArg,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(crate) enum RawToneArg {
+    /// Anchor bright content and lift shadows with the versioned auto-tone.
+    Auto,
+    /// Keep the decoded scene-linear values unchanged.
+    Linear,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
