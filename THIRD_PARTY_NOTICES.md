@@ -143,3 +143,9 @@ raster-codec dependency notice. Omalux selects the MIT option wherever it
 is offered; the complete MIT terms are reproduced in the rust-lcms2 section
 above. Alternative Apache-2.0 and Zlib terms remain in the published crate
 source distributions.
+
+## Feather Icons
+
+The GUI bundles three icons (edit, presets, info) from Feather Icons,
+Copyright (c) 2013-2023 Cole Bemis, under the MIT license. The complete
+MIT terms are reproduced in the rust-lcms2 section above.

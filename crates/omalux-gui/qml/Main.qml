@@ -830,7 +830,7 @@ ApplicationWindow {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    symbol: "≡"
+                                    iconSource: "qrc:/icons/edit.svg"
                                     label: "Edit"
                                     selected: window.selectedPanel === 0
                                     onClicked: window.selectPanel(0)
@@ -841,7 +841,7 @@ ApplicationWindow {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    symbol: "◆"
+                                    iconSource: "qrc:/icons/presets.svg"
                                     label: "Presets"
                                     selected: window.selectedPanel === 1
                                     onClicked: window.selectPanel(1)
@@ -852,7 +852,7 @@ ApplicationWindow {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    symbol: "ⓘ"
+                                    iconSource: "qrc:/icons/info.svg"
                                     label: "Meta"
                                     selected: window.selectedPanel === 2
                                     onClicked: window.selectPanel(2)

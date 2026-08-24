@@ -12,6 +12,7 @@ fn main() {
     ]);
 
     CxxQtBuilder::new_qml_module(qml_module)
+        .qrc("icons.qrc")
         .include_dir("src/backend")
         .qt_module("Gui")
         .qt_module("Network")

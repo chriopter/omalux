@@ -5,36 +5,23 @@ Button {
     id: control
 
     required property var theme
-    required property string symbol
+    required property url iconSource
     required property string label
     property bool selected: false
 
-    implicitWidth: 84
-    implicitHeight: 26
+    implicitWidth: 56
+    implicitHeight: 30
     activeFocusOnTab: false
+    display: AbstractButton.IconOnly
+    icon.source: control.iconSource
+    icon.width: 16
+    icon.height: 16
+    icon.color: control.selected ? control.theme.accentColor : control.theme.mutedColor
+    Accessible.name: control.label
 
-    contentItem: Row {
-        anchors.centerIn: parent
-        spacing: 6
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: control.symbol
-            color: control.selected ? control.theme.accentColor : control.theme.mutedColor
-            font.family: control.theme.monoFont
-            font.pixelSize: 12
-        }
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: control.label.toUpperCase()
-            color: control.selected ? control.theme.inkColor : control.theme.mutedColor
-            font.family: control.theme.monoFont
-            font.pixelSize: 12
-            font.bold: true
-            font.letterSpacing: 0.4
-        }
-    }
+    ToolTip.visible: hovered
+    ToolTip.delay: 500
+    ToolTip.text: control.label
 
     background: Rectangle {
         color: control.selected ? control.theme.selectionColor
