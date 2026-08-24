@@ -1,5 +1,7 @@
 # Omalux
 
+![Omalux — RAW photo developer](docs/assets/screenshot.png)
+
 A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
 
