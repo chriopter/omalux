@@ -813,7 +813,7 @@ ApplicationWindow {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 69
+                            Layout.preferredHeight: 24
                             color: window.lineColor
                             border.width: 1
                             border.color: window.lineColor

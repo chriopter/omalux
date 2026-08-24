@@ -10,12 +10,12 @@ Button {
     property bool selected: false
 
     implicitWidth: 56
-    implicitHeight: 30
+    implicitHeight: 22
     activeFocusOnTab: false
     display: AbstractButton.IconOnly
     icon.source: control.iconSource
-    icon.width: 16
-    icon.height: 16
+    icon.width: 14
+    icon.height: 14
     icon.color: control.selected ? control.theme.accentColor : control.theme.mutedColor
     Accessible.name: control.label
 
