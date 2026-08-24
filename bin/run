@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Build and launch the development GUI; arguments pass through
+# (e.g. bin/run --input photo.jpg). Use `cargo run -p omalux -- develop …`
+# directly for the headless CLI.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec cargo run --release -p omalux-gui -- "$@"

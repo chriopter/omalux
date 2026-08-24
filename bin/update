@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Update all Cargo dependencies to the newest versions the manifests allow,
+# then rebuild and test the workspace.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+cargo update
+cargo build --release --workspace
+cargo test --workspace
