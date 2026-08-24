@@ -83,6 +83,7 @@ pub fn probe_dcraw_emu() -> RawCapability {
 pub(super) fn run_dcraw(
     staged: &StagedRaw,
     white_balance: WhiteBalancePolicy,
+    half_size: bool,
     limits: &ResourceLimits,
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
@@ -91,7 +92,12 @@ pub(super) fn run_dcraw(
     if cancellation.cancelled() {
         return Err(DecodeError::Cancelled);
     }
-    let args = dcraw_args(&staged.input_path(), &staged.output_path(), white_balance);
+    let args = dcraw_args(
+        &staged.input_path(),
+        &staged.output_path(),
+        white_balance,
+        half_size,
+    );
     let file_limit = limits
         .max_decoded_bytes
         .checked_add(64 * 1024)
@@ -343,8 +349,13 @@ fn dcraw_args(
     input: &str,
     output: &str,
     white_balance: WhiteBalancePolicy,
+    half_size: bool,
 ) -> Vec<std::ffi::OsString> {
     let mut args = Vec::new();
+    if half_size {
+        // Proxy decodes skip demosaic detail the downscale would discard.
+        args.push("-h".into());
+    }
     match white_balance {
         WhiteBalancePolicy::CameraThenDaylight => args.push("-w".into()),
         WhiteBalancePolicy::Daylight => {}
@@ -447,6 +458,7 @@ mod tests {
             "/proc/self/fd/9/in.nef",
             "/proc/self/fd/9/out.ppm",
             WhiteBalancePolicy::CameraThenDaylight,
+            false,
         );
         let s = a.iter().map(|x| x.to_string_lossy()).collect::<Vec<_>>();
         assert_eq!(
@@ -486,6 +498,7 @@ mod tests {
             run_dcraw(
                 &staged,
                 WhiteBalancePolicy::Daylight,
+                false,
                 &ResourceLimits::default(),
                 &o,
                 &RawCancellation::default()
@@ -506,6 +519,7 @@ mod tests {
         run_dcraw(
             &staged,
             WhiteBalancePolicy::Daylight,
+            false,
             &ResourceLimits::default(),
             &o,
             &RawCancellation::default(),
@@ -529,6 +543,7 @@ mod tests {
         run_dcraw(
             &staged,
             WhiteBalancePolicy::Daylight,
+            false,
             &ResourceLimits::default(),
             &RawExecutionOptions::new(exe).unwrap(),
             &RawCancellation::default(),
@@ -559,6 +574,7 @@ mod tests {
             run_dcraw(
                 &staged,
                 WhiteBalancePolicy::Daylight,
+                false,
                 &ResourceLimits::default(),
                 &o,
                 &c
@@ -579,6 +595,7 @@ mod tests {
             run_dcraw(
                 &staged,
                 WhiteBalancePolicy::Daylight,
+                false,
                 &ResourceLimits::default(),
                 &o,
                 &RawCancellation::default()
@@ -595,6 +612,7 @@ mod tests {
             run_dcraw(
                 &staged,
                 WhiteBalancePolicy::Daylight,
+                false,
                 &ResourceLimits::default(),
                 &RawExecutionOptions::new(exe).unwrap(),
                 &RawCancellation::default()
@@ -618,6 +636,7 @@ mod tests {
             run_dcraw(
                 &staged,
                 WhiteBalancePolicy::Daylight,
+                false,
                 &limits,
                 &RawExecutionOptions::new(exe).unwrap(),
                 &RawCancellation::default()
@@ -648,6 +667,7 @@ mod tests {
         run_dcraw(
             &staged,
             WhiteBalancePolicy::Daylight,
+            false,
             &ResourceLimits::default(),
             &RawExecutionOptions::new(exe).unwrap(),
             &RawCancellation::default(),

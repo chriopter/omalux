@@ -74,14 +74,63 @@ fn decode_staged(
     execution: &RawExecutionOptions,
     cancellation: &RawCancellation,
 ) -> Result<(DecodedPhoto, SourceFileIdentity), DecodeError> {
-    process::run_dcraw(
-        &staged,
-        options.raw.white_balance,
-        &options.limits,
-        execution,
-        cancellation,
-    )?;
-    let mut image = ppm::parse_ppm16(staged.open_output()?, &options.limits, cancellation.flag())?;
+    let half_size = options.proxy_long_edge.is_some_and(|edge| edge <= 4096);
+    let cache_path = options.raw.decode_cache.as_ref().map(|directory| {
+        let mut digest_hex = String::with_capacity(64);
+        for byte in staged.digest.as_bytes() {
+            use std::fmt::Write;
+            let _ = write!(digest_hex, "{byte:02x}");
+        }
+        let policy = match options.raw.white_balance {
+            WhiteBalancePolicy::CameraThenDaylight => "cam".to_string(),
+            WhiteBalancePolicy::Daylight => "day".to_string(),
+            WhiteBalancePolicy::Explicit(values) => {
+                let mut tag = String::from("exp");
+                for value in values {
+                    use std::fmt::Write;
+                    let _ = write!(tag, "-{}", value.to_bits());
+                }
+                tag
+            }
+        };
+        directory.join(format!(
+            "{digest_hex}-{policy}-h{}.ppm",
+            u8::from(half_size)
+        ))
+    });
+    let mut cached_image = None;
+    if let Some(path) = &cache_path
+        && let Ok(file) = File::open(path)
+    {
+        match ppm::parse_ppm16(file, &options.limits, cancellation.flag()) {
+            Ok(image) => cached_image = Some(image),
+            Err(_) => {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+    let mut image = match cached_image {
+        Some(image) => image,
+        None => {
+            process::run_dcraw(
+                &staged,
+                options.raw.white_balance,
+                half_size,
+                &options.limits,
+                execution,
+                cancellation,
+            )?;
+            let image =
+                ppm::parse_ppm16(staged.open_output()?, &options.limits, cancellation.flag())?;
+            if let Some(path) = &cache_path {
+                let temp = path.with_extension("ppm.tmp");
+                if std::fs::copy(staged.output_path(), &temp).is_ok() {
+                    let _ = std::fs::rename(&temp, path);
+                }
+            }
+            image
+        }
+    };
     if options.raw.auto_tone {
         auto_tone::apply(&mut image);
     }
