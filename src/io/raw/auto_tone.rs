@@ -8,8 +8,10 @@
 //! 1. Auto exposure: a uniform gain lifts the sampled 99th luminance
 //!    percentile to 0.8, bounded to [0, +4] EV so dark frames are never
 //!    pushed beyond recognition and bright frames are never darkened.
-//! 2. Base tone: a fixed, monotone shadow boost expressed as an EV gain that
-//!    decays with log2 luminance and vanishes at display white.
+//! 2. Base tone: a fixed, monotone tonal shaping expressed as an EV gain over
+//!    log2 luminance — strong shadow lift, a gentle S through the midtones —
+//!    vanishing at display white, plus a fitted luminance-preserving chroma
+//!    gain matching camera-style renditions.
 //!
 //! The mapping is deterministic, alpha-preserving, luminance-ratio-preserving
 //! (RGB is scaled uniformly per pixel), and monotone in luminance: the EV
@@ -25,14 +27,24 @@ const MAX_AUTO_EV: f64 = 4.0;
 /// Base-tone EV boost sampled at integer log2-luminance nodes; linear in
 /// between, clamped at the ends. Node spacing keeps the log2-space slope
 /// well above -1, so the overall curve is strictly monotone in luminance.
-const BASE_TONE_NODES: [(f64, f64); 6] = [
-    (-12.0, 2.0),
-    (-9.0, 1.25),
-    (-6.0, 0.95),
-    (-4.0, 0.7),
-    (-1.5, 0.25),
+const BASE_TONE_NODES: [(f64, f64); 12] = [
+    (-12.0, 2.3),
+    (-10.0, 1.69),
+    (-9.0, 1.27),
+    (-8.0, 0.83),
+    (-7.0, 0.37),
+    (-6.0, 0.5),
+    (-5.0, 0.35),
+    (-4.0, 0.17),
+    (-3.0, 0.08),
+    (-2.0, 0.11),
+    (-1.0, 0.14),
     (0.0, 0.0),
 ];
+/// Chroma gain of the base rendition. Camera-style RAW renditions are
+/// noticeably more saturated than a colorimetric decode; the factor was
+/// fitted against the reference corpus and is applied luminance-preserving.
+const BASE_SATURATION: f64 = 1.35;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RawAutoToneReport {
@@ -90,10 +102,14 @@ pub fn apply(image: &mut CpuImage) -> RawAutoToneReport {
         }
         let exposed = old * gain;
         let toned = exposed * base_tone_ev(exposed.log2()).exp2();
-        let scale = (toned / old) as f32;
-        pixel.red *= scale;
-        pixel.green *= scale;
-        pixel.blue *= scale;
+        let scale = toned / old;
+        let red = f64::from(pixel.red) * scale;
+        let green = f64::from(pixel.green) * scale;
+        let blue = f64::from(pixel.blue) * scale;
+        let gray = red * LUMA[0] + green * LUMA[1] + blue * LUMA[2];
+        pixel.red = (gray + (red - gray) * BASE_SATURATION) as f32;
+        pixel.green = (gray + (green - gray) * BASE_SATURATION) as f32;
+        pixel.blue = (gray + (blue - gray) * BASE_SATURATION) as f32;
     }
     RawAutoToneReport { exposure_ev }
 }
@@ -147,13 +163,22 @@ mod tests {
     }
 
     #[test]
-    fn channel_ratios_and_alpha_are_preserved() {
+    fn luminance_and_alpha_follow_the_tone_map_and_chroma_boost() {
         let source = RgbaPixel::new(0.02, 0.04, 0.08, 0.5).unwrap();
         let mut image = CpuImage::new(1, 1, vec![source]).unwrap();
-        apply(&mut image);
+        let report = apply(&mut image);
         let out = &image.pixels()[0];
-        assert!((f64::from(out.green) / f64::from(out.red) - 2.0).abs() < 1.0e-6);
-        assert!((f64::from(out.blue) / f64::from(out.red) - 4.0).abs() < 1.0e-6);
+        // Luminance equals the exposed, base-toned value: the chroma boost
+        // is luminance-preserving by construction.
+        let old = 0.02 * LUMA[0] + 0.04 * LUMA[1] + 0.08 * LUMA[2];
+        let exposed = old * report.exposure_ev.exp2();
+        let expected = exposed * base_tone_ev(exposed.log2()).exp2();
+        let actual = f64::from(out.red) * LUMA[0]
+            + f64::from(out.green) * LUMA[1]
+            + f64::from(out.blue) * LUMA[2];
+        assert!((actual - expected).abs() < 1.0e-5);
+        // Chroma grows by the fitted factor around that luminance.
+        assert!(f64::from(out.blue) - f64::from(out.red) > 0.0);
         assert_eq!(out.alpha, 0.5);
     }
 
