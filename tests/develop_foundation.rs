@@ -25,7 +25,7 @@ fn validation_covers_every_settings_family() {
     );
 
     settings = DevelopSettings::default();
-    settings.basics.brightness = 101.0;
+    settings.basics.brightness = 301.0;
     assert_eq!(settings.validate().unwrap_err().path(), "basics.brightness");
 
     settings = DevelopSettings::default();

@@ -233,29 +233,37 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         "Exposure",
         Basics,
         Stops,
-        (-4.0, 4.0),
+        (-5.0, 5.0),
         0.0,
         0.1,
     ));
-    for name in [
-        "brightness",
-        "contrast",
-        "clarity",
-        "highlights",
-        "shadows",
-        "whites",
-        "blacks",
-        "saturation",
-        "vibrance",
-        "temperature",
-        "tint",
+    definitions.push(ParameterDefinition::scalar(
+        "basics.brightness",
+        "Brightness",
+        Basics,
+        Percent,
+        (-300.0, 300.0),
+        0.0,
+        1.0,
+    ));
+    for (name, range) in [
+        ("contrast", (-200.0, 200.0)),
+        ("clarity", (-200.0, 200.0)),
+        ("highlights", (-150.0, 150.0)),
+        ("shadows", (-150.0, 150.0)),
+        ("whites", (-150.0, 150.0)),
+        ("blacks", (-150.0, 150.0)),
+        ("saturation", (-100.0, 200.0)),
+        ("vibrance", (-100.0, 200.0)),
+        ("temperature", (-150.0, 150.0)),
+        ("tint", (-150.0, 150.0)),
     ] {
         definitions.push(ParameterDefinition::scalar(
             format!("basics.{name}"),
             title(name),
             Basics,
             Percent,
-            (-100.0, 100.0),
+            range,
             0.0,
             1.0,
         ));
@@ -280,13 +288,16 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             0.0,
             1.0,
         ));
-        for component in ["saturation", "luminance"] {
+        for (component, range) in [
+            ("saturation", (-100.0, 200.0)),
+            ("luminance", (-150.0, 150.0)),
+        ] {
             definitions.push(ParameterDefinition::scalar(
                 format!("color_mixer.{band}.{component}"),
                 format!("{} {}", title(band), title(component)),
                 ColorMixer,
                 Percent,
-                (-100.0, 100.0),
+                range,
                 0.0,
                 1.0,
             ));
@@ -308,7 +319,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             format!("{} saturation", title(range)),
             ColorGrading,
             Percent,
-            (0.0, 100.0),
+            (0.0, 200.0),
             0.0,
             1.0,
         ));
@@ -317,7 +328,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             format!("{} luminance", title(range)),
             ColorGrading,
             Percent,
-            (-100.0, 100.0),
+            (-150.0, 150.0),
             0.0,
             1.0,
         ));
@@ -327,7 +338,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         "Blending",
         ColorGrading,
         Percent,
-        (0.0, 100.0),
+        (0.0, 150.0),
         0.0,
         1.0,
     ));
@@ -336,17 +347,17 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         "Balance",
         ColorGrading,
         Percent,
-        (-100.0, 100.0),
+        (-150.0, 150.0),
         0.0,
         1.0,
     ));
 
     for (name, range) in [
-        ("bloom", (0.0, 100.0)),
-        ("halation", (0.0, 100.0)),
-        ("fade", (0.0, 100.0)),
-        ("vignette", (-100.0, 100.0)),
-        ("sharpness", (0.0, 100.0)),
+        ("bloom", (0.0, 200.0)),
+        ("halation", (0.0, 200.0)),
+        ("fade", (0.0, 200.0)),
+        ("vignette", (-150.0, 150.0)),
+        ("sharpness", (0.0, 150.0)),
     ] {
         definitions.push(ParameterDefinition::scalar(
             format!("effects.{name}"),
@@ -364,7 +375,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             "Grain",
             Effects,
             Percent,
-            (0.0, 100.0),
+            (0.0, 150.0),
             0.0,
             1.0,
         ),
@@ -373,7 +384,7 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
             "Grain size",
             Effects,
             FilmIso,
-            (20.0, 6400.0),
+            (20.0, 12800.0),
             4000.0,
             100.0,
         ),
@@ -435,24 +446,24 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         "Mask exposure",
         RadialMasks,
         Stops,
-        (-4.0, 4.0),
+        (-5.0, 5.0),
         0.0,
         0.1,
     ));
-    for name in [
-        "brightness",
-        "contrast",
-        "saturation",
-        "temperature",
-        "tint",
-        "sharpness",
+    for (name, range) in [
+        ("brightness", (-300.0, 300.0)),
+        ("contrast", (-200.0, 200.0)),
+        ("saturation", (-100.0, 200.0)),
+        ("temperature", (-150.0, 150.0)),
+        ("tint", (-150.0, 150.0)),
+        ("sharpness", (-150.0, 150.0)),
     ] {
         definitions.push(ParameterDefinition::scalar(
             format!("radial_masks[].adjustments.{name}"),
             format!("Mask {}", title(name)),
             RadialMasks,
             Percent,
-            (-100.0, 100.0),
+            range,
             0.0,
             1.0,
         ));

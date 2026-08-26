@@ -26,23 +26,32 @@ impl BasicsSettings {
         validate_range_lazy(
             || "basics.exposure_ev".to_owned(),
             self.exposure_ev,
-            -4.0,
-            4.0,
+            -5.0,
+            5.0,
         )?;
-        for (name, value) in [
-            ("brightness", self.brightness),
-            ("contrast", self.contrast),
-            ("clarity", self.clarity),
-            ("highlights", self.highlights),
-            ("shadows", self.shadows),
-            ("whites", self.whites),
-            ("blacks", self.blacks),
-            ("saturation", self.saturation),
-            ("vibrance", self.vibrance),
-            ("temperature", self.temperature),
-            ("tint", self.tint),
+        // Brightness is a second exposure control (value / 100 EV); popular
+        // tools reach several stops, so it spans +-300 (+-3 EV).
+        validate_range_lazy(
+            || "basics.brightness".to_owned(),
+            self.brightness,
+            -300.0,
+            300.0,
+        )?;
+        for (name, value, minimum, maximum) in [
+            ("contrast", self.contrast, -200.0, 200.0),
+            ("clarity", self.clarity, -200.0, 200.0),
+            ("highlights", self.highlights, -150.0, 150.0),
+            ("shadows", self.shadows, -150.0, 150.0),
+            ("whites", self.whites, -150.0, 150.0),
+            ("blacks", self.blacks, -150.0, 150.0),
+            // Full desaturation is the semantic floor; below it the
+            // interpolation would invert colors.
+            ("saturation", self.saturation, -100.0, 200.0),
+            ("vibrance", self.vibrance, -100.0, 200.0),
+            ("temperature", self.temperature, -150.0, 150.0),
+            ("tint", self.tint, -150.0, 150.0),
         ] {
-            validate_range_lazy(|| format!("basics.{name}"), value, -100.0, 100.0)?;
+            validate_range_lazy(|| format!("basics.{name}"), value, minimum, maximum)?;
         }
         Ok(())
     }

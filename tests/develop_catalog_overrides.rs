@@ -33,7 +33,7 @@ fn parser_is_strict_typed_and_registry_bounded() {
         parse_parameter_override("missing=1"),
         Err(ParameterOverrideError::UnknownParameter(_))
     ));
-    for value in ["NaN", "inf", "101"] {
+    for value in ["NaN", "inf", "201"] {
         assert!(matches!(
             parse_parameter_override(&format!("basics.contrast={value}")),
             Err(ParameterOverrideError::ScalarOutOfRange { .. })

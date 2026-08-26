@@ -85,7 +85,7 @@ pub(super) fn decode(
             crate::io::LimitError::ArithmeticOverflow,
         ))?;
     if channels == 3 {
-        for (index, rgb) in decoded.chunks_exact(3).enumerate() {
+        for (index, rgb) in decoded.as_chunks::<3>().0.iter().enumerate() {
             if index
                 .checked_mul(3)
                 .is_some_and(|sample| sample % row_samples == 0)

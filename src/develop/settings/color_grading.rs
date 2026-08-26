@@ -19,12 +19,12 @@ impl ColorGradeRange {
             0.0,
             360.0,
         )?;
-        validate_range_lazy(|| format!("{path}.saturation"), self.saturation, 0.0, 100.0)?;
+        validate_range_lazy(|| format!("{path}.saturation"), self.saturation, 0.0, 200.0)?;
         validate_range_lazy(
             || format!("{path}.luminance"),
             self.luminance,
-            -100.0,
-            100.0,
+            -150.0,
+            150.0,
         )?;
         Ok(())
     }
@@ -55,8 +55,8 @@ impl ColorGradingSettings {
         self.shadows.validate("color_grading.shadows")?;
         self.midtones.validate("color_grading.midtones")?;
         self.highlights.validate("color_grading.highlights")?;
-        validate_range("color_grading.blending", self.blending, 0.0, 100.0)?;
-        validate_range("color_grading.balance", self.balance, -100.0, 100.0)?;
+        validate_range("color_grading.blending", self.blending, 0.0, 150.0)?;
+        validate_range("color_grading.balance", self.balance, -150.0, 150.0)?;
         Ok(())
     }
 

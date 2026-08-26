@@ -290,7 +290,7 @@ impl EntryCollector<'_> {
                     };
                     let value = &self.bytes[source_offset..source_offset + byte_len];
                     if matches!(kind, 5 | 10)
-                        && value.chunks_exact(8).any(|rational| {
+                        && value.as_chunks::<8>().0.iter().any(|rational| {
                             read_u32(rational, 4, self.endian)
                                 .is_none_or(|denominator| denominator == 0)
                         })

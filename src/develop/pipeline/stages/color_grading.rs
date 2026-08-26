@@ -58,9 +58,17 @@ impl PreparedColorGrading {
         }
         let lab = linear_rec2020_to_oklab(rgb);
         let weights = grade_weights(lab[0], self.balance, self.transition_width);
+        // Near-neutral pixels stay neutral: tinting them shifts pushed
+        // whites (flames, speculars, paper) toward the grade color while
+        // their chromatic neighbors keep their own hue, which posterizes
+        // bright regions. The grade fades in over existing chroma instead.
+        let chroma = (lab[1] * lab[1] + lab[2] * lab[2]).sqrt();
+        let neutral_protection = smoothstep(4.0e-3, 2.0e-2, chroma);
         let mut graded = lab;
-        graded[1] += weighted_component(weights, self.ranges.map(|range| range.ab[0]));
-        graded[2] += weighted_component(weights, self.ranges.map(|range| range.ab[1]));
+        graded[1] +=
+            neutral_protection * weighted_component(weights, self.ranges.map(|range| range.ab[0]));
+        graded[2] +=
+            neutral_protection * weighted_component(weights, self.ranges.map(|range| range.ab[1]));
 
         // F0 persists per-range luminance but has no preserve-luminance flag.
         // Chroma grading therefore always preserves Rec.2020 Y, while these
@@ -168,16 +176,30 @@ mod tests {
 
     #[test]
     fn pure_zone_grade_adds_normative_oklab_chroma_and_preserves_y() {
-        let source_lab = [0.2, 0.0, 0.0];
+        // Chromatic source: the grade fades out on near-neutral pixels, so a
+        // pixel above the protection ramp receives the full chroma offset.
+        let source_lab = [0.2, 0.03, 0.0];
         let source = oklab_to_linear_rec2020(source_lab);
         let mut settings = ColorGradingSettings::default();
         settings.shadows.saturation = 100.0;
         settings.shadows.hue_degrees = 0.0;
         let output = PreparedColorGrading::new(&settings).apply(source).unwrap();
         let output_lab = linear_rec2020_to_oklab(output);
-        assert_close(output_lab[1], MAX_GRADE_CHROMA, 3.0e-5);
+        assert_close(output_lab[1], 0.03 + MAX_GRADE_CHROMA, 3.0e-5);
         assert_close(output_lab[2], 0.0, 3.0e-5);
         assert_close(rec2020_luminance(output), rec2020_luminance(source), 3.0e-6);
+    }
+
+    #[test]
+    fn near_neutral_pixels_are_protected_from_the_grade() {
+        let source = oklab_to_linear_rec2020([0.2, 0.0, 0.0]);
+        let mut settings = ColorGradingSettings::default();
+        settings.shadows.saturation = 100.0;
+        settings.shadows.hue_degrees = 0.0;
+        let output = PreparedColorGrading::new(&settings).apply(source).unwrap();
+        let output_lab = linear_rec2020_to_oklab(output);
+        assert_close(output_lab[1], 0.0, 3.0e-5);
+        assert_close(output_lab[2], 0.0, 3.0e-5);
     }
 
     #[test]

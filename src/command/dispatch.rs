@@ -268,7 +268,7 @@ fn validate_develop(
             MetadataArg::StripAll => MetadataPolicy::StripAll,
         },
         alpha,
-        SdrRangePolicy::ClipAndReport,
+        SdrRangePolicy::SoftenAndReport,
     );
     if decode.validate().is_err() || output_options.validate().is_err() {
         human_error(stderr, "develop options are invalid");

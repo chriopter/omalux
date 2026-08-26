@@ -507,6 +507,11 @@ pub enum AlphaPolicy {
 #[non_exhaustive]
 pub enum SdrRangePolicy {
     ClipAndReport,
+    /// Compresses overbright pixels toward white along their hue before the
+    /// final clamp, so channels never clip independently (which shifts hue
+    /// and posterizes pushed highlights). Out-of-range samples are still
+    /// counted and reported.
+    SoftenAndReport,
     Reject,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]

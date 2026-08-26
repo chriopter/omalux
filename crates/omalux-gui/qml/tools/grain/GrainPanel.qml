@@ -78,25 +78,25 @@ Item {
 
     readonly property var luminanceTrack: ["#17171c", "#eceaf2"]
     readonly property var basics: [
-        { "label": "Exposure", "from": -4, "to": 4, "suffix": " EV", "track": luminanceTrack },
-        { "label": "Brightness", "from": -100, "to": 100, "track": luminanceTrack },
-        { "label": "Contrast", "from": -100, "to": 100 },
-        { "label": "Clarity", "from": -100, "to": 100 },
-        { "label": "Highlights", "from": -100, "to": 100, "track": ["#55555e", "#eceaf2"] },
-        { "label": "Shadows", "from": -100, "to": 100, "track": ["#17171c", "#9a9aa4"] },
-        { "label": "Whites", "from": -100, "to": 100, "track": ["#55555e", "#ffffff"] },
-        { "label": "Blacks", "from": -100, "to": 100, "track": ["#000000", "#9a9aa4"] }
+        { "label": "Exposure", "from": -5, "to": 5, "suffix": " EV", "track": luminanceTrack },
+        { "label": "Brightness", "from": -300, "to": 300, "track": luminanceTrack },
+        { "label": "Contrast", "from": -200, "to": 200 },
+        { "label": "Clarity", "from": -200, "to": 200 },
+        { "label": "Highlights", "from": -150, "to": 150, "track": ["#55555e", "#eceaf2"] },
+        { "label": "Shadows", "from": -150, "to": 150, "track": ["#17171c", "#9a9aa4"] },
+        { "label": "Whites", "from": -150, "to": 150, "track": ["#55555e", "#ffffff"] },
+        { "label": "Blacks", "from": -150, "to": 150, "track": ["#000000", "#9a9aa4"] }
     ]
 
     readonly property var hueTrack: ["#4fc3c3", "#5a6fd0", "#c05ad0", "#d05a5a", "#d0b05a", "#5ac06a", "#4fc3c3"]
     readonly property var colors: [
-        { "label": "Saturation", "from": -100, "to": 100, "suffix": "", "track": ["#8a8a92", "#e05555"] },
-        { "label": "Vibrance", "from": -100, "to": 100, "suffix": "", "track": ["#8a8a92", "#e07555"] },
-        { "label": "Temperature", "from": -100, "to": 100, "suffix": "", "track": ["#5a8ad0", "#e0954a"] },
-        { "label": "Tint", "from": -100, "to": 100, "suffix": "", "track": ["#5ac06a", "#d05ad0"] },
-        { "label": "Highlight amount", "from": 0, "to": 100, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
+        { "label": "Saturation", "from": -100, "to": 200, "suffix": "", "track": ["#8a8a92", "#e05555"] },
+        { "label": "Vibrance", "from": -100, "to": 200, "suffix": "", "track": ["#8a8a92", "#e07555"] },
+        { "label": "Temperature", "from": -150, "to": 150, "suffix": "", "track": ["#5a8ad0", "#e0954a"] },
+        { "label": "Tint", "from": -150, "to": 150, "suffix": "", "track": ["#5ac06a", "#d05ad0"] },
+        { "label": "Highlight amount", "from": 0, "to": 200, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
         { "label": "Highlight color", "from": -180, "to": 180, "suffix": "°", "track": hueTrack },
-        { "label": "Shadow amount", "from": 0, "to": 100, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
+        { "label": "Shadow amount", "from": 0, "to": 200, "suffix": "", "track": ["#8a8a92", "#e0a555"] },
         { "label": "Shadow color", "from": -180, "to": 180, "suffix": "°", "track": hueTrack }
     ]
 
@@ -245,7 +245,7 @@ Item {
                 parameterIndex: 16
                 label: "Bloom"
                 from: 0
-                to: 100
+                to: 200
                 initialValue: 0
                 supported: panel.parameterSupported("effects.bloom")
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -261,7 +261,7 @@ Item {
                 parameterIndex: 17
                 label: "Halation"
                 from: 0
-                to: 100
+                to: 200
                 initialValue: 0
                 supported: panel.parameterSupported("effects.halation")
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -277,7 +277,7 @@ Item {
                 parameterIndex: 18
                 label: "Fade"
                 from: 0
-                to: 100
+                to: 200
                 initialValue: 0
                 supported: panel.parameterSupported("effects.fade")
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -293,7 +293,7 @@ Item {
                 parameterIndex: 19
                 label: "Grain"
                 from: 0
-                to: 100
+                to: 150
                 initialValue: 24
                 supported: panel.parameterSupported("effects.grain.amount")
                 expandable: true
@@ -326,7 +326,7 @@ Item {
                         parameterIndex: 20
                         label: "Size"
                         from: 20
-                        to: 6400
+                        to: 12800
                         initialValue: 4000
                         stepSize: 100
                         coarseStep: 500
@@ -362,8 +362,8 @@ Item {
                 selectedParameter: panel.selectedParameter
                 parameterIndex: 22
                 label: "Vignette"
-                from: -100
-                to: 100
+                from: -150
+                to: 150
                 initialValue: 0
                 supported: panel.parameterSupported("effects.vignette")
                 onSelectionRequested: index => panel.selectionRequested(index)
@@ -379,7 +379,7 @@ Item {
                 parameterIndex: 23
                 label: "Sharpness"
                 from: 0
-                to: 100
+                to: 150
                 initialValue: 0
                 supported: panel.parameterSupported("effects.sharpness")
                 onSelectionRequested: index => panel.selectionRequested(index)

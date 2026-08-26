@@ -397,7 +397,7 @@ fn negative_local_sharpness_is_loudly_unsupported_and_atomic() {
 
 #[test]
 fn local_exposure_range_and_overflow_fail_atomically() {
-    for exposure_ev in [-4.0, 4.0] {
+    for exposure_ev in [-5.0, 5.0] {
         let mut settings = DevelopSettings::default();
         settings
             .radial_masks
@@ -408,7 +408,7 @@ fn local_exposure_range_and_overflow_fail_atomically() {
             }));
         settings.validate().unwrap();
     }
-    for exposure_ev in [-4.01, 4.01, f32::NAN, f32::INFINITY] {
+    for exposure_ev in [-5.01, 5.01, f32::NAN, f32::INFINITY] {
         let mut settings = DevelopSettings::default();
         settings
             .radial_masks

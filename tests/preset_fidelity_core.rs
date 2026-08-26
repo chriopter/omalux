@@ -297,7 +297,7 @@ fn registry_and_override_expose_typed_stops() {
         .unwrap();
     assert_eq!(
         (definition.minimum, definition.maximum, definition.step),
-        (-4.0, 4.0, 0.1)
+        (-5.0, 5.0, 0.1)
     );
     let curve = registry
         .iter()
@@ -319,5 +319,5 @@ fn registry_and_override_expose_typed_stops() {
         .iter()
         .find(|definition| definition.id == "radial_masks[].adjustments.exposure_ev")
         .unwrap();
-    assert_eq!((local.minimum, local.maximum, local.step), (-4.0, 4.0, 0.1));
+    assert_eq!((local.minimum, local.maximum, local.step), (-5.0, 5.0, 0.1));
 }

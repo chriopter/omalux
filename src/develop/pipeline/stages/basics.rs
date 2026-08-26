@@ -271,16 +271,27 @@ fn prepare_temperature_tint_matrix(temperature: f32, tint: f32) -> [[f64; 3]; 3]
 const D65_KELVIN: f64 = 6504.0;
 const COOL_KELVIN: f64 = 25_000.0;
 const WARM_KELVIN: f64 = 4000.0;
+// The extended slider region beyond +-100 continues piecewise linearly in
+// mired toward these endpoints at +-150, matching the reach of established
+// editors without changing any value inside the original range.
+const EXTENDED_COOL_KELVIN: f64 = 50_000.0;
+const EXTENDED_WARM_KELVIN: f64 = 2000.0;
 const MAX_TINT_DUV: f64 = 0.05;
 const MIN_TARGET_LMS: f64 = 0.01;
 
 fn temperature_to_mired(temperature: f32) -> f64 {
     let center = 1_000_000.0 / D65_KELVIN;
+    let warm = 1_000_000.0 / WARM_KELVIN;
+    let cool = 1_000_000.0 / COOL_KELVIN;
     let amount = f64::from(temperature) / 100.0;
-    if amount >= 0.0 {
-        center + amount * (1_000_000.0 / WARM_KELVIN - center)
+    if amount >= 1.0 {
+        warm + (amount - 1.0) * 2.0 * (1_000_000.0 / EXTENDED_WARM_KELVIN - warm)
+    } else if amount >= 0.0 {
+        center + amount * (warm - center)
+    } else if amount > -1.0 {
+        center + (-amount) * (cool - center)
     } else {
-        center + (-amount) * (1_000_000.0 / COOL_KELVIN - center)
+        cool + (-amount - 1.0) * 2.0 * (1_000_000.0 / EXTENDED_COOL_KELVIN - cool)
     }
 }
 

@@ -21,8 +21,8 @@ impl Default for GrainSettings {
 
 impl GrainSettings {
     fn validate(&self) -> Result<(), SettingsError> {
-        validate_range("effects.grain.amount", self.amount, 0.0, 100.0)?;
-        validate_range("effects.grain.size_iso", self.size_iso, 20.0, 6400.0)?;
+        validate_range("effects.grain.amount", self.amount, 0.0, 150.0)?;
+        validate_range("effects.grain.size_iso", self.size_iso, 20.0, 12800.0)?;
         validate_range(
             "effects.grain.midtone_response",
             self.midtone_response,
@@ -69,11 +69,11 @@ impl Default for EffectsSettings {
 
 impl EffectsSettings {
     pub fn validate(&self) -> Result<(), SettingsError> {
-        validate_range("effects.bloom", self.bloom, 0.0, 100.0)?;
-        validate_range("effects.halation", self.halation, 0.0, 100.0)?;
-        validate_range("effects.fade", self.fade, 0.0, 100.0)?;
-        validate_range("effects.vignette", self.vignette, -100.0, 100.0)?;
-        validate_range("effects.sharpness", self.sharpness, 0.0, 100.0)?;
+        validate_range("effects.bloom", self.bloom, 0.0, 200.0)?;
+        validate_range("effects.halation", self.halation, 0.0, 200.0)?;
+        validate_range("effects.fade", self.fade, 0.0, 200.0)?;
+        validate_range("effects.vignette", self.vignette, -150.0, 150.0)?;
+        validate_range("effects.sharpness", self.sharpness, 0.0, 150.0)?;
         self.grain.validate()?;
         Ok(())
     }

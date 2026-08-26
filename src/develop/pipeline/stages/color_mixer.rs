@@ -47,7 +47,11 @@ impl PreparedColorMixer {
             return Ok(rgb);
         }
 
-        let gate = smoothstep(1.0e-5, 5.0e-4, lch[1]);
+        // Near-neutral pixels carry hue that is dominated by noise; shifting
+        // them rotates adjacent pixels into different bands and posterizes
+        // bright low-chroma regions. Fade the mixer in over a perceptible
+        // chroma range instead of a numeric epsilon.
+        let gate = smoothstep(0.0, 3.0e-2, lch[1]);
         let weights = band_weights(lch[2], DEFAULT_SMOOTHING);
         let hue_shift = gate * weighted_circular_mean(weights, self.hue_shift);
         let saturation = gate * weighted_sum(weights, self.saturation);
@@ -262,7 +266,11 @@ mod tests {
         let source = [-0.000_170_067_96, -0.000_050_636_245, 0.001_321_164_4];
         let prepared = PreparedColorMixer::new(settings);
         let lch = oklab_to_oklch(linear_rec2020_to_oklab(source));
-        let gate = smoothstep(1.0e-5, 5.0e-4, lch[1]);
+        // Near-neutral pixels carry hue that is dominated by noise; shifting
+        // them rotates adjacent pixels into different bands and posterizes
+        // bright low-chroma regions. Fade the mixer in over a perceptible
+        // chroma range instead of a numeric epsilon.
+        let gate = smoothstep(0.0, 3.0e-2, lch[1]);
         let luminance =
             gate * weighted_sum(band_weights(lch[2], DEFAULT_SMOOTHING), prepared.luminance);
         let target = exposure_target_luminance(source, 2.0 * f64::from(luminance)).unwrap();

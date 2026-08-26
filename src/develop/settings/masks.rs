@@ -18,22 +18,22 @@ impl LocalAdjustments {
         validate_range_lazy(
             || format!("radial_masks.masks[{index}].adjustments.exposure_ev"),
             self.exposure_ev,
-            -4.0,
-            4.0,
+            -5.0,
+            5.0,
         )?;
-        for (name, value) in [
-            ("brightness", self.brightness),
-            ("contrast", self.contrast),
-            ("saturation", self.saturation),
-            ("temperature", self.temperature),
-            ("tint", self.tint),
-            ("sharpness", self.sharpness),
+        for (name, value, minimum, maximum) in [
+            ("brightness", self.brightness, -300.0, 300.0),
+            ("contrast", self.contrast, -200.0, 200.0),
+            ("saturation", self.saturation, -100.0, 200.0),
+            ("temperature", self.temperature, -150.0, 150.0),
+            ("tint", self.tint, -150.0, 150.0),
+            ("sharpness", self.sharpness, -150.0, 150.0),
         ] {
             validate_range_lazy(
                 || format!("radial_masks.masks[{index}].adjustments.{name}"),
                 value,
-                -100.0,
-                100.0,
+                minimum,
+                maximum,
             )?;
         }
         Ok(())

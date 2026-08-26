@@ -506,7 +506,7 @@ fn run_job(
             OutputProfile::Srgb,
             MetadataPolicy::StripLocation,
             AlphaPolicy::Flatten([0.0; 3]),
-            SdrRangePolicy::ClipAndReport,
+            SdrRangePolicy::SoftenAndReport,
         ),
         overwrite,
         preset: PresetSelection::document(PresetDocument::new(

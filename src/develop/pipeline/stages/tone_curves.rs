@@ -115,6 +115,14 @@ fn remap_master_luminance(rgb: [f64; 3], old_luminance: f64, new_luminance: f64)
             MASTER_CHANGE_BLEND_START,
             MASTER_CHANGE_BLEND_END,
         );
+    // The change-based suppression exists so a black lift larger than the
+    // pixel itself converges to the additive result at RGB origin. Bright
+    // saturated pixels never need it, and letting it engage there makes
+    // neighboring pixels flip between the additive and ratio candidates,
+    // posterizing pushed highlights. Fade the suppression out with
+    // luminance so it acts only in the near-black regime it was built for.
+    let darkness = 1.0 - smooth_range_weight(old_luminance.abs(), 0.05, 0.15);
+    let change_weight = 1.0 - (1.0 - change_weight) * darkness;
     let ratio_weight = relative_weight * change_weight;
     let mut remapped = if ratio_weight == 0.0 {
         additive

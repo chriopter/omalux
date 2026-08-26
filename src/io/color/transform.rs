@@ -222,6 +222,35 @@ impl WorkingToSrgbTransform {
                 .iter()
                 .map(|pixel| [pixel.red(), pixel.green(), pixel.blue(), pixel.alpha()]),
         );
+        if range == SdrRangePolicy::SoftenAndReport {
+            // Hue-preserving highlight shoulder in the linear working space,
+            // before the profile transform (which clamps internally):
+            // brightness above the knee compresses smoothly toward display
+            // white, so channels never clip independently. Independent
+            // channel clipping shifts hue and posterizes pushed highlights.
+            const KNEE: f32 = 0.8;
+            for pixel in &mut input {
+                let maximum = pixel[0].max(pixel[1]).max(pixel[2]);
+                if maximum > KNEE {
+                    let over = maximum - KNEE;
+                    let headroom = 1.0 - KNEE;
+                    let compressed = KNEE + over / (1.0 + over / headroom);
+                    let scale = compressed / maximum;
+                    // Strongly overexposed pixels additionally bloom toward
+                    // white: compressing them purely along their hue would
+                    // render bright emissive cores as darker, duller islands
+                    // than their surroundings.
+                    let bloom = {
+                        let t = ((maximum - 1.2) / 1.8).clamp(0.0, 1.0);
+                        t * t * (3.0 - 2.0 * t)
+                    };
+                    for channel in pixel.iter_mut().take(3) {
+                        let compressed_channel = *channel * scale;
+                        *channel = compressed_channel + (1.0 - compressed_channel) * bloom;
+                    }
+                }
+            }
+        }
         let mut output = Vec::new();
         output
             .try_reserve_exact(source.len())
@@ -232,6 +261,7 @@ impl WorkingToSrgbTransform {
         let mut clipped_samples = 0_u64;
         for (pixel_index, (pixel, source_pixel)) in output.iter_mut().zip(source).enumerate() {
             validate_finite_rgb(pixel_index, pixel)?;
+
             for (channel_index, channel) in [
                 RasterChannel::Red,
                 RasterChannel::Green,
@@ -248,7 +278,7 @@ impl WorkingToSrgbTransform {
                                 channel,
                             });
                         }
-                        SdrRangePolicy::ClipAndReport => {
+                        SdrRangePolicy::ClipAndReport | SdrRangePolicy::SoftenAndReport => {
                             pixel[channel_index] = pixel[channel_index].clamp(0.0, 1.0);
                             clipped_samples += 1;
                         }

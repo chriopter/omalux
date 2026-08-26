@@ -21,13 +21,13 @@ impl ColorBandAdjustment {
             || format!("color_mixer.{path}.saturation"),
             self.saturation,
             -100.0,
-            100.0,
+            200.0,
         )?;
         validate_range_lazy(
             || format!("color_mixer.{path}.luminance"),
             self.luminance,
-            -100.0,
-            100.0,
+            -150.0,
+            150.0,
         )?;
         Ok(())
     }
