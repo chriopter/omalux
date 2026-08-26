@@ -229,21 +229,25 @@ impl WorkingToSrgbTransform {
             // white, so channels never clip independently. Independent
             // channel clipping shifts hue and posterizes pushed highlights.
             const KNEE: f32 = 0.8;
+            // Desaturation starts well below display white so the fade to
+            // white is a long photographic rolloff; starting it at the tone
+            // knee leaves saturated rims around flat white plateaus.
+            const DESAT_KNEE: f32 = 0.55;
             for pixel in &mut input {
                 let maximum = pixel[0].max(pixel[1]).max(pixel[2]);
-                if maximum > KNEE {
-                    let over = maximum - KNEE;
-                    let headroom = 1.0 - KNEE;
-                    let compressed = KNEE + over / (1.0 + over / headroom);
-                    let scale = compressed / maximum;
-                    // Strongly overexposed pixels additionally bloom toward
-                    // white: compressing them purely along their hue would
-                    // render bright emissive cores as darker, duller islands
-                    // than their surroundings.
-                    let bloom = {
-                        let t = ((maximum - 1.2) / 1.8).clamp(0.0, 1.0);
-                        t * t * (3.0 - 2.0 * t)
+                if maximum > DESAT_KNEE {
+                    let scale = if maximum > KNEE {
+                        let over = maximum - KNEE;
+                        let headroom = 1.0 - KNEE;
+                        (KNEE + over / (1.0 + over / headroom)) / maximum
+                    } else {
+                        1.0
                     };
+                    let desat_over = maximum - DESAT_KNEE;
+                    let desat_headroom = 1.0 - DESAT_KNEE;
+                    let desat_compressed =
+                        DESAT_KNEE + desat_over / (1.0 + desat_over / desat_headroom);
+                    let bloom = 1.0 - desat_compressed / maximum;
                     for channel in pixel.iter_mut().take(3) {
                         let compressed_channel = *channel * scale;
                         *channel = compressed_channel + (1.0 - compressed_channel) * bloom;
