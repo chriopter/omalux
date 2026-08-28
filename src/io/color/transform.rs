@@ -235,23 +235,34 @@ impl WorkingToSrgbTransform {
             const DESAT_KNEE: f32 = 0.55;
             for pixel in &mut input {
                 let maximum = pixel[0].max(pixel[1]).max(pixel[2]);
-                if maximum > DESAT_KNEE {
-                    let scale = if maximum > KNEE {
-                        let over = maximum - KNEE;
-                        let headroom = 1.0 - KNEE;
-                        (KNEE + over / (1.0 + over / headroom)) / maximum
-                    } else {
-                        1.0
-                    };
-                    let desat_over = maximum - DESAT_KNEE;
-                    let desat_headroom = 1.0 - DESAT_KNEE;
-                    let desat_compressed =
-                        DESAT_KNEE + desat_over / (1.0 + desat_over / desat_headroom);
-                    let bloom = 1.0 - desat_compressed / maximum;
-                    for channel in pixel.iter_mut().take(3) {
-                        let compressed_channel = *channel * scale;
-                        *channel = compressed_channel + (1.0 - compressed_channel) * bloom;
-                    }
+                let minimum = pixel[0].min(pixel[1]).min(pixel[2]);
+                if maximum <= DESAT_KNEE {
+                    continue;
+                }
+                // Brightness compression scales the whole pixel, so channel
+                // ratios and therefore hue survive it.
+                let scale = if maximum > KNEE {
+                    let over = maximum - KNEE;
+                    let headroom = 1.0 - KNEE;
+                    (KNEE + over / (1.0 + over / headroom)) / maximum
+                } else {
+                    1.0
+                };
+                // The fade to white follows the weakest channel, not the
+                // strongest: a saturated red is bright in one channel while
+                // nowhere near white, and desaturating it by its red channel
+                // alone would drag it toward orange. Only a pixel whose every
+                // channel approaches the display limit is truly blowing out.
+                let bloom = if minimum > DESAT_KNEE {
+                    let over = minimum - DESAT_KNEE;
+                    let headroom = 1.0 - DESAT_KNEE;
+                    1.0 - (DESAT_KNEE + over / (1.0 + over / headroom)) / minimum
+                } else {
+                    0.0
+                };
+                for channel in pixel.iter_mut().take(3) {
+                    let compressed_channel = *channel * scale;
+                    *channel = compressed_channel + (1.0 - compressed_channel) * bloom;
                 }
             }
         }
