@@ -106,9 +106,51 @@ fn bands(settings: &ColorMixerSettings) -> [&ColorBandAdjustment; BAND_COUNT] {
     ]
 }
 
-/// Returns non-negative cyclic cubic weights for the eight fixed 45° bands.
+/// Hue angle each named band is centred on, in degrees, measured in the same
+/// Oklch space the mixer works in. The eight colours are not spaced evenly
+/// there: pure red sits at 29°, not at 0°, and blue at 264°, not at 225°. A
+/// band grid of eight equal 45° steps would therefore hand a saturated red
+/// mostly to the orange slider — so each band is anchored on the hue of the
+/// colour it is named after, and the space between two anchors is one band
+/// wide however many degrees it spans.
+const BAND_CENTER_DEGREES: [f32; BAND_COUNT] = [
+    29.2,  // red
+    52.8,  // orange
+    109.8, // yellow
+    142.5, // green
+    194.8, // aqua
+    264.1, // blue
+    293.8, // purple
+    328.4, // magenta
+];
+
+/// Maps a hue onto the band grid, where whole numbers land on band centres and
+/// the fraction between them is proportional to the angular distance covered.
+fn band_position(hue_radians: f32) -> f32 {
+    let degrees = wrap_radians(hue_radians).to_degrees();
+    for band in 0..BAND_COUNT {
+        let start = BAND_CENTER_DEGREES[band];
+        let end = BAND_CENTER_DEGREES[(band + 1) % BAND_COUNT];
+        let span = if end > start {
+            end - start
+        } else {
+            end + 360.0 - start
+        };
+        let offset = if degrees >= start {
+            degrees - start
+        } else {
+            degrees + 360.0 - start
+        };
+        if offset < span {
+            return band as f32 + offset / span;
+        }
+    }
+    0.0
+}
+
+/// Returns non-negative cyclic cubic weights for the eight named hue bands.
 fn band_weights(hue_radians: f32, smoothing: f32) -> [f32; BAND_COUNT] {
-    let position = wrap_radians(hue_radians) / std::f32::consts::TAU * BAND_COUNT as f32;
+    let position = band_position(hue_radians);
     let radius = ((smoothing.clamp(0.0, 100.0) - 50.0) / 100.0).exp2();
     let mut result = [0.0; BAND_COUNT];
     for (band, weight) in result.iter_mut().enumerate() {
@@ -185,12 +227,18 @@ mod tests {
     #[test]
     fn default_smoothing_interpolates_exact_band_centers() {
         for band in 0..BAND_COUNT {
-            let center = band as f32 * std::f32::consts::TAU / BAND_COUNT as f32;
+            let center = BAND_CENTER_DEGREES[band].to_radians();
             let weights = band_weights(center, 50.0);
             assert_close(weights[band], 1.0, 1.0e-6);
             assert_close(weights.into_iter().sum(), 1.0, 1.0e-6);
 
-            let midpoint = center + std::f32::consts::TAU / 16.0;
+            let next = BAND_CENTER_DEGREES[(band + 1) % BAND_COUNT];
+            let span = if next > BAND_CENTER_DEGREES[band] {
+                next - BAND_CENTER_DEGREES[band]
+            } else {
+                next + 360.0 - BAND_CENTER_DEGREES[band]
+            };
+            let midpoint = (BAND_CENTER_DEGREES[band] + span / 2.0).to_radians();
             let weights = band_weights(midpoint, 50.0);
             assert_close(weights[band], 0.5, 2.0e-6);
             assert_close(weights[(band + 1) % BAND_COUNT], 0.5, 2.0e-6);
@@ -198,15 +246,26 @@ mod tests {
     }
 
     #[test]
+    fn a_saturated_red_is_governed_by_the_red_band() {
+        // The mixer works in Oklch, where pure red sits near 29°. Under an
+        // evenly spaced band grid that hue fell closer to the orange centre
+        // than to the red one, so the orange slider drove saturated reds.
+        let weights = band_weights(29.2_f32.to_radians(), DEFAULT_SMOOTHING);
+        assert_close(weights[0], 1.0, 1.0e-6);
+        assert_close(weights[1], 0.0, 1.0e-6);
+    }
+
+    #[test]
     fn red_band_has_normative_hue_chroma_and_luminance_semantics() {
-        let source = oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, 0.0]));
+        let center = BAND_CENTER_DEGREES[0];
+        let source = oklab_to_linear_rec2020(oklch_to_oklab([0.6, 0.1, center.to_radians()]));
         let mut settings = ColorMixerSettings::default();
         settings.red.hue_shift_degrees = 45.0;
         settings.red.saturation = 100.0;
         settings.red.luminance = 100.0;
         let output = PreparedColorMixer::new(&settings).apply(source).unwrap();
         let output_lch = oklab_to_oklch(linear_rec2020_to_oklab(output));
-        assert_close(output_lch[2], 45.0_f32.to_radians(), 2.0e-4);
+        assert_close(output_lch[2], (center + 45.0).to_radians(), 2.0e-4);
         assert_close(output_lch[1], 0.2, 2.0e-4);
         assert_close(
             rec2020_luminance(output),
