@@ -13,18 +13,73 @@ use crate::{
 
 const REC2020_LUMA: [f64; 3] = [0.2627, 0.6780, 0.0593];
 
+/// Matte print fade.
+///
+/// A faded print has a real density floor and ceiling: its blacks never reach
+/// zero and its whites never reach paper white. Those limits are properties of
+/// the print, so they are defined in display-referred terms and applied in the
+/// display encoding. A scene-linear lift and contrast scale cannot express
+/// them: any value above the display maximum still clips to white afterwards,
+/// which is exactly the hard, patchy highlight this effect must avoid.
+///
+/// At full strength the floor rises to 4% and the ceiling drops to 94% of the
+/// display range; both move proportionally with the slider. Signed and HDR
+/// values pass through the same odd-symmetric encoding, so the mapping stays
+/// defined and monotone outside `[0,1]`.
 pub(super) fn apply_fade(image: &mut CpuImage, amount: f32) {
     if amount == 0.0 {
         return;
     }
     let normalized = f64::from(amount) / 100.0;
-    let contrast = 1.0 - 0.18 * normalized;
-    let lift = 0.035 * normalized;
+    let floor = 0.04 * normalized;
+    let ceiling = 1.0 - 0.06 * normalized;
+    let span = ceiling - floor;
+    let fade_channel = |value: f32| -> f32 {
+        let encoded = srgb_encode_signed(f64::from(value));
+        finite_f32(srgb_decode_signed(floor + saturate(encoded) * span))
+    };
     for pixel in image.pixels_mut() {
-        pixel.red = finite_f32(f64::from(pixel.red) * contrast + lift);
-        pixel.green = finite_f32(f64::from(pixel.green) * contrast + lift);
-        pixel.blue = finite_f32(f64::from(pixel.blue) * contrast + lift);
+        pixel.red = fade_channel(pixel.red);
+        pixel.green = fade_channel(pixel.green);
+        pixel.blue = fade_channel(pixel.blue);
     }
+}
+
+/// Maps the encoded range `[0, inf)` into `[0, 1)`: identity below the knee,
+/// then an exponential approach to one. Without it a scene value far above
+/// display white would still leave the ceiling behind and clip, which is the
+/// failure this effect exists to prevent. Odd symmetry keeps signed values
+/// defined and monotone.
+fn saturate(value: f64) -> f64 {
+    const KNEE: f64 = 0.7;
+    let magnitude = value.abs();
+    let saturated = if magnitude <= KNEE {
+        magnitude
+    } else {
+        let headroom = 1.0 - KNEE;
+        KNEE + headroom * (1.0 - (-(magnitude - KNEE) / headroom).exp())
+    };
+    value.signum() * saturated
+}
+
+fn srgb_encode_signed(value: f64) -> f64 {
+    let magnitude = value.abs();
+    let encoded = if magnitude <= 0.003_130_8 {
+        12.92 * magnitude
+    } else {
+        1.055 * magnitude.powf(1.0 / 2.4) - 0.055
+    };
+    value.signum() * encoded
+}
+
+fn srgb_decode_signed(value: f64) -> f64 {
+    let magnitude = value.abs();
+    let decoded = if magnitude <= 0.040_45 {
+        magnitude / 12.92
+    } else {
+        ((magnitude + 0.055) / 1.055).powf(2.4)
+    };
+    value.signum() * decoded
 }
 
 /// Applies one vignette over full-image normalized coordinates. The result is

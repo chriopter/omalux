@@ -36,9 +36,11 @@ fn wp1_wp2_wp3_canonical_order_matches_the_combined_golden() {
 
     assert_ne!(output, input);
     assert_eq!(output.alpha(), input.alpha());
-    assert_close(output.red(), 0.201_657_04);
-    assert_close(output.green(), 0.425_947_82);
-    assert_close(output.blue(), 1.176_611_8);
+    // Fade is display-referred (matte print floor and ceiling), so these
+    // goldens moved with that semantics; the pinned stage order did not.
+    assert_close(output.red(), 0.201_208_13);
+    assert_close(output.green(), 0.426_123_6);
+    assert_close(output.blue(), 0.810_504_56);
 }
 
 fn assert_close(actual: f32, expected: f32) {
@@ -122,7 +124,9 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    assert_eq!(stable_pixel_hash(&image), 0x975b_1666_c278_8ec1);
+    // Fade now bounds the finished image, so it follows grain in the effect
+    // chain; the golden moved with that order.
+    assert_eq!(stable_pixel_hash(&image), 0x9041_99ac_6458_1486);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {

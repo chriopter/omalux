@@ -35,9 +35,6 @@ pub(super) fn apply(
     if settings.halation != 0.0 {
         optical::apply_halation(image, settings.halation)?;
     }
-    if settings.fade != 0.0 {
-        tonal::apply_fade(image, settings.fade);
-    }
     if settings.vignette != 0.0 {
         tonal::apply_vignette(image, settings.vignette);
     }
@@ -49,6 +46,12 @@ pub(super) fn apply(
             .expect("active grain context was checked before rendering")
             .grain_seed();
         grain::apply_full_image(image, &settings.grain, seed).map_err(map_grain_error)?;
+    }
+    // Fade is the print's density floor and ceiling, so it bounds the
+    // finished image: applying it before vignette, sharpening, or grain would
+    // let those operations push samples back past the limits it establishes.
+    if settings.fade != 0.0 {
+        tonal::apply_fade(image, settings.fade);
     }
     Ok(())
 }

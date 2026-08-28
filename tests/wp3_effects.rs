@@ -78,11 +78,20 @@ fn fade_lifts_black_and_compresses_unbounded_scene_values() {
     settings.effects.fade = 100.0;
     DevelopPipeline.process(&mut image, &settings).unwrap();
 
-    assert_eq!(rgb(&image, 0, 0), [0.035, 0.035, 0.035]);
+    // Full fade puts the print floor at 4% and its ceiling at 94% of the
+    // display range; scene black therefore lands on the linearized 4% floor.
+    let floor = rgb(&image, 0, 0);
+    let expected_floor = ((0.04_f32 + 0.055) / 1.055).powf(2.4);
+    for channel in floor {
+        assert!((channel - expected_floor).abs() < 1.0e-6, "floor {channel}");
+    }
+    // Unbounded scene values compress under the ceiling instead of clipping.
     let high = rgb(&image, 1, 0);
+    let ceiling = ((0.94_f32 + 0.055) / 1.055).powf(2.4);
     assert!(high[0] > -2.0);
-    assert!(high[1] < 4.0);
-    assert!(high[2] < 20.0);
+    assert!(high[1] < ceiling);
+    assert!(high[2] < ceiling);
+    assert!(high[2] > high[1]);
     assert_eq!(alphas(&image), vec![0.25, 0.75]);
 }
 
@@ -171,12 +180,14 @@ fn combined_effect_order_matches_sequential_pipeline_and_is_deterministic() {
     assert_eq!(first, second);
 
     let mut sequential = original;
+    // Chain order: bloom, halation, vignette, sharpness, then fade, which
+    // bounds the finished image and therefore runs last.
     for individual in [
         settings(35.0, 0.0, 0.0, 0.0, 0.0),
         settings(0.0, 28.0, 0.0, 0.0, 0.0),
-        settings(0.0, 0.0, 22.0, 0.0, 0.0),
         settings(0.0, 0.0, 0.0, 18.0, 0.0),
         settings(0.0, 0.0, 0.0, 0.0, 40.0),
+        settings(0.0, 0.0, 22.0, 0.0, 0.0),
     ] {
         DevelopPipeline
             .process(&mut sequential, &individual)
