@@ -136,12 +136,108 @@ impl SceneToDisplayTransform {
     }
 }
 
+/// Fraction of the distance from neutral to the gamut boundary a channel may
+/// cover untouched. Beyond it the remaining distance is compressed smoothly,
+/// so a colour approaches the boundary instead of stopping flat against it.
+const GAMUT_KNEE: f64 = 0.85;
+
+/// How much brighter than the tone map's decision the gamut mapping may leave
+/// a pixel before it starts trading chroma back for luminance.
+const LUMINANCE_TOLERANCE: f64 = 0.05;
+
+/// Distance the chromatic bounds keep from the encodable range.
+const CHROMATIC_INSET: f64 = TARGET_GAMUT_INSET;
+
+/// Compresses one channel's signed distance from neutral into the unit range,
+/// leaving everything below the knee exactly as it was and bending the rest
+/// asymptotically towards the boundary.
+fn compress_distance(distance: f64) -> f64 {
+    let magnitude = distance.abs();
+    if magnitude <= GAMUT_KNEE {
+        return distance;
+    }
+    // The asymptote stops just short of the boundary. Landing exactly on it
+    // leaves no room for the small disagreement between this matrix and the
+    // profile transform that encodes the result, which would then report a
+    // sample a fraction outside the range it promised to stay inside.
+    const EDGE_MARGIN: f64 = 5.0e-3;
+    let headroom = (1.0 - EDGE_MARGIN) - GAMUT_KNEE;
+    let excess = (magnitude - GAMUT_KNEE) / headroom;
+    let compressed = GAMUT_KNEE + headroom * (1.0 - (-excess).exp());
+    compressed.copysign(distance)
+}
+
 fn compress_to_srgb_gamut(rec2020: [f64; 4]) -> ([f64; 4], bool) {
     let rgb = [rec2020[0], rec2020[1], rec2020[2]];
     let neutral = dot(rgb, REC2020_LUMA).clamp(0.0, 1.0);
     let target = multiply_matrix(REC2020_TO_SRGB, rgb);
-    let lower_bound = neutral.min(TARGET_GAMUT_INSET);
+    let lower_bound = neutral.min(CHROMATIC_INSET);
     let upper_bound = DISPLAY_WHITE;
+    // Each channel is brought inside the gamut on its own. Scaling every
+    // channel by the worst channel's factor would drag the channels that were
+    // already inside towards neutral, which turns a saturated colour that
+    // merely clips in one channel into a pale one: a deep red that overflows
+    // only in red would come back with its green and blue lifted far above
+    // where the scene put them.
+    let mut compressed = false;
+    let mapped_target = [0, 1, 2].map(|channel| {
+        let sample = target[channel];
+        let delta = sample - neutral;
+        let span = if delta >= 0.0 {
+            upper_bound - neutral
+        } else {
+            neutral - lower_bound
+        };
+        if span <= 0.0 {
+            return neutral.clamp(lower_bound, upper_bound);
+        }
+        let distance = delta / span;
+        let mapped = compress_distance(distance);
+        if (mapped - distance).abs() > 0.0 {
+            compressed = true;
+        }
+        (neutral + mapped * span).clamp(lower_bound, upper_bound)
+    });
+
+    // Per-channel compression must never make a pixel brighter than the tone
+    // map decided it should be. A very dark pixel whose channel ratios point
+    // far outside the gamut would otherwise come back as a vivid colour: the
+    // channels that pointed outwards get pulled to the boundary while the ones
+    // that pointed inwards stay put, and the pixel gains the luminance the
+    // scene never had. Where that happens, give up chroma — that is what
+    // scaling every channel by one factor does — until the luminance the tone
+    // map asked for is met again.
+    let uniform = uniform_chroma_scaled(target, neutral, lower_bound, upper_bound);
+    let mapped_luminance = srgb_luminance(mapped_target);
+    let uniform_luminance = srgb_luminance(uniform);
+    let blended = if mapped_luminance > uniform_luminance {
+        let allowance = uniform_luminance * (1.0 + LUMINANCE_TOLERANCE);
+        let range = mapped_luminance - uniform_luminance;
+        let share = ((allowance - uniform_luminance) / range).clamp(0.0, 1.0);
+        compressed = true;
+        [0, 1, 2]
+            .map(|channel| uniform[channel] + share * (mapped_target[channel] - uniform[channel]))
+    } else {
+        mapped_target
+    };
+
+    let mapped = multiply_matrix(SRGB_TO_REC2020, blended);
+    ([mapped[0], mapped[1], mapped[2], rec2020[3]], compressed)
+}
+
+/// sRGB-primary luminance of a target-space triple.
+fn srgb_luminance(target: [f64; 3]) -> f64 {
+    0.212_639 * target[0] + 0.715_169 * target[1] + 0.072_192 * target[2]
+}
+
+/// Scales every channel towards neutral by one factor until the whole triple
+/// fits. This preserves luminance exactly and spends chroma to do it.
+fn uniform_chroma_scaled(
+    target: [f64; 3],
+    neutral: f64,
+    lower_bound: f64,
+    upper_bound: f64,
+) -> [f64; 3] {
     let mut chroma_scale = 1.0_f64;
     for sample in target {
         let delta = sample - neutral;
@@ -151,15 +247,9 @@ fn compress_to_srgb_gamut(rec2020: [f64; 4]) -> ([f64; 4], bool) {
             chroma_scale = chroma_scale.min((upper_bound - neutral) / delta);
         }
     }
-    chroma_scale = chroma_scale.clamp(0.0, 1.0);
-    let mapped_target = target.map(|sample| {
-        (neutral + chroma_scale * (sample - neutral)).clamp(lower_bound, upper_bound)
-    });
-    let mapped = multiply_matrix(SRGB_TO_REC2020, mapped_target);
-    (
-        [mapped[0], mapped[1], mapped[2], rec2020[3]],
-        chroma_scale < 1.0,
-    )
+    let chroma_scale = chroma_scale.clamp(0.0, 1.0);
+    target
+        .map(|sample| (neutral + chroma_scale * (sample - neutral)).clamp(lower_bound, upper_bound))
 }
 
 fn render_tone(pixel: &RgbaPixel) -> ([f64; 4], bool, bool) {
