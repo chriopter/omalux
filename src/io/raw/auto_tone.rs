@@ -5,9 +5,13 @@
 //! Omalux's versioned RAW auto-tone V1 right after decode, before develop
 //! stages, so RAW and JPEG sources respond comparably to the same settings:
 //!
-//! 1. Auto exposure: a uniform gain lifts the sampled 99th luminance
-//!    percentile to 0.8, bounded to [0, +4] EV so dark frames are never
-//!    pushed beyond recognition and bright frames are never darkened.
+//! 1. Auto exposure: partial highlight anchoring. A full anchor would put
+//!    every frame's 99th luminance percentile on one canonical level, which
+//!    erases the brightness a photograph was actually taken with. Instead the
+//!    correction covers half the distance in log space, so the rendered
+//!    highlight level is the geometric mean of the scene's own and the
+//!    canonical one: dim scenes brighten without becoming daylight, bright
+//!    scenes settle back without going flat.
 //! 2. Base tone: a fixed, monotone tonal shaping expressed as an EV gain over
 //!    log2 luminance — strong shadow lift, a gentle S through the midtones —
 //!    vanishing at display white, plus a fitted luminance-preserving chroma
@@ -22,7 +26,12 @@ use crate::develop::CpuImage;
 const LUMA: [f64; 3] = [0.262_700_2, 0.677_998_1, 0.059_301_7];
 const LUMA_EPSILON: f64 = 1.0e-6;
 const HIGHLIGHT_PERCENTILE: f64 = 0.99;
-const HIGHLIGHT_TARGET: f64 = 0.8;
+/// Canonical highlight level the correction aims at, and the fraction of the
+/// distance actually travelled. Both were fitted against a reference corpus
+/// of ten cameras; the fitted fraction came out at 0.50 within noise.
+const HIGHLIGHT_TARGET: f64 = 1.6;
+const ANCHOR_STRENGTH: f64 = 0.5;
+const MIN_AUTO_EV: f64 = -1.0;
 const MAX_AUTO_EV: f64 = 4.0;
 /// Base-tone EV boost sampled at integer log2-luminance nodes; linear in
 /// between, clamped at the ends. Node spacing keeps the log2-space slope
@@ -89,7 +98,7 @@ pub fn apply(image: &mut CpuImage) -> RawAutoToneReport {
         let (_, p99, _) = luminances.select_nth_unstable_by(index, f64::total_cmp);
         let p99 = *p99;
         if p99 > 0.0 {
-            (HIGHLIGHT_TARGET / p99).log2().clamp(0.0, MAX_AUTO_EV)
+            (ANCHOR_STRENGTH * (HIGHLIGHT_TARGET / p99).log2()).clamp(MIN_AUTO_EV, MAX_AUTO_EV)
         } else {
             0.0
         }
@@ -141,21 +150,34 @@ mod tests {
     }
 
     #[test]
-    fn bright_frames_get_no_auto_exposure() {
+    fn bright_frames_settle_back_gently() {
+        // Partial anchoring: a frame already brighter than the canonical
+        // level darkens, but only by half the log distance, and never past
+        // the lower bound.
         let mut image = gray_image(&[0.9; 64]);
         let report = apply(&mut image);
-        assert_eq!(report.exposure_ev, 0.0);
+        let expected = ANCHOR_STRENGTH * (HIGHLIGHT_TARGET / 0.9_f64).log2();
+        assert!((report.exposure_ev - expected).abs() < 1.0e-4);
+        assert!(report.exposure_ev > 0.0);
+
+        let mut very_bright = gray_image(&[12.0; 64]);
+        assert_eq!(apply(&mut very_bright).exposure_ev, MIN_AUTO_EV);
     }
 
     #[test]
     fn dark_frames_anchor_p99_to_target_within_bounds() {
         let mut image = gray_image(&[0.1; 100]);
         let report = apply(&mut image);
-        assert!((report.exposure_ev - 3.0).abs() < 1.0e-4);
-        let expected_ev = report.exposure_ev + base_tone_ev((0.1_f64 * 8.0).log2());
-        let expected = 0.1 * expected_ev.exp2();
+        let expected = ANCHOR_STRENGTH * (HIGHLIGHT_TARGET / 0.1_f64).log2();
+        assert!((report.exposure_ev - expected).abs() < 1.0e-4);
+        let exposed = 0.1 * report.exposure_ev.exp2();
+        let expected = exposed * base_tone_ev(exposed.log2()).exp2();
         let pixel = &image.pixels()[0];
-        assert!((f64::from(pixel.red) - expected).abs() < 1.0e-4);
+        assert!(
+            (f64::from(pixel.red) - expected).abs() < 1.0e-4,
+            "expected {expected}, got {}",
+            pixel.red
+        );
 
         let mut very_dark = gray_image(&[0.001; 100]);
         let clamped = apply(&mut very_dark);
