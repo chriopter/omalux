@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-const GRAIN_SEED_DOMAIN: &[u8] = b"io.omacom.omalux/grain-seed/v1\0";
+const GRAIN_SEED_DOMAIN: &[u8] = b"org.omalux/grain-seed/v1\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -80,6 +80,6 @@ mod tests {
         let changed = DevelopRenderContext::from_source_digest(changed_digest);
         assert_eq!(zero, same);
         assert_ne!(zero, changed);
-        assert_eq!(zero.grain_seed().value(), 0x8df8_1f05_230f_6d4e);
+        assert_eq!(zero.grain_seed().value(), 0x509f_8c99_45f3_90db);
     }
 }

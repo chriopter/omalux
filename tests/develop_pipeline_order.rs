@@ -125,9 +125,9 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    // Fade now bounds the finished image, so it follows grain in the effect
-    // chain; the golden moved with that order.
-    assert_eq!(stable_pixel_hash(&image), 0xc529_3150_2f37_8c8f);
+    // The golden pins the effect order and the grain seed's domain; it moves
+    // when either does.
+    assert_eq!(stable_pixel_hash(&image), 0x46ee_f228_a396_a1b3);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {
@@ -164,5 +164,5 @@ fn vignette_then_sharpness_then_grain_order_has_a_focused_golden() {
     DevelopPipeline
         .process_with_context(&mut image, &settings, Some(&context))
         .unwrap();
-    assert_eq!(stable_pixel_hash(&image), 0x8fc6_be72_d8e2_6c62);
+    assert_eq!(stable_pixel_hash(&image), 0x1f66_a612_9526_1406);
 }

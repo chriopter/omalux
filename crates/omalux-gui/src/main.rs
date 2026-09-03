@@ -18,11 +18,11 @@ fn main() {
             .set_application_display_name(&QString::from("Omalux"));
         app.as_mut().set_organization_name(&QString::from("Omacom"));
         app.as_mut()
-            .set_organization_domain(&QString::from("omacom.io"));
+            .set_organization_domain(&QString::from("omalux.org"));
     }
 
     if let Some(engine) = engine.as_mut() {
-        engine.load(&QUrl::from("qrc:/qt/qml/io/omacom/omalux/qml/Main.qml"));
+        engine.load(&QUrl::from("qrc:/qt/qml/org/omalux/qml/Main.qml"));
     }
 
     let exit_code = app.as_mut().map_or(1, |app| app.exec());

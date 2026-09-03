@@ -7,7 +7,7 @@ use crate::{
 
 use super::{JobErrorCode, JobStage};
 
-pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "io.omacom.omalux.develop-job-report";
+pub const DEVELOP_JOB_REPORT_SCHEMA: &str = "org.omalux.develop-job-report";
 pub const DEVELOP_JOB_REPORT_VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

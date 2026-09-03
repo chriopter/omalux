@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import io.omacom.omalux
+import org.omalux
 
 Item {
     id: panel

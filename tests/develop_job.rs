@@ -246,7 +246,7 @@ fn reports_are_versioned_and_do_not_serialize_paths() {
         )
         .unwrap();
     let json = serde_json::to_string(&report).unwrap();
-    assert!(json.contains("io.omacom.omalux.develop-job-report"));
+    assert!(json.contains("org.omalux.develop-job-report"));
     assert!(json.contains("\"schema_version\":4"));
     assert!(json.contains("\"pointwise_v1\":true"));
     assert!(json.contains("\"estimated_peak_bytes\":64"));

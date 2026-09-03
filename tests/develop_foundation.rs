@@ -85,7 +85,7 @@ fn preset_v1_has_a_canonical_roundtrip() {
 #[test]
 fn preset_parser_rejects_unknown_versions_and_fields() {
     let unknown_version = r#"{
-        "schema": "io.omacom.omalux.preset",
+        "schema": "org.omalux.preset",
         "schema_version": 99,
         "future_payload": { "completely": ["different"] }
     }"#;
@@ -94,11 +94,8 @@ fn preset_parser_rejects_unknown_versions_and_fields() {
         Err(PresetError::UnsupportedVersion(99))
     ));
 
-    let unknown_schema = NEUTRAL_PRESET.replacen(
-        "io.omacom.omalux.preset",
-        "example.invalid.future-preset",
-        1,
-    );
+    let unknown_schema =
+        NEUTRAL_PRESET.replacen("org.omalux.preset", "example.invalid.future-preset", 1);
     assert!(matches!(
         PresetDocument::from_json(&unknown_schema),
         Err(PresetError::UnsupportedSchema(_))
@@ -542,4 +539,17 @@ radial_masks[].adjustments.saturation
 radial_masks[].adjustments.temperature
 radial_masks[].adjustments.tint
 radial_masks[].adjustments.sharpness"
+}
+
+#[test]
+fn preset_parser_reads_the_legacy_schema_identity_and_normalizes_it() {
+    let legacy = NEUTRAL_PRESET.replacen("org.omalux.preset", "io.omacom.omalux.preset", 1);
+    let document = PresetDocument::from_json(&legacy).expect("legacy identity is still read");
+    assert_eq!(document.schema, "org.omalux.preset");
+    assert!(
+        document
+            .to_canonical_json()
+            .unwrap()
+            .contains("\"schema\":\"org.omalux.preset\"")
+    );
 }

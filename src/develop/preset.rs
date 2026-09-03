@@ -5,7 +5,11 @@ use std::fmt;
 pub const PRESET_SCHEMA_VERSION: u32 = 3;
 const LEGACY_PRESET_SCHEMA_VERSION: u32 = 1;
 const PREVIOUS_PRESET_SCHEMA_VERSION: u32 = 2;
-pub const PRESET_SCHEMA_ID: &str = "io.omacom.omalux.preset";
+pub const PRESET_SCHEMA_ID: &str = "org.omalux.preset";
+/// Identity that presets carried before the project moved to its own
+/// namespace. Still read, never written: an import is normalized to the
+/// current identity.
+const LEGACY_PRESET_SCHEMA_ID: &str = "io.omacom.omalux.preset";
 const LOCAL_EXPOSURE_PATH: &str = "settings.radial_masks.masks[].adjustments.exposure_ev";
 
 #[derive(Deserialize)]
@@ -196,7 +200,7 @@ impl PresetDocument {
 }
 
 fn is_supported_schema(schema: &str) -> bool {
-    schema == PRESET_SCHEMA_ID
+    schema == PRESET_SCHEMA_ID || schema == LEGACY_PRESET_SCHEMA_ID
 }
 
 fn local_adjustments(

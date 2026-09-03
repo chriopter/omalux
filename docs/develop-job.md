@@ -67,4 +67,4 @@ bounded profile/byte estimates, deterministic processing counters, output
 format, and path-free codec provenance. The explicit component profile advances
 the report schema to version 4.
 
-Reports use `io.omacom.omalux.develop-job-report`.
+Reports use `org.omalux.develop-job-report`.

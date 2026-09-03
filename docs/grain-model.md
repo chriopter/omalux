@@ -76,9 +76,8 @@ the adapted grain-model files remain in place.
 
 `DevelopRenderContext::from_source_digest` accepts an already computed 32-byte
 source-content digest and derives a grain seed with the fixed domain
-`io.omacom.omalux/grain-seed/v1`. This algorithm identifier is
-intentionally retained after the Omalux rename so identical inputs keep identical
-rendered grain. The API performs no IO and has no filename,
+`org.omalux/grain-seed/v1`. The domain moved to the project's own
+namespace once; since then identical inputs keep identical rendered grain. The API performs no IO and has no filename,
 path, mtime, or global-default input. Tests and golden fixtures may explicitly
 construct `ResolvedGrainSeed::fixed_for_tests`; production callers should
 prefer the content-digest constructor. Active grain without a context fails at

@@ -6,9 +6,10 @@ explicitly and preserve the checked `DecodedPhoto` color/signal invariants.
 
 Omalux stages the source once while computing its content digest, then gives
 that private immutable copy to the installed LibRaw `dcraw_emu`. Production
-keeps the versioned `io.omacom.omalux/source-digest/v1` domain as a stable
-algorithm identifier: the Omalux rename must not change existing content
-identities, grain seeds, or rendered output for identical source bytes.
+keeps the versioned `org.omalux/source-digest/v1` domain as a stable
+algorithm identifier: content identities, grain seeds, and rendered output for
+identical source bytes change only with a deliberate version bump of that
+domain.
 Production
 and capability probing share one resolver and bounded behavior handshake over
 the fixed `/usr/bin/dcraw_emu` and `/usr/local/bin/dcraw_emu` candidates; they

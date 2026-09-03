@@ -6,7 +6,7 @@ import QtCore
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
-import io.omacom.omalux 1.0
+import org.omalux 1.0
 
 ApplicationWindow {
     id: window

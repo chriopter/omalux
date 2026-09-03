@@ -18,10 +18,11 @@ EV. V1 documents that attempt to use v2 fields or extended nodes, and v1/v2
 documents that attempt to use the v3 local field, are rejected rather than
 interpreted silently. Unknown fields remain denied at every level.
 
-New documents use `io.omacom.omalux.preset`. Imports also accept the legacy
-the current `io.omacom.omalux.preset` identity and normalize documents to it
-in memory, so the next canonical serialization is an Omalux document without
-altering any develop settings.
+New documents use `org.omalux.preset`. Imports also accept the legacy
+`io.omacom.omalux.preset` identity from before the project had its own
+namespace, and normalize such documents to the current identity in memory, so
+the next canonical serialization is an `org.omalux` document without altering
+any develop settings.
 
 Built-ins use exactly compact canonical JSON followed by one LF; leading,
 trailing, or additional whitespace is rejected during catalog construction.
