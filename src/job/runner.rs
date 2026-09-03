@@ -241,6 +241,7 @@ impl DevelopJobRunner {
                     pipeline_error_code(&error),
                     report.clone(),
                 )
+                .with_detail(error.to_string())
             })?;
         self.check_cancelled(JobStage::Develop, cancellation, report)?;
         progress.stage_completed(JobStage::Develop);

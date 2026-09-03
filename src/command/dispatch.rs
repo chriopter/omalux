@@ -388,6 +388,9 @@ fn validate_develop(
                         error_name(failure.error.code)
                     ),
                 );
+                if let Some(detail) = &failure.detail {
+                    human_error(stderr, &format!("  reason: {detail}"));
+                }
                 exit
             }
         }

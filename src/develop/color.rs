@@ -92,7 +92,14 @@ pub fn rec2020_luminance_f64(rgb: Rgb) -> f64 {
 }
 
 pub fn exposure_target_luminance(rgb: Rgb, exposure_ev: f64) -> Result<f64, ColorMathError> {
-    let target = rec2020_luminance_f64(rgb) * exposure_ev.exp2();
+    let mut target = rec2020_luminance_f64(rgb) * exposure_ev.exp2();
+    // A luminance below the smallest normal f32 is black for every purpose
+    // this pipeline has, not an error. Local contrast can leave a deep shadow
+    // there, and refusing it failed an entire render over one pixel that no
+    // display could ever have distinguished from zero.
+    if target != 0.0 && target.abs() < f64::from(f32::MIN_POSITIVE) {
+        target = 0.0;
+    }
     validate_target_luminance(target)?;
     Ok(target)
 }
@@ -559,11 +566,11 @@ mod tests {
             );
         }
 
+        // The validator rejects a subnormal target, but the exposure path
+        // never hands it one: a luminance that small is black, and a render
+        // must not fail over a pixel no display could tell from zero.
         let subnormal = f32::from_bits(1);
-        assert_eq!(
-            exposure_target_luminance([subnormal; 3], -2.0),
-            Err(ColorMathError::TargetLuminanceOutOfRange)
-        );
+        assert_eq!(exposure_target_luminance([subnormal; 3], -2.0), Ok(0.0));
     }
 
     #[test]
@@ -617,5 +624,20 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod subnormal_tests {
+    use super::*;
+
+    #[test]
+    fn a_subnormal_luminance_is_black_rather_than_an_error() {
+        let tiny = [1.0e-39_f32, 1.0e-39, 1.0e-39];
+        assert_eq!(exposure_target_luminance(tiny, 0.0).unwrap(), 0.0);
+        assert_eq!(exposure_target_luminance(tiny, -3.0).unwrap(), 0.0);
+        // Ordinary values are untouched.
+        let normal = [0.2_f32, 0.2, 0.2];
+        assert!((exposure_target_luminance(normal, 0.0).unwrap() - 0.2).abs() < 1.0e-6);
     }
 }

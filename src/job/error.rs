@@ -68,6 +68,10 @@ impl std::error::Error for DevelopJobError {}
 pub struct DevelopJobFailure {
     pub error: DevelopJobError,
     pub report: Box<DevelopJobReport>,
+    /// What actually went wrong, in the words of the stage that failed. The
+    /// code above is the stable contract; this is for the person reading the
+    /// terminal, because "internal" on its own has cost real diagnosis time.
+    pub detail: Option<String>,
 }
 
 impl DevelopJobFailure {
@@ -76,7 +80,13 @@ impl DevelopJobFailure {
         Self {
             error: DevelopJobError { stage, code },
             report: Box::new(report),
+            detail: None,
         }
+    }
+
+    pub(crate) fn with_detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
     }
 }
 
