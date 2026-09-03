@@ -55,11 +55,16 @@ the adapted grain-model files remain in place.
 - ISO maps to `(1 + ISO / 2665) / 800`. The three exact frequency/amplitude
   pairs are listed above. Amount maps from 0–100 to 0–1 before the upstream
   exposure-noise factor `0.15`.
-- Rec.2020 luminance uses `(0.2627002, 0.6779981, 0.0593017)`. The inverse paper
-  response is evaluated on safe density `[0.00001, 0.99999]`. Only the developed
-  paper *delta* relative to that safe density is added equally to the original
-  scene-linear RGB. Consequently negative and HDR input remain unbounded; there
-  is no final RGB clamp, and straight alpha is never touched.
+- Rec.2020 luminance uses `(0.2627002, 0.6779981, 0.0593017)`. The paper model
+  is evaluated on CIE lightness of that luminance, the perceptual density the
+  upstream implementations work in, with the inverse paper response taken on
+  safe density `[0.00001, 0.99999]`. The developed *delta* relative to that
+  safe density moves the lightness, and the resulting luminance change is
+  applied to the original scene-linear RGB as a ratio, so a pixel keeps its
+  colour and black stays black. Evaluated on linear values instead, deep
+  shadows sat where the paper curve is steepest and lifted into grey blotches.
+  Consequently negative and HDR input remain unbounded; there is no final RGB
+  clamp, and straight alpha is never touched.
 - Luminance accumulation uses `f64` so cancellation among finite negative/HDR
   Rec.2020 channels does not overflow an intermediate `f32`. Active grain on
   any valid finite `f32` RGB either produces finite, unclamped `f32` RGB or

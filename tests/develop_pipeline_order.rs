@@ -125,9 +125,9 @@ fn wp1_through_wp5_and_grain_match_the_canonical_order_golden() {
             0.3_f32.to_bits(),
         ]
     );
-    // The golden pins the effect order and the grain seed's domain; it moves
-    // when either does.
-    assert_eq!(stable_pixel_hash(&image), 0x46ee_f228_a396_a1b3);
+    // The golden pins the effect order, the grain seed's domain and the grain
+    // model; it moves when any of them does.
+    assert_eq!(stable_pixel_hash(&image), 0x0757_cdf5_d2b6_a995);
 }
 
 fn stable_pixel_hash(image: &CpuImage) -> u64 {
@@ -164,5 +164,5 @@ fn vignette_then_sharpness_then_grain_order_has_a_focused_golden() {
     DevelopPipeline
         .process_with_context(&mut image, &settings, Some(&context))
         .unwrap();
-    assert_eq!(stable_pixel_hash(&image), 0x1f66_a612_9526_1406);
+    assert_eq!(stable_pixel_hash(&image), 0x102b_eb5a_f375_57eb);
 }

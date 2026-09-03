@@ -173,18 +173,32 @@ pub(super) fn apply_region(
         let luminance = f64::from(pixel.red) * f64::from(REC2020_LUMA[0])
             + f64::from(pixel.green) * f64::from(REC2020_LUMA[1])
             + f64::from(pixel.blue) * f64::from(REC2020_LUMA[2]);
+        if luminance <= 0.0 || !luminance.is_finite() {
+            // Black carries no grain: film grain is a modulation of the
+            // exposure a tone received, and a tone that received none has
+            // nothing to modulate. Scaling below keeps that exact.
+            continue;
+        }
 
-        // The paper response is defined on density [0,1], but only its change
-        // is added to scene-linear RGB. Negative and HDR source values are not
-        // replaced by the bounded paper density and are never finally clamped.
+        // The paper model is defined on a perceptual density, the lightness a
+        // print reaches, not on scene-linear luminance. Evaluated on linear
+        // values, the shadows sat far down the paper curve where its slope is
+        // steepest, and the same additive change that reads as fine grain in
+        // the midtones lifted deep shadows into grey blotches. So the model
+        // runs on lightness and the change it prescribes is carried back to
+        // linear as a ratio, which keeps each pixel's colour and leaves a
+        // black pixel black. Negative and HDR channels are scaled, never
+        // replaced by the bounded paper density, and never finally clamped.
+        let lightness = lightness_of(luminance);
         let density =
-            luminance.clamp(f64::from(PAPER_DENSITY_MIN), f64::from(PAPER_DENSITY_MAX)) as f32;
+            lightness.clamp(f64::from(PAPER_DENSITY_MIN), f64::from(PAPER_DENSITY_MAX)) as f32;
         let exposure = inverse_paper_response(density, bias);
         let developed = paper_response(exposure + noise * amount * EXPOSURE_NOISE_SCALE, bias);
-        let delta = developed - density;
-        let red = pixel.red + delta;
-        let green = pixel.green + delta;
-        let blue = pixel.blue + delta;
+        let developed_lightness = (lightness + f64::from(developed - density)).max(0.0);
+        let gain = (luminance_of(developed_lightness) / luminance) as f32;
+        let red = pixel.red * gain;
+        let green = pixel.green * gain;
+        let blue = pixel.blue * gain;
         if !(red.is_finite() && green.is_finite() && blue.is_finite()) {
             return Err(GrainError::NonFiniteOutput { pixel_index: index });
         }
@@ -193,6 +207,28 @@ pub(super) fn apply_region(
         pixel.blue = blue;
     }
     Ok(())
+}
+
+/// CIE lightness of a relative luminance, on 0..1 rather than 0..100.
+fn lightness_of(luminance: f64) -> f64 {
+    const THRESHOLD: f64 = 216.0 / 24389.0;
+    const SLOPE: f64 = 24389.0 / 27.0;
+    if luminance <= THRESHOLD {
+        luminance * SLOPE / 100.0
+    } else {
+        (116.0 * luminance.cbrt() - 16.0) / 100.0
+    }
+}
+
+/// Inverse of [`lightness_of`].
+fn luminance_of(lightness: f64) -> f64 {
+    const SLOPE: f64 = 24389.0 / 27.0;
+    let scaled = lightness * 100.0;
+    if scaled <= 8.0 {
+        scaled / SLOPE
+    } else {
+        ((scaled + 16.0) / 116.0).powi(3)
+    }
 }
 
 fn iso_scale(size_iso: f32) -> f32 {
@@ -758,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    fn grain_preserves_alpha_and_scene_rgb_is_changed_only_by_equal_delta() {
+    fn grain_preserves_alpha_and_scales_scene_rgb_by_one_ratio() {
         let original = pixel([-2.0, 0.5, 8.0], 0.375);
         let mut pixels = vec![original];
         apply_region(
@@ -770,10 +806,36 @@ mod tests {
         .unwrap();
         let changed = pixels[0];
         assert_eq!(changed.alpha.to_bits(), original.alpha.to_bits());
-        let red_delta = changed.red - original.red;
-        assert!(((changed.green - original.green) - red_delta).abs() < 1.0e-6);
-        assert!(((changed.blue - original.blue) - red_delta).abs() < 1.0e-6);
+        let gain = changed.green / original.green;
+        assert!(gain != 1.0, "the seed produced no grain at all");
+        assert!((changed.red / original.red - gain).abs() < 1.0e-5);
+        assert!((changed.blue / original.blue - gain).abs() < 1.0e-5);
         assert!(changed.red < 0.0 && changed.blue > 1.0);
+    }
+
+    #[test]
+    fn black_stays_black_and_shadows_carry_less_linear_grain_than_midtones() {
+        let source = [[0.0, 0.0, 0.0], [0.002, 0.002, 0.002], [0.18, 0.18, 0.18]];
+        let mut pixels = source.map(|rgb| pixel(rgb, 1.0)).to_vec();
+        // One pixel per row so all three sample the same noise value.
+        for (index, target) in pixels.iter_mut().enumerate() {
+            let mut one = vec![*target];
+            apply_region(
+                &mut one,
+                region(1, 1, 0, 0, 1, 1),
+                &settings(100.0, 4000.0, 50.0),
+                ResolvedGrainSeed::fixed_for_tests(17),
+            )
+            .unwrap();
+            *target = one[0];
+            if index == 0 {
+                assert_eq!(target.red.to_bits(), 0.0_f32.to_bits());
+            }
+        }
+        let shadow = (pixels[1].red - source[1][0]).abs();
+        let midtone = (pixels[2].red - source[2][0]).abs();
+        assert!(midtone > 0.0, "the seed produced no grain at all");
+        assert!(shadow < midtone / 10.0, "shadow {shadow} midtone {midtone}");
     }
 
     #[test]
