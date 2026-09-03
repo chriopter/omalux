@@ -157,6 +157,13 @@ impl fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
+/// Whether a value is exactly zero, for leaving unset controls out of a
+/// serialised preset so that files written before the control existed keep
+/// their byte-for-byte form.
+pub(crate) fn is_zero(value: &f32) -> bool {
+    *value == 0.0
+}
+
 pub(crate) fn validate_range(
     path: &str,
     value: f32,

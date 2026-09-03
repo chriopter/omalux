@@ -3,6 +3,7 @@ use crate::develop::{
     CpuImage, DevelopRenderContext, DevelopStage, PipelineError, settings::EffectsSettings,
 };
 
+mod denoise;
 mod grain;
 mod optical;
 mod tonal;
@@ -29,6 +30,18 @@ pub(super) fn apply(
     ensure_context(settings, context)?;
     // Persisted effect order. Keep this stable because the operations do not
     // generally commute and preset rendering depends on it.
+    //
+    // Noise reduction runs first. Everything after it either spreads light
+    // between neighbouring pixels or adds texture of its own, and both make
+    // noise harder to tell from subject: sharpening in particular amplifies
+    // exactly what the filter is meant to remove.
+    if settings.luminance_noise_reduction != 0.0 || settings.colour_noise_reduction != 0.0 {
+        denoise::apply(
+            image,
+            settings.luminance_noise_reduction,
+            settings.colour_noise_reduction,
+        );
+    }
     if settings.bloom != 0.0 {
         optical::apply_bloom(image, settings.bloom)?;
     }

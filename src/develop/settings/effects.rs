@@ -46,6 +46,14 @@ impl GrainSettings {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EffectsSettings {
+    /// Sensor noise reduction, split because luminance and colour noise need
+    /// very different amounts: colour noise carries nothing worth keeping and
+    /// can be smoothed hard, while luminance noise sits on the same scale as
+    /// fine detail.
+    #[serde(default, skip_serializing_if = "crate::develop::settings::is_zero")]
+    pub luminance_noise_reduction: f32,
+    #[serde(default, skip_serializing_if = "crate::develop::settings::is_zero")]
+    pub colour_noise_reduction: f32,
     pub bloom: f32,
     pub halation: f32,
     pub fade: f32,
@@ -57,6 +65,8 @@ pub struct EffectsSettings {
 impl Default for EffectsSettings {
     fn default() -> Self {
         Self {
+            luminance_noise_reduction: 0.0,
+            colour_noise_reduction: 0.0,
             bloom: 0.0,
             halation: 0.0,
             fade: 0.0,
@@ -69,6 +79,18 @@ impl Default for EffectsSettings {
 
 impl EffectsSettings {
     pub fn validate(&self) -> Result<(), SettingsError> {
+        validate_range(
+            "effects.luminance_noise_reduction",
+            self.luminance_noise_reduction,
+            0.0,
+            100.0,
+        )?;
+        validate_range(
+            "effects.colour_noise_reduction",
+            self.colour_noise_reduction,
+            0.0,
+            100.0,
+        )?;
         validate_range("effects.bloom", self.bloom, 0.0, 200.0)?;
         validate_range("effects.halation", self.halation, 0.0, 200.0)?;
         validate_range("effects.fade", self.fade, 0.0, 200.0)?;
@@ -79,7 +101,9 @@ impl EffectsSettings {
     }
 
     pub fn is_neutral(&self) -> bool {
-        self.bloom == 0.0
+        self.luminance_noise_reduction == 0.0
+            && self.colour_noise_reduction == 0.0
+            && self.bloom == 0.0
             && self.halation == 0.0
             && self.fade == 0.0
             && self.vignette == 0.0
@@ -88,6 +112,8 @@ impl EffectsSettings {
     }
 
     pub(crate) fn canonicalize(&mut self) {
+        self.luminance_noise_reduction = canonical_zero(self.luminance_noise_reduction);
+        self.colour_noise_reduction = canonical_zero(self.colour_noise_reduction);
         self.bloom = canonical_zero(self.bloom);
         self.halation = canonical_zero(self.halation);
         self.fade = canonical_zero(self.fade);
