@@ -38,10 +38,16 @@ impl StagedRaw {
             self.output_name
         )
     }
+    pub fn open_input(&self) -> Result<File, DecodeError> {
+        self.open_member(self.input_name.as_str())
+    }
     pub fn open_output(&self) -> Result<File, DecodeError> {
+        self.open_member(self.output_name.as_str())
+    }
+    fn open_member(&self, name: &str) -> Result<File, DecodeError> {
         let fd = fs::openat(
             &self.directory,
-            self.output_name.as_str(),
+            name,
             OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )

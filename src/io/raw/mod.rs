@@ -2,6 +2,7 @@
 //! `dcraw_emu` compatibility executable.
 
 mod auto_tone;
+mod dng;
 mod ppm;
 mod process;
 mod stage;
@@ -131,6 +132,15 @@ fn decode_staged(
             image
         }
     };
+    // Lens corrections the file prescribes come before the base rendition,
+    // so the auto exposure measures a frame whose corners are already lit.
+    if let Some(corrections) = staged
+        .open_input()
+        .ok()
+        .and_then(|file| dng::read_lens_corrections(&file))
+    {
+        dng::apply(&mut image, &corrections);
+    }
     if options.raw.auto_tone {
         auto_tone::apply(&mut image);
     }
