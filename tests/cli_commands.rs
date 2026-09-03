@@ -40,7 +40,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     assert!(parameters.status.success());
     assert_eq!(
         json(&parameters)["parameters"].as_array().unwrap().len(),
-        88
+        91
     );
 
     let probe = run(&["probe", "--json"]);

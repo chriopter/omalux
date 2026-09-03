@@ -13,7 +13,7 @@ Item {
     required property string settingsJson
     required property string supportedParametersJson
 
-    readonly property int parameterCount: 24
+    readonly property int parameterCount: 27
     property alias grainValue: grainControl.value
     property alias grainSizeValue: grainSizeControl.value
     property alias midtonesValue: midtonesControl.value
@@ -71,6 +71,9 @@ Item {
         midtonesControl.value = settings.effects.grain.midtone_response
         vignetteControl.value = settings.effects.vignette
         sharpnessControl.value = settings.effects.sharpness
+        luminanceNoiseControl.value = settings.effects.luminance_noise_reduction || 0
+        colourNoiseControl.value = settings.effects.colour_noise_reduction || 0
+        lookStrengthControl.value = (settings.color_table && settings.color_table.strength) || 0
     }
 
     onSettingsJsonChanged: synchronizeSettings()
@@ -113,7 +116,10 @@ Item {
         case 20: return grainSizeControl
         case 21: return midtonesControl
         case 22: return vignetteControl
-        default: return sharpnessControl
+        case 23: return sharpnessControl
+        case 24: return luminanceNoiseControl
+        case 25: return colourNoiseControl
+        default: return lookStrengthControl
         }
     }
 
@@ -384,6 +390,54 @@ Item {
                 supported: panel.parameterSupported("effects.sharpness")
                 onSelectionRequested: index => panel.selectionRequested(index)
                 onValueCommitted: value => panel.parameterCommitted("effects.sharpness", value)
+            }
+
+            ParameterSlider {
+                id: luminanceNoiseControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 24
+                label: "Noise reduction"
+                from: 0
+                to: 100
+                initialValue: 0
+                supported: panel.parameterSupported("effects.luminance_noise_reduction")
+                onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.luminance_noise_reduction", value)
+            }
+
+            ParameterSlider {
+                id: colourNoiseControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 25
+                label: "Colour noise"
+                from: 0
+                to: 100
+                initialValue: 0
+                supported: panel.parameterSupported("effects.colour_noise_reduction")
+                onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("effects.colour_noise_reduction", value)
+            }
+
+            ParameterSlider {
+                id: lookStrengthControl
+                Layout.fillWidth: true
+                theme: panel.theme
+                photoReady: panel.photoReady
+                selectedParameter: panel.selectedParameter
+                parameterIndex: 26
+                label: "Look strength"
+                from: 0
+                to: 100
+                initialValue: 0
+                supported: panel.parameterSupported("color_table.strength")
+                onSelectionRequested: index => panel.selectionRequested(index)
+                onValueCommitted: value => panel.parameterCommitted("color_table.strength", value)
             }
         }
     }

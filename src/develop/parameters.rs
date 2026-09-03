@@ -352,12 +352,27 @@ pub fn parameter_registry() -> Vec<ParameterDefinition> {
         1.0,
     ));
 
+    // How much of the preset's colour table is applied. A table carries the
+    // part of a look that the hue bands cannot express; the strength lets a
+    // photographer dial that part back without losing the rest of the preset.
+    definitions.push(ParameterDefinition::scalar(
+        "color_table.strength",
+        "Look strength",
+        ColorTable,
+        Percent,
+        (0.0, 100.0),
+        0.0,
+        1.0,
+    ));
+
     for (name, range) in [
         ("bloom", (0.0, 200.0)),
         ("halation", (0.0, 200.0)),
         ("fade", (0.0, 200.0)),
         ("vignette", (-150.0, 150.0)),
         ("sharpness", (0.0, 150.0)),
+        ("luminance_noise_reduction", (0.0, 100.0)),
+        ("colour_noise_reduction", (0.0, 100.0)),
     ] {
         definitions.push(ParameterDefinition::scalar(
             format!("effects.{name}"),

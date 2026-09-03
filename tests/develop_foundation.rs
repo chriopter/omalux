@@ -138,7 +138,7 @@ fn preset_parser_rejects_unknown_versions_and_fields() {
 #[test]
 fn parameter_registry_is_stable_unique_and_well_ranged() {
     let registry = parameter_registry();
-    assert_eq!(registry.len(), 88);
+    assert_eq!(registry.len(), 91);
     let unique: HashSet<_> = registry.iter().map(|definition| &definition.id).collect();
     assert_eq!(unique.len(), registry.len());
     for definition in &registry {
@@ -513,11 +513,14 @@ color_grading.highlights.saturation
 color_grading.highlights.luminance
 color_grading.blending
 color_grading.balance
+color_table.strength
 effects.bloom
 effects.halation
 effects.fade
 effects.vignette
 effects.sharpness
+effects.luminance_noise_reduction
+effects.colour_noise_reduction
 effects.grain.amount
 effects.grain.size_iso
 effects.grain.midtone_response
