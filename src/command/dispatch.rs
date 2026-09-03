@@ -717,6 +717,7 @@ fn stage_name(value: DevelopStage) -> &'static str {
         DevelopStage::ToneCurves => "tone_curves",
         DevelopStage::ColorMixer => "color_mixer",
         DevelopStage::ColorGrading => "color_grading",
+        DevelopStage::ColorTable => "color_table",
         DevelopStage::Effects => "effects",
         DevelopStage::RadialMasks => "radial_masks",
     }

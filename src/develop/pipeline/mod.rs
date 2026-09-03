@@ -169,6 +169,7 @@ pub fn apply_point_color_operations(
         DevelopStage::ToneCurves,
         DevelopStage::ColorMixer,
         DevelopStage::ColorGrading,
+        DevelopStage::ColorTable,
     ] {
         stages::apply(stage, image, &point_settings, None)?;
     }

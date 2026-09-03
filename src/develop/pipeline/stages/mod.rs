@@ -1,6 +1,7 @@
 mod basics;
 mod color_grading;
 mod color_mixer;
+mod color_table;
 mod effects;
 mod geometry;
 mod radial_masks;
@@ -40,6 +41,7 @@ pub(super) fn ensure_supported(
         DevelopStage::ToneCurves => tone_curves::supports(&settings.tone_curves),
         DevelopStage::ColorMixer => color_mixer::supports(&settings.color_mixer),
         DevelopStage::ColorGrading => color_grading::supports(&settings.color_grading),
+        DevelopStage::ColorTable => color_table::supports(&settings.color_table),
         DevelopStage::RadialMasks => radial_masks::supports(&settings.radial_masks),
         DevelopStage::Effects => effects::supports(&settings.effects),
     };
@@ -64,6 +66,7 @@ pub(super) fn apply(
         DevelopStage::ToneCurves => tone_curves::apply(image, &settings.tone_curves),
         DevelopStage::ColorMixer => color_mixer::apply(image, &settings.color_mixer),
         DevelopStage::ColorGrading => color_grading::apply(image, &settings.color_grading),
+        DevelopStage::ColorTable => color_table::apply(image, &settings.color_table),
         DevelopStage::RadialMasks => radial_masks::apply(image, &settings.radial_masks),
         DevelopStage::Effects => effects::apply(image, &settings.effects, context),
     }

@@ -207,6 +207,7 @@ fn pipeline_stage_order_is_explicit_and_stable() {
             DevelopStage::ToneCurves,
             DevelopStage::ColorMixer,
             DevelopStage::ColorGrading,
+            DevelopStage::ColorTable,
             DevelopStage::RadialMasks,
             DevelopStage::Effects,
         ]
@@ -290,6 +291,12 @@ fn implemented_stages_preflight_and_process_non_neutral_settings() {
     let mut settings = DevelopSettings::default();
     settings.color_grading.midtones.saturation = 10.0;
     cases.push((DevelopStage::ColorGrading, settings));
+
+    let mut settings = DevelopSettings::default();
+    settings.color_table.size = 9;
+    settings.color_table.entries = vec![0.5; 9 * 9 * 9 * 3];
+    settings.color_table.strength = 100.0;
+    cases.push((DevelopStage::ColorTable, settings));
 
     let mut settings = DevelopSettings::default();
     let mut mask = radial_mask("supported");

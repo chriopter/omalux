@@ -1,6 +1,7 @@
 mod basics;
 mod color_grading;
 mod color_mixer;
+mod color_table;
 mod effects;
 mod geometry;
 mod masks;
@@ -9,6 +10,7 @@ mod tone_curves;
 pub use basics::BasicsSettings;
 pub use color_grading::{ColorGradeRange, ColorGradingSettings};
 pub use color_mixer::{ColorBandAdjustment, ColorMixerSettings};
+pub use color_table::{ColorTableSettings, TABLE_MAX_SIZE, TABLE_MIN_SIZE};
 pub use effects::{EffectsSettings, GrainSettings};
 pub use geometry::{CropRect, GeometrySettings};
 pub use masks::{LocalAdjustments, RadialMask, RadialMasksSettings};
@@ -24,6 +26,11 @@ pub struct DevelopSettings {
     pub tone_curves: ToneCurvesSettings,
     pub color_mixer: ColorMixerSettings,
     pub color_grading: ColorGradingSettings,
+    /// Optional in both directions: a preset written before the stage existed
+    /// still loads, and one that carries no table still serialises byte for
+    /// byte as it did before.
+    #[serde(default, skip_serializing_if = "ColorTableSettings::is_default")]
+    pub color_table: ColorTableSettings,
     pub effects: EffectsSettings,
     pub radial_masks: RadialMasksSettings,
 }
@@ -72,6 +79,7 @@ impl DevelopSettings {
             },
             color_mixer: self.color_mixer.clone(),
             color_grading: self.color_grading.clone(),
+            color_table: self.color_table.clone(),
             effects: self.effects.clone(),
             radial_masks: RadialMasksSettings { masks },
         })
@@ -83,6 +91,7 @@ impl DevelopSettings {
         self.tone_curves.validate()?;
         self.color_mixer.validate()?;
         self.color_grading.validate()?;
+        self.color_table.validate()?;
         self.effects.validate()?;
         self.radial_masks.validate()?;
         Ok(())
@@ -94,6 +103,7 @@ impl DevelopSettings {
             && self.tone_curves.is_neutral()
             && self.color_mixer.is_neutral()
             && self.color_grading.is_neutral()
+            && self.color_table.is_neutral()
             && self.effects.is_neutral()
             && self.radial_masks.is_neutral()
     }
@@ -104,6 +114,7 @@ impl DevelopSettings {
         self.tone_curves.canonicalize();
         self.color_mixer.canonicalize();
         self.color_grading.canonicalize();
+        self.color_table.canonicalize();
         self.effects.canonicalize();
         self.radial_masks.canonicalize();
     }
