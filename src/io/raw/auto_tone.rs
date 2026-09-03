@@ -50,10 +50,24 @@ const BASE_TONE_NODES: [(f64, f64); 12] = [
     (-1.0, 0.14),
     (0.0, 0.0),
 ];
-/// Chroma gain of the base rendition. Camera-style RAW renditions are
-/// noticeably more saturated than a colorimetric decode; the factor was
-/// fitted against the reference corpus and is applied luminance-preserving.
-const BASE_SATURATION: f64 = 1.35;
+/// Chroma gain of the base rendition, sampled at log2-luminance nodes of
+/// the toned value and linear in between. Camera-style RAW renditions are
+/// noticeably more saturated than a colorimetric decode, but they let colour
+/// drain out towards white: measured against the reference corpus, a uniform
+/// gain left bright skies half again to twice as saturated as a camera
+/// renders them while the midtones matched. The shadows keep the full gain;
+/// what looks like excess chroma there is sensor noise, which is the noise
+/// reduction's job rather than this curve's. The gain is applied
+/// luminance-preserving, so it never moves the tone.
+const CHROMA_GAIN_NODES: [(f64, f64); 7] = [
+    (-4.0, 1.35),
+    (-2.5, 1.4),
+    (-1.5, 1.25),
+    (-0.75, 0.8),
+    (0.0, 0.65),
+    (0.5, 0.6),
+    (1.0, 0.58),
+];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RawAutoToneReport {
@@ -67,20 +81,32 @@ fn luminance(pixel: &crate::develop::RgbaPixel) -> f64 {
         + f64::from(pixel.blue) * LUMA[2]
 }
 
-fn base_tone_ev(log2_luminance: f64) -> f64 {
-    let (first_x, first_y) = BASE_TONE_NODES[0];
-    if log2_luminance <= first_x {
+/// Piecewise-linear lookup through sorted nodes, clamped at both ends.
+fn interpolate(nodes: &[(f64, f64)], x: f64) -> f64 {
+    let (first_x, first_y) = nodes[0];
+    if x <= first_x {
         return first_y;
     }
-    for window in BASE_TONE_NODES.windows(2) {
+    for window in nodes.windows(2) {
         let (x0, y0) = window[0];
         let (x1, y1) = window[1];
-        if log2_luminance <= x1 {
-            let t = (log2_luminance - x0) / (x1 - x0);
+        if x <= x1 {
+            let t = (x - x0) / (x1 - x0);
             return y0 + t * (y1 - y0);
         }
     }
-    0.0
+    nodes[nodes.len() - 1].1
+}
+
+fn base_tone_ev(log2_luminance: f64) -> f64 {
+    if log2_luminance >= BASE_TONE_NODES[BASE_TONE_NODES.len() - 1].0 {
+        return 0.0;
+    }
+    interpolate(&BASE_TONE_NODES, log2_luminance)
+}
+
+fn chroma_gain(log2_luminance: f64) -> f64 {
+    interpolate(&CHROMA_GAIN_NODES, log2_luminance)
 }
 
 /// Applies auto exposure and base tone in place and reports the chosen gain.
@@ -112,13 +138,14 @@ pub fn apply(image: &mut CpuImage) -> RawAutoToneReport {
         let exposed = old * gain;
         let toned = exposed * base_tone_ev(exposed.log2()).exp2();
         let scale = toned / old;
+        let chroma = chroma_gain(toned.log2());
         let red = f64::from(pixel.red) * scale;
         let green = f64::from(pixel.green) * scale;
         let blue = f64::from(pixel.blue) * scale;
         let gray = red * LUMA[0] + green * LUMA[1] + blue * LUMA[2];
-        pixel.red = (gray + (red - gray) * BASE_SATURATION) as f32;
-        pixel.green = (gray + (green - gray) * BASE_SATURATION) as f32;
-        pixel.blue = (gray + (blue - gray) * BASE_SATURATION) as f32;
+        pixel.red = (gray + (red - gray) * chroma) as f32;
+        pixel.green = (gray + (green - gray) * chroma) as f32;
+        pixel.blue = (gray + (blue - gray) * chroma) as f32;
     }
     RawAutoToneReport { exposure_ev }
 }
@@ -202,6 +229,19 @@ mod tests {
         // Chroma grows by the fitted factor around that luminance.
         assert!(f64::from(out.blue) - f64::from(out.red) > 0.0);
         assert_eq!(out.alpha, 0.5);
+    }
+
+    #[test]
+    fn chroma_gain_boosts_midtones_and_drains_towards_white() {
+        assert!(chroma_gain(-3.0) > 1.3);
+        assert!(chroma_gain(0.0) < 1.0);
+        assert!(chroma_gain(4.0) < 1.0);
+        let mut previous = chroma_gain(-2.5);
+        for step in -25..20 {
+            let next = chroma_gain(f64::from(step) / 10.0);
+            assert!(next <= previous + 1.0e-12, "gain rises above the midtones");
+            previous = next;
+        }
     }
 
     #[test]
