@@ -570,7 +570,7 @@ mod tests {
             DevelopJobRunner::new(PresetCatalog::built_in().unwrap())
                 .run(
                     &settings_job(&raw_input, output, OutputFormat::Jpeg, settings),
-                    &ProductionPhotoDecoder::with_raw(fake_raw_backend(directory.path())),
+                    &ProductionPhotoDecoder::with_raw(fake_midtone_raw_backend(directory.path())),
                     &ProductionPhotoEncoder::new(ResourceLimits::default()),
                     &CancellationToken::new(),
                     &mut NoProgress,
@@ -745,6 +745,24 @@ mod tests {
         assert!(profile.radial_masks_v1);
         assert!(report.develop_working_set.estimated_peak_bytes() > 0);
         assert!(report.scene_render.is_some());
+    }
+
+    /// A synthetic raw holding a midtone rather than a fully saturated pixel.
+    /// A pixel at the top of the scale renders at display white, where a
+    /// further exposure boost has nowhere left to go, which says nothing about
+    /// whether the boost was applied.
+    fn fake_midtone_raw_backend(directory: &Path) -> RawExecutionOptions {
+        let executable = directory.join("dcraw_emu_midtone");
+        stdfs::write(
+            &executable,
+            "#!/bin/sh\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  if [ \"$1\" = '-Z' ]; then shift; out=$1; fi\n  shift\ndone\nprintf 'P6\\n1 1\\n65535\\n\\100\\000\\060\\000\\040\\000' > \"$out\"\n",
+        )
+        .unwrap();
+        stdfs::set_permissions(&executable, stdfs::Permissions::from_mode(0o700)).unwrap();
+        let mut execution = RawExecutionOptions::new(&executable).unwrap();
+        execution.staging_directory = directory.to_owned();
+        execution.timeout = Duration::from_secs(2);
+        execution
     }
 
     fn fake_raw_backend(directory: &Path) -> RawExecutionOptions {

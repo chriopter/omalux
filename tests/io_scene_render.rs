@@ -147,7 +147,7 @@ fn rendered_scene_is_accepted_by_the_existing_lcms_srgb_boundary() {
             &limits,
         )
         .unwrap();
-    assert_eq!(report.algorithm, SceneRenderAlgorithm::LogLogisticSrgbV1);
+    assert_eq!(report.algorithm, SceneRenderAlgorithm::LogLogisticSrgbV2);
     assert_eq!(
         report.input_signal_relation,
         SignalRelation::SceneRelatedRaw

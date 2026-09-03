@@ -60,6 +60,9 @@ const SRGB_TO_REC2020: [[f64; 3]; 3] = [
 #[non_exhaustive]
 pub enum SceneRenderAlgorithm {
     LogLogisticSrgbV1,
+    /// As V1, but the tone curve is driven by an RGB power norm instead of
+    /// luminance.
+    LogLogisticSrgbV2,
 }
 
 /// Fixed scene-to-display renderer for an SDR sRGB destination.
@@ -126,7 +129,7 @@ impl SceneToDisplayTransform {
         }
         destination.copy_from_slice(&scratch);
         Ok(SceneRenderReport {
-            algorithm: SceneRenderAlgorithm::LogLogisticSrgbV1,
+            algorithm: SceneRenderAlgorithm::LogLogisticSrgbV2,
             input_signal_relation: SignalRelation::SceneRelatedRaw,
             output_signal_relation: SignalRelation::LinearizedDisplayReferred,
             tone_mapped_pixels,
@@ -258,12 +261,15 @@ fn render_tone(pixel: &RgbaPixel) -> ([f64; 4], bool, bool) {
         f64::from(pixel.green()),
         f64::from(pixel.blue()),
     ];
-    let luminance = dot(rgb, REC2020_LUMA);
-    if luminance <= 0.0 {
+    if dot(rgb, REC2020_LUMA) <= 0.0 {
         return ([0.0, 0.0, 0.0, f64::from(pixel.alpha())], true, true);
     }
-    let mapped_luminance = log_logistic_luminance(luminance).min(DISPLAY_WHITE);
-    let scale = mapped_luminance / luminance;
+    let norm = tone_norm(rgb);
+    if norm <= 0.0 {
+        return ([0.0, 0.0, 0.0, f64::from(pixel.alpha())], true, true);
+    }
+    let mapped = log_logistic_luminance(norm).min(DISPLAY_WHITE);
+    let scale = mapped / norm;
     (
         [
             rgb[0] * scale,
@@ -271,9 +277,32 @@ fn render_tone(pixel: &RgbaPixel) -> ([f64; 4], bool, bool) {
             rgb[2] * scale,
             f64::from(pixel.alpha()),
         ],
-        mapped_luminance.to_bits() != luminance.to_bits(),
+        mapped.to_bits() != norm.to_bits(),
         false,
     )
+}
+
+/// The value the tone curve is applied to, standing in for "how bright is this
+/// pixel" while the channel ratios are carried through unchanged.
+///
+/// Luminance is the obvious choice and the wrong one for saturated colour.
+/// Rec.2020 gives blue a weight of 0.06, so a deep sky reads as a shadow —
+/// it is rendered dark, and every correction that brings it back up lifts its
+/// near-zero red channel proportionally far more than its blue one, which
+/// drains the colour. Taking the largest channel instead has the opposite
+/// fault: it lightens saturated colour until it looks fluorescent, and it
+/// jumps where the leading channel changes. This is the power norm, which sits
+/// between the two — it follows the strongest channel closely for saturated
+/// colour and settles onto luminance for neutrals, without a discontinuity.
+fn tone_norm(rgb: [f64; 3]) -> f64 {
+    let positive = rgb.map(|channel| channel.max(0.0));
+    let squares = positive.map(|channel| channel * channel);
+    let denominator = squares[0] + squares[1] + squares[2];
+    if denominator <= 0.0 {
+        return 0.0;
+    }
+    let numerator = squares[0] * positive[0] + squares[1] * positive[1] + squares[2] * positive[2];
+    numerator / denominator
 }
 
 fn log_logistic_luminance(luminance: f64) -> f64 {
