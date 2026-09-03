@@ -127,7 +127,13 @@ fn remap_master_luminance(rgb: [f64; 3], old_luminance: f64, new_luminance: f64)
     let mut remapped = if ratio_weight == 0.0 {
         additive
     } else {
-        let scale = new_luminance / old_luminance;
+        // A curve that dips below zero asks for black, not for the colour
+        // turned inside out: a negative scale would flip every channel's
+        // sign, and a dark blue sky crushed by such a curve came out as a
+        // brown band exactly where the curve crossed zero. The ratio
+        // candidate collapses to the origin instead, and the residual step
+        // below carries the requested luminance as a neutral offset.
+        let scale = (new_luminance / old_luminance).max(0.0);
         let ratio = [rgb[0] * scale, rgb[1] * scale, rgb[2] * scale];
         if ratio_weight == 1.0 {
             ratio
@@ -331,6 +337,23 @@ fn endpoint_slope(width: f64, adjacent_width: f64, secant: f64, adjacent_secant:
 mod allocation_tests {
     use super::*;
     use crate::develop::{CurvePoint, RgbaPixel};
+
+    #[test]
+    fn a_curve_below_zero_crushes_to_black_without_inverting_the_colour() {
+        // Dark blue, well inside the ratio regime, through a master curve
+        // that maps its luminance below zero.
+        let rgb = [0.01, 0.03, 0.12];
+        let old = luminance(rgb);
+        let remapped = remap_master_luminance(rgb, old, -0.02);
+        assert!((luminance(remapped) + 0.02).abs() < 1.0e-9);
+        assert!(
+            remapped[0] <= remapped[2] + 1.0e-9,
+            "red {} overtook blue {}",
+            remapped[0],
+            remapped[2]
+        );
+        assert!(remapped.iter().all(|channel| *channel <= 0.0));
+    }
 
     #[test]
     fn allocation_failure_happens_before_the_first_pixel_change() {
