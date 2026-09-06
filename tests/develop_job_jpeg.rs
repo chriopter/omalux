@@ -2,7 +2,7 @@ use std::{fs, fs::File, io::Cursor, path::Path};
 
 use image::ImageDecoder;
 use omalux::{
-    develop::{CpuImage, RgbaPixel},
+    develop::{CpuImage, DevelopSettings, LocalAdjustments, PresetDocument, RadialMask, RgbaPixel},
     io::{
         AlphaPolicy, AssumedProfileReason, AtomicOutputOptions, ColorProvenance, DecodeError,
         DecodeOptions, DecodedPhoto, Diagnostic, EncodeCancellation, EncodeError, EncodeOptions,
@@ -195,8 +195,31 @@ fn display_and_raw_jobs_reach_real_atomic_jpeg_with_the_captured_identity() {
     }
 }
 
+/// A preset carrying one radial mask, so the mask path is exercised without
+/// depending on any built-in look carrying picture-bound masks.
+fn mask_preset() -> PresetDocument {
+    let mut settings = DevelopSettings::default();
+    settings.radial_masks.masks.push(RadialMask {
+        id: "mask-test".into(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 0.4,
+        radius_y: 0.4,
+        rotation_degrees: 0.0,
+        feather: 0.5,
+        opacity: 1.0,
+        invert: false,
+        adjustments: LocalAdjustments {
+            exposure_ev: -0.5,
+            ..LocalAdjustments::default()
+        },
+    });
+    PresetDocument::new("mask-test", "Mask Test", settings)
+}
+
 #[test]
-fn built_in_mask_preset_reaches_the_real_raw_signal_and_jpeg_path() {
+fn mask_preset_reaches_the_real_raw_signal_and_jpeg_path() {
     let directory = tempfile::tempdir().unwrap();
     let limits = ResourceLimits::default();
     let runner = DevelopJobRunner::built_in().unwrap();
@@ -208,7 +231,7 @@ fn built_in_mask_preset_reaches_the_real_raw_signal_and_jpeg_path() {
         photo: photo(SignalRelation::SceneRelatedRaw),
     };
     let mut request = job(&input, &output, OverwritePolicy::Forbid);
-    request.preset = PresetSelection::CatalogId("personal-lampe-1".to_owned());
+    request.preset = PresetSelection::document(mask_preset());
     request.output_options = DevelopOutput::new(
         OutputFormat::Jpeg,
         90,

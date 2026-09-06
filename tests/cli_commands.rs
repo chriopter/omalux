@@ -1,4 +1,4 @@
-use omalux::develop::{CurvePoint, DevelopSettings, PresetDocument};
+use omalux::develop::{CurvePoint, DevelopSettings, LocalAdjustments, PresetDocument, RadialMask};
 use serde_json::Value;
 use std::{
     fs,
@@ -231,11 +231,11 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
     .unwrap();
 
     for (id, color, spatial, radial) in [
-        ("personal-verbania", false, false, false),
-        ("personal-blume", true, true, false),
-        ("series-alpine-cross", true, false, false),
-        ("community-honey-hour", true, false, false),
-        ("personal-lampe-1", false, true, true),
+        ("personal-verbania", false, true, false),
+        ("personal-blume", true, false, false),
+        ("series-alpine-cross", true, true, false),
+        ("community-honey-hour", true, true, false),
+        ("personal-lampe-1", false, true, false),
     ] {
         let output = directory.path().join(format!("{id}.jpg"));
         let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
@@ -582,12 +582,39 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
     unsafe { assert_heic_dimensions_and_depth(&bytes, 5, 3, 10) };
 
     let mask_output = directory.path().join("mask.heic");
+    let mask_preset = directory.path().join("mask.json");
+    let mut mask_settings = DevelopSettings::default();
+    mask_settings.radial_masks.masks.push(RadialMask {
+        id: "mask-heic".into(),
+        enabled: true,
+        center_x: 0.5,
+        center_y: 0.5,
+        radius_x: 0.4,
+        radius_y: 0.4,
+        rotation_degrees: 0.0,
+        feather: 0.5,
+        opacity: 1.0,
+        invert: false,
+        adjustments: LocalAdjustments {
+            exposure_ev: -0.5,
+            ..LocalAdjustments::default()
+        },
+    });
+    fs::write(
+        &mask_preset,
+        PresetDocument::new("mask-heic", "Mask HEIC", mask_settings)
+            .to_canonical_json()
+            .unwrap(),
+    )
+    .unwrap();
     let mask = Command::new(env!("CARGO_BIN_EXE_omalux"))
         .args(["develop", "--input"])
         .arg(&input)
         .arg("--output")
         .arg(&mask_output)
-        .args(["--format", "heic", "--preset", "personal-lampe-1", "--json"])
+        .args(["--format", "heic", "--preset-file"])
+        .arg(&mask_preset)
+        .arg("--json")
         .output()
         .unwrap();
     assert!(mask.status.success(), "{mask:?}");
