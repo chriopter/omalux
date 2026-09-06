@@ -52,16 +52,23 @@ fn launch(home: &Path) -> RunningGui {
     let (sender, reloads) = mpsc::channel();
     let reader = thread::spawn(move || {
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            if line.starts_with("omalux-theme-reload:") {
+            if line.starts_with("omalux-theme-") {
                 let _ = sender.send(line);
             }
         }
     });
-    RunningGui {
+    let gui = RunningGui {
         child,
         reloads,
         reader: Some(reader),
-    }
+    };
+    // The watcher is installed once the catalogue is parsed and the window
+    // is up; nothing may be mutated before that, or the change is missed.
+    assert_eq!(
+        gui.reloads.recv_timeout(Duration::from_secs(15)).unwrap(),
+        "omalux-theme-watch-ready"
+    );
+    gui
 }
 
 fn expect_one_reload(gui: &RunningGui, background: &str) {

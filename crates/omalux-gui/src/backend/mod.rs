@@ -615,6 +615,12 @@ impl qobject::PhotoBackend {
     pub fn start_theme_watcher(mut self: Pin<&mut Self>) {
         self.as_mut().apply_theme(load_omarchy_theme());
         qobject::install_theme_watcher(self);
+        // Announced for the integration test, which must not touch the theme
+        // before the watcher is in place: start-up takes as long as the
+        // preset catalogue takes to parse, and that is not a fixed time.
+        if std::env::var_os("OMALUX_THEME_WATCH_TRACE").is_some() {
+            eprintln!("omalux-theme-watch-ready");
+        }
     }
 
     pub fn reload_theme(mut self: Pin<&mut Self>) {
