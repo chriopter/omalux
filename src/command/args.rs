@@ -206,6 +206,14 @@ pub(crate) enum PresetsCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Rewrite a preset file in the byte-exact canonical form the built-in
+    /// catalogue requires: compact JSON followed by one line feed.
+    Canonicalize {
+        path: PathBuf,
+        /// Write here instead of back into the input file.
+        #[arg(long, value_name = "PATH")]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, Args)]

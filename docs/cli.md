@@ -19,6 +19,7 @@ omalux develop --input PATH --output PATH
                   [--overwrite] [--json] [--progress none|human|json]
 omalux presets list [--json]
 omalux presets show ID [--json]
+omalux presets canonicalize PATH [--output PATH]
 omalux parameters list [--json]
 omalux probe [--json]
 ```

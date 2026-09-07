@@ -752,3 +752,46 @@ fn gui_command_rejects_a_sibling_symlink_and_accepts_a_regular_held_sibling() {
     fs::copy("/bin/true", &sibling).unwrap();
     assert!(Command::new(&core).arg("gui").status().unwrap().success());
 }
+
+#[test]
+fn presets_canonicalize_rewrites_a_file_into_catalogue_form() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("look.json");
+    let mut settings = DevelopSettings::default();
+    settings.basics.contrast = 12.5;
+    let preset = PresetDocument::new("look", "Look", settings);
+    // Pretty-printed with trailing blank lines: valid, but not what the
+    // catalogue accepts.
+    fs::write(
+        &path,
+        format!("{}\n\n", serde_json::to_string_pretty(&preset).unwrap()),
+    )
+    .unwrap();
+
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
+        .args(["presets", "canonicalize"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    let expected = format!("{}\n", preset.to_canonical_json().unwrap());
+    assert_eq!(fs::read_to_string(&path).unwrap(), expected);
+
+    let copy = directory.path().join("copy.json");
+    let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
+        .args(["presets", "canonicalize"])
+        .arg(&path)
+        .arg("--output")
+        .arg(&copy)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(fs::read_to_string(&copy).unwrap(), expected);
+
+    let missing = Command::new(env!("CARGO_BIN_EXE_omalux"))
+        .args(["presets", "canonicalize"])
+        .arg(directory.path().join("absent.json"))
+        .output()
+        .unwrap();
+    assert_eq!(missing.status.code(), Some(2));
+}

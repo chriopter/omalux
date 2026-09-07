@@ -152,6 +152,9 @@ pub(crate) fn dispatch(
         Command::Presets(arguments) => match arguments.command {
             PresetsCommand::List { json } => list_presets(json, stdout, stderr),
             PresetsCommand::Show { id, json } => show_preset(&id, json, stdout, stderr),
+            PresetsCommand::Canonicalize { path, output } => {
+                canonicalize_preset(&path, output.as_deref(), stdout, stderr)
+            }
         },
         Command::Parameters(arguments) => match arguments.command {
             ParametersCommand::List { json } => list_parameters(json, stdout, stderr),
@@ -572,6 +575,35 @@ fn list_presets(json_output: bool, stdout: &mut dyn Write, stderr: &mut dyn Writ
         human_error(stderr, "preset output could not be written");
         CommandExit::Internal
     }
+}
+
+fn canonicalize_preset(
+    path: &Path,
+    output: Option<&Path>,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> CommandExit {
+    let preset = match load_preset_file(path) {
+        Ok(preset) => preset,
+        Err(error) => {
+            human_error(stderr, &format!("preset file could not be read: {error}"));
+            return CommandExit::Usage;
+        }
+    };
+    let canonical = match preset.to_canonical_json() {
+        Ok(canonical) => canonical,
+        Err(_) => {
+            human_error(stderr, "preset could not be serialised");
+            return CommandExit::Internal;
+        }
+    };
+    let target = output.unwrap_or(path);
+    if std::fs::write(target, format!("{canonical}\n")).is_err() {
+        human_error(stderr, "preset file could not be written");
+        return CommandExit::Failed;
+    }
+    let _ = writeln!(stdout, "canonicalized {}", target.display());
+    CommandExit::Success
 }
 
 fn show_preset(
