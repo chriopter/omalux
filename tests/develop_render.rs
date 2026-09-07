@@ -1,12 +1,12 @@
 use omalux::{
-    develop::RgbaPixel,
-    io::{
-        ResourceLimits, SdrRangePolicy, SignalRelation,
-        color::{
+    develop::{
+        RgbaPixel,
+        render::{
             SceneRenderAlgorithm, SceneRenderError, SceneToDisplayTransform,
-            WorkingToSrgbTransform, estimate_scene_render_working_set,
+            estimate_scene_render_working_set,
         },
     },
+    io::{ResourceLimits, SdrRangePolicy, SignalRelation, color::WorkingToSrgbTransform},
 };
 
 fn pixel(red: f32, green: f32, blue: f32, alpha: f32) -> RgbaPixel {

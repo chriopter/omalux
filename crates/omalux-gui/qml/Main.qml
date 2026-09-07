@@ -33,7 +33,7 @@ ApplicationWindow {
     property real zoom: 1.0
     property int selectedPanel: 0
     property int selectedParameter: 0
-    property bool grainAdvancedExpanded: false
+    property bool effectsAdvancedExpanded: false
     property bool shortcutsVisible: false
     property bool exportMenuVisible: false
     property string pendingExportFormat: ""
@@ -111,15 +111,15 @@ ApplicationWindow {
 
         exportQuality = Math.max(1, Math.min(100,
             Math.round(numericArgument("--quality", 90))))
-        grainPanel.grainValue = Math.max(0, Math.min(100,
+        effectsPanel.grainValue = Math.max(0, Math.min(100,
             numericArgument("--grain", 24)))
-        grainPanel.grainSizeValue = Math.max(20, Math.min(6400,
+        effectsPanel.grainSizeValue = Math.max(20, Math.min(6400,
             numericArgument("--grain-size", 4000)))
-        grainPanel.midtonesValue = Math.max(0, Math.min(100,
+        effectsPanel.midtonesValue = Math.max(0, Math.min(100,
             numericArgument("--midtones", 100)))
-        backend.setParameter("effects.grain.amount", grainPanel.grainValue)
-        backend.setParameter("effects.grain.size_iso", grainPanel.grainSizeValue)
-        backend.setParameter("effects.grain.midtone_response", grainPanel.midtonesValue)
+        backend.setParameter("effects.grain.amount", effectsPanel.grainValue)
+        backend.setParameter("effects.grain.size_iso", effectsPanel.grainSizeValue)
+        backend.setParameter("effects.grain.midtone_response", effectsPanel.midtonesValue)
 
         console.log("omalux: opening " + cliInput)
         backend.openPhoto(localFileUrl(cliInput))
@@ -219,22 +219,22 @@ ApplicationWindow {
     }
 
     function parameterAt(index) {
-        return grainPanel.parameterAt(index)
+        return effectsPanel.parameterAt(index)
     }
 
     function selectParameter(index) {
         if (index === 19 || index === 20)
-            grainAdvancedExpanded = true
-        selectedParameter = (index + grainPanel.parameterCount)
-            % grainPanel.parameterCount
+            effectsAdvancedExpanded = true
+        selectedParameter = (index + effectsPanel.parameterCount)
+            % effectsPanel.parameterCount
         Qt.callLater(function() {
             var control = parameterAt(selectedParameter)
-            grainPanel.ensureVisible(control)
+            effectsPanel.ensureVisible(control)
         })
     }
 
     function moveParameter(direction) {
-        var order = grainPanel.navigationOrder()
+        var order = effectsPanel.navigationOrder()
         var position = order.indexOf(selectedParameter)
         if (position < 0)
             position = 0
@@ -250,8 +250,8 @@ ApplicationWindow {
     }
 
     function toggleGrainAdvanced() {
-        grainAdvancedExpanded = !grainAdvancedExpanded
-        if (!grainAdvancedExpanded)
+        effectsAdvancedExpanded = !effectsAdvancedExpanded
+        if (!effectsAdvancedExpanded)
             selectedParameter = 0
     }
 
@@ -306,7 +306,7 @@ ApplicationWindow {
             return "—"
         var qualityScale = 0.35 + Math.pow(exportQuality / 100, 2) * 0.8
         var bytesPerPixel = format === "JPEG" ? 0.42 : 0.24
-        var grainPenalty = 1 + grainPanel.grainValue / 100 * 0.35
+        var grainPenalty = 1 + effectsPanel.grainValue / 100 * 0.35
         return "~" + humanFileSize(
             pixels * bytesPerPixel * qualityScale * grainPenalty)
     }
@@ -884,12 +884,12 @@ ApplicationWindow {
                             Layout.fillHeight: true
                             currentIndex: window.selectedPanel
 
-                            GrainPanel {
-                                id: grainPanel
+                            EffectsPanel {
+                                id: effectsPanel
                                 theme: window
                                 photoReady: sourceImage.status === Image.Ready
                                 selectedParameter: window.selectedParameter
-                                advancedExpanded: window.grainAdvancedExpanded
+                                advancedExpanded: window.effectsAdvancedExpanded
                                 settingsJson: backend.settingsJson
                                 supportedParametersJson: backend.supportedParametersJson
                                 onSelectionRequested: index => window.selectParameter(index)

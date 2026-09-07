@@ -1,12 +1,11 @@
 use crate::{
+    develop::render::{SceneRenderError, SceneToDisplayTransform},
     develop::{
-        DevelopPipeline, DevelopSettings, ParameterOverrideError, PipelineError, PresetCatalog,
+        DevelopPipeline, DevelopSettings, ParameterOverrideError, PipelineError,
         apply_parameter_overrides, estimate_develop_working_set,
     },
-    io::{
-        LimitError,
-        color::{SceneRenderError, SceneToDisplayTransform},
-    },
+    io::LimitError,
+    preset::PresetCatalog,
 };
 use std::borrow::Cow;
 
@@ -33,7 +32,7 @@ impl DevelopJobRunner {
         }
     }
 
-    pub fn built_in() -> Result<Self, crate::develop::PresetCatalogError> {
+    pub fn built_in() -> Result<Self, crate::preset::PresetCatalogError> {
         PresetCatalog::built_in().map(Self::new)
     }
 
@@ -379,19 +378,21 @@ mod tests {
     };
 
     use crate::{
-        develop::{CpuImage, DevelopSettings, PresetDocument, RgbaPixel},
+        develop::render::SceneToDisplayTransform,
+        develop::{CpuImage, DevelopSettings, RgbaPixel},
         io::{
             AlphaPolicy, ColorProvenance, DecodeError, DecodeOptions, DecodedPhoto, Diagnostic,
             EncodeError, EncodeOptions, MetadataBundle, MetadataPolicy, OutputFormat,
             OutputProfile, OverwritePolicy, RawBackendName, RawMatrixSource,
             RawProcessingProvenance, ResourceLimits, SdrRangePolicy, SignalRelation,
-            SourceDigestV1, WhiteBalanceProvenance, color::SceneToDisplayTransform,
+            SourceDigestV1, WhiteBalanceProvenance,
         },
         job::{
             CancellationToken, DecodedSource, DevelopJob, DevelopJobRunner, DevelopOutput,
             DisplayReferred, EncodeReceipt, NoProgress, PhotoDecoder, PhotoEncoder,
             PresetSelection, PublicationRequest, PublicationStatus, WorkingArtifact,
         },
+        preset::PresetDocument,
     };
 
     struct RawDecoder;

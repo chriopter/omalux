@@ -1,4 +1,5 @@
-use omalux::develop::{CurvePoint, DevelopSettings, LocalAdjustments, PresetDocument, RadialMask};
+use omalux::develop::{CurvePoint, DevelopSettings, LocalAdjustments, RadialMask};
+use omalux::preset::PresetDocument;
 use serde_json::Value;
 use std::{
     fs,

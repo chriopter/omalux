@@ -4,19 +4,18 @@
 //! metadata, and pixel processing. QML is a client of this API rather than the
 //! owner of edit state.
 
-pub mod catalog;
 mod color;
 mod context;
 mod image;
+pub(crate) mod kernels;
 mod orientation;
 pub mod overrides;
 pub mod parameters;
 pub mod pipeline;
-pub mod preset;
+pub mod render;
 pub mod settings;
 mod stage;
 
-pub use catalog::{MAX_EXTERNAL_PRESET_BYTES, PresetCatalog, PresetCatalogError, load_preset_file};
 pub use context::{DevelopRenderContext, ResolvedGrainSeed};
 pub use image::{CpuImage, ImageError, PixelChannel, PixelError, RgbaPixel};
 pub use overrides::{
@@ -30,7 +29,6 @@ pub use pipeline::{
     DevelopPipeline, DevelopWorkingSetEstimate, DevelopWorkingSetProfile, PipelineError,
     apply_point_color_operations, estimate_develop_working_set,
 };
-pub use preset::{PRESET_SCHEMA_ID, PRESET_SCHEMA_VERSION, PresetDocument, PresetError};
 pub use settings::{
     BasicsSettings, ColorBandAdjustment, ColorGradeRange, ColorGradingSettings, ColorMixerSettings,
     CropRect, CurvePoint, DevelopSettings, EffectsSettings, GeometrySettings, GrainSettings,

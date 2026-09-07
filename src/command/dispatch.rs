@@ -6,9 +6,10 @@ use super::{
     },
 };
 use omalux::develop::{
-    DevelopStage, ParameterKind, ParameterOverrideError, ParameterUnit, PresetCatalog,
-    apply_parameter_overrides, load_preset_file, parameter_registry,
+    DevelopStage, ParameterKind, ParameterOverrideError, ParameterUnit, apply_parameter_overrides,
+    parameter_registry,
 };
+use omalux::preset::{PresetCatalog, load_preset_file};
 use omalux::{
     io::{
         AlphaPolicy, DecodeOptions, MetadataPolicy, OutputFormat, OutputProfile, OverwritePolicy,
@@ -593,7 +594,7 @@ fn show_preset(
     let output = if json_output {
         preset.to_canonical_json()
     } else {
-        serde_json::to_string_pretty(preset).map_err(omalux::develop::PresetError::Json)
+        serde_json::to_string_pretty(preset).map_err(omalux::preset::PresetError::Json)
     };
     match output {
         Ok(output) if writeln!(stdout, "{output}").is_ok() => CommandExit::Success,

@@ -1,3 +1,4 @@
+use omalux::preset::PresetDocument;
 use std::{
     path::Path,
     sync::{Arc, Mutex},
@@ -6,7 +7,7 @@ use std::{
 use omalux::{
     develop::{
         CpuImage, CurvePoint, DevelopSettings, DevelopWorkingSetProfile, LocalAdjustments,
-        ParameterOverride, PresetDocument, RadialMask, RgbaPixel, estimate_develop_working_set,
+        ParameterOverride, RadialMask, RgbaPixel, estimate_develop_working_set,
     },
     io::{
         AlphaPolicy, AssumedProfileReason, ColorProvenance, DecodeError, DecodeOptions,

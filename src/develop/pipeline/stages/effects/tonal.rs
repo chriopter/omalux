@@ -5,7 +5,7 @@
 //! signal-processing definitions. No upstream or proprietary implementation,
 //! coefficients, LUT, preset, or camera profile was consulted or copied.
 
-use super::super::spatial::{Plane, finite_f32, gaussian_blur, reflect101};
+use crate::develop::kernels::{Plane, finite_f32, gaussian_blur, reflect101};
 use crate::{
     develop::{CpuImage, PipelineError},
     io::LimitError,

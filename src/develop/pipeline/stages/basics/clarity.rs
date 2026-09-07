@@ -5,7 +5,7 @@
 //! fixed accumulation order, so arbitrary output tiles are bit-identical to a
 //! full-frame pass. The logical source halo is twice [`RADIUS`].
 
-use super::super::spatial::{Rect, finite_f32, reflect101};
+use crate::develop::kernels::{Rect, finite_f32, reflect101};
 use crate::{
     develop::{CpuImage, PipelineError},
     io::LimitError,

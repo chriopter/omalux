@@ -1,8 +1,8 @@
 use omalux::develop::{
     CpuImage, CurvePoint, DevelopPipeline, DevelopSettings, LocalAdjustments, ParameterOverride,
-    PresetDocument, PresetError, RadialMask, RgbaPixel, ToneCurve, apply_parameter_overrides,
-    parameter_registry,
+    RadialMask, RgbaPixel, ToneCurve, apply_parameter_overrides, parameter_registry,
 };
+use omalux::preset::{PresetDocument, PresetError};
 
 const V1_NEUTRAL: &str = include_str!("fixtures/preset-v1-neutral.json");
 

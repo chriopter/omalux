@@ -7,7 +7,7 @@
 //! raw developers in project planning are conceptual context only; this module
 //! therefore has no upstream code provenance or inherited license obligation.
 
-use super::super::spatial::{Plane, finite_f32, pyramid_blur};
+use crate::develop::kernels::{Plane, finite_f32, pyramid_blur};
 use crate::{
     develop::{CpuImage, PipelineError},
     io::LimitError,

@@ -1,4 +1,4 @@
-use super::spatial;
+use crate::develop::kernels as spatial;
 use crate::develop::{
     CpuImage, DevelopRenderContext, DevelopStage, PipelineError, settings::EffectsSettings,
 };

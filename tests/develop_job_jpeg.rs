@@ -2,7 +2,7 @@ use std::{fs, fs::File, io::Cursor, path::Path};
 
 use image::ImageDecoder;
 use omalux::{
-    develop::{CpuImage, DevelopSettings, LocalAdjustments, PresetDocument, RadialMask, RgbaPixel},
+    develop::{CpuImage, DevelopSettings, LocalAdjustments, RadialMask, RgbaPixel},
     io::{
         AlphaPolicy, AssumedProfileReason, AtomicOutputOptions, ColorProvenance, DecodeError,
         DecodeOptions, DecodedPhoto, Diagnostic, EncodeCancellation, EncodeError, EncodeOptions,
@@ -16,6 +16,7 @@ use omalux::{
         PhotoDecoder, PhotoEncoder, PresetSelection, PublicationRequest, PublicationStatus,
         WorkingArtifact,
     },
+    preset::PresetDocument,
 };
 
 struct HeldSyntheticDecoder {

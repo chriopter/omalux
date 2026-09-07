@@ -1,8 +1,7 @@
 use serde::{Serialize, ser::SerializeStruct};
 
 use crate::{
-    develop::DevelopWorkingSetProfile,
-    io::{SignalRelation, color::SceneRenderReport},
+    develop::DevelopWorkingSetProfile, develop::render::SceneRenderReport, io::SignalRelation,
 };
 
 use super::{JobErrorCode, JobStage};

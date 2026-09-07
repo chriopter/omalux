@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
 use crate::{
-    develop::{ParameterOverride, PresetDocument},
+    develop::ParameterOverride,
     io::{
         AlphaPolicy, DecodeOptions, EncodeOptions, MetadataPolicy, OutputFormat, OutputProfile,
         OverwritePolicy, SdrRangePolicy,
     },
+    preset::PresetDocument,
 };
 
 #[derive(Clone, Debug, PartialEq)]

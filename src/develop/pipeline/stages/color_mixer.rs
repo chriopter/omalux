@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn quiet_negative_preserves_cancellation_dominated_near_black_luminance() {
-        let catalog = crate::develop::PresetCatalog::built_in().unwrap();
+        let catalog = crate::preset::PresetCatalog::built_in().unwrap();
         let settings = &catalog
             .get("community-quiet-negative")
             .unwrap()

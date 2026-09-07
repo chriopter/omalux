@@ -1,8 +1,9 @@
+use omalux::preset::{PresetCatalog, PresetDocument};
 use omalux::{
     develop::{
-        CpuImage, DevelopSettings, ParameterKind, PresetCatalog, PresetDocument, RgbaPixel,
-        apply_parameter_overrides, apply_point_color_operations, estimate_develop_working_set,
-        parameter_registry, parse_parameter_override,
+        CpuImage, DevelopSettings, ParameterKind, RgbaPixel, apply_parameter_overrides,
+        apply_point_color_operations, estimate_develop_working_set, parameter_registry,
+        parse_parameter_override,
     },
     io::{
         AlphaPolicy, AtomicOutputError, AtomicOutputOptions, AtomicOutputOutcome, DecodeOptions,
@@ -285,7 +286,7 @@ pub(super) fn develop_preview_fast(
         .map_err(|_| GuiJobError::Setup("preview image".into()))?;
 
     if photo.signal_relation() == SignalRelation::SceneRelatedRaw {
-        let transform = omalux::io::color::SceneToDisplayTransform::new();
+        let transform = omalux::develop::render::SceneToDisplayTransform::new();
         let limits = preview_limits();
         let width = image.width() as usize;
         let source_pixels = image.pixels().to_vec();

@@ -2,8 +2,9 @@ use omalux::develop::settings::{CurvePoint, RadialMask, ToneCurve};
 use omalux::develop::{
     CANONICAL_STAGE_ORDER, CpuImage, DevelopPipeline, DevelopSettings, DevelopStage, ImageError,
     LocalAdjustments, NeutralRepresentation, ParameterKind, PipelineError, PixelChannel,
-    PixelError, PresetDocument, PresetError, RgbaPixel, parameter_registry,
+    PixelError, RgbaPixel, parameter_registry,
 };
+use omalux::preset::{PresetDocument, PresetError};
 use std::collections::HashSet;
 
 const NEUTRAL_PRESET: &str = include_str!("fixtures/preset-v1-neutral.json");

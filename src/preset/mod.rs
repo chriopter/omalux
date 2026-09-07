@@ -1,4 +1,11 @@
-use super::{DevelopSettings, SettingsError};
+//! Preset documents: the interchange format a look is saved in, and the
+//! catalogue of built-in looks.
+
+pub mod catalog;
+
+pub use catalog::{MAX_EXTERNAL_PRESET_BYTES, PresetCatalog, PresetCatalogError, load_preset_file};
+
+use crate::develop::{DevelopSettings, SettingsError};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::fmt;
 

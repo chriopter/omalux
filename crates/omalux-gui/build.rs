@@ -6,7 +6,7 @@ fn main() {
         "qml/components/ParameterSlider.qml",
         "qml/components/ToolTabButton.qml",
         "qml/components/TuiButton.qml",
-        "qml/tools/grain/GrainPanel.qml",
+        "qml/tools/effects/EffectsPanel.qml",
         "qml/tools/metadata/MetadataPanel.qml",
         "qml/tools/presets/PresetsPanel.qml",
     ]);

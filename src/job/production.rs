@@ -384,9 +384,9 @@ mod tests {
         format: OutputFormat,
     ) -> crate::job::DevelopJob {
         use crate::{
-            develop::PresetDocument,
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{DevelopJob, DevelopOutput, PresetSelection},
+            preset::PresetDocument,
         };
         DevelopJob {
             input: input.to_owned(),
@@ -417,7 +417,7 @@ mod tests {
         settings: crate::develop::DevelopSettings,
     ) -> crate::job::DevelopJob {
         let mut job = geometry_mask_job(input, output, format);
-        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+        job.preset = crate::job::PresetSelection::document(crate::preset::PresetDocument::new(
             "isolated-settings-job",
             "Isolated settings job",
             settings,
@@ -490,7 +490,7 @@ mod tests {
         format: OutputFormat,
     ) -> crate::job::DevelopJob {
         let mut job = geometry_mask_job(input, output, format);
-        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+        job.preset = crate::job::PresetSelection::document(crate::preset::PresetDocument::new(
             "full-component-job",
             "Full component job",
             full_component_settings(),
@@ -510,8 +510,8 @@ mod tests {
     #[test]
     fn raster_jpeg_runs_real_geometry_radial_color_and_spatial_stack() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.jpg");
@@ -534,8 +534,8 @@ mod tests {
     #[test]
     fn raster_and_raw_jpeg_artifacts_isolate_local_exposure() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
 
         let directory = tempdir().unwrap();
@@ -584,8 +584,8 @@ mod tests {
     #[test]
     fn heic_artifact_isolates_local_exposure() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
 
         let directory = tempdir().unwrap();
@@ -614,8 +614,8 @@ mod tests {
     #[test]
     fn raster_heic_runs_real_geometry_radial_color_and_spatial_stack() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.jpg");
@@ -637,8 +637,8 @@ mod tests {
     #[test]
     fn negative_local_sharpness_never_creates_a_production_target() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, JobErrorCode, JobStage, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.jpg");
@@ -647,7 +647,7 @@ mod tests {
         let mut job = geometry_mask_job(&input, &output, OutputFormat::Jpeg);
         let mut settings = geometry_mask_settings();
         settings.radial_masks.masks[0].adjustments.sharpness = -1.0;
-        job.preset = crate::job::PresetSelection::document(crate::develop::PresetDocument::new(
+        job.preset = crate::job::PresetSelection::document(crate::preset::PresetDocument::new(
             "negative-local-sharpness-production",
             "Negative local sharpness production",
             settings,
@@ -669,8 +669,8 @@ mod tests {
     #[test]
     fn raster_jpeg_geometry_mask_job_reports_exact_develop_peak() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.jpg");
@@ -696,8 +696,8 @@ mod tests {
     #[test]
     fn raster_heic_geometry_mask_job_reports_exact_develop_peak() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.jpg");
@@ -721,8 +721,8 @@ mod tests {
     #[test]
     fn raw_jpeg_runs_exposure_geometry_color_spatial_and_mask_stack() {
         use crate::{
-            develop::PresetCatalog,
             job::{DevelopJobRunner, NoProgress},
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let input = directory.path().join("source.nef");
@@ -835,12 +835,13 @@ mod tests {
     #[test]
     fn fake_raw_runs_once_through_scene_render_and_publishes_jpeg() {
         use crate::{
-            develop::{ParameterOverride, PresetCatalog},
+            develop::ParameterOverride,
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{
                 DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput, NoProgress,
                 PresetSelection, ReportSignalRelation,
             },
+            preset::PresetCatalog,
         };
 
         let directory = tempdir().unwrap();
@@ -907,12 +908,13 @@ mod tests {
     #[test]
     fn fake_raw_runs_once_through_scene_render_and_publishes_ten_bit_heic() {
         use crate::{
-            develop::{ParameterOverride, PresetCatalog},
+            develop::ParameterOverride,
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{
                 DevelopJob, DevelopJobOutcome, DevelopJobRunner, DevelopOutput, EncodeSummary,
                 NoProgress, PresetSelection, ReportSignalRelation,
             },
+            preset::PresetCatalog,
         };
 
         let directory = tempdir().unwrap();
@@ -1037,12 +1039,12 @@ mod tests {
     #[test]
     fn pre_cancelled_job_never_opens_input_or_creates_target() {
         use crate::{
-            develop::PresetCatalog,
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{
                 DevelopJob, DevelopJobRunner, DevelopOutput, JobErrorCode, NoProgress,
                 PresetSelection,
             },
+            preset::PresetCatalog,
         };
         let directory = tempdir().unwrap();
         let output = directory.path().join("never-created.jpg");
@@ -1081,9 +1083,9 @@ mod tests {
     #[test]
     fn runner_holds_the_same_open_source_lease_through_encoder_commit() {
         use crate::{
-            develop::PresetCatalog,
             io::{AlphaPolicy, MetadataPolicy, OutputProfile, OverwritePolicy, SdrRangePolicy},
             job::{DevelopJob, DevelopJobRunner, DevelopOutput, NoProgress, PresetSelection},
+            preset::PresetCatalog,
         };
 
         struct LeaseCheckingEncoder;

@@ -1,5 +1,6 @@
-use omalux::develop::{CpuImage, DevelopPipeline, DevelopRenderContext, PresetCatalog, RgbaPixel};
+use omalux::develop::{CpuImage, DevelopPipeline, DevelopRenderContext, RgbaPixel};
 use omalux::io::ResourceLimits;
+use omalux::preset::PresetCatalog;
 
 fn dark_edge_pattern(width: u32, height: u32) -> CpuImage {
     let mut pixels = Vec::with_capacity((width * height) as usize);

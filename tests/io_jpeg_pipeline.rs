@@ -2,12 +2,12 @@ use std::{fs, io::Cursor, path::Path};
 
 use image::ImageDecoder;
 use omalux::{
+    develop::render::SceneToDisplayTransform,
     develop::{CpuImage, RgbaPixel},
     io::{
         AtomicOutputError, AtomicOutputOptions, ColorProvenance, DecodedPhoto, EncodeCancellation,
         EncodeError, EncodeOptions, JpegEncodeInput, JpegEncodeRequest, MetadataBundle,
-        ResourceLimits, SdrRangePolicy, SignalRelation, SourceDigestV1,
-        color::SceneToDisplayTransform, encode_jpeg,
+        ResourceLimits, SdrRangePolicy, SignalRelation, SourceDigestV1, encode_jpeg,
     },
 };
 

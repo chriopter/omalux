@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use crate::{
+    develop::render::{SceneRenderError, SceneRenderReport, SceneToDisplayTransform},
     develop::{CpuImage, ImageError},
     io::{
         ColorProvenance, DecodedPhoto, DecodedPhotoError, Diagnostic, MetadataBundle,
         ResourceLimits, SignalRelation, SourceDigestV1,
-        color::{SceneRenderError, SceneRenderReport, SceneToDisplayTransform},
     },
 };
 

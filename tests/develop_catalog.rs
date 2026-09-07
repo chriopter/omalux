@@ -1,9 +1,9 @@
 use omalux::develop::{
     CpuImage, DevelopPipeline, DevelopRenderContext, DevelopSettings, DevelopWorkingSetProfile,
-    PresetCatalog, PresetCatalogError, PresetDocument, RgbaPixel, estimate_develop_working_set,
-    load_preset_file,
+    RgbaPixel, estimate_develop_working_set,
 };
 use omalux::io::ResourceLimits;
+use omalux::preset::{PresetCatalog, PresetCatalogError, PresetDocument, load_preset_file};
 use std::{fs, io::Write};
 
 #[test]
