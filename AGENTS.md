@@ -15,6 +15,7 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 - Credit darktable and its contributors. Do not imply official affiliation or endorsement.
 - Website screenshots currently depict v0 and must be labelled accordingly.
 - `bin/update` checks out the latest upstream stable release and its dependencies; it never stages, commits or pushes.
+- `tools/calibration/` fits bundled looks (`preset.dtstyle` + `look.cube`) to target renderings through `darktable-cli`; `docs/calibration.md` has the data layout and recipe. Fits use tuning images only; holdout images are judged once by a finished candidate. Datasets and targets are not in the repository.
 
 ## Documentation layout
 
