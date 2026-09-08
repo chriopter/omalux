@@ -7,6 +7,49 @@ use omalux::preset::{PresetCatalog, PresetCatalogError, PresetDocument, load_pre
 use std::{fs, io::Write};
 
 #[test]
+fn built_in_directories_have_reference_hashes_and_small_thumbnails() {
+    use omalux::preset::catalog::BUILTIN_PRESETS;
+    use std::path::Path;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let catalog = PresetCatalog::built_in().unwrap();
+    let (width, height) =
+        image::image_dimensions(root.join("reference pictures/main.jpg")).unwrap();
+    assert_eq!(BUILTIN_PRESETS.len(), catalog.documents().len());
+    for source in BUILTIN_PRESETS {
+        let directory = root.join("presets/builtin").join(source.directory);
+        let document = PresetDocument::from_json(source.json).unwrap();
+        assert_eq!(
+            directory.file_name().unwrap().to_str().unwrap(),
+            document.id
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.join("preset.json")).unwrap(),
+            source.json
+        );
+        let estimate = estimate_develop_working_set(
+            width,
+            height,
+            &document.settings,
+            &ResourceLimits::default(),
+        )
+        .unwrap();
+        let reference: serde_json::Value =
+            serde_json::from_slice(&fs::read(directory.join("reference.json")).unwrap()).unwrap();
+        assert_eq!(reference["version"], 1);
+        assert_eq!(reference["pixel_format"], "srgb-rgb16be");
+        assert_eq!(reference["width"], estimate.output_width);
+        assert_eq!(reference["height"], estimate.output_height);
+        let hash = reference["pixels_sha256"].as_str().unwrap();
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|c| c.is_ascii_hexdigit()));
+        assert!(!directory.join("reference.png").exists());
+        let (w, h) = image::image_dimensions(directory.join("thumbnail.jpg")).unwrap();
+        assert_eq!(w.max(h), 288);
+    }
+}
+
+#[test]
 fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     let catalog = PresetCatalog::built_in().unwrap();
     assert_eq!(catalog.documents().len(), 29);
@@ -58,7 +101,7 @@ fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     assert!(neutral.settings.is_neutral());
     assert_eq!(
         format!("{}\n", neutral.to_canonical_json().unwrap()),
-        include_str!("../presets/builtin/neutral.json")
+        include_str!("../presets/builtin/neutral/preset.json")
     );
     let estimate = estimate_develop_working_set(
         3,
@@ -95,7 +138,11 @@ fn external_loader_is_bounded_nofollow_and_schema_validated() {
 
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("neutral.json");
-    fs::write(&path, include_str!("../presets/builtin/neutral.json")).unwrap();
+    fs::write(
+        &path,
+        include_str!("../presets/builtin/neutral/preset.json"),
+    )
+    .unwrap();
     assert_eq!(load_preset_file(&path).unwrap().id, "neutral");
 
     let link = directory.path().join("link.json");

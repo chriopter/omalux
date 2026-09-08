@@ -12,6 +12,7 @@ film grain, and export JPEG or HEIC. Preview and export share one CPU pipeline.
 
 The desktop app follows your Omarchy theme and supports keyboard-driven editing.
 Press `?` for shortcuts. A separate Qt-free CLI exposes the same processing core.
+Presets include [stored beach-scene previews and reference checks](docs/preset-previews.md).
 
 **Requirements:** Rust, Little CMS 2, and LibRaw for RAW decoding. The desktop
 also needs Qt 6 Quick/Quick Controls, a C++ compiler, ImageMagick, and libheif/x265
@@ -44,6 +45,9 @@ and [contributor instructions](AGENTS.md).
 ## Example pictures
 
 An AI-generated beach scene and six reproducible 16-bit sRGB test charts.
+The beach scene powers preset thumbnails and pixel-exact reference checks.
+The technical charts are intended for automated calibration and color/tone checks;
+their automation is still to be added.
 Click a thumbnail to open the full-size image.
 
 <table>

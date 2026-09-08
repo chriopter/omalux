@@ -7,7 +7,7 @@ is for anyone, human or agent, changing it.
 ## Where things are
 
 ```
-presets/builtin/        the built-in looks, one canonical JSON file each
+presets/builtin/        one folder per look: preset.json, thumbnail.jpg, reference.json
 src/preset/             preset format, versions, catalogue of built-ins
 src/develop/            the pipeline: settings/ (data), pipeline/stages/ (processing),
                         render/ (scene to display), kernels.rs (shared convolutions)
@@ -27,6 +27,9 @@ tests/                  integration tests; docs/ the design notes
   `cargo test --test develop_catalog` after touching `presets/builtin`.
 - Presets are embedded at build time. Rebuild before judging a preset change
   with the binary.
+- Stored preset pictures are updated explicitly with `cargo run --release
+  --example preset_references -- --write [preset-id ...]`. Verify without
+  overwriting with `--check`; normal GUI builds only embed the thumbnails.
 - The renderer is changed only for real defects. Matching a look is done in
   preset values; a renderer constant fitted to one preset is a bug in waiting.
 - Look-matching tunes only on tuning images. Holdout images are judged once,

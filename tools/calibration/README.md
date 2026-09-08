@@ -41,6 +41,11 @@ strength, polishes once more with the table held fixed, then validates and
 audits. It records each preset in `work/ledger.json` and skips presets already
 done, so it can be stopped and resumed.
 
+After installing a changed preset, explicitly regenerate its stored pictures
+with `cargo run --release --example preset_references -- --write <id>` and review
+them. Use `--check` to verify the references without replacing them; see
+[preset pictures](../../docs/preset-previews.md).
+
 ## What the objective sees
 
 Mean colour difference alone is blind to a colour cast across the whole

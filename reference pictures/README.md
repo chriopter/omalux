@@ -2,6 +2,9 @@
 
 Fixed input images for manual visual checks and future pipeline regression comparisons.
 
+`main.jpg` is also the input for each built-in preset's stored pixel hash in `reference.json`
+and `thumbnail.jpg`; see [preset previews](../docs/preset-previews.md).
+
 - `main.jpg`: AI-generated beach volleyball photograph, 1536 × 1024; generated with the built-in Imagegen tool, then converted to JPEG at quality 98 with 4:4:4 chroma sampling using ImageMagick. It is not a measured color reference. Reuse this file; regenerating the prompt will not reproduce the same pixels.
 - `technical/`: six deterministic 16-bit RGB PNGs with an explicit sRGB chunk, the standard-library-only Python generator, and a manifest of values and hashes. Values refer to encoded sRGB, not linear scene radiance. Full-scale endpoints are included where described. There are no labels or overlays inside the test pixels.
 - `real pics/`: reserved for real photos and RAW inputs; currently empty.
@@ -16,7 +19,7 @@ python3 "reference pictures/technical/generate.py"
 
 This deliberately replaces the six technical PNGs and their manifest. Pixel scanline hashes should reproduce; compressed file hashes can depend on the zlib version. The manifest records the exact palette and chart layouts. Technical PNGs are lossless: do not convert them to JPEG for testing. Browser scaling or display color management may alter their appearance; inspect at 100% and measure decoded values when comparing outputs.
 
-No baseline exports or automated regression runner are included yet. These raster inputs do not test the RAW decoder or scene-linear HDR highlights above white. Real photos should be fixed inputs separate from any holdout set used for preset calibration.
+The preset reference tool checks `main.jpg` against the stored per-preset pixel hashes. The six technical charts are not yet part of that automated check. These raster inputs do not test the RAW decoder or scene-linear HDR highlights above white. Real photos should be fixed inputs separate from any holdout set used for preset calibration.
 
 ## Main image prompt
 

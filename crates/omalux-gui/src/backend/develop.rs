@@ -75,6 +75,7 @@ pub(super) fn built_in_catalog_json() -> Result<String, String> {
         "presets": catalog.documents().iter().map(|document| json!({
             "id": document.id,
             "name": document.name,
+            "previewUrl": format!("qrc:/preset-previews/{}.jpg", document.id),
         })).collect::<Vec<_>>()
     }))
     .map_err(|error| error.to_string())

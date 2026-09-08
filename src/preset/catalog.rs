@@ -10,37 +10,56 @@ pub const MAX_EXTERNAL_PRESET_BYTES: u64 = 1024 * 1024;
 // Keep this manifest explicit: Cargo follows every include at package time and
 // reviewers can audit the complete public catalog without build-time scanning.
 // `PresetCatalog::from_documents` still sorts by stable ID before exposure.
-const BUILTIN_PRESETS: &[&str] = &[
-    include_str!("../../presets/builtin/experimental/experimental-ansel-adams.json"),
-    include_str!("../../presets/builtin/experimental/experimental-church.json"),
-    include_str!("../../presets/builtin/experimental/experimental-church-soft.json"),
-    include_str!("../../presets/builtin/experimental/experimental-cinema.json"),
-    include_str!("../../presets/builtin/experimental/experimental-flower.json"),
-    include_str!("../../presets/builtin/experimental/experimental-flower-plain.json"),
-    include_str!("../../presets/builtin/experimental/experimental-forge.json"),
-    include_str!("../../presets/builtin/experimental/experimental-lamp.json"),
-    include_str!("../../presets/builtin/experimental/experimental-lightning.json"),
-    include_str!("../../presets/builtin/experimental/experimental-lough-leane.json"),
-    include_str!("../../presets/builtin/experimental/experimental-nightstreet.json"),
-    include_str!("../../presets/builtin/experimental/experimental-portrait.json"),
-    include_str!("../../presets/builtin/experimental/experimental-verbania.json"),
-    include_str!("../../presets/builtin/film/film-chrome.json"),
-    include_str!("../../presets/builtin/film/film-grain.json"),
-    include_str!("../../presets/builtin/film/film-kodak.json"),
-    include_str!("../../presets/builtin/film/film-matte.json"),
-    include_str!("../../presets/builtin/film/film-negative.json"),
-    include_str!("../../presets/builtin/film/film-polaroid.json"),
-    include_str!("../../presets/builtin/film/film-warm.json"),
-    include_str!("../../presets/builtin/monochrome/monochrome-classic.json"),
-    include_str!("../../presets/builtin/neutral.json"),
-    include_str!("../../presets/builtin/series/late-summer/series-late-summer-contrast.json"),
-    include_str!("../../presets/builtin/series/late-summer/series-late-summer-cross.json"),
-    include_str!("../../presets/builtin/series/late-summer/series-late-summer-neutral.json"),
-    include_str!("../../presets/builtin/series/movie/series-movie-desert-signal.json"),
-    include_str!("../../presets/builtin/series/movie/series-movie-honey-hour.json"),
-    include_str!("../../presets/builtin/series/movie/series-movie-roseglass.json"),
-    include_str!("../../presets/builtin/series/movie/series-movie-studio-cut.json"),
-];
+/// One canonical built-in directory, shared by the catalogue and GUI assets.
+pub struct BuiltInPreset {
+    pub directory: &'static str,
+    pub json: &'static str,
+    #[cfg(feature = "preset-thumbnails")]
+    pub thumbnail: &'static [u8],
+}
+
+macro_rules! built_in_presets {
+    ($($directory:literal),+ $(,)?) => {
+        pub const BUILTIN_PRESETS: &[BuiltInPreset] = &[$(BuiltInPreset {
+            directory: $directory,
+            json: include_str!(concat!("../../presets/builtin/", $directory, "/preset.json")),
+            #[cfg(feature = "preset-thumbnails")]
+            thumbnail: include_bytes!(concat!("../../presets/builtin/", $directory, "/thumbnail.jpg")),
+        }),+];
+    };
+}
+
+built_in_presets! {
+    "experimental/experimental-ansel-adams",
+    "experimental/experimental-church",
+    "experimental/experimental-church-soft",
+    "experimental/experimental-cinema",
+    "experimental/experimental-flower",
+    "experimental/experimental-flower-plain",
+    "experimental/experimental-forge",
+    "experimental/experimental-lamp",
+    "experimental/experimental-lightning",
+    "experimental/experimental-lough-leane",
+    "experimental/experimental-nightstreet",
+    "experimental/experimental-portrait",
+    "experimental/experimental-verbania",
+    "film/film-chrome",
+    "film/film-grain",
+    "film/film-kodak",
+    "film/film-matte",
+    "film/film-negative",
+    "film/film-polaroid",
+    "film/film-warm",
+    "monochrome/monochrome-classic",
+    "neutral",
+    "series/late-summer/series-late-summer-contrast",
+    "series/late-summer/series-late-summer-cross",
+    "series/late-summer/series-late-summer-neutral",
+    "series/movie/series-movie-desert-signal",
+    "series/movie/series-movie-honey-hour",
+    "series/movie/series-movie-roseglass",
+    "series/movie/series-movie-studio-cut",
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresetCatalog {
@@ -57,8 +76,8 @@ impl PresetCatalog {
         documents
             .try_reserve_exact(BUILTIN_PRESETS.len())
             .map_err(|_| PresetCatalogError::Allocation)?;
-        for json in BUILTIN_PRESETS {
-            documents.push(parse_builtin_json(json)?);
+        for source in BUILTIN_PRESETS {
+            documents.push(parse_builtin_json(source.json)?);
         }
         Self::from_documents(documents)
     }
