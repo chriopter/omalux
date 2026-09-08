@@ -36,7 +36,7 @@ bin/preset_preview <preset>                               # refresh the thumbnai
 
 ### Cube fit
 
-The cube is fitted by fixed-point iteration. The input to `lut3d` is rendered once per image (style with `lut3d` and every later module disabled). Each iteration renders the full style, scatters the residual between target and output trilinearly into the 33³ grid keyed by the LUT input, fills sparsely populated nodes from their neighbours, smooths the update, and adds it to the cube with damping. Iteration stops when the score has not improved for three rounds; the best cube is kept as `work/<preset>/best.cube`.
+The cube is fitted by fixed-point iteration. The input to `lut3d` is rendered once per image (style with `lut3d` and every later module disabled). Each iteration renders the full style, scatters the residual between target and output trilinearly into the 33³ grid keyed by the LUT input, solves a Laplacian-regularised correction field on the grid (the penalty acts on the correction, so contrast curves survive while node noise, visible as blotches in smooth gradients, is suppressed), and adds it to the cube with damping. Iteration stops when the score has not improved for three rounds; the best cube is kept as `work/<preset>/best.cube`.
 
 The fit runs with `colisa` disabled (`work/<preset>/style.dtstyle`). Global tone and colour are expressed by the cube; a display-referred contrast, brightness and saturation adjustment after the LUT fights the fit and, at saturation −1, removes any tint the cube adds.
 

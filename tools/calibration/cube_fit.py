@@ -9,8 +9,9 @@
 Fixed-point fit. The LUT input is what the pipeline hands to lut3d, so it is
 rendered once per image with lut3d and everything after it disabled. Each
 iteration renders the full style, scatters the residual (target minus output)
-trilinearly into the 33^3 grid keyed by the LUT input, fills sparse nodes
-from their neighbours, and adds the damped update to the cube. The style is
+trilinearly into the 33^3 grid keyed by the LUT input, solves a
+Laplacian-regularised correction field on the grid, and adds it to the cube
+with damping. The style is
 fitted with `colisa` disabled: global tone and colour live in the cube, and a
 display-referred adjustment after the LUT would fight it.
 
@@ -138,34 +139,23 @@ def scatter(a_rgb, resid, n):
     return num, den
 
 
-def smooth_fill(field, den, passes=8, floor=100.0):
-    """Weighted diffusion: well-populated nodes keep their mean, sparse nodes borrow from neighbours."""
-    val = np.where(den[..., None] > 0, field / np.maximum(den, 1e-9)[..., None], 0.0)
-    conf = np.clip(den / floor, 0, 1)
-    v = val * conf[..., None]
-    c = conf.copy()
-    for _ in range(passes):
-        vp = np.pad(v, ((1, 1), (1, 1), (1, 1), (0, 0)), mode="edge")
-        cp = np.pad(c, 1, mode="edge")
-        vs = np.zeros_like(v)
-        cs = np.zeros_like(c)
+def solve_update(num, den, lam=None, sweeps=60):
+    """Laplacian-regularised least squares for the correction field u:
+    minimise sum den*(u - d*)^2 + lam*sum|grad u|^2 with d* = num/den at populated nodes.
+    The penalty acts on the correction, so contrast curves are kept while node noise
+    (visible as blotches in smooth gradients) is suppressed. DT_CUBE_LAMBDA tunes lam."""
+    if lam is None:
+        lam = float(os.environ.get("DT_CUBE_LAMBDA", "150"))
+    dstar = np.where(den[..., None] > 0, num / np.maximum(den, 1e-9)[..., None], 0.0)
+    u = np.zeros_like(num)
+    for _ in range(sweeps):
+        up = np.pad(u, ((1, 1), (1, 1), (1, 1), (0, 0)), mode="edge")
+        nb = np.zeros_like(u)
         for d in range(3):
-            for s in (-1, 1):
-                vs += np.roll(vp, s, axis=d)[1:-1, 1:-1, 1:-1]
-                cs += np.roll(cp, s, axis=d)[1:-1, 1:-1, 1:-1]
-        v = np.where(c[..., None] >= 1, v, (v * 6 + vs) / 12)
-        c = np.where(c >= 1, c, (c * 6 + cs) / 12)
-    return np.where(c[..., None] > 1e-6, v / np.maximum(c, 1e-6)[..., None], 0.0), c
-
-
-def smooth_cube(cube, amount=0.3):
-    """Blend each node of an update field with its 6-neighbour mean; node noise shows as banding."""
-    cp = np.pad(cube, ((1, 1), (1, 1), (1, 1), (0, 0)), mode="edge")
-    nb = np.zeros_like(cube)
-    for d in range(3):
-        for sgn in (-1, 1):
-            nb += np.roll(cp, sgn, axis=d)[1:-1, 1:-1, 1:-1]
-    return cube * (1 - amount) + (nb / 6) * amount
+            for sgn in (-1, 1):
+                nb += np.roll(up, sgn, axis=d)[1:-1, 1:-1, 1:-1]
+        u = (den[..., None] * dstar + lam * nb) / (den[..., None] + lam * 6)
+    return u
 
 
 def cube_update(cube, imgs, A, B, out_dir, input_dir, damping=0.7):
@@ -182,8 +172,7 @@ def cube_update(cube, imgs, A, B, out_dir, input_dir, damping=0.7):
         s = 1e5 / max(d1.sum(), 1)  # every image weighs the same
         num += n1 * s
         den += d1 * s
-    upd, _ = smooth_fill(num, den)
-    return np.clip(cube + damping * smooth_cube(upd), 0, 1)
+    return np.clip(cube + damping * solve_update(num, den), 0, 1)
 
 
 def lut_inputs(pid, style_path, imgs, input_dir):
@@ -225,6 +214,8 @@ def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
         print(f"[{pid}] resuming from best.cube")
     if cube.shape[0] != LUT_SIZE:
         cube = identity_cube()
+    for stale in w.glob("iter-*"):
+        shutil.rmtree(stale)
     history = []
     best = (None, 1e9)
     for k in range(iters + 1):
