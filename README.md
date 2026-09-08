@@ -20,6 +20,7 @@ This is an independent project, not an official darktable edition or an endorsem
 
 - [omalux/](omalux/): the Qt/QML interface, native C/C++ adapter and development launcher.
 - [darktable/](darktable/): unchanged upstream source, pinned to a stable release by the Git submodule entry.
+- [presets/](presets/README.md): bundled darktable styles, starting with Chromatic.
 - [assets/](assets/README.md): the logo and default beach volleyball image.
 - [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
 - [omalux.org/](omalux.org/README.md): the website.
@@ -81,7 +82,7 @@ bin/dev --input "/path/to/photo.jpg"
 bin/dev_split "/path/to/photo.jpg"
 ```
 
-The UI follows the original dark Omalux layout. **Brightness, contrast and saturation** are active: drag a slider or use Left/Right for the last selected control. Press R to reset all three. Open, save, zoom, presets and the other tools are placeholders. Images are chosen through the launch argument for now.
+The UI follows the original dark Omalux layout. **Brightness, contrast and saturation** are active: drag a slider or use Left/Right for the last selected control. Press R to reset all three sliders (this does not undo other style modules, such as exposure). Under **PRESETS**, search the available looks, expand a name to inspect its modules and stored settings, and choose **Apply**. Chromatic combines stronger color/contrast with a gentle exposure lift. Styles can also affect modules that have no Omalux slider. Add `.dtstyle` files to `presets/` and restart; see [preset details and compatibility](presets/README.md). Open, save, zoom, preset creation and the other tools are placeholders. Images are chosen through the launch argument for now.
 
 The launcher builds the C/C++ adapter on demand using `cc`, `c++`, `pkg-config` and Qt 6’s `moc`. It needs Python 3, Git, Qt 6 Quick/Quick Controls, and development headers for GTK 3, JSON-GLib, Little CMS, SQLite, Lua and librsvg. The current Linux build expects Qt tools under `/usr/lib/qt6/` and an installed release build of darktable 5.6.0 or 5.6.1. It does not build the darktable submodule itself.
 
@@ -93,10 +94,12 @@ For AMD GPUs using Mesa Rusticl, install `opencl-mesa`; the dev launcher default
 
 Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Edits are not saved when the session closes. Both scripts open their windows on your current workspace.
 
-Split mode runs two independent engines with separate databases. Omalux publishes the latest complete control state to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies it through darktable’s GUI actions when the darkroom is open. Omalux never waits for the comparison render. Synchronization is one-way and currently covers brightness, contrast and saturation; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
+Split mode runs two independent engines with separate databases. Omalux publishes style events and coalesced control snapshots to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies it through darktable’s GUI actions when the darkroom is open. Omalux never waits for the comparison render. Synchronization is one-way and covers brightness, contrast, saturation and applying any compatible style in the preset catalogue; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
 
 ### Adding a slider
 
-Add one row to [`omalux/native/controls.h`](omalux/native/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, and scale/offset (`parameter = UI value × scale + offset`). The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. This adapter currently supports float parameters with matching slider actions, not arbitrary module controls.
+Add one row to [`omalux/native/controls.h`](omalux/native/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix and decimal places. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. This adapter currently supports float parameters with matching slider actions, not arbitrary module controls.
 
-`editor.setControl(id, value)` queues a complete parameter snapshot. The engine applies it before rendering and updates history once per affected module. The split bridge receives the same converted values, including unchanged controls, so skipping intermediate snapshots does not lose edits to other sliders.
+`editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
+
+See the [darktable source analysis](omalux/docs/darktable-architecture.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. Current prototype limitations: the `IMAGE` pipe flag disables intermediate pixelpipe cache reuse, and the three sliders use the deprecated `colisa` module. Persistent decoded-input caching and intermediate processing caches are separate mechanisms.

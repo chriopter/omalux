@@ -14,6 +14,10 @@ ApplicationWindow {
     readonly property color line: "#45475a"
     readonly property color accent: "#89b4fa"
     property string activeControl: "brightness"
+    property string presetQuery: ""
+    readonly property var visiblePresets: editor.presets.filter(function(p) {
+        return (p.name + " " + p.description).toLowerCase().indexOf(presetQuery.toLowerCase()) !== -1
+    })
     font.family: "JetBrains Mono"
     font.pixelSize: 11
 
@@ -83,6 +87,104 @@ ApplicationWindow {
                         Column {
                             width: parent.width; spacing: 28; padding: 10
                             Text { text: "FILTERS"; color: window.ink; font.bold: true; font.letterSpacing: 2 }
+                            Column {
+                                width: parent.width - 20; spacing: 10
+                                RowLayout {
+                                    width: parent.width
+                                    Text { text: "PRESETS"; color: window.ink; font: window.font; Layout.fillWidth: true }
+                                    Text { text: editor.presets.length; color: window.muted; font: window.font }
+                                }
+                                TextField {
+                                    width: parent.width; height: 32
+                                    placeholderText: "Search presets"; color: window.ink
+                                    placeholderTextColor: window.muted; font: window.font
+                                    onTextChanged: window.presetQuery = text
+                                    background: Rectangle { color: "#181825"; border.color: parent.activeFocus ? window.accent : window.line; radius: 3 }
+                                    Accessible.name: "Search presets"
+                                }
+                                Text {
+                                    width: parent.width; visible: !editor.presetsReady || window.visiblePresets.length === 0
+                                    text: !editor.presetsReady ? "Loading presets…" : editor.presets.length === 0 ? "No presets in presets/." : "No matching presets."
+                                    color: window.muted; font: window.font; wrapMode: Text.WordWrap
+                                }
+                                Repeater {
+                                    model: window.visiblePresets
+                                    delegate: Rectangle {
+                                        id: presetCard
+                                        required property var modelData
+                                        width: parent.width; implicitHeight: cardContent.implicitHeight + 20
+                                        color: "#181825"; border.color: window.line; radius: 4
+                                        Column {
+                                            id: cardContent
+                                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+                                            anchors.margins: 10; spacing: 10
+                                            RowLayout {
+                                                width: parent.width; spacing: 6
+                                                Button {
+                                                    id: detailsToggle
+                                                    objectName: "preset-toggle-" + presetCard.modelData.id
+                                                    Layout.fillWidth: true; checkable: true
+                                                    text: (checked ? "▾ " : "▸ ") + presetCard.modelData.name
+                                                    Accessible.name: presetCard.modelData.name + " details"
+                                                    ToolTip.visible: hovered
+                                                    ToolTip.text: checked ? "Hide settings" : "Show applied settings"
+                                                    background: Rectangle { color: parent.hovered ? "#313244" : "transparent"; border.color: parent.activeFocus ? window.accent : "transparent"; radius: 3 }
+                                                    contentItem: Text { text: parent.text; color: window.ink; font: window.font; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter }
+                                                }
+                                                Button {
+                                                    objectName: "preset-apply-" + presetCard.modelData.id
+                                                    text: editor.styleBusy && editor.applyingPreset === presetCard.modelData.id ? "…" : "Apply"
+                                                    enabled: !editor.styleBusy && editor.preview !== "" && presetCard.modelData.error === ""
+                                                    onClicked: editor.applyPreset(presetCard.modelData.id)
+                                                    Accessible.name: "Apply " + presetCard.modelData.name
+                                                    background: Rectangle { color: parent.down ? "#45475a" : "#313244"; border.color: parent.enabled ? window.accent : window.line; radius: 3 }
+                                                    contentItem: Text { text: parent.text; color: parent.enabled ? window.accent : window.muted; font: window.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                                }
+                                            }
+                                            Text {
+                                                width: parent.width; font: window.font; color: window.muted; wrapMode: Text.WordWrap
+                                                text: presetCard.modelData.error !== "" ? "Unavailable" : presetCard.modelData.modules.length + (presetCard.modelData.modules.length === 1 ? " module" : " modules") + (editor.activeStyle === presetCard.modelData.name ? " · last applied" : "")
+                                            }
+                                            Column {
+                                                visible: detailsToggle.checked
+                                                width: parent.width; spacing: 12
+                                                Text {
+                                                    width: parent.width; text: presetCard.modelData.description
+                                                    visible: text !== ""; wrapMode: Text.WordWrap; font: window.font; color: window.ink
+                                                }
+                                                Text {
+                                                    width: parent.width; text: presetCard.modelData.error
+                                                    visible: text !== ""; wrapMode: Text.WrapAnywhere; font: window.font; color: "#f9d58b"
+                                                }
+                                                Repeater {
+                                                    model: presetCard.modelData.modules
+                                                    delegate: Column {
+                                                        required property var modelData
+                                                        width: parent.width; spacing: 7
+                                                        Rectangle { width: parent.width; height: 1; color: window.line }
+                                                        Text {
+                                                            width: parent.width; wrapMode: Text.WordWrap
+                                                            text: modelData.name + (modelData.instance ? " · " + modelData.instance : "") + (modelData.enabled ? " · on" : " · off")
+                                                            color: window.accent; font: window.font
+                                                        }
+                                                        Repeater {
+                                                            model: modelData.settings
+                                                            delegate: RowLayout {
+                                                                required property var modelData
+                                                                width: parent.width; spacing: 10
+                                                                Text { text: modelData.label; Layout.fillWidth: true; Layout.preferredWidth: 140; Layout.alignment: Qt.AlignTop; wrapMode: Text.WordWrap; font: window.font; color: window.muted }
+                                                                Text { text: modelData.display; Layout.preferredWidth: 90; Layout.maximumWidth: parent.width * 0.45; Layout.alignment: Qt.AlignTop; wrapMode: Text.WrapAnywhere; horizontalAlignment: Text.AlignRight; font: window.font; color: window.ink }
+                                                            }
+                                                        }
+                                                        Text { width: parent.width; text: modelData.blending || ""; color: window.muted; font: window.font; wrapMode: Text.WordWrap }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Text { width: parent.width; visible: editor.presetError !== ""; text: editor.presetError; color: "#f9d58b"; font: window.font; wrapMode: Text.WordWrap }
+                            }
                             Text { text: "01 / BASICS"; color: window.accent; font.bold: true; font.pixelSize: 15; font.letterSpacing: 1 }
                             Placeholder { width: parent.width - 20; label: "EXPOSURE" }
                             Repeater {
@@ -93,10 +195,11 @@ ApplicationWindow {
                                     RowLayout {
                                         width: parent.width
                                         Text { text: modelData.label; color: window.accent; font: window.font; Layout.fillWidth: true }
-                                        Text { text: Math.round(editor.controlValues[modelData.id]); color: window.accent; font: window.font }
+                                        Text { text: Number(editor.controlValues[modelData.id]).toFixed(modelData.decimals) + modelData.unit; color: window.accent; font: window.font }
                                     }
                                     Slider {
                                         id: controlSlider
+                                        enabled: !editor.styleBusy && editor.preview !== ""
                                         width: parent.width; height: 30; padding: 0
                                         from: modelData.minimum; to: modelData.maximum; stepSize: modelData.step
                                         value: editor.controlValues[modelData.id]
@@ -116,7 +219,6 @@ ApplicationWindow {
                             Placeholder { width: parent.width - 20; label: "BLACKS" }
                         }
                     }
-                    GhostButton { label: "SAVE AS PRESET…"; Layout.fillWidth: true }
                 }
             }
         }
@@ -140,7 +242,7 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 28; color: "#242438"
             RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                Text { text: "[←/→] " + window.activeControl.toUpperCase() + "   [R] RESET ALL"; color: window.muted; font: window.font }
+                Text { text: "[←/→] " + window.activeControl.toUpperCase() + "   [R] RESET SLIDERS"; color: window.muted; font: window.font }
                 Item { Layout.fillWidth: true }
                 Text { text: editor.status; color: window.ink; font: window.font }
             }

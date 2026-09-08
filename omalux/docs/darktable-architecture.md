@@ -2,7 +2,7 @@
 
 Source audit: 2026-09-08. Main reference: the pinned `release-5.6.1` submodule (`03179f8e080aa9cedebfe14b098b7ba88940a292`). Our installed adapter currently targets 5.6.0; the cache-disabling and OpenCL-error-reset findings below were also checked in its extracted source. Line numbers refer to 5.6.1 unless stated otherwise. Recheck symbols after an upstream update.
 
-This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was asked for an independent read-only review of parameters, history, color modules and Lua; its findings are reconciled below after checking against source. No engine changes or benchmarks form part of this analysis.
+This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was used for a focused independent review of the critical cache/GPU/control excerpts; its findings and rejected hypotheses are recorded in [the source cross-check](claude-review.md). A broader Claude investigation was also attempted but had not produced a report when the focused review completed. No engine changes or benchmarks form part of this analysis.
 
 ## Read this first
 
@@ -37,7 +37,7 @@ Paths are relative to the darktable submodule.
 
 `dt_init(..., FALSE, TRUE, ...)` avoids initializing the GTK frontend but does not create a small isolated image-processing object. darktable has a process-global `darktable` state. Startup initializes databases, control infrastructure, profiles, module shared objects and other services. It even allocates `darktable.develop` (`darktable.c:1938`) in addition to the local develop context our adapter creates. Undo setup is gated by `init_gui` (`darktable.c:1758`).
 
-Our actual production-mode prototype is **Qt plus libdarktable in one process, with an Omalux worker thread**. It is not a separately supervised engine process. Split mode adds an independent GTK darktable process. That distinction matters for crash isolation and memory ownership.
+Our actual production-mode prototype is **Qt plus libdarktable in one process, with an Omalux worker thread**. It is not a separately supervised engine process. Split mode adds an independent GTK darktable process. Upstream builds a shared `lib_darktable` and links its executable to it (`src/CMakeLists.txt:1015,1116`), but that library includes application/UI infrastructure; it is not a separately maintained minimal RAW SDK. That distinction matters for crash isolation and memory ownership.
 
 The sequence `dt_dev_init(&dev, TRUE); dev.gui_attached = FALSE` initially looks contradictory, but matches upstream `dt_dev_image`: TRUE allocates full/preview/preview2 pipes and histograms (`develop.c:95`); subsequent FALSE suppresses normal GUI behavior. Do not simplify this to `dt_dev_init(FALSE)` while retaining the same full-pipe code: those pipes would not exist. `dt_dev_load_image` also assumes all three exist when full.pipe is present (`develop.c:1000`).
 
@@ -75,7 +75,7 @@ Confirmed call chain:
 
 The flag came from the upstream helper for producing an image, not from a guarantee of optimal persistent interactive rendering. Our warm-process advantage and decoded-input cache remain distinct from intermediate stage reuse. Correct the assumption that keeping pipe allocations alive automatically means earlier stages are reused.
 
-A future change should establish a persistent interactive pipe configuration with valid invalidation and lifecycle behavior. Do not blindly delete one flag: image/full flags also influence other processing choices. Trace all flag uses and compare cached and uncached output before adopting it.
+A future change should establish a persistent interactive pipe configuration with valid invalidation and lifecycle behavior. Do not blindly delete one flag: image/full flags also influence other processing choices. Trace all flag uses and compare cached and uncached output before adopting it. For example, `iop/finalscale.c:59,190` also uses image/canvas flags and global late-scaling state.
 
 Cache hashes include image identity, pipe mode, profiles, upstream piece hashes and ROI (`pixelpipe_cache.c:103`). Keep those invariants intact. Avoid changing untouched modules or flushing everything for every slider. Our generic engine currently adds history for every registered module on every render. With all three controls in colisa this is one module; after adding controls across modules it can create redundant alternating history entries and unnecessary synchronization.
 
@@ -91,8 +91,8 @@ Our registry only supports known floats and an affine UI-to-parameter transform.
 
 - Validate introspection presence, field type, range and transformed bounds; fail with the control ID rather than casting arbitrary fields to `float *`.
 - Identify a specific module instance, not merely the first operation-name match. `multi_priority`, operation and module order are part of identity.
-- Read loaded values/enabled state into UI. We currently write registry defaults on first render, overwriting imported values for these parameters and enabling their module.
-- Separate native parameter identity from the GTK action path. Widget labels/sections may differ from C field names. `iop/module/parameter` works for colisa but is not a universal action naming rule.
+- Read loaded values/enabled state into UI. The preset-catalogue implementation now reads imported values at startup and preserves module enabled state until an explicit control edit.
+- Separate native parameter identity from the GTK action path. Widget labels/sections may differ from C field names. `iop/module/parameter` works for colisa but is not a universal action naming rule. `develop/imageop_gui.c:66–149` derives labels from introspection descriptions or replaces underscores with spaces; `bauhaus/bauhaus.c:1052` defines actions from those labels and sections.
 - Keep complete snapshots to avoid losing edits when coalescing. Track dirty modules within the worker for history/synchronization efficiency.
 
 `dt_dev_add_history_item_ext` updates module history and marks pipes for SYNCH or TOP_CHANGED (`develop.c:1180–1349`). The regular GUI wrapper adds undo grouping, timestamps/tags, invalidation and signals and exits early when `darktable.gui` is absent (`develop.c:1371`). The ext call is appropriate for our current controlled headless path, but is not equivalent to a complete user edit transaction.
@@ -136,13 +136,13 @@ The private atomic mailbox transports a complete latest control state; Lua polls
 
 However, several GUI actions are separate edit operations, not one atomic multi-module transaction. Intermediate comparison frames may appear. The two instances also have independent module state, histories, caches and display configuration. Do not call this a pixel-equality validator.
 
-Before more complex comparisons, align workflow, module instance, enabled state, profiles, processing resolution and source history. Confirm image identity before applying commands; our current bridge checks darkroom view but does not stop edits being applied to a different image opened in that window. Add an acknowledgement/revision for stale or failed comparison state if it is used for validation. Native parameter names and GUI action paths must be modeled separately when they diverge.
+Before more complex comparisons, align workflow, module instance, enabled state, profiles, processing resolution and source history. The default action instance can follow GTK focus/expanded/enabled preferences (`develop/imageop.c:3680–3736`), while Omalux selects the first matching operation. Confirm image identity before applying commands; our current bridge checks darkroom view but does not stop edits being applied to a different image opened in that window. Add an acknowledgement/revision for stale or failed comparison state if it is used for validation. Native parameter names and GUI action paths must be modeled separately when they diverge.
 
 ## 8. Saving, sidecars and export
 
 Image identity, metadata, processing history, presets/styles and user configuration are separate persistent concerns. Startup/history loading can apply defaults and matching auto-presets (`develop.c:1856`, `2301`). Existing XMP sidecars may be read during import (`common/image.c:1794`, `2050`); `write_sidecar_files=never` prevents writes, not reads.
 
-`dt_dev_write_history_ext` writes develop history to the image's database state (`develop.c:1769`); wrapper behavior and sidecar policy must be understood before adding Save. Our temporary databases and initial registry defaults are prototype behavior, not a persistence design.
+`dt_dev_write_history_ext` writes develop history to the image's database state (`develop.c:1769`); wrapper behavior and sidecar policy must be understood before adding Save. Our temporary databases are prototype behavior, not a persistence design.
 
 `dt_imageio_export_with_flags` creates its own develop context, loads image/history and initializes an export pipe (`imageio.c:1045–1127`). A future export based only on image ID can miss our unsaved in-memory edits. First snapshot/persist the intended processing recipe into a controlled context, then use the export pipeline with explicit profile, dimensions, format, bit depth and metadata policy. Do not save the QImage preview as the developed original.
 
@@ -156,8 +156,33 @@ Image identity, metadata, processing history, presets/styles and user configurat
 6. Add persistent history/undo and export from the same authoritative recipe.
 7. Extend comparison to acknowledge recipes and use reference images under controlled color/scale settings.
 
-Keep the official submodule unchanged while this can be done in the adapter. If a real missing hook requires source changes, keep a small versioned overlay with a clear invariant and upstream rationale. Do not claim the installed libdarktable is a stable SDK: patch releases here already change pixelpipe/cache structures. The current exact-header check is necessary but does not by itself validate distributor patches, plugin ABI or behavior changes.
+Keep the official submodule unchanged while this can be done in the adapter. If a real missing hook requires source changes, keep a small versioned overlay with a clear invariant and upstream rationale. Do not claim the installed libdarktable is a stable SDK: patch releases here already change pixelpipe/cache structures. The current exact-header check is necessary but does not by itself validate distributor patches, plugin ABI or behavior changes. For reproducible distribution, build the library, plugins and data from one pinned revision with recorded build options instead of coupling a source submodule to an independently updated system installation.
 
 ## Verification still needed
 
-This source audit does not settle monitor color management on this Wayland/Qt setup, performance parity, cancellation races, complex imported XMP/masks, export equivalence or decoder support across cameras. Those need focused runtime experiments and representative RAW files. Revisit this document after each implementation change; it describes the adapter at commit `30f421a`, not a completed application.
+This source audit does not settle monitor color management on this Wayland/Qt setup, performance parity, cancellation races, complex imported XMP/masks, export equivalence or decoder support across cameras. Those need focused runtime experiments and representative RAW files. Revisit this document after each implementation change; the original audit targets commit `30f421a`; the preset integration section records subsequent changes.
+
+## Targeted regression experiments for the next changes
+
+| Experiment | Required observation |
+| --- | --- |
+| Re-render after changing only a late control | Earlier eligible stages hit cache; output agrees with a forced recompute using the same backend/profile/ROI |
+| Change two controls in different modules while rendering | Latest frame contains both edits; unchanged modules do not accumulate history entries |
+| Undo, then edit | Future history is discarded intentionally, with no dangling module/mask references |
+| Import XMP containing enabled/disabled and duplicate instances | UI reflects the selected instance's loaded values; opening alone does not overwrite the recipe |
+| Apply comparison edits after changing GTK focus or image | Correct explicit instance receives them, or the bridge rejects the mismatched image |
+| Switch image while a render is pending | No old image/frame is published under the new image identity |
+| Force a render/load failure after one successful frame | Prior pixels are not reported as a newly successful render |
+| Exercise CPU fallback in a controlled test build | CPU result is usable and the fallback is reported even after transient error flags are cleared |
+| Change display/profile and move/resize viewport | Correct color transform and pixel dimensions are applied once, with valid cache invalidation |
+| Export immediately after editing | Full-resolution output uses the current recipe, not a stale database history or the preview buffer |
+
+Use deterministic fixtures where possible, retain backend/profile/ROI metadata with results, and separate cold-start compilation/decoding from warm interactive timing. Do not run these all as boilerplate for documentation edits; they are gates for the corresponding future engine changes.
+
+## Preset catalogue integration
+
+`native/presets.h` discovers root-level `.dtstyle` files. `native/style_details.h` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
+
+Style application preflights every item, merges it through `dt_styles_apply_style_item`, rebinds controls and reads values back. Rendering no longer writes control snapshots indiscriminately: per-control revisions select changed parameters. This fixes the earlier startup-default overwrite and unintended re-enabling of modules during a style render. It does not resolve ambiguous duplicate-instance selection.
+
+The v3 comparison mailbox keeps style events with the preceding control snapshot (including pending edits flushed before application), plus the newest control snapshot. Style epochs and per-control revisions prevent unchanged values from overwriting style settings and let the bridge replay multiple style boundaries in order. Only the filename/name identifies a style; both processes use the same catalogue directory. The bridge imports styles into its private database and applies them with `dt.styles.apply`. Files are a startup snapshot and should not be edited while comparing a session. Synchronization remains one-way.

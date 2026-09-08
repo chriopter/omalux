@@ -54,7 +54,7 @@ cargo test -p omalux --features heic
 
 See [architecture](docs/architecture.md), [CLI usage](docs/cli.md),
 [HEIC support](docs/io-heic-encode.md), [film grain](docs/grain-model.md),
-and [contributor instructions](AGENTS.md).
+and [contributor instructions](../AGENTS.md#archived-engine-rules-omalux-v0).
 
 Releases mark completed, tested feature batches; small fixes can be collected
 between releases. See [GitHub Releases](https://github.com/chriopter/omalux/releases)
