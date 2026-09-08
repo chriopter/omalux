@@ -211,7 +211,10 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 editor.exportPhoto(QUrl::fromLocalFile(step["export"].toString()), 90);
                 *waiting = true;
             } else if (step.contains("checkPreviewWidth")) {
-                if (frames->image().width() != step["checkPreviewWidth"].toInt()) {
+                auto *displayFrames = editor.preview().startsWith("image://hover/")
+                                          ? static_cast<Frames *>(engine.imageProvider("hover"))
+                                          : frames;
+                if (displayFrames->image().width() != step["checkPreviewWidth"].toInt()) {
                     qCritical() << "Final preview resolution wrong";
                     app.exit(2);
                     return;

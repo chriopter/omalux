@@ -11,6 +11,12 @@
 #include "develop/pixelpipe_hb.h"
 #include "develop/blend.h"
 #include <json-glib/json-glib.h>
+enum {
+    OM_PREVIEW_WIDTH = 1400,
+    OM_PREVIEW_HEIGHT = 1000,
+    OM_FAST_PREVIEW_WIDTH = 700,
+    OM_FAST_PREVIEW_HEIGHT = 500
+};
 struct OmEngine {
     dt_develop_t dev;
     dt_iop_module_t *modules[OM_CONTROL_COUNT];

@@ -20,8 +20,8 @@ int om_engine_preview_style(OmEngine *engine, const char *path, const char *name
     scratch.full.dev = &scratch;
     scratch.full.zoom = DT_ZOOM_FIT;
     scratch.full.ppd = 1.0;
-    scratch.full.width = 1400;
-    scratch.full.height = 1000;
+    scratch.full.width = OM_FAST_PREVIEW_WIDTH;
+    scratch.full.height = OM_FAST_PREVIEW_HEIGHT;
     scratch.full.color_assessment = FALSE;
     int result = 3;
     // Match click-to-apply semantics: the image's opening baseline plus style,

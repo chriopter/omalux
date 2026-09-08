@@ -56,8 +56,8 @@ int om_engine_open(OmEngine *engine, const char *path) {
     engine->dev.full.dev = &engine->dev;
     engine->dev.full.zoom = DT_ZOOM_FIT;
     engine->dev.full.ppd = 1.0;
-    engine->dev.full.width = 1400;
-    engine->dev.full.height = 1000;
+    engine->dev.full.width = OM_PREVIEW_WIDTH;
+    engine->dev.full.height = OM_PREVIEW_HEIGHT;
     engine->dev.full.color_assessment = FALSE;
     om_preset_baseline_capture(engine);
     return om_engine_bind_controls(engine);
@@ -210,8 +210,8 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
                      int interactive) {
     if (!engine->loaded)
         return 1;
-    const int target_width = interactive ? 700 : 1400;
-    const int target_height = interactive ? 500 : 1000;
+    const int target_width = interactive ? OM_FAST_PREVIEW_WIDTH : OM_PREVIEW_WIDTH;
+    const int target_height = interactive ? OM_FAST_PREVIEW_HEIGHT : OM_PREVIEW_HEIGHT;
     if (engine->dev.full.width != target_width || engine->dev.full.height != target_height) {
         engine->dev.full.width = target_width;
         engine->dev.full.height = target_height;
