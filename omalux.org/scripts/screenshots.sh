@@ -10,7 +10,7 @@ if (( $# > 1 )); then
   echo "Usage: $0 [INPUT_PHOTO]" >&2
   exit 2
 fi
-input="${1:-$repo_root/reference pictures/main.jpg}"
+input="${1:-$repo_root/omalux-v0/reference pictures/main.jpg}"
 "$script_dir/screenshot.sh" "$input" "$repo_root/omalux.org/public/app-screenshot.png" light
 "$script_dir/screenshot.sh" "$input" "$repo_root/omalux.org/public/app-screenshot-dark.png" dark
 "$script_dir/screenshot.sh" "$input" "$repo_root/omalux.org/public/app-presets.png" light presets

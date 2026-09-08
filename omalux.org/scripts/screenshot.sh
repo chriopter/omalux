@@ -8,7 +8,7 @@ if [[ ${1:-} == --help || ${1:-} == -h ]]; then
   cat <<'HELP'
 Usage: screenshot.sh [INPUT_PHOTO [OUTPUT_PNG [current|light|dark [filters|presets]]]]
 
-Build the current Qt app and capture it at 1440x920 without opening a desktop
+Build the preserved v0 Qt app and capture it at 1440x920 without opening a desktop
 window. Defaults: repository beach image → omalux.org/public/app-screenshot.png.
 Relative arguments resolve from your current directory. Uses your current app
 theme and installed fonts. Requires the GUI build dependencies and GNU timeout.
@@ -21,7 +21,7 @@ if (( $# > 4 )); then
   exit 2
 fi
 
-input="$(realpath -- "${1:-$repo_root/reference pictures/main.jpg}")"
+input="$(realpath -- "${1:-$repo_root/omalux-v0/reference pictures/main.jpg}")"
 output="$(realpath -m -- "${2:-$repo_root/omalux.org/public/app-screenshot.png}")"
 theme="${3:-current}"
 panel="${4:-filters}"
@@ -34,7 +34,7 @@ command -v timeout >/dev/null
 command -v cargo >/dev/null
 command -v python3 >/dev/null
 
-cd -- "$repo_root"
+cd -- "$repo_root/omalux-v0"
 cargo build -p omalux-gui --example website_screenshot
 target_dir="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
 mkdir -p -- "$(dirname -- "$output")"

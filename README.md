@@ -1,86 +1,31 @@
 # Omalux
 
-A focused photo developer for Omarchy, built with Rust and Qt Quick.
-Open RAW, JPEG, PNG, or BMP images, adjust color and tone, apply presets and
-film grain, and export JPEG or HEIC. Preview and export share one CPU pipeline.
+A focused, keyboard-driven photo editor for Omarchy, moving toward a new interface powered by [darktable](https://www.darktable.org/).
 
-**In development:** UI and presets are being polished.
+## A new direction
 
-The website source and images live in [omalux.org/](omalux.org/README.md).
+We are building on the work of the darktable developers and contributors, whose RAW processing and photography tools make this direction possible. Thank you for making that work available as free software.
 
-![Omalux — RAW photo developer](omalux.org/public/app-screenshot-dark.png)
+The plan is to track the official darktable repository as a pinned Git submodule, keep its source unchanged, and maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
 
-## Details & development
+This is an independent project, not an official darktable edition or an endorsement by its developers. At this stage, this repository does not yet contain the darktable submodule or the new adapter. A local prototype has demonstrated a persistent darktable process serving the Omalux interface; integration into this repository is next. There is no new darktable-based release to download yet.
 
-The desktop app follows your Omarchy theme and supports keyboard-driven editing.
-Press `?` for shortcuts. A separate Qt-free CLI exposes the same processing core.
-Presets include [stored beach-scene previews and reference checks](docs/preset-previews.md).
+## Repository layout
 
-Panels: **1** Filters, **2** Presets, **3** Crop & Rotate, **4** Metadata.
-Drag the crop frame and its handles; choose a free or fixed aspect ratio.
-Rotation previews update immediately; arrows adjust 0.1°, Shift + arrows 5°.
-Enter applies the crop, Escape cancels. Switching tools applies it.
-**Save as preset…** stores a personal look with a generated beach-scene thumbnail.
-Find it under **My Presets**, with rename, update, JSON export and delete actions.
-Personal looks omit geometry and local masks, preserving those edits when applied.
-Data lives in `$XDG_DATA_HOME/omalux/` (default `~/.local/share/omalux/`):
-one shared reference image and `presets/user-<id>/{preset.json,thumbnail.jpg}`.
+- [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
+- [omalux.org/](omalux.org/README.md): the website.
 
-**Requirements:** Rust, Little CMS 2, and LibRaw for RAW decoding. The desktop
-also needs Qt 6 Quick/Quick Controls, a C++ compiler, ImageMagick, and libheif/x265
-for HEIC export (enabled by default in the GUI).
+To run the original app:
 
-```bash
-# Run the desktop app
+```sh
+cd omalux-v0
 cargo run --release -p omalux-gui
-
-# Develop a photo with the CLI
-cargo run --release -p omalux -- develop \
-  --input photo.jpg --output result.jpg --preset neutral
 ```
 
-Add `--features heic` to the CLI build for HEIC export.
+See the v0 README for dependencies and validation commands. Existing website screenshots show the v0 interface, not a completed darktable integration.
 
-Before committing:
+## Upstream and licensing
 
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo test -p omalux --features heic
-```
+[darktable](https://github.com/darktable-org/darktable) is free software under GNU GPL version 3 or later; individual components retain their respective notices and licenses. Omalux v0 declares GPL-3.0-or-later in its Cargo manifest.
 
-See [architecture](docs/architecture.md), [CLI usage](docs/cli.md),
-[HEIC support](docs/io-heic-encode.md), [film grain](docs/grain-model.md),
-and [contributor instructions](AGENTS.md).
-
-Releases mark completed, tested feature batches; small fixes can be collected
-between releases. See [GitHub Releases](https://github.com/chriopter/omalux/releases)
-for release notes and downloads.
-
-## Example pictures
-
-An AI-generated beach scene and six reproducible 16-bit sRGB test charts.
-The beach scene powers preset thumbnails and pixel-exact reference checks.
-The technical charts are intended for automated calibration and color/tone checks;
-their automation is still to be added.
-Click a thumbnail to open the full-size image.
-
-<table>
-  <tr>
-    <td align="center"><a href="reference%20pictures/main.jpg"><img src="reference%20pictures/main.jpg" width="220" alt="Beach scene"></a><br>Beach scene</td>
-    <td align="center"><a href="reference%20pictures/technical/01-grayscale.png"><img src="reference%20pictures/technical/01-grayscale.png" width="220" alt="Grayscale"></a><br>Grayscale</td>
-    <td align="center"><a href="reference%20pictures/technical/02-shadows-highlights.png"><img src="reference%20pictures/technical/02-shadows-highlights.png" width="220" alt="Shadows &amp; highlights"></a><br>Shadows &amp; highlights</td>
-  </tr>
-  <tr>
-    <td align="center"><a href="reference%20pictures/technical/03-channel-ramps.png"><img src="reference%20pictures/technical/03-channel-ramps.png" width="220" alt="Color channels"></a><br>Color channels</td>
-    <td align="center"><a href="reference%20pictures/technical/04-hue-saturation.png"><img src="reference%20pictures/technical/04-hue-saturation.png" width="220" alt="Hue &amp; saturation"></a><br>Hue &amp; saturation</td>
-    <td align="center"><a href="reference%20pictures/technical/05-color-patches.png"><img src="reference%20pictures/technical/05-color-patches.png" width="220" alt="Color patches"></a><br>Color patches</td>
-  </tr>
-  <tr>
-    <td align="center"><a href="reference%20pictures/technical/06-spatial-detail.png"><img src="reference%20pictures/technical/06-spatial-detail.png" width="220" alt="Detail &amp; noise"></a><br>Detail &amp; noise</td>
-  </tr>
-</table>
-
-[Asset notes and generator](reference%20pictures/README.md) ·
-[Exact values and hashes](reference%20pictures/technical/manifest.json)
+When distributing a derivative, preserve applicable copyright and license notices, identify changes, and provide the corresponding source under the applicable GPL terms. Upstream authorship stays with its contributors. We intend to keep Omalux-specific work separate and offer generally useful improvements upstream.

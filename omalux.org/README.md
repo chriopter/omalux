@@ -22,8 +22,10 @@ light/dark theme and uses a sun/moon button to switch modes.
 
 ## Screenshot
 
+These images show Omalux v0, not the planned darktable integration. Keep that distinction visible on the landing page.
+
 From any directory, run `omalux.org/scripts/screenshots.sh` using the appropriate
-path to this checkout. It builds the current GUI and captures the real app at
+path to this checkout. It builds the preserved GUI in `omalux-v0/` and captures the real app at
 1440×920 with the repository beach image. It generates the filter view as
 `public/app-screenshot.png` / `public/app-screenshot-dark.png` and the preset
 view, with the Film group expanded, as `public/app-presets.png` /

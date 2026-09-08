@@ -33,7 +33,7 @@ omalux = { path = "../..", version = "=0.2.0", default-features = false, feature
 
 [[example]]
 name = "website_screenshot"
-path = "../../omalux.org/scripts/screenshot.rs"
+path = "../../../omalux.org/scripts/screenshot.rs"
 
 [[test]]
 name = "preset_previews"
