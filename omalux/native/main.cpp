@@ -10,6 +10,8 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QUuid>
+#include <QStandardPaths>
 #include <QDebug>
 #include "controls.h"
 #include "presets.h"
@@ -37,6 +39,15 @@ void om_engine_read_controls(float *);
 char *om_engine_style_details(const char *, const char *);
 void om_engine_free_json(char *);
 void om_engine_cleanup();
+char *om_engine_metadata();
+char *om_engine_history();
+int om_engine_history_select(int);
+char *om_engine_history_snapshot(const char *);
+const char *om_engine_version();
+char *om_engine_snapshot(const char *, const char *);
+int om_engine_halation();
+char *om_engine_module_snapshot(const char *, const char *);
+int om_engine_export(const char *, const char *, int);
 }
 class Frames : public QQuickImageProvider {
 public:
@@ -54,7 +65,9 @@ class Editor : public QObject {
     Q_PROPERTY(QString preview READ preview NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString gpuWarning READ gpuWarning NOTIFY changed)
-    Q_PROPERTY(QString filename READ filename CONSTANT)
+    Q_PROPERTY(QString filename READ filename NOTIFY changed)
+    Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
+    Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
     Q_PROPERTY(QVariantList presets READ presets NOTIFY presetsChanged)
     Q_PROPERTY(bool presetsReady READ presetsReady NOTIFY presetsChanged)
     Q_PROPERTY(QString presetError READ presetError NOTIFY changed)
@@ -78,6 +91,8 @@ public:
     QString status() const { return message; }
     QString gpuWarning() const { return gpuMessage; }
     QString filename() const { return QFileInfo(source).fileName(); }
+    QVariantList history() const { return historyRows; }
+    QVariantMap metadata() const { return imageMetadata; }
     bool styleBusy() const { return applyingStyle; }
     QString applyingPreset() const { return applyingId; }
     QString activeStyle() const { return styleName; }
@@ -94,12 +109,62 @@ public:
         {std::lock_guard lock(mutex); pendingStyle=id; ++generation; pending=true;}
         wake.notify_one(); emit changed();
     }
+    Q_INVOKABLE void selectHistory(int step) {
+        for(const auto &row:historyRows) if(row.toMap()["step"].toInt()==step) {
+            if(!row.toMap()["current"].toBool()) queueAction("history",QString::number(step));
+            return;
+        }
+    }
+    Q_INVOKABLE void applyHalation() { queueAction("halation",""); }
+    Q_INVOKABLE void openPhoto(const QUrl &url) {
+        const QString path=url.toLocalFile();
+        if(!QFileInfo(path).isFile()) {message="Image does not exist"; emit changed(); return;}
+        queueAction("open",path);
+    }
+    Q_INVOKABLE void savePreset(const QString &name) {
+        if(name.trimmed().isEmpty()) return;
+        for(const auto &p:presetCatalog) if(p.toMap()["name"].toString()==name.trimmed()) {
+            styleError="A preset with this name already exists";emit changed();return;
+        }
+        queueAction("preset",name.trimmed());
+    }
+    Q_INVOKABLE void exportPhoto(const QUrl &url, int quality) {
+        QString path=url.toLocalFile();
+        if(path==source || QFileInfo(path).canonicalFilePath()==QFileInfo(source).canonicalFilePath()) {
+            message="Choose a different output file to preserve the original";emit changed();return;
+        }
+        if(!path.endsWith(".jpg",Qt::CaseInsensitive) && !path.endsWith(".jpeg",Qt::CaseInsensitive) && !path.endsWith(".png",Qt::CaseInsensitive)) {
+            message="Choose a .jpg or .png output filename";emit changed();return;
+        }
+        exportQuality=qBound(1,quality,100); queueAction("export",path);
+    }
+    Q_INVOKABLE void deletePreset(const QString &id) {
+        if(!id.startsWith("my-presets/") || applyingStyle) return;
+        const QDir root(qEnvironmentVariable("OMALUX_PRESETS_DIR"));
+        const QString directory=QFileInfo(root.filePath(id)).canonicalPath();
+        if(!directory.startsWith(root.canonicalPath()+"/my-presets/")) return;
+        if(!QDir(directory).removeRecursively()) {message="Could not delete preset";emit changed();return;}
+        queueAction("reload","");
+    }
+    Q_INVOKABLE void exportPreset(const QString &id, const QUrl &destination) {
+        if(applyingStyle) return;
+        const QDir root(qEnvironmentVariable("OMALUX_PRESETS_DIR"));
+        const QString sourceDir=QFileInfo(root.filePath(id)).canonicalPath();
+        if(!sourceDir.startsWith(root.canonicalPath()+"/")) return;
+        // Package the catalogue-relative subtree so LUT references stay valid.
+        const QString target=QDir(destination.toLocalFile()).filePath(QFileInfo(id).path());
+        if(QFileInfo::exists(target)) {message="Export destination already exists";emit changed();return;}
+        const auto absoluteTarget=QDir::cleanPath(QFileInfo(target).absoluteFilePath());
+        if(absoluteTarget==sourceDir || absoluteTarget.startsWith(sourceDir+"/")) {message="Choose a destination outside the source bundle";emit changed();return;}
+        if(!copyDirectory(sourceDir,target)) {QDir(target).removeRecursively();message="Could not export preset bundle";emit changed();return;}
+        message="Preset bundle exported; use the selected folder as darktable LUT root";emit changed();
+    }
     QVariantList controls() const {
         QVariantList result;
         for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
             const auto &c=om_controls[i];
-            result.append(QVariantMap{{"id", c.id}, {"label", c.label}, {"minimum", c.minimum},
-                {"maximum", c.maximum}, {"step", c.step}, {"unit", c.unit}, {"decimals", c.decimals}});
+            result.append(QVariantMap{{"id", c.id}, {"module", c.module}, {"label", c.label}, {"minimum", c.minimum},
+                {"maximum", c.maximum}, {"softMinimum", c.soft_minimum!=c.soft_maximum ? c.soft_minimum : c.minimum}, {"softMaximum", c.soft_minimum!=c.soft_maximum ? c.soft_maximum : c.maximum}, {"step", c.step}, {"unit", c.unit}, {"decimals", c.decimals}, {"group", c.group}, {"section", c.section}, {"colors", c.colors}, {"detail", bool(c.detail)}, {"initial", c.initial}});
         }
         return result;
     }
@@ -120,20 +185,39 @@ public:
             return;
         }
     }
+    Q_INVOKABLE void setControls(const QVariantMap &updates) {
+        if(applyingStyle || url.isEmpty()) return;
+        for(auto it=updates.begin();it!=updates.end();++it) setControl(it.key(),it.value().toDouble());
+    }
     Q_INVOKABLE void adjustControl(const QString &id, int steps) {
         for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i)
             if(id == QLatin1String(om_controls[i].id)) setControl(id, values[i]+steps*om_controls[i].step);
     }
-    Q_INVOKABLE void resetControls() {
-        if(applyingStyle || url.isEmpty()) return;
-        for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) values[i]=om_controls[i].initial;
-        queueControls();
+    Q_INVOKABLE void resetControl(const QString &id) {
+        for(const auto &c:om_controls) if(id==c.id) setControl(id,c.initial);
     }
+
 signals:
+    void historyChanged();
     void changed();
     void controlsChanged();
     void presetsChanged();
 private:
+    static bool copyDirectory(const QString &source, const QString &destination) {
+        if(!QDir().mkpath(destination)) return false;
+        for(const auto &file:QDir(source).entryInfoList(QDir::Files|QDir::Dirs|QDir::NoDotAndDotDot)) {
+            if(file.isSymLink()) return false;
+            const auto target=QDir(destination).filePath(file.fileName());
+            if(file.isDir() ? !copyDirectory(file.absoluteFilePath(),target) : !QFile::copy(file.absoluteFilePath(),target)) return false;
+        }
+        return true;
+    }
+    void queueAction(const QString &kind,const QString &value) {
+        if(applyingStyle || url.isEmpty()) return;
+        applyingStyle=true;styleError.clear();message="Working…";
+        {std::lock_guard lock(mutex);actionKind=kind;actionValue=value;++generation;pending=true;}
+        wake.notify_one();emit changed();
+    }
     void queueControls(int index=-1) {
         {std::lock_guard lock(mutex); requested=values; ++generation; pending=true;
          for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) if(index<0 || int(i)==index) requestedRevisions[i]=generation;}
@@ -145,9 +229,11 @@ private:
     QByteArray comparisonControls(unsigned long epoch, const std::array<float,OM_CONTROL_COUNT> &snapshot,
                                   const std::array<unsigned long,OM_CONTROL_COUNT> &revisions) {
         QByteArray command;
-        for(unsigned int i=0;i<OM_CONTROL_COUNT;++i)
-            command += "control "+QByteArray::number(epoch)+" "+om_controls[i].module+" "+om_controls[i].parameter+" "
+        for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) {
+            if(!strcmp(om_controls[i].action,"@recipe")) continue;
+            command += "control "+QByteArray::number(epoch)+" "+om_controls[i].module+" "+QUrl::toPercentEncoding(om_controls[i].action)+" "
                 +QByteArray::number(om_parameter_value(i,snapshot[i]),'g',9)+" "+QByteArray::number(revisions[i])+"\n";
+        }
         return command;
     }
     QVariantList loadPresetCatalog() {
@@ -201,20 +287,52 @@ private:
         }
         om_engine_read_controls(requested.data());
         const auto initial=requested;
+        comparisonSource=source;
+        char *metadataRaw=om_engine_metadata();const auto info=QJsonDocument::fromJson(metadataRaw).object().toVariantMap();om_engine_free_json(metadataRaw);
+        QMetaObject::invokeMethod(this,[this,info]{imageMetadata=info;emit changed();},Qt::QueuedConnection);
         const auto catalog=loadPresetCatalog();
         QMetaObject::invokeMethod(this,[this,initial,catalog]{values=initial; presetCatalog=catalog; catalogReady=true; emit controlsChanged(); emit presetsChanged();},Qt::QueuedConnection);
         std::array<unsigned long,OM_CONTROL_COUNT> processedRevisions{};
         while(true) {
             std::array<float, OM_CONTROL_COUNT> next;
             std::array<unsigned long,OM_CONTROL_COUNT> nextRevisions;
-            unsigned long revision; QString styleId;
+            unsigned long revision; QString styleId, kind, action, savedDirectory; int quality;
             {std::unique_lock lock(mutex); wake.wait(lock,[this]{return stopping || pending;});
-             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; pending=false; styleId=pendingStyle; pendingStyle.clear();}
+             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
             // Flush pending edits before a style so unrelated modules keep them.
             std::array<unsigned char,OM_CONTROL_COUNT> dirty{};
             for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) dirty[i]=nextRevisions[i]!=processedRevisions[i];
             if(om_engine_update_controls(next.data(),dirty.data())) {fail("Could not update controls");continue;}
+            om_engine_read_controls(next.data());
+            {std::lock_guard lock(mutex); if(revision==generation) requested=next;}
+            QMetaObject::invokeMethod(this,[this,next,revision]{
+                {std::lock_guard lock(mutex); if(revision!=generation) return;}
+                values=next; emit controlsChanged();
+            },Qt::QueuedConnection);
             processedRevisions=nextRevisions;
+            if(kind=="halation") {
+                if(om_engine_halation()) {fail("Could not configure diffuse or sharpen");continue;}
+                om_engine_read_controls(next.data());
+                {std::lock_guard lock(mutex);requested=next;}
+                QMetaObject::invokeMethod(this,[this,next]{values=next;emit controlsChanged();},Qt::QueuedConnection);
+            }
+            // Curves and compound recipes have no scalar GTK action. Synchronize
+            // only the affected module as a private style, before later style events.
+            QStringList recipeModules;
+            for(unsigned int i=0;i<OM_CONTROL_COUNT;++i)
+                if(dirty[i] && !strcmp(om_controls[i].action,"@recipe") && !recipeModules.contains(om_controls[i].module)) recipeModules.append(om_controls[i].module);
+            if(kind=="halation") recipeModules.append("diffuse");
+            const QString bridge=qEnvironmentVariable("OMALUX_COMPARISON_MAILBOX");
+            if(!bridge.isEmpty()) for(const auto &module:recipeModules) {
+                const QString name="omalux-sync-"+module+"-"+QString::number(revision);
+                char *raw=om_engine_module_snapshot(name.toUtf8().constData(),module.toUtf8().constData());
+                if(!raw) {qWarning()<<"Could not synchronize module"<<module;continue;}
+                const auto snapshot=QJsonDocument::fromJson(raw).object();om_engine_free_json(raw);
+                const QString path=QDir(QFileInfo(bridge).absolutePath()).filePath(name+".dtstyle");
+                QSaveFile file(path);const auto xml=snapshot["xml"].toString().toUtf8();
+                if(file.open(QIODevice::WriteOnly) && file.write(xml)==xml.size() && file.commit())
+                    styleJournal+="module "+QByteArray::number(styleRevision)+" "+QByteArray::number(revision)+" "+module.toUtf8()+" "+name.toUtf8()+"\n";
+            }
             if(!styleId.isEmpty()) {
                 const QByteArray precedingControls=comparisonControls(styleRevision,next,nextRevisions);
                 const PresetFile *preset=nullptr;
@@ -230,15 +348,90 @@ private:
                 const QString name=preset->name;
                 QMetaObject::invokeMethod(this,[this,next,name]{values=next; styleName=name; emit controlsChanged(); emit changed();},Qt::QueuedConnection);
             }
+            if(kind=="history") {
+                if(om_engine_history_select(action.toInt())) {fail("Could not restore history step");continue;}
+                om_engine_read_controls(next.data());
+                nextRevisions.fill(0);processedRevisions.fill(0);
+                {std::lock_guard lock(mutex);requested=next;requestedRevisions.fill(0);}
+                QMetaObject::invokeMethod(this,[this,next]{values=next;styleName.clear();emit controlsChanged();emit changed();},Qt::QueuedConnection);
+                if(!bridge.isEmpty()) {
+                    const auto name="omalux-history-"+QString::number(revision);
+                    const auto path=QDir(QFileInfo(bridge).absolutePath()).filePath(name+".dtstyle");
+                    char *raw=om_engine_history_snapshot(name.toUtf8().constData());
+                    const auto snapshot=raw ? QJsonDocument::fromJson(raw).object() : QJsonObject();
+                    if(raw) om_engine_free_json(raw);
+                    QSaveFile file(path);const auto xml=snapshot["xml"].toString().toUtf8();
+                    if(xml.isEmpty() || !file.open(QIODevice::WriteOnly) || file.write(xml)!=xml.size() || !file.commit()) {
+                        fail("History restored, but comparison snapshot is unsupported or could not be written");continue;
+                    }
+                    ++styleRevision;
+                    styleJournal="history "+QByteArray::number(styleRevision)+" "+name.toUtf8()+"\n";
+                }
+            }
+            if(kind=="open") {
+                if(om_engine_open(action.toUtf8().constData())) {fail("Could not open image");continue;}
+                om_engine_read_controls(next.data()); nextRevisions.fill(0);processedRevisions.fill(0);
+                styleRevision=0;styleJournal.clear();
+                comparisonSource=action;
+                {std::lock_guard lock(mutex);requested=next;requestedRevisions.fill(0);}
+                char *raw=om_engine_metadata();const auto info=QJsonDocument::fromJson(raw).object().toVariantMap();om_engine_free_json(raw);
+                QMetaObject::invokeMethod(this,[this,action,next,info]{source=action;values=next;imageMetadata=info;styleName.clear();emit controlsChanged();emit changed();},Qt::QueuedConnection);
+            }
+            if(kind=="export") {
+                const QString extension=QFileInfo(action).suffix().toLower()=="png" ? "png" : "jpeg";
+                const QString temporary=QDir(QFileInfo(action).absolutePath()).filePath(".omalux-export-"+QUuid::createUuid().toString(QUuid::WithoutBraces)+"."+extension);
+                if(om_engine_export(temporary.toUtf8().constData(),extension.toUtf8().constData(),quality)) {QFile::remove(temporary);fail("Image export failed");continue;}
+                QFile input(temporary);QSaveFile output(action);
+                bool okay=input.open(QIODevice::ReadOnly) && output.open(QIODevice::WriteOnly);
+                while(okay && !input.atEnd()) {const auto bytes=input.read(1024*1024);okay=!bytes.isEmpty() && output.write(bytes)==bytes.size();}
+                okay=okay && output.commit(); input.close();QFile::remove(temporary);
+                if(!okay) {fail("Could not publish exported image");continue;}
+                QMetaObject::invokeMethod(this,[this,action]{message="Saved "+action;emit changed();},Qt::QueuedConnection);
+            }
+            if(kind=="preset") {
+                const QString relative="my-presets/"+QUuid::createUuid().toString(QUuid::WithoutBraces);
+                QDir root(qEnvironmentVariable("OMALUX_PRESETS_DIR"));
+                const QString directory=root.filePath(relative);
+                char *raw=om_engine_snapshot(action.toUtf8().constData(),relative.toUtf8().constData());
+                if(!raw) {fail("This recipe contains masks, instances or external assets that cannot yet be saved portably");continue;}
+                const auto snapshot=QJsonDocument::fromJson(raw).object();om_engine_free_json(raw);
+                bool okay=QDir().mkpath(directory);QJsonArray assets;
+                for(const auto &value:snapshot["assets"].toArray()) {
+                    auto asset=value.toObject();const QString origin=QFileInfo(root.filePath(asset["source"].toString())).canonicalFilePath();
+                    const QString target=QDir(directory).filePath(asset["path"].toString());
+                    okay=okay && origin.startsWith(root.canonicalPath()+"/") && QDir().mkpath(QFileInfo(target).absolutePath()) && QFile::copy(origin,target);
+                    asset.remove("source");assets.append(asset);
+                }
+                QSaveFile style(QDir(directory).filePath("preset.dtstyle"));const auto xml=snapshot["xml"].toString().toUtf8();
+                okay=okay && style.open(QIODevice::WriteOnly) && style.write(xml)==xml.size() && style.commit();
+                QJsonObject manifest{{"version",1}};if(!assets.isEmpty()) manifest["assets"]=assets;
+                const QDir repository(QDir::cleanPath(QFileInfo(QStringLiteral(OMALUX_QML)).absolutePath()+"/../.."));
+                const auto relativeSource=repository.relativeFilePath(comparisonSource);
+                manifest["preview"]=QJsonObject{{"source",relativeSource.startsWith("../") ? comparisonSource : relativeSource},{"darktable_version",om_engine_version()}};
+                QSaveFile file(QDir(directory).filePath("preset.json"));const auto bytes=QJsonDocument(manifest).toJson();
+                okay=okay && file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size() && file.commit();
+                if(!okay) {QDir(directory).removeRecursively();fail("Could not save preset bundle");continue;}
+                savedDirectory=directory;
+            }
+            if(kind=="preset" || kind=="reload") {
+                presetFiles=discoverPresets(qEnvironmentVariable("OMALUX_PRESETS_DIR"));const auto fresh=loadPresetCatalog();
+                QMetaObject::invokeMethod(this,[this,fresh]{presetCatalog=fresh;emit presetsChanged();},Qt::QueuedConnection);
+            }
             // Private latest-value mailbox for the optional comparison process.
             // Atomic replacement; never wait for darktable to consume or render it.
             const QString mailbox=qEnvironmentVariable("OMALUX_COMPARISON_MAILBOX");
             if(!mailbox.isEmpty()) {
                 QSaveFile file(mailbox);
-                const QByteArray command="omalux-controls-v3 " + QByteArray::number(revision)+"\n"+styleJournal+comparisonControls(styleRevision,next,nextRevisions);
+                const QByteArray command="omalux-controls-v3 " + QByteArray::number(revision)+"\nsource "+QUrl::toPercentEncoding(comparisonSource)+"\n"+styleJournal+comparisonControls(styleRevision,next,nextRevisions);
                 if(!file.open(QIODevice::WriteOnly) || file.write(command)!=command.size() || !file.commit())
                     qWarning() << "Could not synchronize comparison controls:" << file.errorString();
             }
+            char *historyRaw=om_engine_history();
+            const auto history=QJsonDocument::fromJson(historyRaw).array().toVariantList();
+            om_engine_free_json(historyRaw);
+            QMetaObject::invokeMethod(this,[this,history] {
+                if(historyRows != history) { historyRows=history; emit historyChanged(); }
+            },Qt::QueuedConnection);
             QElapsedTimer timer; timer.start();
             const unsigned char *pixels = nullptr; int width=0,height=0;
             if(om_engine_render(&pixels,&width,&height)) {fail("darktable preview failed");continue;}
@@ -250,21 +443,31 @@ private:
                 auto *row=reinterpret_cast<QRgb *>(copy.scanLine(y));
                 for(int x=0; x<copy.width(); ++x) row[x] |= 0xff000000u;
             }
+            if(!savedDirectory.isEmpty()) {
+                copy.scaled(384,256,Qt::KeepAspectRatio,Qt::SmoothTransformation).save(QDir(savedDirectory).filePath("thumbnail.jpg"),"JPG",90);
+                presetFiles=discoverPresets(qEnvironmentVariable("OMALUX_PRESETS_DIR"));
+                const auto fresh=loadPresetCatalog();
+                QMetaObject::invokeMethod(this,[this,fresh]{presetCatalog=fresh;emit presetsChanged();},Qt::QueuedConnection);
+            }
             {std::lock_guard lock(mutex); if(revision != generation) continue;}
             const qint64 elapsed=timer.elapsed();
             const QString warning=QString::fromUtf8(om_engine_gpu_warning());
-            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,warning] {
+            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,warning,kind,action] {
                 gpuMessage=warning;
                 {std::lock_guard lock(mutex); if(revision != generation) return;}
                 applyingStyle=false;
                 frames->set(copy); url=QString("image://preview/%1").arg(revision);
                 message=QString("Ready · %1 · %2 ms").arg(warning.isEmpty() ? "OpenCL auto" : "CPU").arg(elapsed);
+                if(kind=="export") message="Saved "+action;
+                else if(kind=="preset") message="Saved preset: "+action;
                 qInfo().noquote() << message; emit changed();
             },Qt::QueuedConnection);
         }
         om_engine_cleanup();
     }
     std::vector<PresetFile> presetFiles; QVariantList presetCatalog; bool catalogReady=false;
+    QVariantList historyRows;
+    QVariantMap imageMetadata;QString actionKind,actionValue,comparisonSource;int exportQuality=90;
     QString styleError, pendingStyle, appliedFilename, appliedName, applyingId;
     QByteArray styleJournal;
     std::array<unsigned long,OM_CONTROL_COUNT> requestedRevisions{};
@@ -275,6 +478,7 @@ private:
     std::mutex mutex; std::condition_variable wake; std::thread worker;
     bool stopping=false,pending=true; unsigned long generation=1;
 };
+#include "smoke.h"
 int main(int argc,char **argv) {
     QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc,argv);
@@ -291,6 +495,7 @@ int main(int argc,char **argv) {
     engine.rootContext()->setContextProperty("assetsRoot",QUrl::fromLocalFile(args[2]+"/"));
     engine.load(QUrl::fromLocalFile(QStringLiteral(OMALUX_QML)));
     if(engine.rootObjects().isEmpty()) return 1;
+    install_smoke(app,editor,frames,engine);
     // Batch thumbnails advance only after a completed engine render, without per-style startup.
     if(qEnvironmentVariableIsSet("OMALUX_PREVIEW_DIR")) {
         auto ids=std::make_shared<QStringList>();

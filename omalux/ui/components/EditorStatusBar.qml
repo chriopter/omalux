@@ -14,7 +14,7 @@ Rectangle {
         anchors.leftMargin: 12
         anchors.rightMargin: 12
         Text {
-            text: "[←/→] " + root.activeControl.toUpperCase() + "   [R] RESET SLIDERS"
+            text: "[←/→] " + root.activeControl + "   [R] RESET VALUE   [?] HELP"
             color: root.theme.muted
             font: root.theme.textFont
         }

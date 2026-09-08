@@ -11,11 +11,16 @@
 #include "develop/pixelpipe.h"
 #include "develop/pixelpipe_hb.h"
 #include "style_details.h"
+#include "develop/blend.h"
+#include "white_balance.h"
 
 static dt_develop_t dev;
 static dt_iop_module_t *modules[OM_CONTROL_COUNT];
 static float *parameters[OM_CONTROL_COUNT];
 static int loaded;
+static float wb_temperature, wb_tint;
+static float enabled_values[OM_CONTROL_COUNT], integer_values[OM_CONTROL_COUNT];
+static int *integer_parameters[OM_CONTROL_COUNT];
 
 static int bind_controls(void);
 
@@ -35,7 +40,6 @@ const char *om_engine_gpu_warning(void) {
   return "";
 }
 int om_engine_open(const char *path) {
-  if(loaded) { dt_dev_cleanup(&dev); loaded = 0; }
   gchar *directory = g_path_get_dirname(path);
   dt_film_t roll;
   dt_film_init(&roll);
@@ -44,6 +48,7 @@ int om_engine_open(const char *path) {
   g_free(directory);
   dt_imgid_t image = dt_image_import(film, path, TRUE, FALSE);
   if(!dt_is_valid_imgid(image)) return 1;
+  if(loaded) { dt_dev_cleanup(&dev); loaded=0; }
   dt_dev_init(&dev, TRUE);
   dev.gui_attached = FALSE;
   loaded = 1;
@@ -59,12 +64,38 @@ int om_engine_open(const char *path) {
 }
 static int bind_controls(void) {
   for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
-    modules[i] = NULL; parameters[i] = NULL;
+    modules[i] = NULL; parameters[i] = NULL; integer_parameters[i]=NULL;
     for(GList *it=dev.iop; it; it=it->next) {
       dt_iop_module_t *module=it->data;
-      if(!strcmp(module->op, om_controls[i].module)) {
+      if(!strcmp(module->op, om_controls[i].module) && module->multi_priority == 0) {
         modules[i]=module;
-        parameters[i]=module->get_p(module->params, om_controls[i].parameter);
+        if(g_str_has_prefix(om_controls[i].parameter,"@curve")) {
+          const dt_introspection_field_t *field=module->get_f("y");
+          const int index=atoi(om_controls[i].parameter+6);
+          if(field && field->header.size==42*sizeof(float) && index>=0 && index<42)
+            parameters[i]=(float *)module->get_p(module->params,"y")+index;
+        } else if(g_str_has_prefix(om_controls[i].parameter,"@int:")) {
+          const char *name=om_controls[i].parameter+5;
+          const dt_introspection_field_t *field=module->get_f(name);
+          if(field && (field->header.type==DT_INTROSPECTION_TYPE_INT || field->header.type==DT_INTROSPECTION_TYPE_ENUM) && field->header.size==sizeof(int)) {
+            integer_parameters[i]=module->get_p(module->params,name);
+            integer_values[i]=*integer_parameters[i];parameters[i]=&integer_values[i];
+          }
+        } else if(!strcmp(om_controls[i].parameter,"@enabled")) {
+          enabled_values[i]=module->enabled; parameters[i]=&enabled_values[i];
+        } else if(!strcmp(om_controls[i].parameter, "@temperature") || !strcmp(om_controls[i].parameter, "@tint")) {
+          if(!om_wb_read(module,module->params,&wb_temperature,&wb_tint)) return 2;
+          parameters[i]=!strcmp(om_controls[i].parameter,"@temperature") ? &wb_temperature : &wb_tint;
+        } else if(!strcmp(om_controls[i].parameter, "@opacity"))
+          parameters[i]=&module->blend_params->opacity;
+        else {
+          const dt_introspection_field_t *field=module->get_f(om_controls[i].parameter);
+          if(field && field->header.type==DT_INTROSPECTION_TYPE_FLOAT && field->header.size==sizeof(float)) {
+            const float a=om_parameter_value(i,om_controls[i].minimum),b=om_parameter_value(i,om_controls[i].maximum);
+            if(fminf(a,b)<field->Float.Min-1e-4f || fmaxf(a,b)>field->Float.Max+1e-4f) return 2;
+            parameters[i]=module->get_p(module->params, om_controls[i].parameter);
+          }
+        }
         break;
       }
     }
@@ -113,15 +144,31 @@ int om_engine_update_controls(const float *values, const unsigned char *changed)
   if(!loaded) return 1;
   for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
     if(!parameters[i]) return 2;
-    if(changed[i]) *parameters[i]=om_parameter_value(i,CLAMP(values[i],om_controls[i].minimum,om_controls[i].maximum));
+    if(changed[i]) {
+      *parameters[i]=om_parameter_value(i,CLAMP(values[i],om_controls[i].minimum,om_controls[i].maximum));
+      if(!strcmp(om_controls[i].parameter,"@opacity")) modules[i]->blend_params->mask_mode |= DEVELOP_MASK_ENABLED;
+      if(integer_parameters[i]) *integer_parameters[i]=(int)lroundf(*parameters[i]);
+    }
+  }
+  for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
+    if(changed[i] && !strcmp(om_controls[i].module,"temperature")) {
+      if(!om_wb_write(modules[i],wb_temperature,wb_tint)) return 3;
+      break;
+    }
   }
   for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
     if(!changed[i]) continue;
     gboolean seen=FALSE;
     for(unsigned int j=0;j<i;++j) if(changed[j] && modules[j]==modules[i]) seen=TRUE;
-    if(!seen) dt_dev_add_history_item_ext(&dev,modules[i],TRUE,FALSE);
+    if(!seen) {
+      gboolean explicit_enable=FALSE;
+      for(unsigned int j=0;j<OM_CONTROL_COUNT;++j) if(changed[j] && modules[j]==modules[i] && !strcmp(om_controls[j].parameter,"@enabled")) {
+        modules[i]->enabled=enabled_values[j]>0.5; explicit_enable=TRUE;
+      }
+      dt_dev_add_history_item_ext(&dev,modules[i],!explicit_enable,FALSE);
+    }
   }
-  return 0;
+  return bind_controls();
 }
 int om_engine_render(const unsigned char **pixels, int *width, int *height) {
   if(!loaded) return 1;
@@ -135,3 +182,23 @@ void om_engine_cleanup(void) {
   if(loaded) dt_dev_cleanup(&dev);
   dt_cleanup();
 }
+
+int om_engine_halation(void) {
+  dt_iop_module_t *module=dt_iop_get_module_by_op_priority(dev.iop,"diffuse",0);
+  if(!module) return 1;
+  memcpy(module->params,module->default_params,module->params_size);
+  const char *speeds[]={"first","second","third","fourth"};
+  for(int i=0;i<4;++i) *(float *)module->get_p(module->params,speeds[i])=.5f;
+  *(int *)module->get_p(module->params,"iterations")=1;
+  *(int *)module->get_p(module->params,"radius")=32;
+  *(float *)module->get_p(module->params,"threshold")=.8f;
+  module->blend_params->blend_cst=DEVELOP_BLEND_CS_RGB_SCENE;
+  module->blend_params->blend_mode=DEVELOP_BLEND_RGB_R;
+  module->blend_params->mask_mode=DEVELOP_MASK_ENABLED;
+  module->blend_params->opacity=35;
+  dt_dev_add_history_item_ext(&dev,module,TRUE,FALSE);
+  return bind_controls();
+}
+#include "session_actions.h"
+
+#include "history.h"

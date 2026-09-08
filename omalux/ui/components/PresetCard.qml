@@ -10,6 +10,8 @@ Rectangle {
     required property string appliedStyle
     required property string applyingPreset
     required property bool expanded
+    signal exportRequested()
+    signal deleteRequested()
     signal applyRequested
     signal detailsToggleRequested
     required property var preset
@@ -91,6 +93,16 @@ Rectangle {
                             text: root.preset.error !== "" ? "Unavailable" : root.busy && root.applyingPreset === root.preset.id ? "Applying…" : root.appliedStyle === root.preset.name ? "Last applied" : "Apply preset"
                         }
                     }
+                }
+            }
+            ToolButton {
+                text: "⋮"; implicitWidth: 24
+                onClicked: presetMenu.open()
+                Accessible.name: root.preset.name + " actions"
+                Menu {
+                    id: presetMenu
+                    MenuItem { text: "Export bundle…"; onTriggered: root.exportRequested() }
+                    MenuItem { text: "Delete…"; enabled: root.preset.id.startsWith("my-presets/"); onTriggered: root.deleteRequested() }
                 }
             }
             Button {

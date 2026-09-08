@@ -4,7 +4,7 @@ import QtQuick.Layouts
 
 import "../components"
 
-ScrollView {
+SidebarScrollView {
     id: root
     required property var theme
     required property var presets
@@ -15,6 +15,9 @@ ScrollView {
     required property string applyingPreset
     required property string errorMessage
     readonly property bool textEditing: presetSearch.activeFocus
+    signal saveRequested()
+    signal exportRequested(string id)
+    signal deleteRequested(string id, string name)
     signal applyRequested(string id)
     property string presetQuery: ""
     property string expandedPresetGroup: "monochrome"
@@ -63,10 +66,8 @@ ScrollView {
             group.presets.sort((a, b) => a.id === "neutral/preset.dtstyle" ? -1 : b.id === "neutral/preset.dtstyle" ? 1 : a.name.localeCompare(b.name))
         return result
     }
-    clip: true
-    contentWidth: availableWidth
     Column {
-        width: parent.width; padding: 10
+        width: root.availableWidth; padding: 10
         Column {
             width: parent.width - 20; spacing: 10
             RowLayout {
@@ -74,6 +75,7 @@ ScrollView {
                 Text { text: "PRESETS"; color: root.theme.ink; font.bold: true; font.letterSpacing: 2; Layout.fillWidth: true }
                 Text { text: root.presets.length; color: root.theme.muted; font: root.theme.textFont }
             }
+            Button { text: "Save current look…"; enabled: root.photoReady && !root.busy; onClicked: root.saveRequested() }
             TextField {
                 id: presetSearch
                 width: parent.width; height: 32
@@ -120,6 +122,8 @@ ScrollView {
                             appliedStyle: root.appliedStyle
                             applyingPreset: root.applyingPreset
                             expanded: !!root.expandedPresetDetails[modelData.id]
+                            onExportRequested: root.exportRequested(modelData.id)
+                            onDeleteRequested: root.deleteRequested(modelData.id, modelData.name)
                             onApplyRequested: root.applyRequested(modelData.id)
                             onDetailsToggleRequested: root.togglePresetDetails(modelData.id)
                         }

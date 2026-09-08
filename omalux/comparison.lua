@@ -15,7 +15,7 @@ end
 
 dt.control.dispatch(function()
   log("bridge ready")
-  local applied, last_error
+  local applied, last_error, current_source
   local style_revision, controls_applied, imported = 0, {}, {}
   while not dt.control.ending do
     local file = io.open(mailbox, "r")
@@ -24,8 +24,33 @@ dt.control.dispatch(function()
     if command and command ~= applied and dt.gui.current_view() == dt.gui.views.darkroom then
       local ok, err = pcall(function()
         local body = assert(command:match("^omalux%-controls%-v3 %d+\n(.*)$"), "unsupported controls message")
+        local source, rest = body:match("^source (%S+)\n(.*)$")
+        if source then
+          source=decode(source);body=rest
+          if source ~= current_source then
+            local image=assert(dt.database.import(source), "Could not import comparison image")
+            local shown=dt.gui.views.darkroom.display_image()
+            if not shown or shown.id ~= image.id then
+              dt.gui.views.darkroom.display_image(image)
+              -- The setter schedules a GTK idle image load; do not edit the old image.
+              repeat
+                dt.control.sleep(50)
+                shown=dt.gui.views.darkroom.display_image()
+              until dt.control.ending or (shown and shown.id == image.id)
+            end
+            current_source=source;style_revision=0;controls_applied={}
+          end
+        end
         local records = {}
         for line in body:gmatch("[^\n]+") do
+          local history_epoch, history_file = line:match("^history (%d+) ([%w%-]+)$")
+          if history_epoch then
+            records[#records+1]={kind="history",sequence=tonumber(history_epoch),filename=history_file}
+          else
+          local epoch, revision, module, snapshot = line:match("^module (%d+) (%d+) ([%w_]+) ([%w%-]+)$")
+          if epoch then
+            records[#records+1]={kind="module",epoch=tonumber(epoch),revision=tonumber(revision),module=module,name=snapshot}
+          else
           local sequence, filename, name = line:match("^style (%d+) (%S+) (%S+)$")
           if sequence then
             filename, name = decode(filename), decode(name)
@@ -36,14 +61,26 @@ dt.control.dispatch(function()
             end
             records[#records+1] = {kind="style", sequence=tonumber(sequence), filename=filename, name=name}
           else
-            local epoch, module, parameter, value, revision = line:match("^control (%d+) ([%w_]+) ([%w_]+) ([%d.eE+%-]+) (%d+)$")
+            local epoch, module, parameter, value, revision = line:match("^control (%d+) ([%w_]+) (%S+) ([%d.eE+%-]+) (%d+)$")
             value = tonumber(value)
             assert(epoch and value and value == value and math.abs(value) < math.huge, "invalid control")
-            records[#records+1] = {kind="control", epoch=tonumber(epoch), module=module, parameter=parameter, value=value, revision=tonumber(revision)}
+            records[#records+1] = {kind="control", epoch=tonumber(epoch), module=module, parameter=decode(parameter), value=value, revision=tonumber(revision)}
+          end
+        end
           end
         end
         for _, record in ipairs(records) do
-          if record.kind == "style" then
+          if record.kind == "history" then
+            if record.sequence > style_revision then
+              local previous=find_style(record.filename)
+              if previous then dt.styles.delete(previous) end
+              dt.styles.import(mailbox:match("^(.*)/") .. "/" .. record.filename .. ".dtstyle")
+              local selected=assert(find_style(record.filename), "history snapshot import failed")
+              dt.styles.apply(selected,assert(dt.gui.views.darkroom.display_image(), "no darkroom image"))
+              style_revision,controls_applied=record.sequence,{}
+              log("restored history " .. record.sequence)
+            end
+          elseif record.kind == "style" then
             if record.sequence > style_revision then
               if not imported[record.filename] then
                 local previous = find_style(record.name)
@@ -57,12 +94,25 @@ dt.control.dispatch(function()
               style_revision, controls_applied = record.sequence, {}
               log("applied style " .. record.name)
             end
-          elseif record.epoch == style_revision then
+          elseif record.kind == "module" and record.epoch == style_revision then
+            local key="recipe/" .. record.module
+            if record.revision > (controls_applied[key] or 0) then
+              local previous=find_style(record.name); if previous then dt.styles.delete(previous) end
+              dt.styles.import(mailbox:match("^(.*)/") .. "/" .. record.name .. ".dtstyle")
+              local style=assert(find_style(record.name), "module snapshot import failed")
+              dt.styles.apply(style, assert(dt.gui.views.darkroom.display_image()))
+              controls_applied[key]=record.revision
+            end
+          elseif record.kind == "control" and record.epoch == style_revision then
             local key = record.module .. "/" .. record.parameter
             if record.revision > (controls_applied[key] or 0) then
+              if record.parameter == "@enabled" then
+                dt.gui.action("iop/" .. record.module, "enable", record.value > .5 and "on" or "off", 1)
+              else
               local enabled = dt.gui.action("iop/" .. record.module, "enable", "on", 1)
               local result = dt.gui.action("iop/" .. key, "value", "set", record.value)
               assert(enabled == enabled and result == result, "control unavailable: " .. key)
+              end
               controls_applied[key] = record.revision
             end
           end

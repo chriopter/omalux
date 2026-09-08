@@ -5,13 +5,13 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 - `omalux-v0/` contains the original application and Rust engine. The archive rules below apply there. Run Cargo commands from that directory.
 - `omalux.org/` contains the website; its rules are collected below.
 - `darktable/` is the official upstream Git submodule, pinned to a stable release. Initialize it with `git submodule update --init --recursive`.
-- `omalux/` contains the Qt/QML UI, C/C++ native adapter and Python development launcher. Brightness, contrast, saturation and the preset catalogue are connected to darktable; other editing tools remain placeholders. Do not describe planned functionality as released.
+- `omalux/` contains the Qt/QML UI, C/C++ native adapter and Python development launcher. The registered editing controls, crop, presets and JPEG/PNG export are connected to darktable; the History pane displays the current image’s native processing stack. See `docs/ui-controls.md` for the mappings and limitations. Do not describe planned functionality as released.
 - Keep the adapter and UI separate from upstream. Necessary internal engine changes are authorized, but keep them minimal and documented.
 - The native adapter uses internal structures: always compile against the exact installed darktable release headers. Never silently reuse a binary after a library upgrade.
 - Before changing engine integration, read `docs/darktable-architecture.md` and verify its source references against the current darktable pin. It records known prototype limitations, including the `IMAGE` flag disabling intermediate cache reuse, transient GPU error flags, and the deprecated `colisa` controls.
 - Bundled darktable looks live in `presets/<id>/` with `preset.dtstyle`, `thumbnail.jpg` and `preset.json`. Regenerate thumbnails explicitly with `bin/preset_preview <id>` after style changes; use the real engine and shared beach photograph.
 - Declare preset dependencies in `preset.json` using `assets` (`path`, `role`, optional `target`). Style and thumbnail filenames are fixed conventions. Record the repository-relative source image under `preview.source` and rendering engine version under `preview.darktable_version` automatically when generating thumbnails; these are provenance, not runtime dependencies or compatibility requirements. Preserve asset declarations when regenerating thumbnails. Unsupported or missing dependencies must not silently produce a different look.
-- `assets/logo/` and `assets/images/` contain shared visual assets. Reuse the existing beach photograph.
+- `assets/logo/`, `assets/images/` and `assets/icons/` contain shared visual assets. Reuse the existing beach photograph.
 - Credit darktable and its contributors. Do not imply official affiliation or endorsement.
 - Website screenshots currently depict v0 and must be labelled accordingly.
 - `bin/update` checks out the latest upstream stable release and its dependencies; it never stages, commits or pushes.
@@ -30,7 +30,8 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 3. Read `docs/darktable-architecture.md` before engine changes and verify relevant findings against the installed/pinned source. Keep upstream changes explicit and minimal.
 4. Preserve imported image settings and identify module instances deliberately when extending the prototype. Do not silently treat registry defaults as the original image history.
 5. Keep each implemented sidebar pane in its own file under `omalux/ui/panels/`. Shared visual components belong in `omalux/ui/components/`; pass data through explicit properties and actions through signals. Only `Main.qml` and the sidebar composition wire the backend; child components must not reach into global `editor` or window IDs.
-6. Verify affected controls with the actual engine and comparison path. Do not claim identical output or performance without measuring it under matching settings.
+6. Keep special control adapters explicit: white balance uses darktable’s temperature/color math, denoise curves and blend changes synchronize as module snapshots. Do not substitute a display-only effect or assume a native field name is a GTK action path.
+7. Verify affected controls with the actual engine and comparison path. Do not claim identical output or performance without measuring it under matching settings.
 
 ## Archived engine rules (`omalux-v0/`)
 

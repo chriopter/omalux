@@ -186,3 +186,22 @@ Use deterministic fixtures where possible, retain backend/profile/ROI metadata w
 Style application preflights every item, merges it through `dt_styles_apply_style_item`, rebinds controls and reads values back. Rendering no longer writes control snapshots indiscriminately: per-control revisions select changed parameters. This fixes the earlier startup-default overwrite and unintended re-enabling of modules during a style render. It does not resolve ambiguous duplicate-instance selection.
 
 The v3 comparison mailbox keeps style events with the preceding control snapshot (including pending edits flushed before application), plus the newest control snapshot. Style epochs and per-control revisions prevent unchanged values from overwriting style settings and let the bridge replay multiple style boundaries in order. Only the filename/name identifies a style; both processes use the same catalogue directory. The bridge imports styles into its private database and applies them with `dt.styles.apply`. Files are a startup snapshot and should not be edited while comparing a session. Synchronization remains one-way.
+
+## Expanded UI adapter (2026-09-08)
+
+The original three-control audit above describes the starting prototype. The current registry now covers the [v0 mapping](ui-controls.md), including typed special controls. The cache and GPU caveats above still apply.
+
+`controls.h` separates display labels/units, native parameters and GTK action paths. Native binding selects `multi_priority == 0` deliberately and validates float type, size and hard range. Integer fields, enablement and blend opacity have explicit bindings. Denoise curves validate the 6 × 7 ordinate array. `white_balance.h` adapts the installed darktable temperature module's spectral/XYZ math and camera matrices to convert temperature/tint into white-balance coefficients; this is not a new color-temperature algorithm.
+
+`session_actions.h` owns metadata, compatible style snapshots and full-resolution export. It serializes parameters using darktable's XMP encoder and packages local LUT assets for saved presets. Private single-module snapshots preserve existing LUT paths. JPEG/PNG export writes the worker's develop history to its temporary database and calls `dt_imageio_export`; source sidecars remain disabled. The resulting output is copied atomically to the user-selected destination.
+
+The worker serializes all engine actions. Mailbox v3 includes the current image source, scalar revisions, style boundaries and module snapshots. Lua uses GUI actions for scalar changes and imports private module styles for curves/blend recipes. The comparison process remains independent and receives one-way edits. This is a development aid, not shared engine state or a performance guarantee.
+
+
+## History display
+
+`native/history.h` copies the worker-owned `dev.history` into a JSON list, newest first. Labels use `dt_history_get_name_label`, as `src/libs/history.c` does; the active prefix/current row comes from `dev.history_end`. The matching 5.6.0 headers and pinned 5.6.1 source were checked for the history-item layout. The list includes imported and automatic steps, module enablement, and preset modules without Omalux controls. It follows darktable’s merging of adjacent module edits, rather than logging every slider event.
+
+Qt receives copied data through a queued signal; `panels/HistoryPanel.qml` displays it and emits a selected step. Reading the stack neither changes engine history nor sends comparison commands. The next worker update after opening another photo replaces the list with that photo’s history. Restoration runs on the owning worker via `dt_dev_pop_history_items_ext`, followed by a pipe rebuild, invalidation and control rebinding. It preserves the future stack until darktable truncates it on the next edit. A synthetic original row selects history position zero. Dedicated undo/redo shortcuts are not implemented.
+
+In split mode, a history jump writes the selected module state as a private style snapshot. This includes modules in the registry and history, including disabled modules, and preserves LUT paths. Lua applies that snapshot before subsequent controls. It synchronizes the rendering state rather than matching history row numbers between the independent engines. Snapshot compatibility limits (masks and extra module instances) still apply. The source image’s sidecar is not written. Export and preset saving use the selected state.

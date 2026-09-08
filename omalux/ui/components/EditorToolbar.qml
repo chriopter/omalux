@@ -7,6 +7,11 @@ Rectangle {
     required property var theme
     required property url logoSource
     required property string filename
+    property real zoom: 1
+    signal openRequested()
+    signal saveRequested()
+    signal fitRequested()
+    signal zoomRequested(real factor)
     implicitHeight: 48
     color: "#1e1e2e"
     RowLayout {
@@ -24,29 +29,12 @@ Rectangle {
         Item {
             Layout.fillWidth: true
         }
-        PlaceholderButton {
-            theme: root.theme
-            label: "[O] OPEN"
-        }
-        PlaceholderButton {
-            theme: root.theme
-            label: "[S] SAVE"
-        }
-        Text {
-            text: "ZOOM"
-            color: root.theme.muted
-            font: root.theme.textFont
-        }
-        Rectangle {
-            Layout.preferredWidth: 90
-            height: 2
-            color: root.theme.line
-        }
-        Text {
-            text: "FIT"
-            color: root.theme.ink
-            font: root.theme.textFont
-        }
+        Button { text: "[O] OPEN"; onClicked: root.openRequested() }
+        Button { text: "[Ctrl+S] EXPORT"; onClicked: root.saveRequested() }
+        ToolButton { text: "−"; onClicked: root.zoomRequested(.8); Accessible.name: "Zoom out" }
+        Text { text: root.zoom === 1 ? "FIT" : root.zoom.toFixed(1) + "× FIT"; color: root.theme.ink; font: root.theme.textFont }
+        ToolButton { text: "+"; onClicked: root.zoomRequested(1.25); Accessible.name: "Zoom in" }
+        Button { text: "[0] FIT"; onClicked: root.fitRequested() }
         Item {
             Layout.fillWidth: true
         }

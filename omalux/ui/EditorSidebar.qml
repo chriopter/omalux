@@ -7,10 +7,20 @@ Rectangle {
     id: root
     required property var theme
     required property var backend
+    required property string activeControl
+    required property url iconsRoot
+    property alias geometry: geometryPanel
+    onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("brightness") }
     property int selectedPanel: 0
     readonly property bool textEditing: selectedPanel === 1 && presetsPanel.textEditing
+    signal presetSaveRequested()
+    signal presetExportRequested(string id)
+    signal presetDeleteRequested(string id, string name)
     signal controlSelected(string id)
 
+    function navigateControl(direction) { filtersPanel.navigate(direction) }
+    function revealControl(id) { selectedPanel = 0; controlSelected(id); filtersPanel.reveal(id) }
+    function toggleGrainDetails() { let next=Object.assign({}, filtersPanel.expandedDetails); next.grain=!next.grain; filtersPanel.expandedDetails=next }
     function showPresetDetails(id) {
         selectedPanel = 1;
         presetsPanel.showDetails(id);
@@ -33,23 +43,23 @@ Rectangle {
             Repeater {
                 model: [
                     {
-                        icon: "☷",
+                        icon: "edit.svg",
                         name: "Filters"
                     },
                     {
-                        icon: "▧",
+                        icon: "presets.svg",
                         name: "Presets"
                     },
                     {
-                        icon: "⌗",
+                        icon: "crop.svg",
                         name: "Crop & Rotate"
                     },
                     {
-                        icon: "↶",
+                        icon: "history.svg",
                         name: "History"
                     },
                     {
-                        icon: "ⓘ",
+                        icon: "info.svg",
                         name: "Info"
                     }
                 ]
@@ -61,7 +71,6 @@ Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 26
                     padding: 0
-                    enabled: index < 2
                     onClicked: root.selectedPanel = index
                     Accessible.name: modelData.name
                     Accessible.role: Accessible.PageTab
@@ -79,13 +88,11 @@ Rectangle {
                             color: root.theme.accent
                         }
                     }
-                    contentItem: Text {
-                        text: tab.modelData.icon
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        color: root.selectedPanel === tab.index ? root.theme.accent : root.theme.muted
-                        opacity: tab.enabled ? 1 : 0.4
-                    }
+                    display: AbstractButton.IconOnly
+                    icon.source: root.iconsRoot + modelData.icon
+                    icon.width: 16; icon.height: 16
+                    icon.color: root.selectedPanel === index ? root.theme.accent : root.theme.muted
+
                 }
             }
         }
@@ -95,6 +102,10 @@ Rectangle {
             color: root.theme.line
         }
         FiltersPanel {
+            id: filtersPanel
+            onHalationRequested: root.backend.applyHalation()
+            activeControl: root.activeControl
+            onControlReset: id => root.backend.resetControl(id)
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.selectedPanel === 0
@@ -107,6 +118,9 @@ Rectangle {
         }
         PresetsPanel {
             id: presetsPanel
+            onSaveRequested: root.presetSaveRequested()
+            onExportRequested: id => root.presetExportRequested(id)
+            onDeleteRequested: (id, name) => root.presetDeleteRequested(id, name)
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.selectedPanel === 1
@@ -119,6 +133,31 @@ Rectangle {
             applyingPreset: root.backend.applyingPreset
             errorMessage: root.backend.presetError
             onApplyRequested: id => root.backend.applyPreset(id)
+        }
+        GeometryPanel {
+            id: geometryPanel
+            imageAspect: root.backend.metadata.width / Math.max(1,root.backend.metadata.height)
+            visible: root.selectedPanel === 2
+            Layout.fillWidth: true; Layout.fillHeight: true
+            theme: root.theme; controls: root.backend.controls; values: root.backend.controlValues
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            onEdited: (id, value) => root.backend.setControl(id, value)
+            onCropApplied: values => root.backend.setControls(values)
+        }
+        HistoryPanel {
+            visible: root.selectedPanel === 3
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            theme: root.theme
+            entries: root.backend.history
+            busy: root.backend.styleBusy
+            onStepRequested: step => root.backend.selectHistory(step)
+            ready: root.backend.preview !== ""
+        }
+        MetadataPanel {
+            visible: root.selectedPanel === 4
+            Layout.fillWidth: true; Layout.fillHeight: true
+            theme: root.theme; metadata: root.backend.metadata
         }
     }
 }

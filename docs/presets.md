@@ -153,3 +153,13 @@ Keep the existing four-file layout; additional files may live in an `assets/` su
 `target` defaults to the source basename. Missing files, escaping paths, unsupported roles and conflicting destinations with different contents mark the preset unavailable. Unknown roles can describe future dependencies but are deliberately rejected until implemented. External raster masks, overlay images and bundled fonts are not yet portable through this adapter; merely copying those files is insufficient (overlay images also depend on database state). Module compatibility checks still apply.
 
 The launcher does not rewrite module parameter blobs or discover every undeclared dependency. Declared names must match the style's stored references. This is explicit bundle support, not an arbitrary darktable-style importer. The old `reference.json` format is no longer used; convert it to `preset.json` before loading an external bundle that used it.
+
+## Saving and sharing a look from the UI
+
+“Save current look…” writes a new bundle under `presets/my-presets/<id>/`. Its style includes the current editable modules and other active history modules that the snapshot adapter can serialize. Referenced LUT files are copied to its own `assets/` directory, and the style's paths are adjusted accordingly. The thumbnail comes from the current edited photo. `preview.source` records that photo (repository-relative when possible, otherwise absolute); `preview.darktable_version` records the loaded engine. These fields remain informational. Check the source path before sharing if it contains private directory names.
+
+This differs from `bin/preset_preview`, which deliberately regenerates catalogue thumbnails using the standard beach photograph. Neither operation is a visual calibration against v0.
+
+A card's menu exports the bundle under its catalogue-relative path in the chosen folder. Configure that folder as standalone darktable's LUT root. Export preserves the bundle contents; it does not discover undeclared or cross-bundle dependencies. Deletion requires confirmation and is available only for `my-presets/` entries, never for built-ins.
+
+The snapshot writer currently rejects drawn/raster masks, additional module instances, and enabled watermark/overlay/raster-file modules. It does not serialize custom module order. Keep complex imported styles in their original explicit bundles until those cases have portable serialization.
