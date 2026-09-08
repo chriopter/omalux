@@ -13,6 +13,7 @@ ApplicationWindow {
     readonly property color muted: "#7f849c"
     readonly property color line: "#45475a"
     readonly property color accent: "#89b4fa"
+    property string activeControl: "brightness"
     font.family: "JetBrains Mono"
     font.pixelSize: 11
 
@@ -84,29 +85,35 @@ ApplicationWindow {
                             Text { text: "FILTERS"; color: window.ink; font.bold: true; font.letterSpacing: 2 }
                             Text { text: "01 / BASICS"; color: window.accent; font.bold: true; font.pixelSize: 15; font.letterSpacing: 1 }
                             Placeholder { width: parent.width - 20; label: "EXPOSURE" }
-                            Column {
-                                width: parent.width - 20; spacing: 8
-                                RowLayout {
-                                    width: parent.width
-                                    Text { text: "BRIGHTNESS"; color: window.accent; font: window.font; Layout.fillWidth: true }
-                                    Text { text: Math.round(editor.brightness); color: window.accent; font: window.font }
-                                }
-                                Slider {
-                                    id: brightness; width: parent.width; from: -100; to: 100; stepSize: 1; value: editor.brightness
-                                    onMoved: editor.brightness = value
-                                    background: Rectangle { x: brightness.leftPadding; y: brightness.topPadding + brightness.availableHeight / 2; width: brightness.availableWidth; height: 2; color: window.muted }
-                                    handle: Rectangle { x: brightness.leftPadding + brightness.visualPosition * (brightness.availableWidth - width); y: brightness.topPadding + brightness.availableHeight / 2 - height / 2; width: 8; height: 8; color: brightness.pressed ? "#ffffff" : window.accent }
-                                    Accessible.name: "Brightness"
+                            Repeater {
+                                model: editor.controls
+                                delegate: Column {
+                                    required property var modelData
+                                    width: parent.width - 20; spacing: 8
+                                    RowLayout {
+                                        width: parent.width
+                                        Text { text: modelData.label; color: window.accent; font: window.font; Layout.fillWidth: true }
+                                        Text { text: Math.round(editor.controlValues[modelData.id]); color: window.accent; font: window.font }
+                                    }
+                                    Slider {
+                                        id: controlSlider
+                                        width: parent.width; height: 30; padding: 0
+                                        from: modelData.minimum; to: modelData.maximum; stepSize: modelData.step
+                                        value: editor.controlValues[modelData.id]
+                                        onPressedChanged: if (pressed) window.activeControl = modelData.id
+                                        onActiveFocusChanged: if (activeFocus) window.activeControl = modelData.id
+                                        onMoved: editor.setControl(modelData.id, value)
+                                        background: Rectangle { x: controlSlider.leftPadding; y: controlSlider.topPadding + controlSlider.availableHeight / 2; width: controlSlider.availableWidth; height: 2; color: window.muted }
+                                        handle: Rectangle { x: controlSlider.leftPadding + controlSlider.visualPosition * (controlSlider.availableWidth - width); y: controlSlider.topPadding + controlSlider.availableHeight / 2 - height / 2; width: 8; height: 8; color: controlSlider.pressed ? "#ffffff" : window.accent }
+                                        Accessible.name: modelData.label
+                                    }
                                 }
                             }
-                            Placeholder { width: parent.width - 20; label: "CONTRAST" }
                             Placeholder { width: parent.width - 20; label: "CLARITY" }
                             Placeholder { width: parent.width - 20; label: "HIGHLIGHTS" }
                             Placeholder { width: parent.width - 20; label: "SHADOWS" }
                             Placeholder { width: parent.width - 20; label: "WHITES" }
                             Placeholder { width: parent.width - 20; label: "BLACKS" }
-                            Text { text: "02 / COLOR"; color: window.accent; font.bold: true; font.pixelSize: 15 }
-                            Placeholder { width: parent.width - 20; label: "SATURATION" }
                         }
                     }
                     GhostButton { label: "SAVE AS PRESET…"; Layout.fillWidth: true }
@@ -114,15 +121,32 @@ ApplicationWindow {
             }
         }
         Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: gpuNotice.implicitHeight + 22
+            visible: editor.gpuWarning !== ""
+            color: "#342d22"
+            Accessible.role: Accessible.AlertMessage
+            Accessible.name: editor.gpuWarning
+            Text {
+                id: gpuNotice
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.leftMargin: 16; anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: "⚠  " + editor.gpuWarning
+                color: "#f9d58b"; font: window.font
+                wrapMode: Text.WordWrap
+            }
+        }
+        Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 28; color: "#242438"
             RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                Text { text: "[←/→] BRIGHTNESS   [R] RESET"; color: window.muted; font: window.font }
+                Text { text: "[←/→] " + window.activeControl.toUpperCase() + "   [R] RESET ALL"; color: window.muted; font: window.font }
                 Item { Layout.fillWidth: true }
                 Text { text: editor.status; color: window.ink; font: window.font }
             }
         }
     }
-    Shortcut { sequence: "R"; onActivated: editor.brightness = 0 }
-    Shortcut { sequence: "Left"; onActivated: editor.brightness -= 1 }
-    Shortcut { sequence: "Right"; onActivated: editor.brightness += 1 }
+    Shortcut { sequence: "R"; onActivated: editor.resetControls() }
+    Shortcut { sequence: "Left"; onActivated: editor.adjustControl(window.activeControl, -1) }
+    Shortcut { sequence: "Right"; onActivated: editor.adjustControl(window.activeControl, 1) }
 }

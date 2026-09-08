@@ -28,6 +28,8 @@ def main():
     marker = ROOT / 'omalux/build/library-path'
     if not binary.exists() or not marker.exists() or marker.read_text().strip() != str(library) or any(p.stat().st_mtime > binary.stat().st_mtime for p in native_sources):
         subprocess.run([str(ROOT / 'omalux/build-native.sh')], check=True)
+    # Mesa Rusticl requires explicit driver opt-in; respect user overrides.
+    os.environ.setdefault("RUSTICL_ENABLE", "radeonsi")
     children = []
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)
@@ -38,14 +40,21 @@ def main():
                   '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
                   '--conf', 'ui/show_welcome_screen=false']
         (session / 'config').mkdir()
+        ui_env = os.environ.copy()
+        ui_env.pop('OMALUX_COMPARISON_MAILBOX', None)
         try:
             if args.split:
                 other = session / 'comparison'; other.mkdir()
-                children.append(subprocess.Popen([dt, str(source), '--configdir', str(other),
+                mailbox = session / 'controls'
+                ui_env['OMALUX_COMPARISON_MAILBOX'] = str(mailbox)
+                (other / 'luarc').write_text((ROOT / 'omalux/comparison.lua').read_text())
+                comparison_env = os.environ.copy()
+                comparison_env['OMALUX_COMPARISON_MAILBOX'] = str(mailbox)
+                children.append(subprocess.Popen([dt, str(source), '-d', 'lua', '--configdir', str(other),
                     '--cachedir', str(other / 'cache'), '--library', str(other / 'library.db'),
                     '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
-                    '--conf', 'ui/show_welcome_screen=false']))
-            ui = subprocess.Popen([str(binary), str(source), str(ROOT / 'assets'), *dtargs])
+                    '--conf', 'ui/show_welcome_screen=false'], env=comparison_env))
+            ui = subprocess.Popen([str(binary), str(source), str(ROOT / 'assets'), *dtargs], env=ui_env)
             children.append(ui)
             return ui.wait()
         finally:

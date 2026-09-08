@@ -14,7 +14,7 @@ We are building on the work of the darktable developers and contributors, whose 
 
 We track the official darktable repository as a pinned Git submodule, keep its source unchanged, and will maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
 
-This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal editing UI are included. Brightness is connected directly to darktable’s interactive pixelpipe; the other tools are placeholders. The native prototype keeps a develop context and its caches alive, updates module parameters, and passes preview pixels directly to Qt. There is no new darktable-based release to download yet.
+This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal editing UI are included. Brightness, contrast and saturation are connected directly to darktable’s interactive pixelpipe; the other tools are placeholders. The native prototype keeps a develop context and its caches alive, updates module parameters, and passes preview pixels directly to Qt. There is no new darktable-based release to download yet.
 
 ## Repository layout
 
@@ -71,7 +71,7 @@ The script checks out the latest official stable release and its nested submodul
 Run from the repository root:
 
 - `bin/dev [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
-- `bin/dev_split [image]` — open Omalux and the original darktable window with the same image. The comparison window has a separate database; edits are not synchronized. Closing Omalux stops both.
+- `bin/dev_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
 - `bin/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
@@ -81,12 +81,22 @@ bin/dev --input "/path/to/photo.jpg"
 bin/dev_split "/path/to/photo.jpg"
 ```
 
-The UI follows the original dark Omalux layout. **Brightness** is the only active editing control: drag its slider, use Left/Right, or press R to reset it. Open, save, zoom, presets and the other tools are placeholders. Images are chosen through the launch argument for now.
+The UI follows the original dark Omalux layout. **Brightness, contrast and saturation** are active: drag a slider or use Left/Right for the last selected control. Press R to reset all three. Open, save, zoom, presets and the other tools are placeholders. Images are chosen through the launch argument for now.
 
 The launcher builds the C/C++ adapter on demand using `cc`, `c++`, `pkg-config` and Qt 6’s `moc`. It needs Python 3, Git, Qt 6 Quick/Quick Controls, and development headers for GTK 3, JSON-GLib, Little CMS, SQLite, Lua and librsvg. The current Linux build expects Qt tools under `/usr/lib/qt6/` and an installed release build of darktable 5.6.0 or 5.6.1. It does not build the darktable submodule itself.
 
 The build extracts the **matching installed release’s headers** into ignored `omalux/build/` (fetching its official tag if needed); it never changes the submodule checkout. Override `DARKTABLE_LIBRARY`, `DARKTABLE_BIN`, `DARKTABLE_MODULEDIR` and `DARKTABLE_DATADIR` for another matching installation. Unsupported versions are rejected until the adapter has been reviewed for their internal ABI.
 
-The engine runs inside the Qt application on a dedicated worker thread. It keeps the develop context, decoded image cache and pixelpipe alive; brightness changes update darktable’s `colisa` module using its internal parameter introspection. Only the newest requested value is queued, and obsolete frames are discarded. Preview buffers are copied directly into QImage, without XMP reloads, image export or JPEG encoding. The current CPU preview fits within 1400 × 1000 pixels; GPU rendering and viewport-dependent resolution are later steps.
+The engine runs inside the Qt application on a dedicated worker thread. It keeps the develop context, decoded image cache and pixelpipe alive; slider changes update darktable’s `colisa` module using its internal parameter introspection. Only the newest requested value is queued, and obsolete frames are discarded. Preview buffers are copied directly into QImage, without XMP reloads, image export or JPEG encoding. The preview fits within 1400 × 1000 pixels and uses darktable’s automatic OpenCL selection, with CPU fallback. A visible warning reports unavailable or failed GPU acceleration. Viewport-dependent resolution is a later step.
+
+For AMD GPUs using Mesa Rusticl, install `opencl-mesa`; the dev launcher defaults `RUSTICL_ENABLE` to `radeonsi` unless you override it. The UI status “OpenCL auto” indicates automatic device selection, not that every module ran on the GPU.
 
 Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Edits are not saved when the session closes. Both scripts open their windows on your current workspace.
+
+Split mode runs two independent engines with separate databases. Omalux publishes the latest complete control state to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies it through darktable’s GUI actions when the darkroom is open. Omalux never waits for the comparison render. Synchronization is one-way and currently covers brightness, contrast and saturation; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
+
+### Adding a slider
+
+Add one row to [`omalux/native/controls.h`](omalux/native/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, and scale/offset (`parameter = UI value × scale + offset`). The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. This adapter currently supports float parameters with matching slider actions, not arbitrary module controls.
+
+`editor.setControl(id, value)` queues a complete parameter snapshot. The engine applies it before rendering and updates history once per affected module. The split bridge receives the same converted values, including unchanged controls, so skipping intermediate snapshots does not lose edits to other sliders.

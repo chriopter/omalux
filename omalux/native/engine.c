@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "controls.h"
 #include "common/darktable.h"
 #include "common/film.h"
 #include "common/image.h"
+#include "common/opencl.h"
 #include "develop/develop.h"
 #include "develop/imageop.h"
 #include "develop/pixelpipe.h"
 #include "develop/pixelpipe_hb.h"
 
 static dt_develop_t dev;
-static dt_iop_module_t *brightness_module;
+static dt_iop_module_t *modules[OM_CONTROL_COUNT];
+static float *parameters[OM_CONTROL_COUNT];
 static int loaded;
 
 extern const char darktable_package_version[];
@@ -18,6 +21,13 @@ int om_engine_init(int argc, char **argv) {
     return 1;
   }
   return dt_init(argc, argv, FALSE, TRUE, NULL);
+}
+const char *om_engine_gpu_warning(void) {
+  if(!dt_opencl_is_enabled())
+    return "GPU acceleration unavailable. Check your OpenCL driver and darktable settings. Editing continues on the CPU.";
+  if(loaded && dev.full.pipe->opencl_error)
+    return "GPU processing failed. Editing continues on the CPU.";
+  return "";
 }
 int om_engine_open(const char *path) {
   if(loaded) { dt_dev_cleanup(&dev); loaded = 0; }
@@ -40,20 +50,36 @@ int om_engine_open(const char *path) {
   dev.full.width = 1400;
   dev.full.height = 1000;
   dev.full.color_assessment = FALSE;
-  brightness_module = NULL;
-  for(GList *it=dev.iop; it; it=it->next) {
-    dt_iop_module_t *module=it->data;
-    if(!strcmp(module->op,"colisa")) { brightness_module=module; break; }
+  for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
+    modules[i] = NULL; parameters[i] = NULL;
+    for(GList *it=dev.iop; it; it=it->next) {
+      dt_iop_module_t *module=it->data;
+      if(!strcmp(module->op, om_controls[i].module)) {
+        modules[i]=module;
+        parameters[i]=module->get_p(module->params, om_controls[i].parameter);
+        break;
+      }
+    }
+    if(!parameters[i]) {
+      fprintf(stderr, "Missing darktable control: %s/%s\n", om_controls[i].module, om_controls[i].parameter);
+      return 2;
+    }
   }
-  return brightness_module ? 0 : 2;
+  return 0;
 }
-int om_engine_render(float value, const unsigned char **pixels, int *width, int *height) {
-  if(!loaded || !brightness_module) return 1;
-  float *parameter=brightness_module->get_p(brightness_module->params,"brightness");
-  if(!parameter) return 2;
-  *parameter = CLAMP(value / 100.0f, -1.0f, 1.0f);
-  dt_dev_add_history_item_ext(&dev, brightness_module, TRUE, FALSE);
-  dt_dev_process_image_job(&dev, &dev.full, dev.full.pipe, -1, DT_DEVICE_CPU);
+int om_engine_render(const float *values, const unsigned char **pixels, int *width, int *height) {
+  if(!loaded) return 1;
+  for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
+    if(!parameters[i]) return 2;
+    *parameters[i] = om_parameter_value(i, CLAMP(values[i], om_controls[i].minimum, om_controls[i].maximum));
+  }
+  // Apply one complete state and one history update per module before rendering.
+  for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
+    gboolean seen=FALSE;
+    for(unsigned int j=0; j<i; ++j) if(modules[j]==modules[i]) seen=TRUE;
+    if(!seen) dt_dev_add_history_item_ext(&dev, modules[i], TRUE, FALSE);
+  }
+  dt_dev_process_image_job(&dev, &dev.full, dev.full.pipe, -1, DT_DEVICE_NONE);
   *pixels=dev.full.pipe->backbuf;
   *width=dev.full.pipe->backbuf_width;
   *height=dev.full.pipe->backbuf_height;
