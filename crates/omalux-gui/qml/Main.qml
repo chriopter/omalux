@@ -40,6 +40,38 @@ ApplicationWindow {
     property int exportQuality: 90
     property bool photoFullscreen: false
     property int visibilityBeforePhotoFullscreen: Window.Windowed
+    readonly property var keyBindings: [
+        { sequences: ["1"], hint: "1", description: "FILTERS", section: "PANELS", action: "panelFilters" },
+        { sequences: ["2"], hint: "2", description: "PRESETS", section: "PANELS", action: "panelPresets" },
+        { sequences: ["3"], hint: "3", description: "META", section: "PANELS", action: "panelMeta" },
+        { sequences: ["Tab", "]"], hint: "TAB / ]", description: "NEXT PANEL", section: "PANELS", action: "panelNext" },
+        { sequences: ["Shift+Tab", "["], hint: "SHIFT+TAB / [", description: "PREVIOUS PANEL", section: "PANELS", action: "panelPrevious" },
+
+        { sequences: ["Up", "Shift+Up", "K"], hint: "↑ / K", description: "PREVIOUS PARAMETER", section: "FILTERS", action: "parameterPrevious", scope: "filters" },
+        { sequences: ["Down", "Shift+Down", "J"], hint: "↓ / J", description: "NEXT PARAMETER", section: "FILTERS", action: "parameterNext", scope: "filters" },
+        { sequences: ["Left", "H"], hint: "← / H", description: "DECREASE VALUE", section: "FILTERS", action: "valueDecrease", scope: "filters" },
+        { sequences: ["Right", "L"], hint: "→ / L", description: "INCREASE VALUE", section: "FILTERS", action: "valueIncrease", scope: "filters" },
+        { sequences: ["Shift+Left", "Shift+H"], hint: "SHIFT+← / H", description: "DECREASE FAST", section: "FILTERS", action: "valueDecreaseFast", scope: "filters" },
+        { sequences: ["Shift+Right", "Shift+L"], hint: "SHIFT+→ / L", description: "INCREASE FAST", section: "FILTERS", action: "valueIncreaseFast", scope: "filters" },
+        { sequences: ["A"], hint: "A", description: "GRAIN SUBPARAMETERS", section: "FILTERS", action: "grainAdvanced", scope: "filters" },
+        { sequences: ["G"], hint: "G", description: "GRAIN", section: "FILTERS", action: "grain" },
+        { sequences: ["S"], hint: "S", description: "GRAIN SIZE", section: "FILTERS", action: "grainSize" },
+        { sequences: ["M"], hint: "M", description: "GRAIN MIDTONES", section: "FILTERS", action: "grainMidtones" },
+        { sequences: ["R"], hint: "R", description: "RESET VALUE", section: "FILTERS", action: "parameterReset", scope: "filters" },
+
+        { sequences: ["-"], hint: "−", description: "ZOOM OUT", section: "PHOTO", action: "zoomOut", needsPhoto: true },
+        { sequences: ["+", "="], hint: "+ / =", description: "ZOOM IN", section: "PHOTO", action: "zoomIn", needsPhoto: true },
+        { sequences: ["0"], hint: "0", description: "FIT PHOTOGRAPH", section: "PHOTO", action: "photoFit", needsPhoto: true },
+        { sequences: ["F"], hint: "F", description: "PHOTO FULLSCREEN", section: "PHOTO", action: "photoFullscreen", needsPhoto: true },
+        { sequences: ["Ctrl+-"], hint: "CTRL+−", description: "ZOOM OUT", section: "PHOTO", action: "zoomOut", needsPhoto: true },
+        { sequences: ["Ctrl++", "Ctrl+="], hint: "CTRL++", description: "ZOOM IN", section: "PHOTO", action: "zoomIn", needsPhoto: true },
+        { sequences: ["Ctrl+0"], hint: "CTRL+0", description: "FIT PHOTOGRAPH", section: "PHOTO", action: "photoFit", needsPhoto: true },
+
+        { sequences: ["O", "Ctrl+O"], hint: "O / CTRL+O", description: "OPEN PHOTOGRAPH", section: "FILES", action: "open" },
+        { sequences: ["Ctrl+S"], hint: "CTRL+S", description: "SAVE / EXPORT", section: "FILES", action: "save", needsPhoto: true },
+        { sequences: ["Shift+/", "Ctrl+Shift+/", "F1"], hint: "? / F1", description: "KEYBOARD REFERENCE", section: "HELP", action: "help" }
+    ]
+    readonly property string keymapOverview: buildKeymapOverview()
     readonly property var commandLineArguments: Qt.application.arguments
     readonly property bool cliHeadless:
         commandLineArguments.indexOf("--headless") >= 0
@@ -278,6 +310,60 @@ ApplicationWindow {
         selectPanel(selectedPanel + direction)
     }
 
+    function keyBindingEnabled(binding) {
+        if (photoFullscreen || exportMenuVisible || shortcutsVisible)
+            return false
+        if (binding.scope === "filters" && selectedPanel !== 0)
+            return false
+        return !binding.needsPhoto || sourceImage.status === Image.Ready
+    }
+
+    function triggerKeyBinding(action) {
+        switch (action) {
+        case "panelFilters": selectPanel(0); break
+        case "panelPresets": selectPanel(1); break
+        case "panelMeta": selectPanel(2); break
+        case "panelNext": movePanel(1); break
+        case "panelPrevious": movePanel(-1); break
+        case "parameterPrevious": moveActiveParameter(-1); break
+        case "parameterNext": moveActiveParameter(1); break
+        case "valueDecrease": adjustActiveParameter(-1, false); break
+        case "valueIncrease": adjustActiveParameter(1, false); break
+        case "valueDecreaseFast": adjustActiveParameter(-1, true); break
+        case "valueIncreaseFast": adjustActiveParameter(1, true); break
+        case "grainAdvanced": toggleGrainAdvanced(); break
+        case "grain": selectPanel(0); selectParameter(18); break
+        case "grainSize": selectPanel(0); selectParameter(19); break
+        case "grainMidtones": selectPanel(0); selectParameter(20); break
+        case "parameterReset": resetActiveParameter(); break
+        case "zoomOut": zoomOut(); break
+        case "zoomIn": zoomIn(); break
+        case "photoFit": fitPhoto(); break
+        case "photoFullscreen": enterPhotoFullscreen(); break
+        case "open": openDialog.open(); break
+        case "save": exportMenuVisible = true; break
+        case "help": shortcutsVisible = true; break
+        }
+    }
+
+    function buildKeymapOverview() {
+        var lines = []
+        var section = ""
+        for (var index = 0; index < keyBindings.length; ++index) {
+            var binding = keyBindings[index]
+            if (binding.section !== section) {
+                if (lines.length > 0)
+                    lines.push("")
+                section = binding.section
+                lines.push(section)
+            }
+            var padding = "              ".substring(
+                0, Math.max(1, 14 - binding.hint.length))
+            lines.push(binding.hint + padding + binding.description)
+        }
+        return lines.join("\n")
+    }
+
     function exportBaseName() {
         var name = backend.fileName.length > 0 ? backend.fileName : "photograph"
         var dot = name.lastIndexOf(".")
@@ -371,38 +457,15 @@ ApplicationWindow {
         }
     }
 
-    Shortcut {
-        sequences: [StandardKey.Open]
-        onActivated: openDialog.open()
-    }
+    Instantiator {
+        model: window.keyBindings
 
-    Shortcut {
-        sequences: [StandardKey.Save]
-        enabled: sourceImage.status === Image.Ready
-        onActivated: window.exportMenuVisible = true
-    }
-
-    Shortcut {
-        sequences: ["Ctrl++", "Ctrl+="]
-        enabled: sourceImage.status === Image.Ready
-        onActivated: window.zoomIn()
-    }
-
-    Shortcut {
-        sequence: "Ctrl+-"
-        enabled: sourceImage.status === Image.Ready
-        onActivated: window.zoomOut()
-    }
-
-    Shortcut {
-        sequence: "Ctrl+0"
-        enabled: sourceImage.status === Image.Ready
-        onActivated: window.fitPhoto()
-    }
-
-    Shortcut {
-        sequences: ["Ctrl+?", "F1"]
-        onActivated: window.shortcutsVisible = !window.shortcutsVisible
+        delegate: Shortcut {
+            required property var modelData
+            sequences: modelData.sequences
+            enabled: window.keyBindingEnabled(modelData)
+            onActivated: window.triggerKeyBinding(modelData.action)
+        }
     }
 
     Connections {
@@ -480,9 +543,6 @@ ApplicationWindow {
                 return
             }
 
-            if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))
-                return
-
             if (window.shortcutsVisible) {
                 if (event.key === Qt.Key_Escape || event.text === "?") {
                     window.shortcutsVisible = false
@@ -490,62 +550,6 @@ ApplicationWindow {
                 }
                 return
             }
-
-            var coarse = (event.modifiers & Qt.ShiftModifier) !== 0
-            var keyText = event.text ? event.text.toLowerCase() : ""
-            if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-                window.movePanel(coarse || event.key === Qt.Key_Backtab ? -1 : 1)
-            } else if (keyText === "1") {
-                window.selectPanel(0)
-            } else if (keyText === "2") {
-                window.selectPanel(1)
-            } else if (keyText === "3") {
-                window.selectPanel(2)
-            } else if (keyText === "[") {
-                window.movePanel(-1)
-            } else if (keyText === "]") {
-                window.movePanel(1)
-            } else if (window.selectedPanel === 0
-                       && (event.key === Qt.Key_Down || keyText === "j")) {
-                window.moveActiveParameter(1)
-            } else if (window.selectedPanel === 0
-                       && (event.key === Qt.Key_Up || keyText === "k")) {
-                window.moveActiveParameter(-1)
-            } else if (window.selectedPanel === 0
-                       && (event.key === Qt.Key_Left || keyText === "h")) {
-                window.adjustActiveParameter(-1, coarse)
-            } else if (window.selectedPanel === 0
-                       && (event.key === Qt.Key_Right || keyText === "l")) {
-                window.adjustActiveParameter(1, coarse)
-            } else if (keyText === "g") {
-                window.selectPanel(0)
-                window.selectParameter(18)
-            } else if (keyText === "s") {
-                window.selectPanel(0)
-                window.selectParameter(19)
-            } else if (keyText === "m") {
-                window.selectPanel(0)
-                window.selectParameter(20)
-            } else if (keyText === "a" && window.selectedPanel === 0) {
-                window.toggleGrainAdvanced()
-            } else if (keyText === "r" && window.selectedPanel === 0) {
-                window.resetActiveParameter()
-            } else if (keyText === "o") {
-                openDialog.open()
-            } else if (keyText === "0") {
-                window.fitPhoto()
-            } else if (keyText === "f") {
-                window.enterPhotoFullscreen()
-            } else if (keyText === "+" || keyText === "=") {
-                window.zoomIn()
-            } else if (keyText === "-") {
-                window.zoomOut()
-            } else if (keyText === "?") {
-                window.shortcutsVisible = true
-            } else {
-                return
-            }
-            event.accepted = true
         }
 
         ColumnLayout {
@@ -823,10 +827,10 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     iconSource: "qrc:/icons/edit.svg"
-                                    label: "Edit"
+                                    label: "Filters"
                                     selected: window.selectedPanel === 0
                                     onClicked: window.selectPanel(0)
-                                    Accessible.name: "Edit · 1"
+                                    Accessible.name: "Filters · 1"
                                 }
 
                                 ToolTabButton {
@@ -1196,16 +1200,22 @@ ApplicationWindow {
                         color: window.lineColor
                     }
 
-                    Text {
+                    ScrollView {
                         Layout.fillWidth: true
-                        text: "1–3         EDIT / PRESETS / META\nTAB / [ ]   CHANGE PANEL\n\nA           GRAIN SUBPARAMETERS\nJ / K       SELECT PARAMETER\n↓ / ↑       SELECT PARAMETER\nH / L       ADJUST VALUE\n← / →       ADJUST VALUE\nSHIFT+H/L   ADJUST FAST\nG / S / M   GRAIN / SIZE / MIDTONES\nR           RESET SELECTED VALUE\n\n− / +       ZOOM OUT / IN\n0           FIT PHOTOGRAPH\nF           PHOTO FULLSCREEN\nO           OPEN PHOTOGRAPH\n\nCTRL+O      OPEN PHOTOGRAPH\nCTRL+S      SAVE / EXPORT\nCTRL+−/+    ZOOM OUT / IN\nCTRL+0      FIT PHOTOGRAPH\n? / F1      THIS REFERENCE"
-                        color: window.inkColor
-                        font.family: window.monoFont
-                        font.pixelSize: 12
-                        lineHeight: 1.45
-                    }
+                        Layout.fillHeight: true
+                        clip: true
+                        contentWidth: availableWidth
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
-                    Item { Layout.fillHeight: true }
+                        Text {
+                            width: parent.width
+                            text: window.keymapOverview
+                            color: window.inkColor
+                            font.family: window.monoFont
+                            font.pixelSize: 12
+                            lineHeight: 1.45
+                        }
+                    }
 
                     Text {
                         Layout.alignment: Qt.AlignRight
