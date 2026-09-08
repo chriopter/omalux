@@ -9,13 +9,34 @@
 		<meta name="generator" content={Astro.generator} />
 		<meta name="description" content="Omalux — an open-source, keyboard-driven RAW photo editor for Omarchy." />
 		<title>Omalux</title>
+		<script is:inline>
+			(() => {
+				let theme;
+				try { theme = localStorage.getItem("omalux-theme"); } catch {}
+				document.documentElement.dataset.theme = theme === "light" || theme === "dark"
+					? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+			})();
+		</script>
 		<style>
 			:root {
+				color-scheme: dark;
 				--bg: #0b0d12;
 				--fg: #e8eaf0;
 				--muted: #878da0;
 				--line: rgba(232, 234, 240, 0.1);
 				--accent: #7ea6ff;
+				--shadow: rgba(0, 0, 0, 0.55);
+				--surface: #14161f;
+			}
+			:root[data-theme="light"] {
+				color-scheme: light;
+				--bg: #f6f7fa;
+				--fg: #202735;
+				--muted: #596477;
+				--line: rgba(32, 39, 53, 0.16);
+				--accent: #315ac7;
+				--shadow: rgba(32, 39, 53, 0.15);
+				--surface: #fff;
 			}
 			* { margin: 0; padding: 0; box-sizing: border-box; }
 			html, body { height: 100%; }
@@ -37,6 +58,14 @@
 				font-weight: 600; letter-spacing: 0.08em; font-size: 0.95rem;
 			}
 			.logo::before { content: "❯ "; color: var(--accent); }
+			nav { display: flex; align-items: center; gap: 1.2rem; }
+			.theme-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); }
+			.theme-switch[hidden] { display: none; }
+			.theme-switch button { border: 0; border-radius: 999px; padding: 0.5rem 0.65rem; min-height: 36px; font: inherit; font-size: 0.78rem; color: var(--muted); background: transparent; cursor: pointer; }
+			.theme-switch button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+			:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+			@media (max-width: 480px) { header { padding: 1rem; } nav { gap: 0.65rem; } }
+			@media (prefers-reduced-motion: reduce) { .status::before { animation: none; } #scene { display: none; } }
 			nav a {
 				color: var(--muted); text-decoration: none; font-size: 0.88rem;
 				display: inline-flex; align-items: center; gap: 0.45rem;
@@ -90,22 +119,25 @@
 			}
 			.btn svg { width: 17px; height: 17px; fill: currentColor; }
 			.btn-primary {
-				background: var(--fg); color: #14161d;
+				background: var(--fg); color: var(--bg);
 			}
-			.btn-primary:hover { background: #fff; }
+			.btn-primary:hover { opacity: 0.85; }
 			.btn-ghost {
 				color: var(--fg); border: 1px solid var(--line);
 				font-family: "JetBrains Mono", monospace; font-size: 0.8rem;
 			}
-			.btn-ghost:hover { border-color: rgba(232,234,240,0.3); }
+			.btn-ghost:hover { border-color: var(--muted); }
 			.shot {
 				margin-top: 3rem; max-width: min(1150px, 94vw);
 				border: 1px solid var(--line);
 				border-radius: 10px; overflow: hidden;
-				box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
-				background: #14161f;
+				box-shadow: 0 40px 100px var(--shadow);
+				background: var(--surface);
 			}
 			.shot img { display: block; width: 100%; height: auto; }
+			.shot .shot-light { display: none; }
+			:root[data-theme="light"] .shot-dark { display: none; }
+			:root[data-theme="light"] .shot-light { display: block; }
 			.keys {
 				margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center;
 				font-family: "JetBrains Mono", monospace; font-size: 0.72rem; letter-spacing: 0.04em;
@@ -135,6 +167,10 @@
 						<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
 						GitHub
 					</a>
+					<div class="theme-switch" role="group" aria-label="Color theme" hidden>
+						<button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+						<button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+					</div>
 				</nav>
 			</header>
 			<main>
@@ -150,7 +186,8 @@
 				</div>
 				<div class="status">Status: <b>polishing UI &amp; presets</b> — ETA 10 days</div>
 				<div class="shot">
-					<img src="/app-screenshot.png" alt="Omalux RAW editor — a beach photograph open in the editor with exposure, contrast and color controls" />
+					<img class="shot-dark" src="/app-screenshot-dark.png" width="1440" height="920" alt="Omalux in dark mode — a beach photograph with exposure, contrast and color controls" />
+					<img class="shot-light" src="/app-screenshot.png" width="1440" height="920" alt="Omalux in light mode — a beach photograph with exposure, contrast and color controls" />
 				</div>
 				<div class="keys">
 					<span><b>[O]</b> open</span>
@@ -168,6 +205,30 @@
 			</footer>
 		</div>
 
+		<script is:inline>
+			(() => {
+				const root = document.documentElement;
+				const controls = document.querySelector(".theme-switch");
+				const buttons = controls.querySelectorAll("button");
+				const system = matchMedia("(prefers-color-scheme: light)");
+				let explicit = false;
+				try { explicit = ["light", "dark"].includes(localStorage.getItem("omalux-theme")); } catch {}
+				function apply(theme) {
+					root.dataset.theme = theme;
+					buttons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme)));
+				}
+				apply(root.dataset.theme);
+				controls.hidden = false;
+				buttons.forEach(button => button.addEventListener("click", () => {
+					explicit = true;
+					apply(button.dataset.themeChoice);
+					try { localStorage.setItem("omalux-theme", root.dataset.theme); } catch {}
+				}));
+				system.addEventListener("change", () => {
+					if (!explicit) apply(system.matches ? "light" : "dark");
+				});
+			})();
+		</script>
 		<script>
 			import * as THREE from "three";
 

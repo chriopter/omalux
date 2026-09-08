@@ -18,6 +18,26 @@ App.Main {
     // Main calls this only once Qt has loaded the developed photo into its Image.
     // Override the export hook so the capture follows the real preview lifecycle.
     function continueCliExport() {
+        const theme = window.argumentValue("--theme", "current")
+        if (theme !== "current") {
+            // Change only this capture process; the user's desktop theme is untouched.
+            let applied = false
+            for (const child of window.contentData) {
+                if (child.themeBackground !== undefined && child.themeForeground !== undefined) {
+                    const dark = theme === "dark"
+                    child.themeBackground = dark ? "#101010" : "#fafafa"
+                    child.themeForeground = dark ? "#eeeeee" : "#222222"
+                    child.themeAccent = dark ? "#7ea6ff" : "#315eff"
+                    child.themeSelection = dark ? "#263746" : "#dce5ff"
+                    applied = true
+                }
+            }
+            if (!applied) {
+                console.error("Could not locate the app theme for capture")
+                Qt.exit(1)
+                return
+            }
+        }
         settle.restart()
     }
 
