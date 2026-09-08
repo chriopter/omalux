@@ -3,7 +3,7 @@
 The built-in catalog is a deterministic, ID-sorted collection of validated
 `PresetDocument` values. It includes `neutral`, the exact canonical
 `DevelopSettings::default()` document, plus independently recreated parameter
-documents maintained for Omalux. Personal entries preserve names owned and
+documents maintained for Omalux. Experimental entries preserve names owned and
 approved by the user; community and series entries use independent Omalux
 names. These documents describe only Omalux's public schema and make no
 claim of upstream provenance or endorsement. New built-ins require an explicit,
