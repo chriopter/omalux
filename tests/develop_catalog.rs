@@ -16,7 +16,7 @@ fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
         .map(|document| document.id.as_str())
         .collect::<Vec<_>>();
     assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
-    assert_eq!(ids.first(), Some(&"community-amber-grain"));
+    assert_eq!(ids.first(), Some(&"community-desert-signal"));
     assert_eq!(ids.last(), Some(&"series-meadow-neutral"));
     assert_eq!(
         ids.iter()
@@ -26,9 +26,10 @@ fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     );
     assert_eq!(
         ids.iter().filter(|id| id.starts_with("community-")).count(),
-        9
+        4
     );
-    assert_eq!(ids.iter().filter(|id| id.starts_with("series-")).count(), 5);
+    assert_eq!(ids.iter().filter(|id| id.starts_with("film-")).count(), 7);
+    assert_eq!(ids.iter().filter(|id| id.starts_with("series-")).count(), 3);
     for document in catalog.documents() {
         let canonical = document.to_canonical_json().unwrap();
         assert_eq!(PresetDocument::from_json(&canonical).unwrap(), *document);

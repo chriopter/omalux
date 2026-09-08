@@ -24,7 +24,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     assert!(presets.status.success());
     let listed = json(&presets);
     assert_eq!(listed["presets"].as_array().unwrap().len(), 28);
-    assert_eq!(listed["presets"][0]["id"], "community-amber-grain");
+    assert_eq!(listed["presets"][0]["id"], "film-grain");
     assert!(
         listed["presets"]
             .as_array()

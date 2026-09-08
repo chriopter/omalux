@@ -315,11 +315,7 @@ mod tests {
     #[test]
     fn quiet_negative_preserves_cancellation_dominated_near_black_luminance() {
         let catalog = crate::preset::PresetCatalog::built_in().unwrap();
-        let settings = &catalog
-            .get("community-quiet-negative")
-            .unwrap()
-            .settings
-            .color_mixer;
+        let settings = &catalog.get("film-negative").unwrap().settings.color_mixer;
         // Captures the finite Clarity output that exposed the bug without
         // depending on a decoder, external image, or filesystem path.
         let source = [-0.000_170_067_96, -0.000_050_636_245, 0.001_321_164_4];
