@@ -9,9 +9,9 @@ Omalux calls these looks **presets** in its UI. Each `.dtstyle` is a real darkta
 | `preset.dtstyle` | darktable style: module names, enabled states, versions, parameter values and blending settings. It also references the LUT when the look uses one. | Yes. |
 | `look.cube` | A 3D lookup table mapping input RGB colors to output RGB colors. For the converted v0 looks it contains the combined color adjustments, applied through darktable's `lut3d` module. It is not an image or camera profile. | Yes, when referenced by the style; not every preset needs one. |
 | `thumbnail.jpg` | Stored beach-photo preview rendered with this style; displayed in the preset list. | No; without it the UI displays “No preview”. |
-| `reference.json` | Bundle dependency declarations plus thumbnail generation metadata. The launcher resolves declared assets before starting the engines. | Required for declared non-LUT asset setup; optional for legacy bundles. |
+| `preset.json` | Bundle dependency declarations plus thumbnail generation metadata. The launcher resolves declared assets before starting the engines. | Required to declare dependencies; optional for a standalone style without assets. |
 
-The style and its referenced LUT produce the look. The JPEG and reference metadata document its preview. Keep the LUT beside the style; it is not embedded in the `.dtstyle` file.
+The style and its referenced LUT produce the look. The JPEG is its preview; the manifest declares dependencies and records how the preview was generated. Keep the LUT beside the style; it is not embedded in the `.dtstyle` file.
 
 ## Using and adding presets
 
@@ -22,7 +22,7 @@ presets/
   chromatic/
     preset.dtstyle
     thumbnail.jpg
-    reference.json
+    preset.json
 ```
 
 Create another folder with `preset.dtstyle` and restart `bin/dev` or `bin/dev_split`. Each style needs a unique name. Bundles may be grouped in nested folders. Loose `.dtstyle` files still work, but a bundle keeps its preview with its settings. The UI discovers files automatically and provides search. In the separate **Presets** tab (second sidebar icon), compact rows as in v0 show a 96×64 beach preview beside the name; click the thumbnail or name to apply. The separate arrow expands the actual module settings. Neutral and Chromatic stay above the groups. As in v0, Monochrome opens initially, only one group is expanded at a time, series use their folder names, and Experimental sorts last. Search includes group names and reveals matching presets across collapsed groups. Applying sends all its module settings to darktable, including modules without an Omalux control. No QML button, slider definition or Lua mapping is needed for another style.
@@ -35,28 +35,41 @@ For an isolated development catalogue, set `OMALUX_PRESETS_DIR=/path/to/styles`.
 
 ## Updating thumbnails
 
-Run `bin/preset_preview chromatic` from the repository root. It renders the shared beach image with the bundle's actual style through the Omalux/darktable adapter and writes a 384×256 JPEG plus `reference.json` with engine version and source/style/thumbnail hashes. It requires the normal development dependencies and ImageMagick (`magick`). Use `bin/preset_preview --all` to regenerate every bundle in one persistent engine session. Each next style is applied after the preceding render completes. Regenerate explicitly after changing a style or LUT; startup only loads the stored thumbnail and does no extra preview rendering. A missing thumbnail displays “No preview” and does not prevent applying the style.
+Run `bin/preset_preview chromatic` from the repository root. It renders the shared beach image with the bundle's actual style through the Omalux/darktable adapter and writes a 384×256 JPEG plus `preset.json` with `preview.source` and `preview.darktable_version`, preserving existing asset declarations. It requires the normal development dependencies and ImageMagick (`magick`). Use `bin/preset_preview --all` to regenerate every bundle in one persistent engine session. Each next style is applied after the preceding render completes. Regenerate explicitly after changing a style or LUT; startup only loads the stored thumbnail and does no extra preview rendering. A missing thumbnail displays “No preview” and does not prevent applying the style.
 
-These files are shipped in the repository and loaded from disk, not embedded in the native executable. The preview is an illustration on the standard beach photograph; it does not preview the currently opened image. The hashes fingerprint the stored files: source/style hashes identify what produced a thumbnail, and its hash identifies that particular JPEG. They are not rerender pass/fail criteria and the UI does not currently check them. GPU execution is not inherently random, but CPU/GPU math, driver/compiler versions and rounding can produce different pixels; future render regressions should use documented image tolerances. All 29 bundled v0 looks have been converted approximately; darktable still cannot read the old JSON directly. These are initial approximations; optical calibration remains on the project TODO list.
+These files are shipped in the repository and loaded from disk, not embedded in the native executable. The preview is an illustration on the standard beach photograph; it does not preview the currently opened image. All 29 bundled v0 looks have been converted approximately; darktable still cannot read the old JSON directly. These are initial approximations; optical calibration remains on the project TODO list.
 
-## What `reference.json` records
+## Manifest format
 
-This records thumbnail provenance and optionally declares runtime dependencies. The JSON itself is not sent to darktable; the launcher makes declared assets available to both private engine configurations. Dependency errors appear on the preset card.
+`preset.dtstyle` and `thumbnail.jpg` are fixed filenames, so they are not repeated in JSON. The standard beach image is chosen by `bin/preset_preview`, not by each preset. No file hashes are stored.
+
+```json
+{
+  "version": 1,
+  "assets": [
+    { "path": "look.cube", "role": "lut" }
+  ],
+  "preview": {
+    "source": "assets/images/beach-volleyball.jpg",
+    "darktable_version": "5.6.0"
+  }
+}
+```
 
 | Field | Meaning |
 | --- | --- |
-| `version` | Version of this reference-metadata format, currently `1`. It is not the style version. |
-| `style` | Bundle-relative style filename, currently `preset.dtstyle`. Optional in legacy references. |
-| `assets` | Optional list of dependency objects: `path` (bundle-relative file), `role` (how to make it available), optional `target` (filename expected by darktable). |
-| `renderer` | The rendering path used: `omalux libdarktable preview` means our native adapter rendered the image. |
-| `darktable_version` | Version of the installed library that actually rendered the thumbnail; it can differ from the source submodule pin. |
-| `source` | Repository-relative path to the input photograph, currently the shared beach image. |
-| `source_sha256` | SHA-256 of that input file's bytes. It identifies the exact source file used. |
-| `style_sha256` | SHA-256 of `preset.dtstyle` at generation time. A mismatch means the style file changed after this thumbnail was generated. |
-| `thumbnail_sha256` | SHA-256 of the saved `thumbnail.jpg` file. It identifies this particular JPEG, including its encoding. |
-| `assets_sha256` | Optional map of bundled asset paths to their SHA-256 hashes. The style references these files, so their contents also affect the look. |
+| `version` | Required integer version of our manifest format, currently `1`. |
+| `assets` | Optional list of external dependencies; omit it or use `[]` when none are needed. |
+| `assets[].path` | File path relative to this preset's folder. It must stay inside the bundle and exist. |
+| `assets[].role` | How to make the file available to the engine; supported roles are listed below. |
+| `assets[].target` | Optional destination filename for watermarks and ICC profiles. Defaults to the source basename. LUTs use their catalogue-relative path instead. |
+| `preview` | Optional information about the stored thumbnail. It does not affect rendering. |
+| `preview.source` | Repository-relative source image path, written automatically by the preview script. Provenance only, not an input setting or runtime dependency. |
+| `preview.darktable_version` | Version of the installed engine that generated the thumbnail. **Not** a minimum version or style compatibility guarantee. |
 
-The hashes can establish which files belong together. Even a formatting-only style edit changes its hash; a different JPEG encoding changes the thumbnail hash without necessarily changing its visible appearance. They do **not** measure image quality or visual similarity, and a fresh CPU/GPU render is not required to match the thumbnail hash. Use image comparisons with explicit tolerances for calibration and renderer regression checks. The app currently does not enforce these hashes at startup.
+The launcher reads dependency declarations before starting both engines. It passes setup errors to the UI, which marks the affected preset unavailable. Without a manifest, a standalone style still loads, but no external assets are prepared. Module version/layout compatibility is checked separately against the actual style.
+
+`bin/preset_preview` updates only the thumbnail, `preview.source` and `preview.darktable_version`, preserving asset declarations and other metadata. All bundled references were converted once to this format; archived v0 JSON remains unchanged.
 
 ## Chromatic
 
@@ -117,15 +130,17 @@ Both development processes set darktable's LUT root to `presets/`. When importin
 
 ## Declaring external dependencies
 
-Keep the existing four-file layout; additional files may live in an `assets/` subdirectory inside each preset bundle. Declare them in `reference.json`, for example:
+Keep the existing four-file layout; additional files may live in an `assets/` subdirectory inside each preset bundle. Declare them in `preset.json`, for example:
 
 ```json
-"style": "preset.dtstyle",
+{
+"version": 1,
 "assets": [
   {"path": "look.cube", "role": "lut"},
   {"path": "assets/signature.svg", "role": "watermark", "target": "omalux-signature.svg"},
   {"path": "assets/input.icc", "role": "icc-input", "target": "omalux-input.icc"}
 ]
+}
 ```
 
 | Role | Resolution |
@@ -137,4 +152,4 @@ Keep the existing four-file layout; additional files may live in an `assets/` su
 
 `target` defaults to the source basename. Missing files, escaping paths, unsupported roles and conflicting destinations with different contents mark the preset unavailable. Unknown roles can describe future dependencies but are deliberately rejected until implemented. External raster masks, overlay images and bundled fonts are not yet portable through this adapter; merely copying those files is insufficient (overlay images also depend on database state). Module compatibility checks still apply.
 
-The launcher does not rewrite module parameter blobs or discover every undeclared dependency. Declared names must match the style's stored references. This is explicit bundle support, not an arbitrary darktable-style importer. Legacy references without `style`/`assets` continue to work. Hashes remain provenance, not runtime byte-equality gates. `bin/preset_preview` preserves dependency declarations and extra metadata while refreshing hashes for all declared files.
+The launcher does not rewrite module parameter blobs or discover every undeclared dependency. Declared names must match the style's stored references. This is explicit bundle support, not an arbitrary darktable-style importer. The old `reference.json` format is no longer used; convert it to `preset.json` before loading an external bundle that used it.

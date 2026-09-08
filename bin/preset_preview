@@ -2,7 +2,6 @@
 """Regenerate a bundled preset's beach thumbnail with the native darktable adapter."""
 import argparse
 import ctypes
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,11 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'omalux'))
-from preset_assets import read_reference, bundle_file
-
-
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+from preset_assets import read_manifest
 
 
 def main():
@@ -30,6 +25,8 @@ def main():
     for bundle in bundles:
         if not bundle.is_relative_to(ROOT / 'presets') or not (bundle / 'preset.dtstyle').is_file():
             parser.error('Expected a bundle in presets/ containing preset.dtstyle')
+    for bundle in bundles:
+        read_manifest(bundle)
     source = ROOT / 'assets/images/beach-volleyball.jpg'
     with tempfile.TemporaryDirectory(prefix='omalux-preset-preview-') as tmp:
         env = {k: v for k, v in os.environ.items() if not k.startswith(('OMALUX_CAPTURE', 'OMALUX_PREVIEW'))}
@@ -43,17 +40,11 @@ def main():
             thumbnail = Path(tmp) / 'thumbnail.jpg'
             subprocess.run(['magick', str(Path(tmp) / (preset_id + '.png')), '-resize', '384x256',
                             '-strip', '-quality', '90', str(thumbnail)], check=True)
-            reference = read_reference(bundle)
-            reference.update({'version': 1, 'style': 'preset.dtstyle', 'renderer': 'omalux libdarktable preview', 'darktable_version': version,
-                         'source': str(source.relative_to(ROOT)), 'source_sha256': digest(source),
-                         'style_sha256': digest(bundle / 'preset.dtstyle'), 'thumbnail_sha256': digest(thumbnail)})
-            assets = {asset['path']: digest(bundle_file(bundle, asset['path'])) for asset in reference.get('assets', [])}
-            assets.update({p.relative_to(bundle).as_posix(): digest(p) for p in sorted(bundle.rglob('*.cube'))})
-            if assets:
-                reference['assets_sha256'] = assets
+            manifest = read_manifest(bundle)
+            manifest.setdefault('preview', {}).update(source=source.relative_to(ROOT).as_posix(), darktable_version=version)
             (bundle / 'thumbnail.jpg').write_bytes(thumbnail.read_bytes())
-            (bundle / 'reference.json').write_text(json.dumps(reference, indent=2) + '\n')
-            print(f'Updated {bundle.relative_to(ROOT)}/thumbnail.jpg and reference.json')
+            (bundle / 'preset.json').write_text(json.dumps(manifest, indent=2) + '\n')
+            print(f'Updated {bundle.relative_to(ROOT)}/thumbnail.jpg and preset.json')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "path": "look.cube",
+      "role": "lut"
+    }
+  ],
+  "preview": {
+    "source": "assets/images/beach-volleyball.jpg",
+    "darktable_version": "5.6.0"
+  }
+}

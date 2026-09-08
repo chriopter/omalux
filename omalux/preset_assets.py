@@ -16,23 +16,29 @@ def bundle_file(bundle, name):
     return result
 
 
-def read_reference(bundle):
-    path = bundle / 'reference.json'
+def read_manifest(bundle):
+    path = bundle / 'preset.json'
     if not path.exists():
-        return {}
-    reference = json.loads(path.read_text())
-    if not isinstance(reference, dict) or reference.get('version') != 1:
-        raise ValueError('Unsupported reference format')
-    if reference.get('style', 'preset.dtstyle') != 'preset.dtstyle':
-        raise ValueError('Bundle style must be preset.dtstyle')
-    assets = reference.get('assets', [])
+        if (bundle / 'reference.json').exists():
+            raise ValueError('Convert reference.json to preset.json before loading this bundle')
+        return {'version': 1}
+    manifest = json.loads(path.read_text())
+    if not isinstance(manifest, dict) or type(manifest.get('version')) is not int or manifest.get('version') != 1:
+        raise ValueError('Unsupported manifest format')
+    assets = manifest.get('assets', [])
     if not isinstance(assets, list):
         raise ValueError('assets must be a list')
     for asset in assets:
         if not isinstance(asset, dict):
             raise ValueError('Asset must be an object')
         bundle_file(bundle, asset.get('path'))
-    return reference
+    preview = manifest.get('preview', {})
+    if not isinstance(preview, dict):
+        raise ValueError('preview must be an object')
+    for field in ('source', 'darktable_version'):
+        if field in preview and not isinstance(preview[field], str):
+            raise ValueError(f'preview.{field} must be a string')
+    return manifest
 
 
 def prepare_assets(catalogue, configs):
@@ -42,9 +48,9 @@ def prepare_assets(catalogue, configs):
     for style in sorted(catalogue.rglob('preset.dtstyle')):
         key = style.relative_to(catalogue).as_posix()
         try:
-            reference = read_reference(style.parent)
+            manifest = read_manifest(style.parent)
             plan = []
-            for asset in reference.get('assets', []):
+            for asset in manifest.get('assets', []):
                 source = bundle_file(style.parent, asset['path'])
                 role = asset.get('role')
                 if role == 'lut':

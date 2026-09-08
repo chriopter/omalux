@@ -73,7 +73,7 @@ Run from the repository root:
 
 - `bin/dev [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
 - `bin/dev_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
-- `bin/preset_preview <folder>` / `bin/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and reference metadata, e.g. `bin/preset_preview chromatic` (requires ImageMagick).
+- `bin/preset_preview <folder>` / `bin/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and preview source/engine version in `preset.json`, e.g. `bin/preset_preview chromatic` (requires ImageMagick).
 - `bin/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
