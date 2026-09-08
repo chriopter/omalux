@@ -617,7 +617,7 @@ mod tests {
         let catalog: serde_json::Value =
             serde_json::from_str(&built_in_catalog_json().unwrap()).unwrap();
         assert_eq!(catalog["presets"].as_array().unwrap().len(), 28);
-        assert_eq!(catalog["presets"][0]["id"], "film-grain");
+        assert_eq!(catalog["presets"][0]["id"], "community-desert-signal");
         assert!(
             catalog["presets"]
                 .as_array()
