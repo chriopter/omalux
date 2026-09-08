@@ -1,52 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
-
 if [[ ${1:-} == --help || ${1:-} == -h ]]; then
-  cat <<'HELP'
-Usage: screenshot.sh [INPUT_PHOTO [OUTPUT_PNG [current|light|dark [filters|presets]]]]
-
-Build the preserved v0 Qt app and capture it at 1440x920 without opening a desktop
-window. Defaults: repository beach image → omalux.org/public/app-screenshot.png.
-Relative arguments resolve from your current directory. Uses your current app
-theme and installed fonts. Requires the GUI build dependencies and GNU timeout.
-The previous output is preserved if building or capturing fails.
-HELP
+  echo 'Usage: screenshot.sh [INPUT_PHOTO [OUTPUT_PNG [filters|presets]]]'
+  echo 'Capture the current darktable frontend at 2x scale; requires the native build dependencies and a desktop session for GTK/OpenCL.'
   exit 0
 fi
-if (( $# > 4 )); then
-  echo "Usage: $0 [INPUT_PHOTO [OUTPUT_PNG [current|light|dark [filters|presets]]]]" >&2
-  exit 2
-fi
-
-input="$(realpath -- "${1:-$repo_root/omalux-v0/reference pictures/main.jpg}")"
-output="$(realpath -m -- "${2:-$repo_root/omalux.org/public/app-screenshot.png}")"
-theme="${3:-current}"
-panel="${4:-filters}"
-case "$panel" in filters|presets) ;; *) echo "Panel must be filters or presets" >&2; exit 2 ;; esac
-case "$theme" in current|light|dark) ;; *) echo "Theme must be current, light or dark" >&2; exit 2 ;; esac
-[[ -f "$input" ]] || { echo "Photo not found: $input" >&2; exit 2; }
-[[ "$output" == *.png ]] || { echo "Output must end in .png" >&2; exit 2; }
-[[ "$input" != "$output" ]] || { echo "Input and output must differ" >&2; exit 2; }
-command -v timeout >/dev/null
-command -v cargo >/dev/null
-command -v python3 >/dev/null
-
-cd -- "$repo_root/omalux-v0"
-cargo build -p omalux-gui --example website_screenshot
-target_dir="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
-mkdir -p -- "$(dirname -- "$output")"
-temporary="$(mktemp -- "$(dirname -- "$output")/.app-screenshot.XXXXXX.png")"
-trap 'rm -f -- "$temporary"' EXIT
-
-QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_CONTROLS_STYLE=Basic \
-  QT_QUICK_BACKEND=software QT_SCALE_FACTOR=1 \
-  QT_FORCE_STDERR_LOGGING=1 QT_LOGGING_RULES='*.warning=true;*.critical=true;qml.debug=true' \
-  timeout 60s "$target_dir/debug/examples/website_screenshot" \
-  --input "$input" --capture "$temporary" --grain 0 --theme "$theme" --panel "$panel"
-[[ -s "$temporary" ]] || { echo "Screenshot is empty" >&2; exit 1; }
-chmod 644 -- "$temporary"
-mv -- "$temporary" "$output"
-printf 'Screenshot saved: %s\n' "$output"
+python3 - "$repo_root" "$@" <<'PY'
+import json, os, pathlib, shutil, subprocess, sys, tempfile
+root = pathlib.Path(sys.argv[1])
+args = sys.argv[2:]
+if len(args) > 3:
+    raise SystemExit('Expected [INPUT_PHOTO [OUTPUT_PNG [filters|presets]]]')
+source = pathlib.Path(args[0] if args else root / 'assets/images/beach-volleyball.jpg').resolve()
+output = pathlib.Path(args[1] if len(args) > 1 else root / 'omalux.org/public/app-screenshot-dark.png').resolve()
+panel = args[2] if len(args) > 2 else 'filters'
+if not source.is_file() or output.suffix != '.png' or source == output or panel not in ('filters', 'presets'):
+    raise SystemExit('Invalid input image, output PNG or panel')
+with tempfile.TemporaryDirectory(prefix='omalux-website-shot-') as tmp:
+    tmp = pathlib.Path(tmp)
+    capture = tmp / 'capture.png'
+    script = tmp / 'steps.json'
+    steps = [{'panel': 1 if panel == 'presets' else 0}, {'capture': str(capture)}]
+    script.write_text(json.dumps(steps))
+    env = os.environ | {'QT_QPA_PLATFORM': 'offscreen', 'QT_SCALE_FACTOR': '2',
+        'QT_FORCE_STDERR_LOGGING': '1', 'XDG_CONFIG_HOME': str(tmp / 'config'),
+        'OMALUX_SMOKE_SCRIPT': str(script)}
+    # A private development session preserves the user's current image and settings.
+    subprocess.run([str(root / 'bin/dev'), str(source)], cwd=root, env=env, check=True, timeout=240)
+    if not capture.is_file() or not capture.stat().st_size:
+        raise SystemExit('Capture failed; previous screenshot retained')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=output.parent, suffix='.png', delete=False) as f:
+        staged = pathlib.Path(f.name)
+    try:
+        shutil.copyfile(capture, staged)
+        staged.chmod(0o644)
+        staged.replace(output)
+    finally:
+        staged.unlink(missing_ok=True)
+print(f'Screenshot saved: {output}')
+PY

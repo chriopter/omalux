@@ -13,7 +13,7 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 - Declare preset dependencies in `preset.json` using `assets` (`path`, `role`, optional `target`). Style and thumbnail filenames are fixed conventions. Record the repository-relative source image under `preview.source` and rendering engine version under `preview.darktable_version` automatically when generating thumbnails; these are provenance, not runtime dependencies or compatibility requirements. Preserve asset declarations when regenerating thumbnails. Unsupported or missing dependencies must not silently produce a different look.
 - `assets/logo/`, `assets/images/` and `assets/icons/` contain shared visual assets. Reuse the existing beach photograph.
 - Credit darktable and its contributors. Do not imply official affiliation or endorsement.
-- Website screenshots currently depict v0 and must be labelled accordingly.
+- Website and README screenshots show the current darktable-based development UI. Generate them with `omalux.org/scripts/screenshots.sh`; keep development-preview labels accurate.
 - `bin/update` checks out the latest upstream stable release and its dependencies; it never stages, commits or pushes.
 - `tools/calibration/` fits bundled looks (`preset.dtstyle` + `look.cube`) to target renderings through `darktable-cli`; `docs/calibration.md` has the data layout and recipe. Fits use tuning images only; holdout images are judged once by a finished candidate. Datasets and targets are not in the repository.
 

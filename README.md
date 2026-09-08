@@ -4,9 +4,9 @@ An alternative interface for [darktable](https://www.darktable.org/), designed f
 
 [omalux.org](https://omalux.org)
 
-![Omalux v0 interface](omalux.org/public/app-screenshot-dark.png)
+![Current Omalux interface powered by darktable](omalux.org/public/app-screenshot-dark.png)
 
-*The original Omalux v0 interface; darktable integration is in development.*
+*Current development preview: the Omalux interface powered by darktable.*
 
 ## A new direction
 
@@ -34,7 +34,7 @@ cd omalux-v0
 cargo run --release -p omalux-gui
 ```
 
-See the v0 README for dependencies and validation commands. Existing website screenshots show the v0 interface, not a completed darktable integration.
+See the v0 README for dependencies and validation commands. The website and README share screenshots of the current darktable-based development version.
 
 ## Upstream and licensing
 

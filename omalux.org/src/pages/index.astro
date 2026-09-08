@@ -128,9 +128,6 @@
 			.slide-presets { opacity: 0; }
 			.shot[data-slide="presets"] .slide-presets { opacity: 1; }
 			@media (prefers-reduced-motion: reduce) { .slide { transition: none; } }
-			.shot .shot-light { display: none; }
-			:root[data-theme="light"] .shot-dark { display: none; }
-			:root[data-theme="light"] .shot-light { display: block; }
 			.keys {
 				margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center;
 				font-family: "JetBrains Mono", monospace; font-size: 0.72rem; letter-spacing: 0.04em;
@@ -176,15 +173,13 @@
 					</a>
 				</div>
 				<div class="status">Status: <b>darktable integration in development</b></div>
-				<p class="status">Below: the original Omalux v0 interface. The new integration is not released yet.</p>
-				<div class="shot" data-slide="filters" aria-label="Omalux v0 filters and preset views">
+				<p class="status">Current development preview, powered by darktable. Not released yet.</p>
+				<div class="shot" data-slide="filters" aria-label="Current Omalux editing and preset views">
 					<div class="slide slide-filters" aria-hidden="false">
-					<img class="shot-dark" src="/app-screenshot-dark.png" width="1440" height="920" alt="Omalux v0 in dark mode — a beach photograph with exposure, contrast and color controls" />
-					<img class="shot-light" src="/app-screenshot.png" width="1440" height="920" alt="Omalux v0 in light mode — a beach photograph with exposure, contrast and color controls" />
+					<img class="shot-dark" src="/app-screenshot-dark.png" width="1280" height="820" alt="Omalux powered by darktable — a beach photograph with exposure, contrast and color controls" />
 					</div>
 					<div class="slide slide-presets" aria-hidden="true">
-					<img class="shot-dark" src="/app-presets-dark.png" width="1440" height="920" alt="Omalux v0 in dark mode with the preset list expanded" />
-					<img class="shot-light" src="/app-presets.png" width="1440" height="920" alt="Omalux v0 in light mode with the preset list expanded" />
+					<img class="shot-dark" src="/app-presets-dark.png" width="1280" height="820" alt="Current Omalux interface with the preset catalogue" />
 					</div>
 				</div>
 				<div class="keys">
