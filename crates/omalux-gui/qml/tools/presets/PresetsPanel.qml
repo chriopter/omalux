@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import org.omalux
 
 Item {
     id: panel
@@ -11,12 +12,44 @@ Item {
     required property string selectedPresetId
     signal presetRequested(string id)
 
-    readonly property var presets: {
+    property var expandedGroups: ({ monochrome: true })
+    readonly property var groups: {
+        let result = []
         try {
-            return JSON.parse(catalogJson).presets || []
-        } catch (error) {
-            return []
+            for (let preset of JSON.parse(catalogJson).presets || []) {
+                let key = preset.group || "basic"
+                if (key === "basic") continue
+                let group = result.find(group => group.id === key)
+                if (!group) {
+                    group = { id: key, name: key.replace(/\//g, " · ").replace(/-/g, " "), presets: [] }
+                    result.push(group)
+                }
+                group.presets.push(preset)
+            }
+        } catch (error) {}
+        result.sort((a, b) => {
+            if (a.id === "monochrome") return -1
+            if (b.id === "monochrome") return 1
+            return a.id.localeCompare(b.id)
+        })
+        return result
+    }
+    readonly property var rows: {
+        let result = []
+        for (let group of groups) {
+            result.push({ id: group.id, name: group.name, isGroup: true })
+            if (expandedGroups[group.id]) {
+                for (let preset of group.presets)
+                    result.push(Object.assign({ isGroup: false }, preset))
+            }
         }
+        return result
+    }
+
+    function toggleGroup(id) {
+        let expanded = Object.assign({}, expandedGroups)
+        expanded[id] = !expanded[id]
+        expandedGroups = expanded
     }
 
     ColumnLayout {
@@ -32,87 +65,73 @@ Item {
             font.letterSpacing: 1
         }
 
-        Text {
-            text: panel.presets.length + " CORE PRESET" + (panel.presets.length === 1 ? "" : "S")
-            color: panel.theme.accentColor
-            font.family: panel.theme.monoFont
-            font.pixelSize: 9
-            font.bold: true
-        }
-
         ListView {
             id: presetList
             objectName: "presetList"
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            spacing: 8
-            model: panel.presets
+            spacing: 2
+            model: panel.rows
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {}
 
+            SidebarScrollHandler { flickable: presetList }
+
             delegate: Button {
-                id: presetButton
-                required property int index
+                id: entry
                 required property var modelData
                 width: presetList.width
-                height: 112
-                padding: 8
-                enabled: panel.photoReady
+                height: modelData.isGroup ? 36 : 72
+                padding: 0
+                enabled: modelData.isGroup || panel.photoReady
                 activeFocusOnTab: false
-                onClicked: panel.presetRequested(modelData.id)
-
+                onClicked: {
+                    if (modelData.isGroup) panel.toggleGroup(modelData.id)
+                    else panel.presetRequested(modelData.id)
+                }
                 Accessible.name: modelData.name
+                Accessible.description: modelData.isGroup
+                    ? (panel.expandedGroups[modelData.id] ? "Collapse group" : "Expand group") : ""
 
                 contentItem: RowLayout {
-                    spacing: 10
+                    spacing: 12
+
+                    Text {
+                        visible: entry.modelData.isGroup
+                        Layout.preferredWidth: 14
+                        text: panel.expandedGroups[entry.modelData.id] ? "▾" : "▸"
+                        color: panel.theme.mutedColor
+                        font.pixelSize: 13
+                    }
 
                     Image {
-                        objectName: "presetPreview-" + presetButton.modelData.id
-                        Layout.preferredWidth: 144
-                        Layout.preferredHeight: 96
-                        source: presetButton.modelData.previewUrl
+                        visible: !entry.modelData.isGroup
+                        objectName: "presetPreview-" + entry.modelData.id
+                        Layout.preferredWidth: 96
+                        Layout.preferredHeight: 64
+                        source: entry.modelData.previewUrl || ""
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         smooth: true
                     }
 
-                    ColumnLayout {
+                    Text {
                         Layout.fillWidth: true
-                        spacing: 6
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: presetButton.modelData.name.toUpperCase()
-                            color: panel.selectedPresetId === presetButton.modelData.id
-                                ? panel.theme.inkColor : panel.theme.mutedColor
-                            font.family: panel.theme.monoFont
-                            font.pixelSize: 11
-                            font.bold: true
-                            wrapMode: Text.Wrap
-                            maximumLineCount: 3
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: panel.selectedPresetId === presetButton.modelData.id
-                                ? "SELECTED" : (presetButton.index + 1) + " / " + panel.presets.length
-                            color: panel.theme.mutedColor
-                            font.family: panel.theme.monoFont
-                            font.pixelSize: 8
-                        }
+                        text: entry.modelData.isGroup ? entry.modelData.name.toUpperCase() : entry.modelData.name
+                        color: !entry.modelData.isGroup && panel.selectedPresetId === entry.modelData.id
+                            ? panel.theme.accentColor : panel.theme.inkColor
+                        font.family: panel.theme.monoFont
+                        font.pixelSize: 11
+                        font.bold: entry.modelData.isGroup || panel.selectedPresetId === entry.modelData.id
+                        opacity: entry.hovered ? 1 : 0.85
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
                     }
                 }
 
-                background: Rectangle {
-                    color: panel.selectedPresetId === presetButton.modelData.id
-                        ? panel.theme.selectionColor
-                        : presetButton.hovered ? panel.theme.surfaceColor : "transparent"
-                    border.width: 1
-                    border.color: panel.selectedPresetId === presetButton.modelData.id
-                        ? panel.theme.accentColor : panel.theme.lineColor
-                }
+                background: null
             }
         }
     }

@@ -20,7 +20,7 @@ pub struct BuiltInPreset {
 
 macro_rules! built_in_presets {
     ($($directory:literal),+ $(,)?) => {
-        pub const BUILTIN_PRESETS: &[BuiltInPreset] = &[$(BuiltInPreset {
+        pub static BUILTIN_PRESETS: &[BuiltInPreset] = &[$(BuiltInPreset {
             directory: $directory,
             json: include_str!(concat!("../../presets/builtin/", $directory, "/preset.json")),
             #[cfg(feature = "preset-thumbnails")]

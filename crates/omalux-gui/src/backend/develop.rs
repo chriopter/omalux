@@ -71,10 +71,21 @@ impl PreviewArtifact {
 
 pub(super) fn built_in_catalog_json() -> Result<String, String> {
     let catalog = PresetCatalog::built_in().map_err(|error| error.to_string())?;
+    let groups: std::collections::HashMap<_, _> = omalux::preset::catalog::BUILTIN_PRESETS
+        .iter()
+        .map(|source| {
+            let (group, id) = source
+                .directory
+                .rsplit_once('/')
+                .unwrap_or(("basic", source.directory));
+            (id, group)
+        })
+        .collect();
     serde_json::to_string(&json!({
         "presets": catalog.documents().iter().map(|document| json!({
             "id": document.id,
             "name": document.name,
+            "group": groups[document.id.as_str()],
             "previewUrl": format!("qrc:/preset-previews/{}.jpg", document.id),
         })).collect::<Vec<_>>()
     }))
@@ -626,6 +637,20 @@ mod tests {
                 .iter()
                 .any(|entry| entry["id"] == "neutral")
         );
+        for (id, group) in [
+            ("neutral", "basic"),
+            ("film-grain", "film"),
+            ("experimental-lamp", "experimental"),
+            ("series-movie-honey-hour", "series/movie"),
+        ] {
+            let entry = catalog["presets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["id"] == id)
+                .unwrap();
+            assert_eq!(entry["group"], group);
+        }
         let settings = built_in_settings("neutral").unwrap();
         let parsed: DevelopSettings =
             serde_json::from_str(&settings_json(&settings).unwrap()).unwrap();

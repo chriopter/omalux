@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import org.omalux
 
 Item {
     id: panel
@@ -38,9 +39,12 @@ Item {
         }
 
         ScrollView {
+            id: metadataScroll
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+
+            SidebarScrollHandler { flickable: metadataScroll.contentItem as Flickable }
 
             Text {
                 width: parent.width

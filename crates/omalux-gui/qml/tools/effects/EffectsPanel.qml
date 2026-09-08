@@ -164,6 +164,8 @@ Item {
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
+        SidebarScrollHandler { flickable: editScroll.flickable }
+
         ColumnLayout {
             width: editScroll.availableWidth
             spacing: 4

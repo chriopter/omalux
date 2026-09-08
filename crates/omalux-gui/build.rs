@@ -9,6 +9,7 @@ fn main() {
     let qml_module = QmlModule::new("org.omalux").qml_files([
         "qml/Main.qml",
         "qml/components/ParameterSlider.qml",
+        "qml/components/SidebarScrollHandler.qml",
         "qml/components/ToolTabButton.qml",
         "qml/components/TuiButton.qml",
         "qml/tools/effects/EffectsPanel.qml",
