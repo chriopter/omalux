@@ -12,12 +12,13 @@ A focused photo editing interface for Omarchy, based on [darktable](https://www.
 
 We are building on the work of the darktable developers and contributors, whose RAW processing and photography tools make this direction possible. Thank you for making that work available as free software.
 
-The plan is to track the official darktable repository as a pinned Git submodule, keep its source unchanged, and maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
+We track the official darktable repository as a pinned Git submodule, keep its source unchanged, and will maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
 
-This is an independent project, not an official darktable edition or an endorsement by its developers. At this stage, this repository does not yet contain the darktable submodule or the new adapter. A local prototype has demonstrated a persistent darktable process serving the Omalux interface; integration into this repository is next. There is no new darktable-based release to download yet.
+This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source is included; the new Omalux interface and adapter are not integrated yet. A local prototype has demonstrated a persistent darktable process serving the Omalux interface; integration into this repository is next. There is no new darktable-based release to download yet.
 
 ## Repository layout
 
+- [darktable/](darktable/): unchanged upstream source, pinned to release 5.6.1 (`03179f8e080aa9cedebfe14b098b7ba88940a292`).
 - [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
 - [omalux.org/](omalux.org/README.md): the website.
 
@@ -35,3 +36,19 @@ See the v0 README for dependencies and validation commands. Existing website scr
 [darktable](https://github.com/darktable-org/darktable) is free software under GNU GPL version 3 or later; individual components retain their respective notices and licenses. Omalux v0 declares GPL-3.0-or-later in its Cargo manifest.
 
 When distributing a derivative, preserve applicable copyright and license notices, identify changes, and provide the corresponding source under the applicable GPL terms. Upstream authorship stays with its contributors. We intend to keep Omalux-specific work separate and offer generally useful improvements upstream.
+
+## Fetching darktable
+
+For a new checkout:
+
+```sh
+git clone --recurse-submodules https://github.com/chriopter/omalux.git
+```
+
+For an existing checkout, run from the repository root:
+
+```sh
+git submodule update --init --recursive
+```
+
+The submodule points directly to the official upstream repository. Keep it at the recorded commit; its nested submodules are pinned by darktable. Updating this source does not install darktable or change the system application.
