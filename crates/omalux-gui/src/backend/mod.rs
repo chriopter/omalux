@@ -33,6 +33,8 @@ pub mod qobject {
         #[qproperty(QString, last_job_report_json, cxx_name = "lastJobReportJson")]
         #[qproperty(QString, last_preview_report_json, cxx_name = "lastPreviewReportJson")]
         #[qproperty(bool, loading)]
+        #[qproperty(bool, saving_preset, cxx_name = "savingPreset")]
+        #[qproperty(QString, preset_error, cxx_name = "presetError")]
         type PhotoBackend = super::PhotoBackendRust;
 
         #[qinvokable]
@@ -54,6 +56,30 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setParameter"]
         fn set_parameter(self: Pin<&mut Self>, id: &QString, value: f64);
+
+        #[qinvokable]
+        #[cxx_name = "setGeometry"]
+        fn set_geometry(self: Pin<&mut Self>, json: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "savePreset"]
+        fn save_preset(self: Pin<&mut Self>, name: &QString, mode: &QString);
+
+        #[qinvokable]
+        #[cxx_name = "renamePreset"]
+        fn rename_preset(self: Pin<&mut Self>, id: &QString, name: &QString) -> bool;
+
+        #[qinvokable]
+        #[cxx_name = "deletePreset"]
+        fn delete_preset(self: Pin<&mut Self>, id: &QString) -> bool;
+
+        #[qinvokable]
+        #[cxx_name = "exportPreset"]
+        fn export_preset(self: Pin<&mut Self>, id: &QString, destination: &QUrl);
+
+        #[qsignal]
+        #[cxx_name = "presetSaved"]
+        fn preset_saved(self: Pin<&mut Self>, id: &QString);
 
         #[qinvokable]
         #[cxx_name = "saveOriginal"]
@@ -89,11 +115,11 @@ mod export;
 mod loader;
 mod metadata;
 mod theme;
+mod user_presets;
 
 use self::develop::{
-    GuiJobError, PreviewArtifact, built_in_catalog_json, built_in_settings, develop_preview,
-    develop_preview_fast, export_photo, save_original_atomic, settings_json,
-    supported_parameters_json,
+    GuiJobError, PreviewArtifact, built_in_settings, develop_preview, develop_preview_fast,
+    export_photo, save_original_atomic, settings_json, supported_parameters_json,
 };
 use self::export::{absolute_local_path, display_file_name, local_destination};
 use self::metadata::{human_file_size, read_metadata};
@@ -128,6 +154,8 @@ pub struct PhotoBackendRust {
     last_job_report_json: QString,
     last_preview_report_json: QString,
     loading: bool,
+    saving_preset: bool,
+    preset_error: QString,
     metadata_revision: AtomicU64,
     preview_revision: AtomicU64,
     operations: OperationTracker,
@@ -354,7 +382,7 @@ impl Default for PhotoBackendRust {
             original_file_size: QString::from("—"),
             metadata_text: QString::from("NO PHOTOGRAPH LOADED"),
             preset_catalog_json: QString::from(
-                &built_in_catalog_json().unwrap_or_else(|_| "{\"presets\":[]}".to_owned()),
+                &user_presets::catalog().unwrap_or_else(|_| "{\"presets\":[]}".to_owned()),
             ),
             selected_preset_id: QString::from("neutral"),
             settings_json: QString::from(
@@ -372,6 +400,8 @@ impl Default for PhotoBackendRust {
             last_job_report_json: QString::from("{}"),
             last_preview_report_json: QString::from("{}"),
             loading: false,
+            saving_preset: false,
+            preset_error: QString::default(),
             metadata_revision: AtomicU64::new(0),
             preview_revision: AtomicU64::new(0),
             operations: OperationTracker::default(),
@@ -473,9 +503,21 @@ impl qobject::PhotoBackend {
 
     pub fn select_preset(mut self: Pin<&mut Self>, id: &QString) {
         let id = id.to_string();
-        let Ok(settings) = built_in_settings(&id) else {
+        let result = if id.starts_with("user-") {
+            user_presets::root()
+                .and_then(|root| user_presets::load(&root, &id))
+                .map(|document| {
+                    let mut settings = document.settings;
+                    settings.geometry = self.rust().settings.geometry.clone();
+                    settings.radial_masks = self.rust().settings.radial_masks.clone();
+                    settings
+                })
+        } else {
+            built_in_settings(&id)
+        };
+        let Ok(settings) = result else {
             self.as_mut()
-                .set_status(QString::from("Unknown built-in preset"));
+                .set_status(QString::from("Could not load preset"));
             return;
         };
         self.as_mut().rust_mut().settings = settings;
@@ -507,6 +549,114 @@ impl qobject::PhotoBackend {
             .set_selected_preset_id(QString::from("custom"));
         self.as_mut().publish_settings_json();
         self.as_mut().restart_preview();
+    }
+
+    pub fn set_geometry(mut self: Pin<&mut Self>, json: &QString) {
+        let mut settings = self.rust().settings.clone();
+        let Ok(geometry) = serde_json::from_str(&json.to_string()) else {
+            self.as_mut().set_status(QString::from("Invalid geometry"));
+            return;
+        };
+        settings.geometry = geometry;
+        if settings.validate().is_err() {
+            self.as_mut()
+                .set_status(QString::from("Invalid crop or rotation"));
+            return;
+        }
+        self.as_mut().rust_mut().settings = settings;
+        self.as_mut()
+            .set_selected_preset_id(QString::from("custom"));
+        self.as_mut().publish_settings_json();
+        self.as_mut().restart_preview();
+    }
+
+    pub fn save_preset(mut self: Pin<&mut Self>, name: &QString, mode: &QString) {
+        if self.rust().saving_preset {
+            return;
+        }
+        self.as_mut().set_saving_preset(true);
+        self.as_mut().set_preset_error(QString::default());
+        let name = name.to_string();
+        let mode = mode.to_string();
+        let snapshot = self.rust().settings.clone();
+        let thread = self.qt_thread();
+        std::thread::spawn(move || {
+            let result = user_presets::root()
+                .and_then(|root| user_presets::save(&root, &name, &mode, snapshot.clone()));
+            let _ = thread.queue(move |mut backend| {
+                backend.as_mut().set_saving_preset(false);
+                match result {
+                    Ok(document) => {
+                        backend.as_mut().refresh_presets();
+                        if backend.rust().settings == snapshot {
+                            backend
+                                .as_mut()
+                                .set_selected_preset_id(QString::from(&document.id));
+                        }
+                        backend.as_mut().preset_saved(&QString::from(&document.id));
+                    }
+                    Err(error) => backend.as_mut().set_preset_error(QString::from(error)),
+                }
+            });
+        });
+    }
+
+    fn refresh_presets(mut self: Pin<&mut Self>) {
+        if let Ok(catalog) = user_presets::catalog() {
+            self.as_mut()
+                .set_preset_catalog_json(QString::from(catalog));
+        }
+    }
+
+    pub fn rename_preset(mut self: Pin<&mut Self>, id: &QString, name: &QString) -> bool {
+        match user_presets::root()
+            .and_then(|root| user_presets::rename(&root, &id.to_string(), &name.to_string()))
+        {
+            Ok(()) => {
+                self.as_mut().refresh_presets();
+                self.as_mut().set_preset_error(QString::default());
+                true
+            }
+            Err(error) => {
+                self.as_mut().set_preset_error(QString::from(error));
+                false
+            }
+        }
+    }
+
+    pub fn delete_preset(mut self: Pin<&mut Self>, id: &QString) -> bool {
+        match user_presets::root().and_then(|root| user_presets::delete(&root, &id.to_string())) {
+            Ok(()) => {
+                if self.selected_preset_id() == id {
+                    self.as_mut()
+                        .set_selected_preset_id(QString::from("custom"));
+                }
+                self.as_mut().refresh_presets();
+                true
+            }
+            Err(error) => {
+                self.as_mut().set_preset_error(QString::from(error));
+                false
+            }
+        }
+    }
+
+    pub fn export_preset(mut self: Pin<&mut Self>, id: &QString, destination: &QUrl) {
+        let result = (|| {
+            let root = user_presets::root()?;
+            let document = user_presets::load(&root, &id.to_string())?;
+            let destination = destination.to_local_file().ok_or("Choose a local file")?;
+            save_original_atomic(
+                &root.join(document.id).join("preset.json"),
+                Path::new(&destination.to_string()),
+            )
+            .map_err(|error| error.to_string())?;
+            Ok::<_, String>(())
+        })();
+        self.as_mut().set_status(QString::from(match result {
+            Ok(()) => "Preset exported".to_owned(),
+            Err(error) => format!("Could not export preset: {error}"),
+        }));
     }
 
     pub fn save_original(mut self: Pin<&mut Self>, destination: &QUrl) {

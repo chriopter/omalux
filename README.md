@@ -16,6 +16,14 @@ The desktop app follows your Omarchy theme and supports keyboard-driven editing.
 Press `?` for shortcuts. A separate Qt-free CLI exposes the same processing core.
 Presets include [stored beach-scene previews and reference checks](docs/preset-previews.md).
 
+Panels: **1** Filters, **2** Presets, **3** Crop & Rotate, **4** Metadata.
+Crop using four percentage margins; rotate by 90° or straighten in 0.1° steps.
+**Save as preset…** stores a personal look with a generated beach-scene thumbnail.
+Find it under **My Presets**, with rename, update, JSON export and delete actions.
+Personal looks omit geometry and local masks, preserving those edits when applied.
+Data lives in `$XDG_DATA_HOME/omalux/` (default `~/.local/share/omalux/`):
+one shared reference image and `presets/user-<id>/{preset.json,thumbnail.jpg}`.
+
 **Requirements:** Rust, Little CMS 2, and LibRaw for RAW decoding. The desktop
 also needs Qt 6 Quick/Quick Controls, a C++ compiler, ImageMagick, and libheif/x265
 for HEIC export (enabled by default in the GUI).
@@ -43,6 +51,9 @@ cargo test -p omalux --features heic
 See [architecture](docs/architecture.md), [CLI usage](docs/cli.md),
 [HEIC support](docs/io-heic-encode.md), [film grain](docs/grain-model.md),
 and [contributor instructions](AGENTS.md).
+
+Releases mark completed, tested feature batches; small fixes can be collected
+between releases. See [release notes](CHANGELOG.md).
 
 ## Example pictures
 

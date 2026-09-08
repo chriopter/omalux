@@ -21,6 +21,7 @@ Item {
     signal selectionRequested(int index)
     signal advancedToggleRequested
     signal parameterCommitted(string id, real value)
+    signal savePresetRequested
 
     readonly property var supportedParameterIds: {
         try {
@@ -191,7 +192,11 @@ Item {
     ScrollView {
         id: editScroll
         readonly property Flickable flickable: contentItem as Flickable
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: savePresetButton.top
+        anchors.bottomMargin: 12
         clip: true
         contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -522,5 +527,16 @@ Item {
                 onValueCommitted: value => panel.parameterCommitted("color_table.strength", value)
             }
         }
+    }
+
+    TuiButton {
+        id: savePresetButton
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        theme: panel.theme
+        text: "SAVE AS PRESET…"
+        enabled: panel.photoReady
+        onClicked: panel.savePresetRequested()
     }
 }

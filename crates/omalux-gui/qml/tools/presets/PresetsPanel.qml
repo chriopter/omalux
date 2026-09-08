@@ -11,6 +11,10 @@ Item {
     required property string catalogJson
     required property string selectedPresetId
     signal presetRequested(string id)
+    signal renameRequested(string id, string name)
+    signal updateRequested(string name)
+    signal exportRequested(string id)
+    signal deleteRequested(string id, string name)
 
     property var expandedGroups: ({ monochrome: true })
     readonly property var catalogPresets: {
@@ -35,6 +39,8 @@ Item {
             group.presets.push(preset)
         }
         result.sort((a, b) => {
+            if (a.id === "my-presets") return -1
+            if (b.id === "my-presets") return 1
             if (a.id === "monochrome") return -1
             if (b.id === "monochrome") return 1
             if (a.id === "experimental") return 1
@@ -125,6 +131,7 @@ Item {
                         source: entry.modelData.previewUrl || ""
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
+                        cache: !entry.modelData.user
                         smooth: true
                     }
 
@@ -140,6 +147,33 @@ Item {
                         wrapMode: Text.Wrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
+                    }
+                    Button {
+                        visible: !!entry.modelData.user
+                        text: "⋯"
+                        flat: true
+                        implicitWidth: 28
+                        Accessible.name: "Manage " + entry.modelData.name
+                        onClicked: presetMenu.popup()
+                        Menu {
+                            id: presetMenu
+                            MenuItem {
+                                text: "Rename…"
+                                onTriggered: panel.renameRequested(entry.modelData.id, entry.modelData.name)
+                            }
+                            MenuItem {
+                                text: "Update from current edits…"
+                                onTriggered: panel.updateRequested(entry.modelData.name)
+                            }
+                            MenuItem {
+                                text: "Export JSON…"
+                                onTriggered: panel.exportRequested(entry.modelData.id)
+                            }
+                            MenuItem {
+                                text: "Delete…"
+                                onTriggered: panel.deleteRequested(entry.modelData.id, entry.modelData.name)
+                            }
+                        }
                     }
                 }
 

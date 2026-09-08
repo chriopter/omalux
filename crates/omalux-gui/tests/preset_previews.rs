@@ -8,7 +8,9 @@ use std::{
 
 fn main() {
     if std::env::var_os("OMALUX_PRESET_PREVIEW_TEST_CHILD").is_none() {
+        let data = tempfile::tempdir().unwrap();
         let mut child = Command::new(std::env::current_exe().unwrap())
+            .env("XDG_DATA_HOME", data.path())
             .env("OMALUX_PRESET_PREVIEW_TEST_CHILD", "1")
             .env("QT_QPA_PLATFORM", "offscreen")
             .env("QT_QUICK_BACKEND", "software")

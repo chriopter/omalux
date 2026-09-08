@@ -29,6 +29,7 @@ ApplicationWindow {
     readonly property color lineColor: mixColors(pageColor, inkColor, 0.18)
     readonly property string monoFont: "iA Writer Mono S"
     readonly property real sidebarWidth: 316
+    readonly property var presetBackend: backend
 
     property real zoom: 1.0
     property int selectedPanel: 0
@@ -43,7 +44,8 @@ ApplicationWindow {
     readonly property var keyBindings: [
         { sequences: ["1"], hint: "1", description: "FILTERS", section: "PANELS", action: "panelFilters" },
         { sequences: ["2"], hint: "2", description: "PRESETS", section: "PANELS", action: "panelPresets" },
-        { sequences: ["3"], hint: "3", description: "META", section: "PANELS", action: "panelMeta" },
+        { sequences: ["3"], hint: "3", description: "CROP & ROTATE", section: "PANELS", action: "panelGeometry" },
+        { sequences: ["4"], hint: "4", description: "META", section: "PANELS", action: "panelMeta" },
         { sequences: ["Tab", "]"], hint: "TAB / ]", description: "NEXT PANEL", section: "PANELS", action: "panelNext" },
         { sequences: ["Shift+Tab", "["], hint: "SHIFT+TAB / [", description: "PREVIOUS PANEL", section: "PANELS", action: "panelPrevious" },
 
@@ -295,20 +297,26 @@ ApplicationWindow {
     function moveActiveParameter(direction) {
         if (selectedPanel === 0)
             moveParameter(direction)
+        else if (selectedPanel === 2)
+            geometryPanel.moveSelection(direction)
     }
 
     function adjustActiveParameter(direction, coarse) {
         if (selectedPanel === 0)
             adjustParameter(direction, coarse)
+        else if (selectedPanel === 2)
+            geometryPanel.adjust(direction, coarse)
     }
 
     function resetActiveParameter() {
         if (selectedPanel === 0)
             resetParameter()
+        else if (selectedPanel === 2)
+            geometryPanel.resetSelected()
     }
 
     function selectPanel(index) {
-        selectedPanel = (index + 3) % 3
+        selectedPanel = (index + 4) % 4
     }
 
     function movePanel(direction) {
@@ -316,10 +324,13 @@ ApplicationWindow {
     }
 
     function keyBindingEnabled(binding) {
-        if (photoFullscreen || exportMenuVisible || shortcutsVisible)
+        if (photoFullscreen || exportMenuVisible || shortcutsVisible || presetSaveDialog.visible || deletePresetDialog.visible)
             return false
-        if (binding.scope === "filters" && selectedPanel !== 0)
-            return false
+        if (binding.scope === "filters" && selectedPanel !== 0) {
+            if (selectedPanel !== 2 || !(binding.action.startsWith("parameter")
+                    || binding.action.startsWith("value")))
+                return false
+        }
         return !binding.needsPhoto || sourceImage.status === Image.Ready
     }
 
@@ -327,7 +338,8 @@ ApplicationWindow {
         switch (action) {
         case "panelFilters": selectPanel(0); break
         case "panelPresets": selectPanel(1); break
-        case "panelMeta": selectPanel(2); break
+        case "panelGeometry": selectPanel(2); break
+        case "panelMeta": selectPanel(3); break
         case "panelNext": movePanel(1); break
         case "panelPrevious": movePanel(-1); break
         case "parameterPrevious": moveActiveParameter(-1); break
@@ -437,6 +449,34 @@ ApplicationWindow {
         id: backend
     }
 
+    PresetSaveDialog {
+        id: presetSaveDialog
+        parent: Overlay.overlay
+        theme: window
+        backend: window.presetBackend
+    }
+
+    Dialog {
+        id: deletePresetDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        property string presetId: ""
+        title: "Delete preset?"
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onAccepted: backend.deletePreset(presetId)
+    }
+
+    FileDialog {
+        id: presetExportDialog
+        property string presetId: ""
+        title: "Export preset"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: ["Omalux preset (*.json)"]
+        onAccepted: backend.exportPreset(presetId, selectedFile)
+    }
+
     FileDialog {
         id: openDialog
         title: "Open photograph"
@@ -475,6 +515,10 @@ ApplicationWindow {
 
     Connections {
         target: backend
+        function onPresetSaved(id) {
+            presetsPanel.expandedGroups = { "my-presets": true }
+            window.selectPanel(1)
+        }
         function onStatusChanged() {
             if (window.cliInput.length === 0)
                 return
@@ -507,6 +551,7 @@ ApplicationWindow {
 
     Item {
         id: keyboardLayer
+        objectName: "editorSurface"
         anchors.fill: parent
         focus: true
         Keys.priority: Keys.BeforeItem
@@ -709,6 +754,7 @@ ApplicationWindow {
 
                     Flickable {
                         id: photoFlick
+                        objectName: "photoViewport"
                         anchors.fill: parent
                         anchors.margins: window.photoFullscreen ? 0 : 20
                         clip: true
@@ -825,9 +871,10 @@ ApplicationWindow {
                             border.color: window.lineColor
 
                             GridLayout {
+                                objectName: "toolTabs"
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                columns: 4
+                                columns: 5
                                 rows: 1
                                 rowSpacing: 1
                                 columnSpacing: 1
@@ -858,6 +905,17 @@ ApplicationWindow {
                                     theme: window
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    iconSource: "qrc:/icons/crop.svg"
+                                    label: "Crop & Rotate"
+                                    selected: window.selectedPanel === 2
+                                    onClicked: window.selectPanel(2)
+                                    Accessible.name: "Crop & Rotate · 3"
+                                }
+
+                                ToolTabButton {
+                                    theme: window
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     enabled: false
                                     opacity: 0.45
                                     iconSource: "qrc:/icons/history.svg"
@@ -872,9 +930,9 @@ ApplicationWindow {
                                     Layout.fillHeight: true
                                     iconSource: "qrc:/icons/info.svg"
                                     label: "Meta"
-                                    selected: window.selectedPanel === 2
-                                    onClicked: window.selectPanel(2)
-                                    Accessible.name: "Metadata · 3"
+                                    selected: window.selectedPanel === 3
+                                    onClicked: window.selectPanel(3)
+                                    Accessible.name: "Metadata · 4"
                                 }
                             }
                         }
@@ -902,14 +960,36 @@ ApplicationWindow {
                                 onAdvancedToggleRequested: window.toggleGrainAdvanced()
                                 onParameterCommitted: (id, value) =>
                                     backend.setParameter(id, value)
+                                onSavePresetRequested: presetSaveDialog.prompt("", "", false)
                             }
 
                             PresetsPanel {
+                                id: presetsPanel
                                 theme: window
                                 photoReady: sourceImage.status === Image.Ready
                                 catalogJson: backend.presetCatalogJson
                                 selectedPresetId: backend.selectedPresetId
                                 onPresetRequested: id => backend.selectPreset(id)
+                                onRenameRequested: (id, name) => presetSaveDialog.prompt(name, id, false)
+                                onUpdateRequested: name => presetSaveDialog.prompt(name, "", true)
+                                onExportRequested: id => {
+                                    presetExportDialog.presetId = id
+                                    presetExportDialog.open()
+                                }
+                                onDeleteRequested: (id, name) => {
+                                    deletePresetDialog.presetId = id
+                                    deletePresetDialog.title = "Delete “" + name + "”?"
+                                    deletePresetDialog.open()
+                                }
+                            }
+
+                            GeometryPanel {
+                                id: geometryPanel
+                                objectName: "geometryPanel"
+                                theme: window
+                                photoReady: sourceImage.status === Image.Ready
+                                settingsJson: backend.settingsJson
+                                onGeometryCommitted: json => backend.setGeometry(json)
                             }
 
                             MetadataPanel {
@@ -942,7 +1022,7 @@ ApplicationWindow {
                     spacing: 18
 
                     Text {
-                        text: "[1–3] PANELS"
+                        text: "[1–4] PANELS"
                         color: window.accentColor
                         font.family: window.monoFont
                         font.pixelSize: 10
