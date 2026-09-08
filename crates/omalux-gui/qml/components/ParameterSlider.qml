@@ -23,6 +23,7 @@ Item {
     property var trackColors: []
     property alias value: slider.value
     readonly property bool selected: selectedParameter === parameterIndex
+    readonly property bool hovered: hoverHandler.hovered
 
     signal expansionRequested
     signal selectionRequested(int index)
@@ -50,7 +51,7 @@ Item {
     }
 
     function resetValue() {
-        if (!supported)
+        if (!photoReady || !supported)
             return
         slider.value = initialValue
         valueCommitted(slider.value)
@@ -99,6 +100,25 @@ Item {
             }
 
             Item { Layout.fillWidth: true }
+
+            Item {
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 18
+
+                ResetButton {
+                    anchors.fill: parent
+                    visible: control.hovered && control.supported
+                    theme: control.theme
+                    compact: true
+                    text: "↺"
+                    accessibleLabel: "Reset " + control.label
+                    enabled: control.photoReady
+                    onClicked: {
+                        control.selectionRequested(control.parameterIndex)
+                        control.resetValue()
+                    }
+                }
+            }
 
             Text {
                 text: control.formattedValue() + control.suffix
@@ -174,6 +194,7 @@ Item {
     }
 
     HoverHandler {
+        id: hoverHandler
         onHoveredChanged: if (hovered)
             control.selectionRequested(control.parameterIndex)
     }

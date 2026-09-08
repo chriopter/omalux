@@ -38,5 +38,12 @@ Item {
             verify(Math.abs(exposure.value + 0.9) < 0.0001)
             compare(exposure.formattedValue(), "-0.9")
         }
+
+        function test_resetUsesNeutralValue() {
+            exposure.value = 2.4
+            exposure.resetValue()
+            compare(exposure.value, 0)
+            compare(exposure.formattedValue(), "0.0")
+        }
     }
 }

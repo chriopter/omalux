@@ -134,6 +134,20 @@ Item {
         return result
     }
 
+    function resetRange(firstIndex, lastIndex) {
+        if (!photoReady)
+            return
+        for (let index = firstIndex; index <= lastIndex; ++index) {
+            const control = parameterAt(index)
+            if (control)
+                control.resetValue()
+        }
+    }
+
+    function resetAll() {
+        resetRange(0, parameterCount - 1)
+    }
+
     function ensureVisible(control) {
         if (!control)
             return
@@ -146,15 +160,32 @@ Item {
                 - editScroll.availableHeight + 4
     }
 
-    component GroupHeading: Text {
+    component GroupHeading: RowLayout {
+        required property string title
+        required property int firstParameter
+        required property int lastParameter
         Layout.fillWidth: true
         Layout.topMargin: 14
         Layout.bottomMargin: 4
-        color: panel.theme.accentColor
-        font.family: panel.theme.monoFont
-        font.pixelSize: 15
-        font.bold: true
-        font.letterSpacing: 1.2
+
+        Text {
+            text: parent.title
+            color: panel.theme.accentColor
+            font.family: panel.theme.monoFont
+            font.pixelSize: 15
+            font.bold: true
+            font.letterSpacing: 1.2
+        }
+
+        Item { Layout.fillWidth: true }
+
+        ResetButton {
+            theme: panel.theme
+            text: "RESET"
+            accessibleLabel: "Reset " + parent.title
+            enabled: panel.photoReady
+            onClicked: panel.resetRange(parent.firstParameter, parent.lastParameter)
+        }
     }
 
     ScrollView {
@@ -172,7 +203,39 @@ Item {
             width: editScroll.availableWidth
             spacing: 4
 
-            GroupHeading { text: "01 / BASICS" }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.topMargin: 8
+
+                Text {
+                    text: "FILTERS"
+                    color: panel.theme.inkColor
+                    font.family: panel.theme.monoFont
+                    font.pixelSize: 13
+                    font.bold: true
+                    font.letterSpacing: 1.0
+                }
+
+                Item { Layout.fillWidth: true }
+
+                ResetButton {
+                    theme: panel.theme
+                    text: "RESET ALL"
+                    accessibleLabel: "Reset all filters"
+                    enabled: panel.photoReady
+                    onClicked: panel.resetAll()
+                }
+            }
+
+            GroupHeading {
+                title: "01 / BASICS"
+                firstParameter: 0
+                lastParameter: 7
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+            }
 
             Repeater {
                 id: basicsRepeater
@@ -209,7 +272,13 @@ Item {
                 }
             }
 
-            GroupHeading { text: "02 / COLOR" }
+            GroupHeading {
+                title: "02 / COLOR"
+                firstParameter: 8
+                lastParameter: 15
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+            }
 
             Repeater {
                 id: colorRepeater
@@ -247,7 +316,13 @@ Item {
                 }
             }
 
-            GroupHeading { text: "03 / EFFECTS" }
+            GroupHeading {
+                title: "03 / EFFECTS"
+                firstParameter: 16
+                lastParameter: 26
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+            }
 
             ParameterSlider {
                 id: bloomControl
@@ -307,7 +382,7 @@ Item {
                 label: "Grain"
                 from: 0
                 to: 150
-                initialValue: 24
+                initialValue: 0
                 supported: panel.parameterSupported("effects.grain.amount")
                 expandable: true
                 expanded: panel.advancedExpanded

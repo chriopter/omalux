@@ -144,7 +144,7 @@ ApplicationWindow {
         exportQuality = Math.max(1, Math.min(100,
             Math.round(numericArgument("--quality", 90))))
         effectsPanel.grainValue = Math.max(0, Math.min(100,
-            numericArgument("--grain", 24)))
+            numericArgument("--grain", 0)))
         effectsPanel.grainSizeValue = Math.max(20, Math.min(6400,
             numericArgument("--grain-size", 4000)))
         effectsPanel.midtonesValue = Math.max(0, Math.min(100,
