@@ -33,7 +33,7 @@ int om_engine_init(int, char **);
 const char *om_engine_gpu_warning();
 int om_engine_open(const char *);
 int om_engine_apply_style(const char *, const char *, float *);
-int om_engine_render(const unsigned char **, int *, int *);
+int om_engine_render(const unsigned char **, int *, int *, int);
 int om_engine_update_controls(const float *, const unsigned char *);
 void om_engine_read_controls(float *);
 char *om_engine_style_details(const char *, const char *);
@@ -173,6 +173,15 @@ public:
         for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) result[om_controls[i].id]=values[i];
         return result;
     }
+    Q_INVOKABLE void setInteractive(bool active) {
+        {std::lock_guard lock(mutex);
+         if(interactive==active) return;
+         interactive=active;
+         // A released gesture always requests a full-quality frame, even if
+         // its final value equals the last move. Reject in-flight draft frames.
+         if(!active) {++presentationEpoch;++generation;pending=true;}}
+        if(!active) wake.notify_one();
+    }
     Q_INVOKABLE void setControl(const QString &id, double next) {
         if(applyingStyle || url.isEmpty() || !std::isfinite(next)) return;
         for(unsigned int i=0; i<OM_CONTROL_COUNT; ++i) {
@@ -296,9 +305,9 @@ private:
         while(true) {
             std::array<float, OM_CONTROL_COUNT> next;
             std::array<unsigned long,OM_CONTROL_COUNT> nextRevisions;
-            unsigned long revision, epoch; QString styleId, kind, action, savedDirectory; int quality;
+            unsigned long revision, epoch; bool draft; QString styleId, kind, action, savedDirectory; int quality;
             {std::unique_lock lock(mutex); wake.wait(lock,[this]{return stopping || pending;});
-             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; epoch=presentationEpoch; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
+             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; epoch=presentationEpoch; draft=interactive; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
             // Commit pending edits first so they remain reachable in history.
             std::array<unsigned char,OM_CONTROL_COUNT> dirty{};
             for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) dirty[i]=nextRevisions[i]!=processedRevisions[i];
@@ -430,7 +439,7 @@ private:
             },Qt::QueuedConnection);
             QElapsedTimer timer; timer.start();
             const unsigned char *pixels = nullptr; int width=0,height=0;
-            if(om_engine_render(&pixels,&width,&height)) {fail("darktable preview failed");continue;}
+            if(om_engine_render(&pixels,&width,&height,draft)) {fail("darktable preview failed");continue;}
             QImage result(pixels,width,height,width*4,QImage::Format_RGB32);
             auto copy=result.copy();
             // darktable's display buffer is BGRx; gamma leaves x undefined.
@@ -450,14 +459,14 @@ private:
             {std::lock_guard lock(mutex); if(epoch != presentationEpoch) continue;}
             const qint64 elapsed=timer.elapsed();
             const QString warning=QString::fromUtf8(om_engine_gpu_warning());
-            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,epoch,warning,kind,action] {
+            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,epoch,warning,kind,action,draft] {
                 {std::lock_guard lock(mutex);
                  if(epoch != presentationEpoch || revision <= presentedRevision) return;
                  presentedRevision=revision;}
                 gpuMessage=warning;
                 applyingStyle=false;
                 frames->set(copy); url=QString("image://preview/%1").arg(revision);
-                message=QString("Ready · %1 · %2 ms").arg(warning.isEmpty() ? "OpenCL auto" : "CPU").arg(elapsed);
+                message=QString("%1 · %2 · %3 ms").arg(draft ? "Preview" : "Ready").arg(warning.isEmpty() ? "OpenCL auto" : "CPU").arg(elapsed);
                 if(kind=="export") message="Saved "+action;
                 else if(kind=="preset") message="Saved preset: "+action;
                 qInfo().noquote() << message; emit changed();
@@ -476,7 +485,7 @@ private:
     std::vector<QByteArray> arguments;
     std::array<float, OM_CONTROL_COUNT> values{}, requested{};
     std::mutex mutex; std::condition_variable wake; std::thread worker;
-    bool stopping=false,pending=true; unsigned long generation=1, presentationEpoch=0, presentedRevision=0;
+    bool stopping=false,pending=true,interactive=false; unsigned long generation=1, presentationEpoch=0, presentedRevision=0;
 };
 #include "smoke.h"
 int main(int argc,char **argv) {

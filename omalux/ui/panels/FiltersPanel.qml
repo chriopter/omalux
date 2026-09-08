@@ -14,6 +14,7 @@ SidebarScrollView {
     required property string activeControl
     property bool restoringPreferences: true
     property var expandedDetails: ({})
+    signal interactionChanged(bool active)
     signal halationRequested()
     signal controlSelected(string id)
     signal controlEdited(string id, real value)
@@ -140,6 +141,7 @@ SidebarScrollView {
                             expanded: !!root.expandedDetails[modelData.key]
                             onExpansionRequested: root.setExpanded("expandedDetails", modelData.key, !root.expandedDetails[modelData.key])
                             onControlSelected: id => root.controlSelected(id)
+                            onInteractionChanged: active => root.interactionChanged(active)
                             onControlEdited: (id, value) => root.controlEdited(id, value)
                             onControlReset: id => root.controlReset(id)
                             onHalationRequested: root.halationRequested()

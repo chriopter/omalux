@@ -10,6 +10,7 @@ Column {
     required property bool editable
     required property string activeControl
     required property bool expanded
+    signal interactionChanged(bool active)
     signal expansionRequested()
     signal controlSelected(string id)
     signal controlEdited(string id, real value)
@@ -118,6 +119,7 @@ Column {
             detailsExpanded: root.expanded
             onDetailsRequested: root.expansionRequested()
             onSelectedRequested: root.controlSelected(modelData.id)
+            onInteractionChanged: active => root.interactionChanged(active)
             onEdited: value => root.controlEdited(modelData.id, value)
             onResetRequested: root.controlReset(modelData.id)
         }

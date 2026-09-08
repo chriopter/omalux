@@ -174,8 +174,14 @@ int om_engine_update_controls(const float *values, const unsigned char *changed)
   }
   return bind_controls();
 }
-int om_engine_render(const unsigned char **pixels, int *width, int *height) {
+int om_engine_render(const unsigned char **pixels, int *width, int *height, int interactive) {
   if(!loaded) return 1;
+  const int target_width=interactive ? 700 : 1400;
+  const int target_height=interactive ? 500 : 1000;
+  if(dev.full.width!=target_width || dev.full.height!=target_height) {
+    dev.full.width=target_width;dev.full.height=target_height;
+    dev.full.pipe->changed |= DT_DEV_PIPE_ZOOMED;
+  }
   // Diagnostic reference: identical pipe/ROI, but recompute every stage.
   if(g_getenv("OMALUX_FLUSH_PREVIEW_CACHE")) dt_dev_pixelpipe_cache_flush(dev.full.pipe);
   dt_dev_process_image_job(&dev, &dev.full, dev.full.pipe, -1, DT_DEVICE_NONE);

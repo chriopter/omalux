@@ -22,6 +22,7 @@ Item {
     property bool detailsExpanded: false
     signal detailsRequested()
     signal selectedRequested()
+    signal interactionChanged(bool active)
     signal edited(real value)
     signal resetRequested()
     implicitHeight: compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
@@ -122,6 +123,8 @@ Item {
         }
         Slider {
             id: slider
+            objectName: "control-slider-" + root.control.id
+            live: true
             wheelEnabled: false
             leftPadding: 0; rightPadding: 0
             Layout.fillWidth: true
@@ -130,7 +133,7 @@ Item {
             from: Math.min(root.control.softMinimum, root.value); to: Math.max(root.darkVignette ? 0 : root.control.softMaximum, root.value)
             stepSize: root.control.step
             value: root.value
-            onPressedChanged: if (pressed) root.selectedRequested()
+            onPressedChanged: { root.interactionChanged(pressed); if (pressed) root.selectedRequested() }
             onActiveFocusChanged: if (activeFocus) root.selectedRequested()
             onMoved: root.edited(value)
             Accessible.name: root.control.section + " · " + root.control.label

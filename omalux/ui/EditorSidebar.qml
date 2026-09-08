@@ -103,6 +103,7 @@ Rectangle {
         }
         FiltersPanel {
             id: filtersPanel
+            onInteractionChanged: active => root.backend.setInteractive(active)
             onHalationRequested: root.backend.applyHalation()
             activeControl: root.activeControl
             onControlReset: id => root.backend.resetControl(id)
@@ -136,6 +137,7 @@ Rectangle {
         }
         GeometryPanel {
             id: geometryPanel
+            onInteractionChanged: active => root.backend.setInteractive(active)
             imageAspect: root.backend.metadata.width / Math.max(1,root.backend.metadata.height)
             visible: root.selectedPanel === 2
             Layout.fillWidth: true; Layout.fillHeight: true

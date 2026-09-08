@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QWheelEvent>
 #include <QQuickItem>
 #include <QKeySequence>
@@ -25,13 +26,37 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
         *previous=editor.preview();
         if(step.contains("drag")) {
             *dragging=true;
+            auto *window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
+            std::function<QQuickItem*(QQuickItem*)> find=[&](QQuickItem *item)->QQuickItem* {
+                if(item->objectName()=="control-slider-"+step["drag"].toString()) return item;
+                for(auto *child:item->childItems()) if(auto *found=find(child)) return found;
+                return nullptr;
+            };
+            auto *slider=step["pointer"].toBool() ? find(window->contentItem()) : nullptr;
+            if(step["pointer"].toBool() && !slider) {app.exit(2);return;}
+            auto pointer=[window,slider](QEvent::Type type,double value) {
+                const double from=slider->property("from").toDouble(),to=slider->property("to").toDouble();
+                const QPointF point=slider->mapToScene(QPointF(5+(slider->width()-10)*(value-from)/(to-from),slider->height()/2));
+                QMouseEvent event(type,point,window->mapToGlobal(point.toPoint()),
+                    type==QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                    type==QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton,Qt::NoModifier);
+                QGuiApplication::sendEvent(window,&event);
+            };
+            if(slider) pointer(QEvent::MouseButtonPress,step["from"].toDouble());
+            else editor.setInteractive(true);
             auto *drag=new QTimer(&app);drag->setInterval(16);
             auto count=std::make_shared<int>(0), updates=std::make_shared<int>(0);
             auto last=std::make_shared<QString>(editor.preview());
-            QObject::connect(drag,&QTimer::timeout,&app,[&,drag,step,count,updates,last,dragging,previous,waiting] {
-                if(editor.preview()!=*last) {++*updates;*last=editor.preview();}
+            auto drafts=std::make_shared<int>(0);
+            QObject::connect(drag,&QTimer::timeout,&app,[&,drag,step,count,updates,last,drafts,dragging,previous,waiting,slider,pointer,frames] {
+                if(editor.preview()!=*last) {++*updates;*last=editor.preview();if(frames->image().width()<=700) ++*drafts;}
                 const int samples=step["samples"].toInt(120);
                 if(*count>=samples) {
+                    *previous=editor.preview();*waiting=true;
+                    if(slider) pointer(QEvent::MouseButtonRelease,step["to"].toDouble());
+                    else editor.setInteractive(false);
+                    qInfo()<<"Drag draft frames"<<*drafts;
+                    if(*drafts<2) {qCritical()<<"No reduced previews during drag";app.exit(2);}
                     drag->stop();drag->deleteLater();*dragging=false;
                     qInfo()<<"Drag intermediate frames"<<*updates;
                     if(*updates<2) {qCritical()<<"Preview stalled during drag";app.exit(2);}
@@ -39,7 +64,8 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
                 }
                 *previous=editor.preview();*waiting=true;
                 const double fraction=double(++*count)/samples;
-                editor.setControl(step["drag"].toString(),step["from"].toDouble() + fraction*(step["to"].toDouble()-step["from"].toDouble()));
+                const double value=step["from"].toDouble() + fraction*(step["to"].toDouble()-step["from"].toDouble());
+                if(slider) pointer(QEvent::MouseMove,value);else editor.setControl(step["drag"].toString(),value);
             });
             drag->start();
         } else if(step.contains("control")) {
@@ -72,6 +98,9 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
             if(!found) {qCritical()<<"Preset missing";app.exit(2);return;}
         }
         else if(step.contains("export")) {editor.exportPhoto(QUrl::fromLocalFile(step["export"].toString()),90);*waiting=true;}
+        else if(step.contains("checkPreviewWidth")) {
+            if(frames->image().width()!=step["checkPreviewWidth"].toInt()) {qCritical()<<"Final preview resolution wrong";app.exit(2);return;}
+        }
         else if(step.contains("capture")) {
             auto *window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
             window->grabWindow().save(step["capture"].toString());frames->image().save(step["capture"].toString()+".preview.png");

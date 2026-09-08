@@ -6,12 +6,16 @@
     "drag": "brightness",
     "from": 0,
     "to": 0.3,
-    "samples": 180
+    "samples": 180,
+    "pointer": true
   },
   {
     "check": {
       "brightness": 0.3
     }
+  },
+  {
+    "checkPreviewWidth": 1400
   },
   {
     "controls": {

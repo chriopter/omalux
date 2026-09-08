@@ -15,6 +15,7 @@ SidebarScrollView {
     property bool wasEnabled: false
     property var crop: ({x: 0, y: 0, width: 1, height: 1})
     property real aspectRatio: 0
+    signal interactionChanged(bool active)
     signal edited(string id, real value)
     signal cropApplied(var values)
     function begin() {
@@ -49,6 +50,7 @@ SidebarScrollView {
                 required property var modelData
                 Layout.fillWidth: true
                 theme: root.theme; control: modelData; value: root.values[modelData.id]; editable: root.editable && !root.cropping
+                onInteractionChanged: active => root.interactionChanged(active)
                 onEdited: value => root.edited(modelData.id, value)
                 onResetRequested: root.edited(modelData.id, 0)
             }

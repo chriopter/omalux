@@ -38,11 +38,16 @@ def main():
         session = Path(folder)
         dt = os.environ.get('DARKTABLE_BIN', '/usr/bin/darktable')
         lut_config = 'plugins/darkroom/lut3d/def_path=' + str(Path(os.environ['OMALUX_PRESETS_DIR']).resolve())
+        performance_args = [
+            '--conf', 'opencl_fast=false',
+            '--conf', 'resourcelevel=' + os.environ.get('OMALUX_RESOURCES', 'default'),
+            '--conf', 'opencl_scheduling_profile=' + os.environ.get('OMALUX_GPU_PROFILE', 'default' if args.split else 'very fast GPU'),
+        ]
         dtargs = [dt, '--conf', lut_config, '--configdir', str(session / 'config'), '--cachedir', str(session / 'cache'),
                   '--library', str(session / 'library.db'), '--moduledir', os.environ.get('DARKTABLE_MODULEDIR','/usr/lib/darktable'),
                   '--datadir', os.environ.get('DARKTABLE_DATADIR','/usr/share/darktable'),
                   '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
-                  '--conf', 'ui/show_welcome_screen=false']
+                  '--conf', 'ui/show_welcome_screen=false', *performance_args]
         (session / 'config').mkdir()
         configs = [session / 'config']
         if args.split:
@@ -63,7 +68,7 @@ def main():
                 children.append(subprocess.Popen([dt, str(source), '-d', 'lua', '--conf', lut_config, '--configdir', str(other),
                     '--cachedir', str(other / 'cache'), '--library', str(other / 'library.db'),
                     '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
-                    '--conf', 'ui/show_welcome_screen=false'], env=comparison_env))
+                    '--conf', 'ui/show_welcome_screen=false', *performance_args], env=comparison_env))
             ui = subprocess.Popen([str(binary), str(source), str(ROOT / 'assets'), *dtargs], env=ui_env)
             children.append(ui)
             return ui.wait()
