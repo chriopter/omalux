@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Update darktable to the latest stable release. Requires Git and GitHub CLI.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if [[ -e darktable/.git ]] && [[ -n $(git -C darktable status --porcelain) ]]; then
+  echo 'darktable has local changes; preserve them before updating.' >&2
+  exit 1
+fi
+
+tag="$(gh api repos/darktable-org/darktable/releases/latest --jq .tag_name)"
+git submodule update --init -- darktable
+git -C darktable fetch --depth 1 origin "tag" "$tag"
+git -C darktable checkout --detach "$tag"
+git -C darktable submodule update --init --recursive --depth 1
+printf '\nUpdated to %s. Review, then pin with: git add darktable\n' "$tag"

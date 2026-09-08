@@ -18,7 +18,7 @@ This is an independent project, not an official darktable edition or an endorsem
 
 ## Repository layout
 
-- [darktable/](darktable/): unchanged upstream source, pinned to release 5.6.1 (`03179f8e080aa9cedebfe14b098b7ba88940a292`).
+- [darktable/](darktable/): unchanged upstream source, pinned to a stable release by the Git submodule entry.
 - [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
 - [omalux.org/](omalux.org/README.md): the website.
 
@@ -52,3 +52,14 @@ git submodule update --init --recursive
 ```
 
 The submodule points directly to the official upstream repository. Keep it at the recorded commit; its nested submodules are pinned by darktable. Updating this source does not install darktable or change the system application.
+
+## Updating darktable
+
+Requires Git and the GitHub CLI (`gh`). Run from the repository root:
+
+```sh
+bin/update
+git diff --submodule=short
+```
+
+The script checks out the latest official stable release and its nested submodules. It stops if darktable has local changes. After trying the new version, pin it with `git add darktable` and commit. The script does not stage, commit or push.
