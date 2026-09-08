@@ -232,7 +232,7 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
     .unwrap();
 
     for (id, color, spatial, radial) in [
-        ("experimental-lakeside", false, true, false),
+        ("experimental-verbania", false, true, false),
         ("experimental-flower", true, false, false),
         ("series-meadow-cross", true, true, false),
         ("community-honey-hour", true, true, false),
