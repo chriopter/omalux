@@ -79,13 +79,17 @@ ApplicationWindow {
             if (window.phase === 1) {
                 if (list.count !== panel.groups.length + 1)
                     return window.fail("monochrome did not collapse")
-                for (let group of panel.groups) panel.toggleGroup(group.id)
+                panel.toggleGroup(panel.groups[1].id)
                 window.phase = 2
                 return
             }
             if (window.phase === 2) {
-                if (list.count !== window.catalog.length + panel.groups.length)
-                    return window.fail("expanded groups omit presets")
+                if (panel.expandedGroups.monochrome
+                        || !panel.expandedGroups[panel.groups[1].id])
+                    return window.fail("opening a group did not close the previous group")
+                if (list.count !== panel.groups.length + 1
+                        + panel.groups[1].presets.length)
+                    return window.fail("accordion group shows the wrong presets")
                 list.forceLayout()
                 list.positionViewAtBeginning()
                 window.phase = 3
@@ -106,11 +110,18 @@ ApplicationWindow {
             if (window.checked === window.catalog.length) {
                 if (window.requests !== 1 || backend.selectedPresetId !== window.catalog[0].id)
                     return window.fail("preset selection was not delivered")
-                for (let group of panel.groups) panel.toggleGroup(group.id)
+                for (let group of panel.groups) {
+                    if (panel.expandedGroups[group.id])
+                        panel.toggleGroup(group.id)
+                }
                 window.phase = 4
                 return
             }
             let entry = window.catalog[window.checked]
+            if (entry.group !== "basic" && !panel.expandedGroups[entry.group]) {
+                panel.toggleGroup(entry.group)
+                return
+            }
             let rowIndex = panel.rows.findIndex(row => !row.isGroup && row.id === entry.id)
             if (rowIndex < 0) return window.fail("preset missing from its group")
             list.positionViewAtIndex(rowIndex, ListView.Beginning)

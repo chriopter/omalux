@@ -22,8 +22,9 @@ the beach scene, not its result on the user's current image.
 
 Neutral appears first as a standalone reset preset. The grouped looks follow with
 Monochrome expanded by default, both Series groups adjacent, and Experimental
-last; other groups start collapsed. Expanded groups show compact, borderless
-image-and-name rows; the selected name uses the theme accent. All sidebar panels share one scroll handler: touchpad pixel deltas
+last; other groups start collapsed. Opening one group closes the previously open
+group. Expanded groups show compact, borderless image-and-name rows; the selected
+name uses the theme accent. All sidebar panels share one scroll handler: touchpad pixel deltas
 are scaled by three, and a mouse notch advances 144 logical pixels. Movement
 is clamped at the content bounds without rounding or added animation.
 

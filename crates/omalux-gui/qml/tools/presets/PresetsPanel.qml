@@ -58,8 +58,9 @@ Item {
     }
 
     function toggleGroup(id) {
-        let expanded = Object.assign({}, expandedGroups)
-        expanded[id] = !expanded[id]
+        let expanded = {}
+        if (!expandedGroups[id])
+            expanded[id] = true
         expandedGroups = expanded
     }
 
