@@ -154,7 +154,7 @@ ApplicationWindow {
         backend.setParameter("effects.grain.midtone_response", effectsPanel.midtonesValue)
 
         console.log("omalux: opening " + cliInput)
-        backend.openPhoto(localFileUrl(cliInput))
+        openPhoto(localFileUrl(cliInput))
     }
 
     function continueCliExport() {
@@ -209,17 +209,19 @@ ApplicationWindow {
         if (Math.abs(nextZoom - zoom) < 0.001)
             return
 
+        photoFlick.cancelFlick()
         var oldZoom = zoom
         var imageX = photoFlick.contentX + focalX - photoSurface.x
         var imageY = photoFlick.contentY + focalY - photoSurface.y
         zoom = nextZoom
 
-        Qt.callLater(function() {
-            var ratio = nextZoom / oldZoom
-            photoFlick.contentX = photoSurface.x + imageX * ratio - focalX
-            photoFlick.contentY = photoSurface.y + imageY * ratio - focalY
-            photoFlick.returnToBounds()
-        })
+        var ratio = nextZoom / oldZoom
+        var scaledWidth = photoFlick.imageWidth * photoFlick.fitScale * nextZoom
+        var scaledHeight = photoFlick.imageHeight * photoFlick.fitScale * nextZoom
+        photoFlick.contentX = Math.max(0, Math.min(Math.max(0, scaledWidth - photoFlick.width),
+            Math.max(0, (photoFlick.width - scaledWidth) / 2) + imageX * ratio - focalX))
+        photoFlick.contentY = Math.max(0, Math.min(Math.max(0, scaledHeight - photoFlick.height),
+            Math.max(0, (photoFlick.height - scaledHeight) / 2) + imageY * ratio - focalY))
     }
 
     function setZoom(value) {
@@ -235,12 +237,15 @@ ApplicationWindow {
     }
 
     function fitPhoto() {
+        photoFlick.cancelFlick()
         zoom = 1.0
-        Qt.callLater(function() {
-            photoFlick.contentX = 0
-            photoFlick.contentY = 0
-            photoFlick.returnToBounds()
-        })
+        photoFlick.contentX = 0
+        photoFlick.contentY = 0
+    }
+
+    function openPhoto(url) {
+        fitPhoto()
+        backend.openPhoto(url)
     }
 
     function stableSeed(text) {
@@ -440,7 +445,7 @@ ApplicationWindow {
             "Photographs (*.jpg *.JPG *.jpeg *.JPEG *.png *.PNG *.bmp *.BMP *.dng *.DNG *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.nrw *.NRW *.arw *.ARW *.raf *.RAF *.rw2 *.RW2 *.orf *.ORF *.pef *.PEF)",
             "All files (*)"
         ]
-        onAccepted: backend.openPhoto(selectedFile)
+        onAccepted: window.openPhoto(selectedFile)
     }
 
     FileDialog {
@@ -470,7 +475,6 @@ ApplicationWindow {
 
     Connections {
         target: backend
-        function onPreviewUrlChanged() { window.fitPhoto() }
         function onStatusChanged() {
             if (window.cliInput.length === 0)
                 return
@@ -713,16 +717,17 @@ ApplicationWindow {
                         contentHeight: Math.max(height, photoSurface.height)
                         interactive: window.zoom > 1.0
 
-                        readonly property real fitScale: sourceImage.sourceSize.width > 0
-                            && sourceImage.sourceSize.height > 0
-                            ? Math.min(width / sourceImage.sourceSize.width,
-                                       height / sourceImage.sourceSize.height)
+                        property real imageWidth: 1
+                        property real imageHeight: 1
+                        readonly property real fitScale: imageWidth > 0
+                            && imageHeight > 0
+                            ? Math.min(width / imageWidth, height / imageHeight)
                             : 1.0
 
                         Item {
                             id: photoSurface
-                            width: Math.max(1, sourceImage.sourceSize.width * photoFlick.fitScale * window.zoom)
-                            height: Math.max(1, sourceImage.sourceSize.height * photoFlick.fitScale * window.zoom)
+                            width: Math.max(1, photoFlick.imageWidth * photoFlick.fitScale * window.zoom)
+                            height: Math.max(1, photoFlick.imageHeight * photoFlick.fitScale * window.zoom)
                             x: photoFlick.contentWidth > width ? (photoFlick.contentWidth - width) / 2 : 0
                             y: photoFlick.contentHeight > height ? (photoFlick.contentHeight - height) / 2 : 0
 
@@ -732,12 +737,14 @@ ApplicationWindow {
                                 source: backend.previewUrl
                                 autoTransform: true
                                 asynchronous: true
+                                retainWhileLoading: true
                                 cache: false
-                                visible: status === Image.Ready
                                 onStatusChanged: {
-                                    if (status === Image.Ready)
+                                    if (status === Image.Ready) {
+                                        photoFlick.imageWidth = sourceSize.width
+                                        photoFlick.imageHeight = sourceSize.height
                                         window.continueCliExport()
-                                    else if (status === Image.Error
+                                    } else if (status === Image.Error
                                              && window.cliInput.length > 0)
                                         window.failCli("Qt could not load the developed image")
                                 }
@@ -778,12 +785,15 @@ ApplicationWindow {
                             }
 
                             onTranslationChanged: function(delta) {
-                                photoFlick.contentX -= delta.x
-                                photoFlick.contentY -= delta.y
+                                photoFlick.contentX = Math.max(0, Math.min(
+                                    photoFlick.contentWidth - photoFlick.width,
+                                    photoFlick.contentX - delta.x))
+                                photoFlick.contentY = Math.max(0, Math.min(
+                                    photoFlick.contentHeight - photoFlick.height,
+                                    photoFlick.contentY - delta.y))
                             }
 
-                            onActiveChanged: if (!active)
-                                photoFlick.returnToBounds()
+                            onActiveChanged: photoFlick.cancelFlick()
                         }
                     }
                 }
