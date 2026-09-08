@@ -16,7 +16,7 @@ Our contribution is the Qt/QML interface, keyboard workflow, preset presentation
 
 We track the official darktable repository as a pinned Git submodule, keep its source unchanged, and will maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
 
-This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal editing UI are included. The editing controls, crop, preset catalogue and JPEG/PNG export are connected to darktable. The native prototype keeps a develop context and its caches alive, updates module parameters, and passes preview pixels directly to Qt. There is no new darktable-based release to download yet.
+This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal editing UI are included. The editing controls, crop, preset catalogue and JPEG/PNG export are connected to darktable. The native prototype keeps a develop context and its caches alive, updates module parameters, and passes preview pixels directly to Qt. The first darktable-based [development prerelease, v0.3.0-alpha.1](https://github.com/chriopter/omalux/releases/tag/v0.3.0-alpha.1), is distributed as source; build it locally against a supported darktable installation. No prebuilt desktop package is provided for this prerelease.
 
 ## Repository layout
 
