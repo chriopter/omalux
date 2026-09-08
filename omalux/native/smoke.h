@@ -10,9 +10,11 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
     QFile file(path); if(!file.open(QIODevice::ReadOnly)) {app.exit(2);return;}
     const auto steps=QJsonDocument::fromJson(file.readAll()).array();
     auto index=std::make_shared<int>(0);auto previous=std::make_shared<QString>();auto waiting=std::make_shared<bool>(false);
+    auto dragging=std::make_shared<bool>(false);
     auto historyMarks=std::make_shared<QVariantMap>();
     auto *timer=new QTimer(&app);timer->setInterval(150);
-    QObject::connect(timer,&QTimer::timeout,&app,[&,frames,steps,index,previous,waiting,timer,historyMarks] {
+    QObject::connect(timer,&QTimer::timeout,&app,[&,frames,steps,index,previous,waiting,timer,historyMarks,dragging] {
+        if(*dragging) return;
         if(!editor.presetError().isEmpty()) {qCritical()<<editor.presetError();app.exit(2);return;}
         if(!editor.presetsReady() || editor.preview().isEmpty() || editor.styleBusy()) return;
         if(*waiting && editor.preview()==*previous) return;
@@ -21,7 +23,26 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
         const auto step=steps[(*index)++].toObject();
         qInfo()<<"Smoke step"<<*index<<step;
         *previous=editor.preview();
-        if(step.contains("control")) {
+        if(step.contains("drag")) {
+            *dragging=true;
+            auto *drag=new QTimer(&app);drag->setInterval(16);
+            auto count=std::make_shared<int>(0), updates=std::make_shared<int>(0);
+            auto last=std::make_shared<QString>(editor.preview());
+            QObject::connect(drag,&QTimer::timeout,&app,[&,drag,step,count,updates,last,dragging,previous,waiting] {
+                if(editor.preview()!=*last) {++*updates;*last=editor.preview();}
+                const int samples=step["samples"].toInt(120);
+                if(*count>=samples) {
+                    drag->stop();drag->deleteLater();*dragging=false;
+                    qInfo()<<"Drag intermediate frames"<<*updates;
+                    if(*updates<2) {qCritical()<<"Preview stalled during drag";app.exit(2);}
+                    return;
+                }
+                *previous=editor.preview();*waiting=true;
+                const double fraction=double(++*count)/samples;
+                editor.setControl(step["drag"].toString(),step["from"].toDouble() + fraction*(step["to"].toDouble()-step["from"].toDouble()));
+            });
+            drag->start();
+        } else if(step.contains("control")) {
             const auto id=step["control"].toString();const auto value=step["value"].toDouble();
             if(editor.controlValues()[id].toDouble()!=value) {editor.setControl(id,value);*waiting=true;}
         } else if(step.contains("controls")) {editor.setControls(step["controls"].toObject().toVariantMap());*waiting=true;}

@@ -106,7 +106,7 @@ public:
             if(entry.toMap()["id"].toString()==id) available=entry.toMap()["error"].toString().isEmpty();
         if(!available) {styleError="This preset is unavailable"; emit changed(); return;}
         applyingStyle=true; applyingId=id; styleError.clear();
-        {std::lock_guard lock(mutex); pendingStyle=id; ++generation; pending=true;}
+        {std::lock_guard lock(mutex); pendingStyle=id; ++presentationEpoch; ++generation; pending=true;}
         wake.notify_one(); emit changed();
     }
     Q_INVOKABLE void selectHistory(int step) {
@@ -215,7 +215,7 @@ private:
     void queueAction(const QString &kind,const QString &value) {
         if(applyingStyle || url.isEmpty()) return;
         applyingStyle=true;styleError.clear();message="Working…";
-        {std::lock_guard lock(mutex);actionKind=kind;actionValue=value;++generation;pending=true;}
+        {std::lock_guard lock(mutex);actionKind=kind;actionValue=value;++presentationEpoch;++generation;pending=true;}
         wake.notify_one();emit changed();
     }
     void queueControls(int index=-1) {
@@ -296,9 +296,9 @@ private:
         while(true) {
             std::array<float, OM_CONTROL_COUNT> next;
             std::array<unsigned long,OM_CONTROL_COUNT> nextRevisions;
-            unsigned long revision; QString styleId, kind, action, savedDirectory; int quality;
+            unsigned long revision, epoch; QString styleId, kind, action, savedDirectory; int quality;
             {std::unique_lock lock(mutex); wake.wait(lock,[this]{return stopping || pending;});
-             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
+             if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; epoch=presentationEpoch; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
             // Commit pending edits first so they remain reachable in history.
             std::array<unsigned char,OM_CONTROL_COUNT> dirty{};
             for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) dirty[i]=nextRevisions[i]!=processedRevisions[i];
@@ -445,12 +445,16 @@ private:
                 const auto fresh=loadPresetCatalog();
                 QMetaObject::invokeMethod(this,[this,fresh]{presetCatalog=fresh;emit presetsChanged();},Qt::QueuedConnection);
             }
-            {std::lock_guard lock(mutex); if(revision != generation) continue;}
+            // Publish completed intermediate frames while dragging. A new image,
+            // preset or history action is a barrier: never publish across it.
+            {std::lock_guard lock(mutex); if(epoch != presentationEpoch) continue;}
             const qint64 elapsed=timer.elapsed();
             const QString warning=QString::fromUtf8(om_engine_gpu_warning());
-            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,warning,kind,action] {
+            QMetaObject::invokeMethod(this,[this,copy,elapsed,revision,epoch,warning,kind,action] {
+                {std::lock_guard lock(mutex);
+                 if(epoch != presentationEpoch || revision <= presentedRevision) return;
+                 presentedRevision=revision;}
                 gpuMessage=warning;
-                {std::lock_guard lock(mutex); if(revision != generation) return;}
                 applyingStyle=false;
                 frames->set(copy); url=QString("image://preview/%1").arg(revision);
                 message=QString("Ready · %1 · %2 ms").arg(warning.isEmpty() ? "OpenCL auto" : "CPU").arg(elapsed);
@@ -472,7 +476,7 @@ private:
     std::vector<QByteArray> arguments;
     std::array<float, OM_CONTROL_COUNT> values{}, requested{};
     std::mutex mutex; std::condition_variable wake; std::thread worker;
-    bool stopping=false,pending=true; unsigned long generation=1;
+    bool stopping=false,pending=true; unsigned long generation=1, presentationEpoch=0, presentedRevision=0;
 };
 #include "smoke.h"
 int main(int argc,char **argv) {

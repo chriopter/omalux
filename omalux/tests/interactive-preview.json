@@ -1,0 +1,49 @@
+[
+  {
+    "rememberHistory": "opening"
+  },
+  {
+    "drag": "brightness",
+    "from": 0,
+    "to": 0.3,
+    "samples": 180
+  },
+  {
+    "check": {
+      "brightness": 0.3
+    }
+  },
+  {
+    "controls": {
+      "exposure": 0.4,
+      "temperature": 6000
+    }
+  },
+  {
+    "check": {
+      "brightness": 0.3,
+      "exposure": 0.4
+    }
+  },
+  {
+    "selectHistory": "opening"
+  },
+  {
+    "preset": "chromatic/preset.dtstyle"
+  },
+  {
+    "rememberControls": "chromatic"
+  },
+  {
+    "controls": {
+      "brightness": 0.1,
+      "exposure": 0.8
+    }
+  },
+  {
+    "preset": "chromatic/preset.dtstyle"
+  },
+  {
+    "checkControls": "chromatic"
+  }
+]

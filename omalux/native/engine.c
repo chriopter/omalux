@@ -53,7 +53,8 @@ int om_engine_open(const char *path) {
   dt_dev_init(&dev, TRUE);
   dev.gui_attached = FALSE;
   loaded = 1;
-  dev.full.pipe->type |= DT_DEV_PIXELPIPE_IMAGE;
+  // Keep the interactive FULL pipe created by dt_dev_init. IMAGE is a
+  // one-shot helper flag which disables intermediate cache reuse.
   dt_dev_load_image(&dev, image);
   dev.full.dev = &dev;
   dev.full.zoom = DT_ZOOM_FIT;
@@ -175,6 +176,8 @@ int om_engine_update_controls(const float *values, const unsigned char *changed)
 }
 int om_engine_render(const unsigned char **pixels, int *width, int *height) {
   if(!loaded) return 1;
+  // Diagnostic reference: identical pipe/ROI, but recompute every stage.
+  if(g_getenv("OMALUX_FLUSH_PREVIEW_CACHE")) dt_dev_pixelpipe_cache_flush(dev.full.pipe);
   dt_dev_process_image_job(&dev, &dev.full, dev.full.pipe, -1, DT_DEVICE_NONE);
   *pixels=dev.full.pipe->backbuf;
   *width=dev.full.pipe->backbuf_width;

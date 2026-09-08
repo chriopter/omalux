@@ -2,11 +2,11 @@
 
 Source audit: 2026-09-08. Main reference: the pinned `release-5.6.1` submodule (`03179f8e080aa9cedebfe14b098b7ba88940a292`). Our installed adapter currently targets 5.6.0; the cache-disabling and OpenCL-error-reset findings below were also checked in its extracted source. Line numbers refer to 5.6.1 unless stated otherwise. Recheck symbols after an upstream update.
 
-This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was used for a focused independent review of the critical cache/GPU/control excerpts; its findings and rejected hypotheses are recorded in [the source cross-check](claude-review.md). A broader Claude investigation was also attempted but had not produced a report when the focused review completed. No engine changes or benchmarks form part of this analysis.
+This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was used for a focused independent review of the critical cache/GPU/control excerpts; its findings and rejected hypotheses are recorded in [the source cross-check](claude-review.md). A broader Claude investigation was also attempted but had not produced a report when the focused review completed. The original audit was source-only; the interactive-preview update and measurements below record subsequent implementation work.
 
 ## Read this first
 
-1. **Our current `IMAGE` pipe disables intermediate cache reuse.** Keeping a process/develop context alive still saves initialization and can reuse decoded inputs, but does not currently give Omalux the normal interactive pixelpipe cache behavior.
+1. **The interactive preview now retains darktable’s cached FULL pipe.** The earlier `IMAGE` helper flag disabled intermediate cache reuse; see the performance update below.
 2. **The three working sliders use a deprecated, display-referred Lab module.** `colisa` is convenient for proving the adapter, not the intended foundation for modern RAW adjustments.
 3. **Our GPU warning misses some real fallbacks.** darktable clears `opencl_error` while restarting the pipe on CPU; enabled, running, selected and actually used are different states.
 4. **A control is more than a float pointer.** Module instance, type, range, workflow, history, masks, GUI action identity and persistence all matter when extending the registry.
@@ -63,25 +63,38 @@ flowchart LR
 
 `dt_imageio_open` first uses file-signature dispatch and then fallbacks including RawSpeed, LibRaw and exotic loaders as applicable (`imageio.c:1626`). The wrapper was reviewed here; this is not an audit of the bundled decoders themselves.
 
-The job coordinator owns pipe locking, node creation/synchronization, viewport scale/ROI, restarts and final status. A render job returns `void`. Some early returns retain previously allocated buffers while marking the pipe dirty/invalid. Therefore our current test of only non-null backbuf and positive dimensions is insufficient to prove a fresh successful render. Require valid status and an output identity/revision contract before publishing a frame.
+The job coordinator owns pipe locking, node creation/synchronization, viewport scale/ROI, restarts and final status. A render job returns `void`. Some early returns retain previously allocated buffers while marking the pipe dirty/invalid. The adapter now requires VALID pipe status as well as a non-null, positive-sized buffer. The worker guards publication with a presentation epoch and monotonic render revisions.
 
-## 3. Performance: the current cache gap
+## 3. Performance: interactive preview update
 
 Confirmed call chain:
 
-- Omalux sets `dev.full.pipe->type |= DT_DEV_PIXELPIPE_IMAGE` in `native/engine.c`.
+- The original Omalux adapter set `dev.full.pipe->type |= DT_DEV_PIXELPIPE_IMAGE` in `native/engine.c`.
 - `dt_dev_pixelpipe_process` sets `pipe->nocache = dt_pipe_is_image(pipe)` (`pixelpipe_hb.c:3157`; 5.6.0:3064).
 - Recursive processing only uses cached results when `!pipe->nocache` (`pixelpipe_hb.c:1827`). Cache availability independently rejects nocache (`pixelpipe_cache.c:178`).
 
 The flag came from the upstream helper for producing an image, not from a guarantee of optimal persistent interactive rendering. Our warm-process advantage and decoded-input cache remain distinct from intermediate stage reuse. Correct the assumption that keeping pipe allocations alive automatically means earlier stages are reused.
 
-A future change should establish a persistent interactive pipe configuration with valid invalidation and lifecycle behavior. Do not blindly delete one flag: image/full flags also influence other processing choices. Trace all flag uses and compare cached and uncached output before adopting it. For example, `iop/finalscale.c:59,190` also uses image/canvas flags and global late-scaling state.
+The adapter now retains the FULL pipe initialized by `dt_dev_init`, with its normal cache allocation and history-driven invalidation. The source review covered IMAGE flag uses in both installed 5.6.0 and pinned 5.6.1: finalscale still recognizes FULL through CANVAS; IMAGE_FINAL was never set; hazeremoval’s IMAGE check only emits a warning when preview-derived estimates are unavailable; the zoom-only fast return in develop is not used by scalar edits. GTK-dependent work stays disabled through `gui_attached = FALSE`. We do not change upstream or enable GTK callbacks.
 
-Cache hashes include image identity, pipe mode, profiles, upstream piece hashes and ROI (`pixelpipe_cache.c:103`). Keep those invariants intact. Avoid changing untouched modules or flushing everything for every slider. Our generic engine currently adds history for every registered module on every render. With all three controls in colisa this is one module; after adding controls across modules it can create redundant alternating history entries and unnecessary synchronization.
+The worker still serializes engine edits and coalesces pending slider values, but now publishes completed intermediate frames while newer scalar values are pending. It never writes old control values back over new input. A separate presentation epoch advances for image changes, presets, history and other session actions; completed frames from an earlier epoch are rejected both before queuing and on the Qt thread. Published render revisions are monotonic. This prevents starvation during continuous dragging without displaying an old image across a session action. In-flight rendering is not cancelled.
 
-The native worker coalesces queued snapshots and discards obsolete completed frames. It does **not** cancel the in-flight expensive render. On large RAWs that can still delay the newest result. Study the shutdown/restart protocol and history locking before introducing cancellation; never mutate parameters from the Qt thread while nodes consume them.
+`OMALUX_FLUSH_PREVIEW_CACHE=1` is an opt-in diagnostic: flush the intermediate cache immediately before each render, retaining the same FULL pipe, backend and ROI. Normal runs reuse eligible stages. Dirty-control revisions restrict history updates to changed modules.
 
-Measure end-to-end input-to-displayed-frame latency, warm p50/p95, cache hits, cold start, CPU/GPU paths and memory. Use large RAWs and late versus early pipeline controls. The beach JPEG is useful for a smoke check, not performance or RAW fidelity evidence. Test Omalux alone as well as split mode: both processes compete for resources.
+Measured on this workstation with the shared beach JPEG, OpenCL enabled, fixed 1400 × 1000 fit viewport and private sessions:
+
+- 16 scalar updates across brightness, exposure and temperature: median render-plus-QImage-copy time **27.5 ms cached**, **36.5 ms forced recompute**. Cold startup excluded; first module activations included. This is not input-to-screen latency.
+- 15 distinct output images matched pixel-for-pixel against both the previous IMAGE path and forced recomputation (ImageMagick AE = 0).
+- Split-mode continuous brightness drag, 180 samples at a nominal 16 ms interval: **83 intermediate preview revisions** observed during the drag; final control value reached 0.3. These are published preview updates, not measured compositor frames.
+- Preset replacement and history restoration are exercised separately. No claim of parity across arbitrary RAWs, profiles, expensive modules or GPUs follows from this JPEG test.
+
+Run the persistent-engine regression with:
+
+```sh
+QT_FORCE_STDERR_LOGGING=1 OMALUX_SMOKE_SCRIPT="$PWD/omalux/tests/interactive-preview.json" bin/dev_split
+```
+
+It uses a private session, checks updates during sustained input, verifies final values, restores history and reapplies a preset after edits. Use `QT_QPA_PLATFORM=offscreen` for the Qt window when running unattended; the optional GTK twin still requires desktop access. Large RAW latency, memory pressure and cancellation remain follow-up performance work.
 
 ## 4. Parameters, instances and history
 
@@ -189,7 +202,7 @@ The v3 comparison mailbox keeps style events with the preceding control snapshot
 
 ## Expanded UI adapter (2026-09-08)
 
-The original three-control audit above describes the starting prototype. The current registry now covers the [v0 mapping](ui-controls.md), including typed special controls. The cache and GPU caveats above still apply.
+The original three-control audit above describes the starting prototype. The current registry now covers the [v0 mapping](ui-controls.md), including typed special controls. The GPU caveats above still apply; the cache and frame-publication update is described in section 3.
 
 `controls.h` separates display labels/units, native parameters and GTK action paths. Native binding selects `multi_priority == 0` deliberately and validates float type, size and hard range. Integer fields, enablement and blend opacity have explicit bindings. Denoise curves validate the 6 × 7 ordinate array. `white_balance.h` adapts the installed darktable temperature module's spectral/XYZ math and camera matrices to convert temperature/tint into white-balance coefficients; this is not a new color-temperature algorithm.
 
