@@ -11,10 +11,6 @@ pub const MAX_EXTERNAL_PRESET_BYTES: u64 = 1024 * 1024;
 // reviewers can audit the complete public catalog without build-time scanning.
 // `PresetCatalog::from_documents` still sorts by stable ID before exposure.
 const BUILTIN_PRESETS: &[&str] = &[
-    include_str!("../../presets/builtin/community-desert-signal.json"),
-    include_str!("../../presets/builtin/community-honey-hour.json"),
-    include_str!("../../presets/builtin/community-roseglass.json"),
-    include_str!("../../presets/builtin/community-studio-cut.json"),
     include_str!("../../presets/builtin/experimental/experimental-ansel-adams.json"),
     include_str!("../../presets/builtin/experimental/experimental-church.json"),
     include_str!("../../presets/builtin/experimental/experimental-church-soft.json"),
@@ -39,6 +35,10 @@ const BUILTIN_PRESETS: &[&str] = &[
     include_str!("../../presets/builtin/series/meadow/series-meadow-contrast.json"),
     include_str!("../../presets/builtin/series/meadow/series-meadow-cross.json"),
     include_str!("../../presets/builtin/series/meadow/series-meadow-neutral.json"),
+    include_str!("../../presets/builtin/series/movie/series-movie-desert-signal.json"),
+    include_str!("../../presets/builtin/series/movie/series-movie-honey-hour.json"),
+    include_str!("../../presets/builtin/series/movie/series-movie-roseglass.json"),
+    include_str!("../../presets/builtin/series/movie/series-movie-studio-cut.json"),
 ];
 
 #[derive(Clone, Debug, PartialEq)]

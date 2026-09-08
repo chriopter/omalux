@@ -16,20 +16,16 @@ fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
         .map(|document| document.id.as_str())
         .collect::<Vec<_>>();
     assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
-    assert_eq!(ids.first(), Some(&"community-desert-signal"));
-    assert_eq!(ids.last(), Some(&"series-meadow-neutral"));
+    assert_eq!(ids.first(), Some(&"experimental-ansel-adams"));
+    assert_eq!(ids.last(), Some(&"series-movie-studio-cut"));
     assert_eq!(
         ids.iter()
             .filter(|id| id.starts_with("experimental-"))
             .count(),
         13
     );
-    assert_eq!(
-        ids.iter().filter(|id| id.starts_with("community-")).count(),
-        4
-    );
     assert_eq!(ids.iter().filter(|id| id.starts_with("film-")).count(), 7);
-    assert_eq!(ids.iter().filter(|id| id.starts_with("series-")).count(), 3);
+    assert_eq!(ids.iter().filter(|id| id.starts_with("series-")).count(), 7);
     for document in catalog.documents() {
         let canonical = document.to_canonical_json().unwrap();
         assert_eq!(PresetDocument::from_json(&canonical).unwrap(), *document);

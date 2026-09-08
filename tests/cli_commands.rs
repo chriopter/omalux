@@ -24,7 +24,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     assert!(presets.status.success());
     let listed = json(&presets);
     assert_eq!(listed["presets"].as_array().unwrap().len(), 28);
-    assert_eq!(listed["presets"][0]["id"], "community-desert-signal");
+    assert_eq!(listed["presets"][0]["id"], "experimental-ansel-adams");
     assert!(
         listed["presets"]
             .as_array()
@@ -235,7 +235,7 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
         ("experimental-verbania", false, true, false),
         ("experimental-flower", true, false, false),
         ("series-meadow-cross", true, true, false),
-        ("community-honey-hour", true, true, false),
+        ("series-movie-honey-hour", true, true, false),
         ("experimental-lamp", false, true, false),
     ] {
         let output = directory.path().join(format!("{id}.jpg"));
@@ -532,7 +532,7 @@ fn production_heic_cli_encodes_ten_bit_and_reports_path_free_provenance() {
         .arg("--output")
         .arg(&output)
         .args(["--format", "heic", "--quality", "90"])
-        .args(["--preset", "community-honey-hour"])
+        .args(["--preset", "series-movie-honey-hour"])
         .args([
             "--set",
             "color_mixer.blue.saturation=25",
