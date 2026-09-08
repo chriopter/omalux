@@ -36,9 +36,9 @@ const BUILTIN_PRESETS: &[&str] = &[
     include_str!("../../presets/builtin/film/film-polaroid.json"),
     include_str!("../../presets/builtin/film/film-warm.json"),
     include_str!("../../presets/builtin/neutral.json"),
-    include_str!("../../presets/builtin/series-meadow-contrast.json"),
-    include_str!("../../presets/builtin/series-meadow-cross.json"),
-    include_str!("../../presets/builtin/series-meadow-neutral.json"),
+    include_str!("../../presets/builtin/series/meadow/series-meadow-contrast.json"),
+    include_str!("../../presets/builtin/series/meadow/series-meadow-cross.json"),
+    include_str!("../../presets/builtin/series/meadow/series-meadow-neutral.json"),
 ];
 
 #[derive(Clone, Debug, PartialEq)]
