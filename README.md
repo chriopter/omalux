@@ -1,6 +1,12 @@
 # Omalux
 
-A focused, keyboard-driven photo editor for Omarchy, moving toward a new interface powered by [darktable](https://www.darktable.org/).
+A focused photo editing interface for Omarchy, based on [darktable](https://www.darktable.org/). Our UI, darktable’s image processing.
+
+[omalux.org](https://omalux.org)
+
+![Omalux v0 interface](omalux.org/public/app-screenshot-dark.png)
+
+*The original Omalux v0 interface; darktable integration is in development.*
 
 ## A new direction
 
