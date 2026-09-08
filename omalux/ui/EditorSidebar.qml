@@ -10,7 +10,7 @@ Rectangle {
     required property string activeControl
     required property url iconsRoot
     property alias geometry: geometryPanel
-    onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("brightness") }
+    onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
     readonly property bool textEditing: selectedPanel === 1 && presetsPanel.textEditing
     signal presetSaveRequested()
@@ -20,13 +20,13 @@ Rectangle {
 
     function navigateControl(direction) { filtersPanel.navigate(direction) }
     function revealControl(id) { selectedPanel = 0; controlSelected(id); filtersPanel.reveal(id) }
-    function toggleGrainDetails() { let next=Object.assign({}, filtersPanel.expandedDetails); next.grain=!next.grain; filtersPanel.expandedDetails=next }
+    function toggleGrainDetails() { filtersPanel.toggleGrainDetails() }
     function showPresetDetails(id) {
         selectedPanel = 1;
         presetsPanel.showDetails(id);
     }
 
-    implicitWidth: 312
+    implicitWidth: 352
     color: theme.background
     Rectangle {
         width: 1

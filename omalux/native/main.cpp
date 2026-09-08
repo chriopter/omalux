@@ -299,7 +299,7 @@ private:
             unsigned long revision; QString styleId, kind, action, savedDirectory; int quality;
             {std::unique_lock lock(mutex); wake.wait(lock,[this]{return stopping || pending;});
              if(stopping) break; next=requested; nextRevisions=requestedRevisions; revision=generation; pending=false; styleId=pendingStyle; pendingStyle.clear(); kind=actionKind; action=actionValue; quality=exportQuality; actionKind.clear(); actionValue.clear();}
-            // Flush pending edits before a style so unrelated modules keep them.
+            // Commit pending edits first so they remain reachable in history.
             std::array<unsigned char,OM_CONTROL_COUNT> dirty{};
             for(unsigned int i=0;i<OM_CONTROL_COUNT;++i) dirty[i]=nextRevisions[i]!=processedRevisions[i];
             if(om_engine_update_controls(next.data(),dirty.data())) {fail("Could not update controls");continue;}
@@ -334,26 +334,22 @@ private:
                     styleJournal+="module "+QByteArray::number(styleRevision)+" "+QByteArray::number(revision)+" "+module.toUtf8()+" "+name.toUtf8()+"\n";
             }
             if(!styleId.isEmpty()) {
-                const QByteArray precedingControls=comparisonControls(styleRevision,next,nextRevisions);
                 const PresetFile *preset=nullptr;
                 for(const auto &file:presetFiles) if(file.id==styleId) preset=&file;
                 if(!preset || om_engine_apply_style(preset->path.toUtf8().constData(),preset->name.toUtf8().constData(),next.data())) {
                     fail("Could not apply preset; check its module compatibility"); continue;
                 }
-                ++styleRevision; appliedFilename=preset->id; appliedName=preset->name;
-                styleJournal += precedingControls+"style "+QByteArray::number(styleRevision)+" "
-                    +QUrl::toPercentEncoding(appliedFilename)+" "+QUrl::toPercentEncoding(appliedName)+"\n";
                 processedRevisions.fill(0); nextRevisions.fill(0);
                 {std::lock_guard lock(mutex); requested=next; requestedRevisions.fill(0);}
                 const QString name=preset->name;
                 QMetaObject::invokeMethod(this,[this,next,name]{values=next; styleName=name; emit controlsChanged(); emit changed();},Qt::QueuedConnection);
             }
-            if(kind=="history") {
-                if(om_engine_history_select(action.toInt())) {fail("Could not restore history step");continue;}
+            if(kind=="history" || !styleId.isEmpty()) {
+                if(kind=="history" && om_engine_history_select(action.toInt())) {fail("Could not restore history step");continue;}
                 om_engine_read_controls(next.data());
                 nextRevisions.fill(0);processedRevisions.fill(0);
                 {std::lock_guard lock(mutex);requested=next;requestedRevisions.fill(0);}
-                QMetaObject::invokeMethod(this,[this,next]{values=next;styleName.clear();emit controlsChanged();emit changed();},Qt::QueuedConnection);
+                QMetaObject::invokeMethod(this,[this,next,kind]{values=next;if(kind=="history")styleName.clear();emit controlsChanged();emit changed();},Qt::QueuedConnection);
                 if(!bridge.isEmpty()) {
                     const auto name="omalux-history-"+QString::number(revision);
                     const auto path=QDir(QFileInfo(bridge).absolutePath()).filePath(name+".dtstyle");
@@ -362,7 +358,7 @@ private:
                     if(raw) om_engine_free_json(raw);
                     QSaveFile file(path);const auto xml=snapshot["xml"].toString().toUtf8();
                     if(xml.isEmpty() || !file.open(QIODevice::WriteOnly) || file.write(xml)!=xml.size() || !file.commit()) {
-                        fail("History restored, but comparison snapshot is unsupported or could not be written");continue;
+                        fail("State restored, but comparison snapshot is unsupported or could not be written");continue;
                     }
                     ++styleRevision;
                     styleJournal="history "+QByteArray::number(styleRevision)+" "+name.toUtf8()+"\n";
@@ -482,6 +478,8 @@ private:
 int main(int argc,char **argv) {
     QQuickStyle::setStyle("Basic");
     QGuiApplication app(argc,argv);
+    QCoreApplication::setOrganizationName("Omalux");
+    QCoreApplication::setOrganizationDomain("omalux.org");
     const auto args=app.arguments();
     if(args.size()<4) {qCritical()<<"Use bin/dev [image]";return 1;}
     auto *frames=new Frames;

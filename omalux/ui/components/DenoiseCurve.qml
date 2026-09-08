@@ -11,7 +11,7 @@ ColumnLayout {
     property int channel: 4
     width: parent.width
     spacing: 8
-    Text { text: "mode"; font: root.theme.textFont; color: root.theme.muted }
+    Text { text: "mode"; font: root.theme.settingsFont; color: root.theme.muted }
     ComboBox {
         wheelEnabled: false
         Layout.fillWidth: true
@@ -20,7 +20,7 @@ ColumnLayout {
         enabled: root.editable
         onActivated: root.edited("denoise_mode",currentIndex)
     }
-    Text { text: "color mode"; font: root.theme.textFont; color: root.theme.muted }
+    Text { text: "color mode"; font: root.theme.settingsFont; color: root.theme.muted }
     ComboBox {
         wheelEnabled: false
         Layout.fillWidth: true
@@ -33,7 +33,7 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: root.values.denoise_color_mode !== 1
         text: "Select Y0U0V0 to edit luminance and chroma separately."
-        wrapMode: Text.WordWrap; font: root.theme.textFont; color: root.theme.muted
+        wrapMode: Text.WordWrap; font: root.theme.settingsFont; color: root.theme.muted
     }
     ColumnLayout {
         Layout.fillWidth: true
@@ -76,9 +76,9 @@ ColumnLayout {
             }
         }
         RowLayout {
-            Text { text:"coarse";color:root.theme.muted;font:root.theme.textFont }
+            Text { text:"coarse";color:root.theme.muted;font:root.theme.settingsFont }
             Item { Layout.fillWidth:true }
-            Text { text:"fine";color:root.theme.muted;font:root.theme.textFont }
+            Text { text:"fine";color:root.theme.muted;font:root.theme.settingsFont }
         }
     }
 }

@@ -25,7 +25,7 @@ ApplicationWindow {
     font: editorTheme.textFont
 
     property bool photoFullscreen: false
-    property string activeControl: "brightness"
+    property string activeControl: "exposure"
     property alias selectedPanel: sidebar.selectedPanel
     function revealControl(id) { sidebar.revealControl(id) }
     function showPresetDetails(id) {
@@ -71,7 +71,7 @@ ApplicationWindow {
                 visible: !window.photoFullscreen
                 activeControl: window.activeControl
                 iconsRoot: assetsRoot + "icons/"
-                Layout.preferredWidth: 312
+                Layout.preferredWidth: 352
                 Layout.fillHeight: true
                 theme: editorTheme
                 backend: editor

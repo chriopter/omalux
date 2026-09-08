@@ -6,6 +6,8 @@ QtObject {
     readonly property color line: "#45475a"
     readonly property color accent: "#89b4fa"
     readonly property color background: "#1e1e2e"
+    readonly property font moduleHeadingFont: Qt.font({ family: "JetBrains Mono", pixelSize: 11, weight: Font.Medium })
+    readonly property font settingsFont: Qt.font({ family: "JetBrains Mono", pixelSize: 12 })
     readonly property font textFont: Qt.font({
         family: "JetBrains Mono",
         pixelSize: 11

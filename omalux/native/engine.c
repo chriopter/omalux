@@ -23,6 +23,7 @@ static float enabled_values[OM_CONTROL_COUNT], integer_values[OM_CONTROL_COUNT];
 static int *integer_parameters[OM_CONTROL_COUNT];
 
 static int bind_controls(void);
+#include "preset_baseline.h"
 
 extern const char darktable_package_version[];
 int om_engine_init(int argc, char **argv) {
@@ -48,7 +49,7 @@ int om_engine_open(const char *path) {
   g_free(directory);
   dt_imgid_t image = dt_image_import(film, path, TRUE, FALSE);
   if(!dt_is_valid_imgid(image)) return 1;
-  if(loaded) { dt_dev_cleanup(&dev); loaded=0; }
+  if(loaded) { om_preset_baseline_clear(); dt_dev_cleanup(&dev); loaded=0; }
   dt_dev_init(&dev, TRUE);
   dev.gui_attached = FALSE;
   loaded = 1;
@@ -60,6 +61,7 @@ int om_engine_open(const char *path) {
   dev.full.width = 1400;
   dev.full.height = 1000;
   dev.full.color_assessment = FALSE;
+  om_preset_baseline_capture();
   return bind_controls();
 }
 static int bind_controls(void) {
@@ -120,6 +122,7 @@ int om_engine_apply_style(const char *path, const char *name, float *values) {
       g_list_free_full(items, dt_style_item_free); return 3;
     }
   }
+  om_preset_baseline_restore();
   GList *used=NULL;
   dt_ioppr_update_for_style_items(&dev, items, FALSE);
   for(GList *it=items; it; it=it->next)
@@ -179,6 +182,7 @@ int om_engine_render(const unsigned char **pixels, int *width, int *height) {
   return (dev.full.pipe->status==DT_DEV_PIXELPIPE_VALID && *pixels && *width > 0 && *height > 0) ? 0 : 3;
 }
 void om_engine_cleanup(void) {
+  om_preset_baseline_clear();
   if(loaded) dt_dev_cleanup(&dev);
   dt_cleanup();
 }

@@ -55,7 +55,35 @@ static void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, 
             auto *window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
             window->grabWindow().save(step["capture"].toString());frames->image().save(step["capture"].toString()+".preview.png");
         } else if(step.contains("reveal")) QMetaObject::invokeMethod(engine.rootObjects().first(),"revealControl",Q_ARG(QVariant,step["reveal"].toVariant()));
+        else if(step.contains("clickItem") || step.contains("visibleItem")) {
+            const auto name=step[step.contains("clickItem") ? "clickItem" : "visibleItem"].toString();
+            std::function<QQuickItem*(QQuickItem*)> find=[&](QQuickItem *parent)->QQuickItem* {
+                if(parent->objectName()==name) return parent;
+                for(auto *child:parent->childItems()) if(auto *found=find(child)) return found;
+                return nullptr;
+            };
+            auto *window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
+            auto *item=find(window->contentItem());
+            if(!item) {qCritical()<<"Missing item"<<name;app.exit(2);return;}
+            if(step.contains("clickItem")) {
+                if(!QMetaObject::invokeMethod(item,"clicked")) {app.exit(2);return;}
+            } else if(item->isVisible()!=step["visible"].toBool()) {
+                qCritical()<<"Unexpected visibility"<<name<<item->isVisible();app.exit(2);return;
+            }
+        }
         else if(step.contains("panel")) engine.rootObjects().first()->setProperty("selectedPanel",step["panel"].toInt());
+        else if(step.contains("rememberControls")) {
+            (*historyMarks)[step["rememberControls"].toString()]=editor.controlValues();
+        }
+        else if(step.contains("checkControls")) {
+            const auto expected=(*historyMarks)[step["checkControls"].toString()].toMap();
+            if(expected.isEmpty()) {app.exit(2);return;}
+            const auto actual=editor.controlValues();
+            for(auto it=expected.begin();it!=expected.end();++it)
+                if(std::abs(actual[it.key()].toDouble()-it.value().toDouble())>.01) {
+                    qCritical()<<"Preset retained an earlier edit"<<it.key()<<actual[it.key()]<<it.value();app.exit(2);return;
+                }
+        }
         else if(step.contains("rememberHistory")) {
             for(const auto &row:editor.history()) if(row.toMap()["current"].toBool())
                 (*historyMarks)[step["rememberHistory"].toString()]=row.toMap()["step"];
