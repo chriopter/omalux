@@ -76,17 +76,28 @@ def base_style(pid, pdir):
     return p
 
 
-def render_many(jobs):
-    """jobs: (input, style_path, output, lut_root or None). Existing outputs are kept."""
-    def one(j):
-        inp, style, out, lut_root = j
-        if Path(out).exists():
-            return 0.0
+OMP_THREADS = int(os.environ.get("DT_OMP", "4"))
+
+
+def render_many(jobs, hq=False):
+    """jobs: (input, style_path, output, lut_root or None). Existing outputs are kept.
+    Jobs sharing style and LUT root are rendered in one darktable-cli process; a missing
+    output falls back to a single render."""
+    todo = [j for j in jobs if not Path(j[2]).exists()]
+    groups = {}
+    for inp, style, out, lut_root in todo:
+        groups.setdefault((str(style), str(lut_root) if lut_root else None), []).append((inp, out))
+
+    def one_group(item):
+        (style, lut_root), pairs = item
         conf = [f"plugins/darkroom/lut3d/def_path={lut_root}"] if lut_root else []
-        t, _ = dtrender.render(inp, style, out, RENDER, RENDER, extra_conf=conf)
-        return t
-    with ThreadPoolExecutor(JOBS) as ex:
-        return list(ex.map(one, jobs))
+        failed = dtrender.render_batch_style(style, pairs, RENDER, RENDER, hq=hq, extra_conf=conf,
+                                             threads=OMP_THREADS)
+        for inp, out in pairs:
+            if Path(out) in failed:
+                dtrender.render(inp, style, out, RENDER, RENDER, extra_conf=conf)
+    with ThreadPoolExecutor(max(1, min(JOBS, len(groups)))) as ex:
+        list(ex.map(one_group, groups.items()))
 
 
 # ---------- cube io ----------
@@ -260,7 +271,8 @@ def baseline(pids, split, tag="baseline"):
         imgs = images(split)
         out_dir = WORK / pid / tag
         t0 = time.time()
-        render_many([(i["path"], pdir / "preset.dtstyle", out_dir / (i["id"] + ".jpg"), None) for i in imgs])
+        render_many([(i["path"], pdir / "preset.dtstyle", out_dir / (i["id"] + ".jpg"), None) for i in imgs],
+                    hq=True)
         _, scores = score_dir(pid, imgs, out_dir)
         res[pid] = scores
         by = {sp: [scores[i["id"]] for i in imgs if i["split"] == sp] for sp in ("tuning", "holdout")}
@@ -286,7 +298,7 @@ def finalize(pid, pdir):
     out_dir = w / "final"
     shutil.rmtree(out_dir, ignore_errors=True)
     imgs = images("all")
-    render_many([(i["path"], style, out_dir / (i["id"] + ".jpg"), lut_dir) for i in imgs])
+    render_many([(i["path"], style, out_dir / (i["id"] + ".jpg"), lut_dir) for i in imgs], hq=True)
     scores = {i["id"]: dict(split=i["split"], de=score_render(pid, i, out_dir / (i["id"] + ".jpg")))
               for i in imgs}
     summary = {sp: float(np.mean([x["de"] for x in scores.values() if x["split"] == sp] or [np.nan]))

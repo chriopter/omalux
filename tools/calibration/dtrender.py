@@ -2,9 +2,13 @@
 """Render an image through darktable-cli with a .dtstyle applied.
 
 The style is converted into an XMP sidecar (history stack), so no darktable
-database import is needed and any number of renders can run in parallel.
-Every worker gets its own configuration directory because darktable locks
-its database per configuration.
+database import is needed. `render_batch_style` renders many inputs with one
+style in a single darktable-cli process (folder input): process start-up is
+paid once instead of per image, and with `hq=False` darktable scales early,
+which makes RAW renders several times faster at a cost of a few tenths of
+ΔE against full-quality processing. Fits use the fast path; final scoring
+uses full quality. Every worker gets its own configuration directory
+because darktable locks its database per configuration.
 
     python3 dtrender.py <input> <style.dtstyle> <output.jpg> [max-edge]
 
@@ -183,6 +187,73 @@ def _render(inp, style_path, output, width, height, opencl, quality, extra_conf,
             raise RuntimeError(f"darktable-cli failed ({p.returncode}) for {inp} / {style_path}:\n"
                                f"{p.stderr[-2000:]}\n{p.stdout[-1000:]}")
         return dt, p.stderr
+
+
+def render_batch_style(style_path, jobs, width=1024, height=1024, hq=False, quality=90, extra_conf=(), threads=None):
+    """Batch render (one darktable-cli process) of `jobs` = [(input, output)] with one style.
+    With RAW_EXPOSURE_OFFSET set, RAW and non-RAW inputs go in separate batches."""
+    if not jobs:
+        return []
+    offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0"))
+    groups = {}
+    for inp, out in jobs:
+        key = Path(inp).suffix.lower() in RAW_SUFFIXES if offset else False
+        groups.setdefault(key, []).append((inp, out))
+    failed = []
+    for g in groups.values():
+        failed += _render_batch(g, width, height, hq, quality, extra_conf, threads, style_path)
+    return failed
+
+
+def _render_batch(jobs, width, height, hq, quality, extra_conf, threads, style_path=None):
+    import shutil
+    opencl = os.environ.get("DT_OPENCL", "0") == "1"
+    slot = _acquire_slot()
+    cfg = CFG / f"p{os.getpid()}-w{slot}"; cache = CFG / "cache"
+    cfg.mkdir(parents=True, exist_ok=True); cache.mkdir(exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR", "/tmp")) as td:
+            td = Path(td); inp_dir = td / "in"; out_dir = td / "out"
+            inp_dir.mkdir(); out_dir.mkdir()
+            names = {}
+            for inp, out in jobs:
+                inp = Path(inp); link = inp_dir / inp.name
+                if link.exists():
+                    raise RuntimeError(f"duplicate input name in batch: {inp.name}")
+                link.symlink_to(inp.resolve())
+                names[inp.stem] = Path(out)
+            xmp = td / "style.xmp"
+            xmp.write_text(dtstyle_to_xmp(style_path, "x" + Path(jobs[0][0]).suffix))
+            ext = Path(jobs[0][1]).suffix or ".jpg"
+            cmd = ["darktable-cli", str(inp_dir), str(xmp), str(out_dir / ("$(FILE_NAME)" + ext)),
+                   "--width", str(width), "--height", str(height), "--hq", "true" if hq else "false",
+                   "--core", "--configdir", str(cfg), "--cachedir", str(cache), "--library", ":memory:",
+                   "--conf", f"opencl={'TRUE' if opencl else 'FALSE'}",
+                   "--conf", f"plugins/darkroom/lut3d/def_path={PRESETS}",
+                   "--conf", f"plugins/imageio/format/jpeg/quality={quality}",
+                   "--conf", "plugins/lighttable/export/iccprofile=sRGB",
+                   "--conf", "write_sidecar_files=never"]
+            for c in list(extra_conf) + [c for c in os.environ.get("DT_EXTRA_CONF", "").split(";") if c]:
+                cmd += ["--conf", c]
+            env = dict(os.environ)
+            if threads:
+                env["OMP_NUM_THREADS"] = str(threads)
+            p = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            failed = []
+            for stem, out in names.items():
+                got = out_dir / (stem + ext)
+                if got.exists():
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    if out.exists():
+                        out.unlink()
+                    shutil.move(str(got), str(out))
+                else:
+                    failed.append(out)
+            if failed:
+                sys.stderr.write(f"[dtrender] batch: {len(failed)} of {len(jobs)} missing (rc {p.returncode})\n{p.stderr[-1500:]}\n")
+            return failed
+    finally:
+        _release_slot(slot)
 
 
 if __name__ == "__main__":

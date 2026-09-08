@@ -20,7 +20,7 @@ The score is the mean CIEDE2000 between the rendering and the target, both scale
 
 ## Rendering
 
-`dtrender.py` converts a `.dtstyle` into an XMP history sidecar and runs `darktable-cli` on it, so no database import is needed and renders run in parallel (`DT_JOBS`, default 6). Each worker uses its own configuration directory under `work/dtcfg/`. Rendering is CPU-only by default: the pixelpipe takes a small fraction of the two seconds a `darktable-cli` process needs, and with several parallel processes a GPU reset on some drivers silently corrupts the output of the other processes. `DT_OPENCL=1` enables OpenCL with a CPU retry on failure.
+`dtrender.py` converts a `.dtstyle` into an XMP history sidecar and runs `darktable-cli` on it, so no database import is needed. All images of one fit round share a style, so they are rendered by one `darktable-cli` process from a folder of links: process start-up (about two seconds) is paid once per round instead of once per image. Fit rounds also let darktable scale early instead of processing RAW files at full resolution (`--hq false`); that is several times faster and differs from full-quality output by a few tenths of ΔE, so final scoring and the baseline use full quality. `DT_OMP` sets the OpenMP threads per process (default 4; several presets can then run side by side on 16 cores). Each worker uses its own configuration directory under `work/dtcfg/`. Rendering is CPU-only by default: the pixelpipe takes a small fraction of the two seconds a `darktable-cli` process needs, and with several parallel processes a GPU reset on some drivers silently corrupts the output of the other processes. `DT_OPENCL=1` enables OpenCL with a CPU retry on failure.
 
 ## Recipe
 
@@ -35,7 +35,7 @@ python3 tools/calibration/install_preset.py <preset>      # copy into presets/
 bin/preset_preview <preset>                               # refresh the thumbnail
 ```
 
-`run_queue.sh [-j 3] [preset ...]` runs fit, one slider pass, final scoring and the report for many presets, three at a time by default; without ids it queues every preset that has targets and no `final.json` yet. Progress and per-preset logs are under `work/queue/`. Budget about 15 minutes for a cube fit and 35 minutes for one slider pass per preset on 16 cores.
+`run_queue.sh [-j 3] [preset ...]` runs fit, one slider pass, final scoring and the report for many presets, three at a time by default; without ids it queues every preset that has targets and no `final.json` yet. Progress and per-preset logs are under `work/queue/`. With four presets side by side, budget about 7 minutes for a cube fit and 17 minutes for one slider pass per preset on 16 cores.
 
 `cube_fit.py roughness <cube>` prints the mean absolute Laplacian of a cube in 8-bit units. Bundled cubes sit around 1 to 4; above about 10 the interpolation between nodes turns tiny input differences into blotches in smooth gradients, so a fitted cube that scores well but is rough is not finished.
 
