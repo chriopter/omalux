@@ -8,8 +8,7 @@ film grain, and export JPEG or HEIC. Preview and export share one CPU pipeline.
 
 ![Omalux — RAW photo developer](docs/assets/screenshot.png)
 
-<details>
-<summary>Details & development</summary>
+## Details & development
 
 The desktop app follows your Omarchy theme and supports keyboard-driven editing.
 Press `?` for shortcuts. A separate Qt-free CLI exposes the same processing core.
@@ -42,50 +41,26 @@ See [architecture](docs/architecture.md), [CLI usage](docs/cli.md),
 [HEIC support](docs/io-heic-encode.md), [film grain](docs/grain-model.md),
 and [contributor instructions](AGENTS.md).
 
-</details>
+## Example pictures
 
-<details>
-<summary>Example pictures & technical references</summary>
+An AI-generated beach scene and six reproducible 16-bit sRGB test charts.
+Click a thumbnail to open the full-size image.
 
-Fixed inputs for visual comparisons: one AI-generated beach scene and six
-programmatically generated, lossless 16-bit sRGB charts. These are test inputs,
-not calibrated photographs or an automated regression suite.
+<table>
+  <tr>
+    <td align="center"><a href="reference%20pictures/main.jpg"><img src="reference%20pictures/main.jpg" width="220" alt="Beach scene"></a><br>Beach scene</td>
+    <td align="center"><a href="reference%20pictures/technical/01-grayscale.png"><img src="reference%20pictures/technical/01-grayscale.png" width="220" alt="Grayscale"></a><br>Grayscale</td>
+    <td align="center"><a href="reference%20pictures/technical/02-shadows-highlights.png"><img src="reference%20pictures/technical/02-shadows-highlights.png" width="220" alt="Shadows &amp; highlights"></a><br>Shadows &amp; highlights</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="reference%20pictures/technical/03-channel-ramps.png"><img src="reference%20pictures/technical/03-channel-ramps.png" width="220" alt="Color channels"></a><br>Color channels</td>
+    <td align="center"><a href="reference%20pictures/technical/04-hue-saturation.png"><img src="reference%20pictures/technical/04-hue-saturation.png" width="220" alt="Hue &amp; saturation"></a><br>Hue &amp; saturation</td>
+    <td align="center"><a href="reference%20pictures/technical/05-color-patches.png"><img src="reference%20pictures/technical/05-color-patches.png" width="220" alt="Color patches"></a><br>Color patches</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="reference%20pictures/technical/06-spatial-detail.png"><img src="reference%20pictures/technical/06-spatial-detail.png" width="220" alt="Detail &amp; noise"></a><br>Detail &amp; noise</td>
+  </tr>
+</table>
 
-**Beach scene**
-
-![Beach volleyball, sand, sea, and sky](reference%20pictures/main.jpg)
-
-**Grayscale**
-
-![Continuous and stepped grayscale](reference%20pictures/technical/01-grayscale.png)
-
-**Shadows & highlights**
-
-![Near-black and near-white ramps](reference%20pictures/technical/02-shadows-highlights.png)
-
-**Color channels**
-
-![Six paired color ramps](reference%20pictures/technical/03-channel-ramps.png)
-
-**Hue & saturation**
-
-![Hue and saturation at three brightness levels](reference%20pictures/technical/04-hue-saturation.png)
-
-**Color patches**
-
-![Thirty-two known color patches](reference%20pictures/technical/05-color-patches.png)
-
-**Detail & noise**
-
-![Edges, bars, checkerboard, gray, and noise](reference%20pictures/technical/06-spatial-detail.png)
-
-Inspect technical images at 100% zoom. Regenerate them with:
-
-```bash
-python3 "reference pictures/technical/generate.py"
-```
-
-[Asset notes and generation prompt](reference%20pictures/README.md) ·
+[Asset notes and generator](reference%20pictures/README.md) ·
 [Exact values and hashes](reference%20pictures/technical/manifest.json)
-
-</details>
