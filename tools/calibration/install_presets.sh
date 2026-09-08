@@ -11,11 +11,15 @@ for preset in "$@"; do
 import json, sys
 preset, root = sys.argv[1:3]
 best = json.load(open(f"{root}/work/{preset}/best.json"))
-target = f"presets/builtin/{preset}.json"
+import glob
+matches = glob.glob(f"presets/builtin/**/{preset}.json", recursive=True)
+if not matches:
+    raise SystemExit(f"no built-in preset file for {preset}")
+target = matches[0]
 current = json.load(open(target))
 current["settings"] = best["settings"]
 open(target, "w").write(json.dumps(current, separators=(",", ":")))
 PY
-  "$binary" presets canonicalize "presets/builtin/$preset.json"
+  "$binary" presets canonicalize "$(find presets/builtin -name "$preset.json" | head -1)"
 done
 cargo test --test develop_catalog 2>&1 | grep 'test result'
