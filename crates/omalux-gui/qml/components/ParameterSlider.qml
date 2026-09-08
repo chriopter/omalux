@@ -16,6 +16,7 @@ Item {
     property bool supported: true
     property real stepSize: 1
     property real coarseStep: stepSize * 10
+    property int decimalPlaces: 0
     property string suffix: ""
     property bool expandable: false
     property bool expanded: false
@@ -30,7 +31,15 @@ Item {
     implicitHeight: 50
     Accessible.role: Accessible.Slider
     Accessible.name: label
-    Accessible.description: Math.round(value) + suffix
+    Accessible.description: formattedValue() + suffix
+
+    function formattedValue() {
+        const factor = Math.pow(10, decimalPlaces)
+        const rounded = Math.abs(value) < 0.5 / factor
+            ? 0 : Math.round(value * factor) / factor
+        return decimalPlaces > 0 ? rounded.toFixed(decimalPlaces)
+                                 : Math.round(rounded).toString()
+    }
 
     function nudge(direction, coarse) {
         if (!photoReady || !supported)
@@ -92,7 +101,7 @@ Item {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: Math.round(control.value) + control.suffix
+                text: control.formattedValue() + control.suffix
                 color: control.selected ? control.theme.accentColor : control.theme.inkColor
                 font.family: control.theme.monoFont
                 font.pixelSize: 11

@@ -81,7 +81,9 @@ Item {
 
     readonly property var luminanceTrack: ["#17171c", "#eceaf2"]
     readonly property var basics: [
-        { "label": "Exposure", "from": -5, "to": 5, "suffix": " EV", "track": luminanceTrack },
+        { "label": "Exposure", "from": -5, "to": 5, "stepSize": 0.1,
+          "coarseStep": 1, "decimalPlaces": 1, "suffix": " EV",
+          "track": luminanceTrack },
         { "label": "Brightness", "from": -300, "to": 300, "track": luminanceTrack },
         { "label": "Contrast", "from": -200, "to": 200 },
         { "label": "Clarity", "from": -200, "to": 200 },
@@ -189,6 +191,9 @@ Item {
                     to: modelData.to
                     suffix: modelData.suffix || ""
                     trackColors: modelData.track || []
+                    stepSize: modelData.stepSize || 1
+                    coarseStep: modelData.coarseStep || stepSize * 10
+                    decimalPlaces: modelData.decimalPlaces || 0
                     initialValue: 0
                     supported: panel.parameterSupported([
                         "basics.exposure_ev", "basics.brightness", "basics.contrast", "basics.clarity",
