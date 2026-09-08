@@ -616,7 +616,7 @@ mod tests {
     fn catalog_and_settings_are_core_owned_json() {
         let catalog: serde_json::Value =
             serde_json::from_str(&built_in_catalog_json().unwrap()).unwrap();
-        assert_eq!(catalog["presets"].as_array().unwrap().len(), 28);
+        assert_eq!(catalog["presets"].as_array().unwrap().len(), 29);
         assert_eq!(catalog["presets"][0]["id"], "experimental-ansel-adams");
         assert!(
             catalog["presets"]
@@ -780,7 +780,7 @@ mod tests {
         for id in [
             "experimental-verbania",
             "experimental-flower",
-            "series-meadow-cross",
+            "series-late-summer-cross",
             "series-movie-honey-hour",
             "experimental-lamp",
         ] {

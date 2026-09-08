@@ -18,6 +18,6 @@ rather than inverts below zero. Every look was then re-tuned; four crush
 looks needed a neutral starting point instead of their archived values.
 
 Still weak on unseen images: lightning (a high-key look whose target treats
-raster and RAW sources differently), lough-leane, desert-signal, meadow-cross and
+raster and RAW sources differently), lough-leane, desert-signal, late-summer-cross and
 church-soft. On the camera side, per-camera exposure and the vignette opcode on
 one phone remain open.

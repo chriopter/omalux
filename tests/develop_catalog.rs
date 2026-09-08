@@ -9,7 +9,7 @@ use std::{fs, io::Write};
 #[test]
 fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     let catalog = PresetCatalog::built_in().unwrap();
-    assert_eq!(catalog.documents().len(), 28);
+    assert_eq!(catalog.documents().len(), 29);
     let ids = catalog
         .documents()
         .iter()

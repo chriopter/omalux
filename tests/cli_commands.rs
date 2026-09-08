@@ -23,7 +23,7 @@ fn catalog_parameter_and_probe_stdout_is_path_free_json() {
     let presets = run(&["presets", "list", "--json"]);
     assert!(presets.status.success());
     let listed = json(&presets);
-    assert_eq!(listed["presets"].as_array().unwrap().len(), 28);
+    assert_eq!(listed["presets"].as_array().unwrap().len(), 29);
     assert_eq!(listed["presets"][0]["id"], "experimental-ansel-adams");
     assert!(
         listed["presets"]
@@ -234,7 +234,7 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
     for (id, color, spatial, radial) in [
         ("experimental-verbania", false, true, false),
         ("experimental-flower", true, false, false),
-        ("series-meadow-cross", true, true, false),
+        ("series-late-summer-cross", true, true, false),
         ("series-movie-honey-hour", true, true, false),
         ("experimental-lamp", false, true, false),
     ] {

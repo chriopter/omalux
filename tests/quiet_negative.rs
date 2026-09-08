@@ -16,9 +16,9 @@ fn dark_edge_pattern(width: u32, height: u32) -> CpuImage {
 }
 
 #[test]
-fn all_28_builtin_presets_render_a_dark_edge_pattern_bounded() {
+fn all_builtin_presets_render_a_dark_edge_pattern_bounded() {
     let catalog = PresetCatalog::built_in().unwrap();
-    assert_eq!(catalog.documents().len(), 28);
+    assert_eq!(catalog.documents().len(), 29);
     let context = DevelopRenderContext::from_source_digest([0x51; 32]);
     for preset in catalog.documents() {
         let mut image = dark_edge_pattern(67, 53);
