@@ -234,7 +234,7 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
     for (id, color, spatial, radial) in [
         ("experimental-verbania", false, true, false),
         ("experimental-blume", true, false, false),
-        ("series-alpine-cross", true, true, false),
+        ("series-meadow-cross", true, true, false),
         ("community-honey-hour", true, true, false),
         ("experimental-lampe-1", false, true, false),
     ] {

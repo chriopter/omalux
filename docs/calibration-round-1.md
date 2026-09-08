@@ -18,6 +18,6 @@ rather than inverts below zero. Every look was then re-tuned; four crush
 looks needed a neutral starting point instead of their archived values.
 
 Still weak on unseen images: blitz (a high-key look whose target treats
-raster and RAW sources differently), kerry, desert-signal, alpine-cross and
+raster and RAW sources differently), kerry, desert-signal, meadow-cross and
 kirche-2. On the camera side, per-camera exposure and the vignette opcode on
 one phone remain open.

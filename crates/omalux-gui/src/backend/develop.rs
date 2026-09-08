@@ -780,7 +780,7 @@ mod tests {
         for id in [
             "experimental-verbania",
             "experimental-blume",
-            "series-alpine-cross",
+            "series-meadow-cross",
             "community-honey-hour",
             "experimental-lampe-1",
         ] {

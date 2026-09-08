@@ -34,11 +34,11 @@ const BUILTIN_PRESETS: &[&str] = &[
     include_str!("../../presets/builtin/experimental-street.json"),
     include_str!("../../presets/builtin/experimental-verbania.json"),
     include_str!("../../presets/builtin/neutral.json"),
-    include_str!("../../presets/builtin/series-alpine-contrast.json"),
-    include_str!("../../presets/builtin/series-alpine-cross.json"),
-    include_str!("../../presets/builtin/series-alpine-neutral.json"),
     include_str!("../../presets/builtin/series-cedar-deep.json"),
     include_str!("../../presets/builtin/series-cedar-fade.json"),
+    include_str!("../../presets/builtin/series-meadow-contrast.json"),
+    include_str!("../../presets/builtin/series-meadow-cross.json"),
+    include_str!("../../presets/builtin/series-meadow-neutral.json"),
 ];
 
 #[derive(Clone, Debug, PartialEq)]
