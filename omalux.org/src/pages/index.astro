@@ -11,10 +11,7 @@
 		<title>Omalux</title>
 		<script is:inline>
 			(() => {
-				let theme;
-				try { theme = localStorage.getItem("omalux-theme"); } catch {}
-				document.documentElement.dataset.theme = theme === "light" || theme === "dark"
-					? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+				document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 			})();
 		</script>
 		<style>
@@ -81,15 +78,6 @@
 				align-items: center; text-align: center;
 				padding: 1.25rem 1.5rem 3rem;
 			}
-			.badge {
-				font-family: "JetBrains Mono", monospace;
-				font-size: 0.7rem; letter-spacing: 0.08em;
-				color: var(--muted);
-				border: 1px solid var(--line); border-radius: 999px;
-				padding: 0.35rem 0.9rem;
-				margin-bottom: 0.85rem;
-			}
-			.badge b { color: var(--accent); font-weight: 500; }
 			.status {
 				margin-top: 0.9rem;
 				font-family: "JetBrains Mono", monospace;
@@ -107,10 +95,6 @@
 				font-weight: 650; letter-spacing: -0.025em; line-height: 1.15;
 				max-width: 34ch;
 			}
-			.tagline {
-				margin-top: 0.9rem; color: var(--muted);
-				font-size: clamp(0.9rem, 2vw, 1rem); max-width: 70ch; line-height: 1.5;
-			}
 			.actions {
 				margin-top: 1.1rem; display: flex; gap: 0.8rem; flex-wrap: wrap; justify-content: center;
 			}
@@ -125,11 +109,6 @@
 				background: var(--fg); color: var(--bg);
 			}
 			.btn-primary:hover { opacity: 0.85; }
-			.btn-ghost {
-				color: var(--fg); border: 1px solid var(--line);
-				font-family: "JetBrains Mono", monospace; font-size: 0.8rem;
-			}
-			.btn-ghost:hover { border-color: var(--muted); }
 			.shot {
 				margin-top: 1.5rem; max-width: min(1150px, 94vw);
 				border: 1px solid var(--line);
@@ -177,17 +156,14 @@
 				</nav>
 			</header>
 			<main>
-				<div class="badge">open source · <b>RAW editor for Omarchy</b></div>
 				<h1>Develop your RAW photos without leaving the keyboard.</h1>
-				<p class="tagline">A free RAW photo editor for Omarchy. Built in Rust, with a minimal interface and keyboard controls.</p>
 				<div class="actions">
 					<a class="btn btn-primary" href="https://github.com/chriopter/omalux">
 						<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
 						View on GitHub
 					</a>
-					<a class="btn btn-ghost" href="https://github.com/chriopter/omalux#readme">Build from source</a>
 				</div>
-				<div class="status">Status: <b>polishing UI &amp; presets</b> — ETA 10 days</div>
+				<div class="status">Status: <b>polishing UI &amp; presets</b></div>
 				<div class="shot">
 					<img class="shot-dark" src="/app-screenshot-dark.png" width="1440" height="920" alt="Omalux in dark mode — a beach photograph with exposure, contrast and color controls" />
 					<img class="shot-light" src="/app-screenshot.png" width="1440" height="920" alt="Omalux in light mode — a beach photograph with exposure, contrast and color controls" />
@@ -214,7 +190,6 @@
 				const controls = document.querySelector(".theme-switch");
 				const system = matchMedia("(prefers-color-scheme: light)");
 				let explicit = false;
-				try { explicit = ["light", "dark"].includes(localStorage.getItem("omalux-theme")); } catch {}
 				function apply(theme) {
 					root.dataset.theme = theme;
 					const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
@@ -226,7 +201,6 @@
 				controls.addEventListener("click", () => {
 					explicit = true;
 					apply(root.dataset.theme === "dark" ? "light" : "dark");
-					try { localStorage.setItem("omalux-theme", root.dataset.theme); } catch {}
 				});
 				system.addEventListener("change", () => {
 					if (!explicit) apply(system.matches ? "light" : "dark");

@@ -29,8 +29,9 @@ path to this checkout. It builds the current GUI and captures the real app at
 It requires the GUI build dependencies, Python 3, and GNU coreutils. No desktop
 session is needed. The pair uses fixed light/dark palettes and installed fonts;
 the desktop theme is not changed. The website follows the system color scheme
-initially and remembers the visitor's selection using local storage. The header
-switch changes both the page colors and the displayed app screenshot.
+on every page load and follows system changes until the visitor manually switches.
+The header switch changes both page colors and the displayed app screenshot for
+the current page visit; the next visit starts with the system color scheme again.
 
 ```bash
 # From the repository root:
