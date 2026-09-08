@@ -69,7 +69,7 @@ ApplicationWindow {
 
         { sequences: ["O", "Ctrl+O"], hint: "O / CTRL+O", description: "OPEN PHOTOGRAPH", section: "FILES", action: "open" },
         { sequences: ["Ctrl+S"], hint: "CTRL+S", description: "SAVE / EXPORT", section: "FILES", action: "save", needsPhoto: true },
-        { sequences: ["Shift+/", "Ctrl+Shift+/", "F1"], hint: "? / F1", description: "KEYBOARD REFERENCE", section: "HELP", action: "help" }
+        { sequences: ["?", "Ctrl+?", "F1"], hint: "? / F1", description: "KEYBOARD REFERENCE", section: "HELP", action: "help" }
     ]
     readonly property string keymapOverview: buildKeymapOverview()
     readonly property var commandLineArguments: Qt.application.arguments
