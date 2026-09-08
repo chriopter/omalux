@@ -6,6 +6,8 @@ film grain, and export JPEG or HEIC. Preview and export share one CPU pipeline.
 
 **In development:** UI and presets are being polished.
 
+The website source and images live in [omalux.org/](omalux.org/README.md).
+
 ![Omalux — RAW photo developer](docs/assets/screenshot.png)
 
 ## Details & development

@@ -1,0 +1,268 @@
+---
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<meta name="description" content="Omalux — an open-source, keyboard-driven RAW photo editor for Omarchy." />
+		<title>Omalux</title>
+		<style>
+			:root {
+				--bg: #0b0d12;
+				--fg: #e8eaf0;
+				--muted: #878da0;
+				--line: rgba(232, 234, 240, 0.1);
+				--accent: #7ea6ff;
+			}
+			* { margin: 0; padding: 0; box-sizing: border-box; }
+			html, body { height: 100%; }
+			body {
+				background: var(--bg);
+				color: var(--fg);
+				font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+				overflow-x: hidden;
+				-webkit-font-smoothing: antialiased;
+			}
+			#scene { position: fixed; inset: 0; z-index: 0; }
+			.ui { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+			header {
+				display: flex; align-items: center; justify-content: space-between;
+				padding: 1.4rem 2rem;
+			}
+			.logo {
+				font-family: "JetBrains Mono", "Fira Code", monospace;
+				font-weight: 600; letter-spacing: 0.08em; font-size: 0.95rem;
+			}
+			.logo::before { content: "❯ "; color: var(--accent); }
+			nav a {
+				color: var(--muted); text-decoration: none; font-size: 0.88rem;
+				display: inline-flex; align-items: center; gap: 0.45rem;
+				transition: color 0.2s ease;
+			}
+			nav a:hover { color: var(--fg); }
+			nav svg { width: 18px; height: 18px; fill: currentColor; }
+			main {
+				flex: 1; display: flex; flex-direction: column;
+				align-items: center; text-align: center;
+				padding: 3rem 1.5rem 4.5rem;
+			}
+			.badge {
+				font-family: "JetBrains Mono", monospace;
+				font-size: 0.7rem; letter-spacing: 0.08em;
+				color: var(--muted);
+				border: 1px solid var(--line); border-radius: 999px;
+				padding: 0.35rem 0.9rem;
+				margin-bottom: 1.6rem;
+			}
+			.badge b { color: var(--accent); font-weight: 500; }
+			.status {
+				margin-top: 1.6rem;
+				font-family: "JetBrains Mono", monospace;
+				font-size: 0.75rem; letter-spacing: 0.04em;
+				color: var(--muted);
+			}
+			.status::before {
+				content: "●"; color: #e8c07a; margin-right: 0.55em;
+				animation: pulse 2.4s ease-in-out infinite;
+			}
+			@keyframes pulse { 50% { opacity: 0.35; } }
+			.status b { color: var(--fg); font-weight: 500; }
+			h1 {
+				font-size: clamp(1.9rem, 4.5vw, 3rem);
+				font-weight: 650; letter-spacing: -0.025em; line-height: 1.15;
+				max-width: 24ch;
+			}
+			.tagline {
+				margin-top: 0.9rem; color: var(--muted);
+				font-size: clamp(0.95rem, 2vw, 1.05rem); max-width: 56ch; line-height: 1.65;
+			}
+			.actions {
+				margin-top: 1.8rem; display: flex; gap: 0.8rem; flex-wrap: wrap; justify-content: center;
+			}
+			.btn {
+				display: inline-flex; align-items: center; gap: 0.55rem;
+				padding: 0.7rem 1.4rem; border-radius: 6px;
+				font-size: 0.88rem; font-weight: 550; text-decoration: none;
+				transition: all 0.2s ease;
+			}
+			.btn svg { width: 17px; height: 17px; fill: currentColor; }
+			.btn-primary {
+				background: var(--fg); color: #14161d;
+			}
+			.btn-primary:hover { background: #fff; }
+			.btn-ghost {
+				color: var(--fg); border: 1px solid var(--line);
+				font-family: "JetBrains Mono", monospace; font-size: 0.8rem;
+			}
+			.btn-ghost:hover { border-color: rgba(232,234,240,0.3); }
+			.shot {
+				margin-top: 3rem; max-width: min(1150px, 94vw);
+				border: 1px solid var(--line);
+				border-radius: 10px; overflow: hidden;
+				box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
+				background: #14161f;
+			}
+			.shot img { display: block; width: 100%; height: auto; }
+			.keys {
+				margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center;
+				font-family: "JetBrains Mono", monospace; font-size: 0.72rem; letter-spacing: 0.04em;
+			}
+			.keys span {
+				padding: 0.4rem 0.85rem; border: 1px solid var(--line);
+				border-radius: 5px; color: var(--muted); background: rgba(232,234,240,0.02);
+			}
+			.keys b { color: var(--fg); font-weight: 500; }
+			footer {
+				padding: 1.6rem 2rem;
+				display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+				color: var(--muted); font-size: 0.8rem;
+				border-top: 1px solid var(--line);
+			}
+			footer a { color: var(--muted); text-decoration: none; }
+			footer a:hover { color: var(--fg); }
+		</style>
+	</head>
+	<body>
+		<canvas id="scene" aria-hidden="true"></canvas>
+		<div class="ui">
+			<header>
+				<div class="logo">omalux</div>
+				<nav>
+					<a href="https://github.com/chriopter/omalux">
+						<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+						GitHub
+					</a>
+				</nav>
+			</header>
+			<main>
+				<div class="badge">open source · <b>RAW editor for Omarchy</b></div>
+				<h1>Develop your RAW photos without leaving the keyboard.</h1>
+				<p class="tagline">Omalux is a free, open-source RAW photo editor built for Omarchy. A fast Rust processing core, a minimal interface, and every control one keystroke away.</p>
+				<div class="actions">
+					<a class="btn btn-primary" href="https://github.com/chriopter/omalux">
+						<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+						View on GitHub
+					</a>
+					<a class="btn btn-ghost" href="https://github.com/chriopter/omalux#readme">cargo build --release</a>
+				</div>
+				<div class="status">Status: <b>polishing UI &amp; presets</b> — ETA 10 days</div>
+				<div class="shot">
+					<img src="/app-screenshot.png" alt="Omalux RAW editor — an underwater photograph open in the editor with exposure, contrast and color controls" />
+				</div>
+				<div class="keys">
+					<span><b>[O]</b> open</span>
+					<span><b>[S]</b> save</span>
+					<span><b>[↑/↓]</b> select</span>
+					<span><b>[←/→]</b> adjust</span>
+					<span><b>[R]</b> reset</span>
+					<span><b>[F]</b> full</span>
+					<span><b>[?]</b> keys</span>
+				</div>
+			</main>
+			<footer>
+				<span>Omalux — open-source RAW editor for <a href="https://omarchy.org">Omarchy</a></span>
+				<span><a href="https://github.com/chriopter/omalux">github.com/chriopter/omalux</a></span>
+			</footer>
+		</div>
+
+		<script>
+			import * as THREE from "three";
+
+			// A quiet backdrop: a slowly drifting field of fine dust and one very
+			// soft light gradient — depth without spectacle.
+			const canvas = document.getElementById("scene") as HTMLCanvasElement;
+			const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+			renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+			const scene = new THREE.Scene();
+			const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+			camera.position.set(0, 0, 12);
+
+			function makeSprite(color: string) {
+				const c = document.createElement("canvas");
+				c.width = c.height = 64;
+				const ctx = c.getContext("2d")!;
+				const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+				g.addColorStop(0, color);
+				g.addColorStop(0.4, color.replace("1)", "0.35)"));
+				g.addColorStop(1, "rgba(0,0,0,0)");
+				ctx.fillStyle = g;
+				ctx.fillRect(0, 0, 64, 64);
+				return new THREE.CanvasTexture(c);
+			}
+
+			// soft cool glow, top of the page, behind the headline
+			const glow = new THREE.Sprite(
+				new THREE.SpriteMaterial({
+					map: makeSprite("rgba(126,166,255,1)"),
+					transparent: true, opacity: 0.14,
+					blending: THREE.AdditiveBlending, depthWrite: false,
+				})
+			);
+			glow.scale.setScalar(26);
+			glow.position.set(0, 7, -6);
+			scene.add(glow);
+
+			// fine dust
+			const N = 500;
+			const pos = new Float32Array(N * 3);
+			const seeds = new Float32Array(N);
+			for (let i = 0; i < N; i++) {
+				pos[i * 3] = (Math.random() - 0.5) * 34;
+				pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
+				pos[i * 3 + 2] = (Math.random() - 0.5) * 12 - 3;
+				seeds[i] = Math.random() * Math.PI * 2;
+			}
+			const dustGeo = new THREE.BufferGeometry();
+			dustGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+			const dust = new THREE.Points(
+				dustGeo,
+				new THREE.PointsMaterial({
+					map: makeSprite("rgba(200,210,235,1)"),
+					color: 0xaab4cf,
+					size: 0.07,
+					transparent: true, opacity: 0.35,
+					depthWrite: false, blending: THREE.AdditiveBlending,
+				})
+			);
+			scene.add(dust);
+
+			let mx = 0, my = 0;
+			addEventListener("pointermove", (e) => {
+				mx = (e.clientX / innerWidth - 0.5) * 2;
+				my = (e.clientY / innerHeight - 0.5) * 2;
+			});
+
+			function resize() {
+				renderer.setSize(innerWidth, innerHeight);
+				camera.aspect = innerWidth / innerHeight;
+				camera.updateProjectionMatrix();
+			}
+			addEventListener("resize", resize);
+			resize();
+
+			renderer.setAnimationLoop((time) => {
+				const t = time / 1000;
+
+				const p = dustGeo.attributes.position.array as Float32Array;
+				for (let i = 0; i < N; i++) {
+					p[i * 3 + 1] += Math.sin(t * 0.25 + seeds[i]) * 0.0012;
+					p[i * 3] += Math.cos(t * 0.18 + seeds[i]) * 0.0009;
+				}
+				dustGeo.attributes.position.needsUpdate = true;
+				dust.rotation.y = t * 0.006;
+
+				(glow.material as THREE.SpriteMaterial).opacity = 0.12 + Math.sin(t * 0.3) * 0.03;
+
+				camera.position.x += (mx * 0.4 - camera.position.x) * 0.03;
+				camera.position.y += (-my * 0.3 - camera.position.y) * 0.03;
+				camera.lookAt(0, 0, 0);
+
+				renderer.render(scene, camera);
+			});
+		</script>
+	</body>
+</html>

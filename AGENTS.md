@@ -16,6 +16,7 @@ src/job/                the develop job: runner, production, reports
 src/command/            the omalux command line
 crates/omalux-gui/      the desktop app (Rust backend, QML in qml/)
 tools/calibration/      scripts that tune presets against target renderings
+omalux.org/             Astro website, static images, and Cloudflare configuration
 tests/                  integration tests; docs/ the design notes
 ```
 
