@@ -206,8 +206,8 @@ int om_engine_update_controls(OmEngine *engine, const float *values, const unsig
     }
     return om_engine_bind_controls(engine);
 }
-int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width, int *height,
-                     int interactive) {
+int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width, int *height, int interactive,
+                     OmPreviewGeometry *geometry) {
     if (!engine->loaded)
         return 1;
     const int target_width = interactive ? OM_FAST_PREVIEW_WIDTH : OM_PREVIEW_WIDTH;
@@ -221,6 +221,7 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
     if (g_getenv("OMALUX_FLUSH_PREVIEW_CACHE"))
         dt_dev_pixelpipe_cache_flush(engine->dev.full.pipe);
     dt_dev_process_image_job(&engine->dev, &engine->dev.full, engine->dev.full.pipe, -1, DT_DEVICE_NONE);
+    om_preview_geometry(engine->dev.full.pipe, geometry);
     *pixels = engine->dev.full.pipe->backbuf;
     *width = engine->dev.full.pipe->backbuf_width;
     *height = engine->dev.full.pipe->backbuf_height;

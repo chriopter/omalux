@@ -2,6 +2,7 @@
 #pragma once
 #include "engine/controls.h"
 #include <QImage>
+#include <QVector4D>
 #include <QString>
 #include <QMetaType>
 #include <array>
@@ -30,6 +31,8 @@ struct RenderResult {
     WorkTicket ticket;
     QImage image;
     QString status, gpuWarning;
+    double aspectRatio = 1;
+    QVector4D textureTransform{1, 1, 0, 0};
 };
 Q_DECLARE_METATYPE(ControlValues)
 Q_DECLARE_METATYPE(WorkTicket)

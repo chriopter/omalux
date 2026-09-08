@@ -39,3 +39,5 @@ void om_preset_baseline_clear(OmEngine *engine);
 void om_preset_baseline_capture(OmEngine *engine);
 void om_preset_baseline_restore(OmEngine *engine);
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module);
+
+void om_preview_geometry(const dt_dev_pixelpipe_t *pipe, OmPreviewGeometry *geometry);

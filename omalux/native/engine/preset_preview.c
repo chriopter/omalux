@@ -4,7 +4,7 @@
 // Worker-only scratch develop context. Never apply a hover to the editor's
 // modules/history, never write image history to the database or comparison UI.
 int om_engine_preview_style(OmEngine *engine, const char *path, const char *name, unsigned char **pixels,
-                            int *width, int *height) {
+                            int *width, int *height, OmPreviewGeometry *geometry) {
     *pixels = NULL;
     if (!engine->loaded)
         return 1;
@@ -20,8 +20,8 @@ int om_engine_preview_style(OmEngine *engine, const char *path, const char *name
     scratch.full.dev = &scratch;
     scratch.full.zoom = DT_ZOOM_FIT;
     scratch.full.ppd = 1.0;
-    scratch.full.width = OM_FAST_PREVIEW_WIDTH;
-    scratch.full.height = OM_FAST_PREVIEW_HEIGHT;
+    scratch.full.width = OM_PREVIEW_WIDTH;
+    scratch.full.height = OM_PREVIEW_HEIGHT;
     scratch.full.color_assessment = FALSE;
     int result = 3;
     // Match click-to-apply semantics: the image's opening baseline plus style,
@@ -56,6 +56,7 @@ int om_engine_preview_style(OmEngine *engine, const char *path, const char *name
     dt_dev_process_image_job(&scratch, &scratch.full, scratch.full.pipe, -1, DT_DEVICE_NONE);
     if (scratch.full.pipe->status == DT_DEV_PIXELPIPE_VALID && scratch.full.pipe->backbuf &&
         scratch.full.pipe->backbuf_width > 0 && scratch.full.pipe->backbuf_height > 0) {
+        om_preview_geometry(scratch.full.pipe, geometry);
         *width = scratch.full.pipe->backbuf_width;
         *height = scratch.full.pipe->backbuf_height;
         *pixels = g_memdup2(scratch.full.pipe->backbuf, (size_t)*width * *height * 4);

@@ -32,7 +32,7 @@
     "checkHover": true
   },
   {
-    "checkPreviewWidth": 700
+    "checkHoverFull": true
   },
   {
     "checkControls": "controls"
@@ -59,7 +59,7 @@
     "checkHover": true
   },
   {
-    "checkPreviewWidth": 700
+    "checkHoverFull": true
   },
   {
     "checkStack": "stack"
@@ -107,7 +107,7 @@
     "checkHover": true
   },
   {
-    "checkPreviewWidth": 700
+    "checkHoverFull": true
   },
   {
     "clickItem": "preset-apply-chromatic/preset.dtstyle"

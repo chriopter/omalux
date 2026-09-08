@@ -5,6 +5,8 @@ Rectangle {
     id: root
     required property var theme
     required property string preview
+    required property real previewAspectRatio
+    required property vector4d textureTransform
     required property string status
     property bool cropping: false
     property var crop: ({x:0,y:0,width:1,height:1})
@@ -13,7 +15,7 @@ Rectangle {
     property real zoom: 1
     readonly property real fitWidth: Math.max(1, width - 40)
     readonly property real fitHeight: Math.max(1, height - 40)
-    readonly property real ratio: photo.sourceSize.height > 0 ? photo.sourceSize.width / photo.sourceSize.height : 1
+    readonly property real ratio: root.previewAspectRatio > 0 ? root.previewAspectRatio : 1
     readonly property real imageWidth: Math.min(fitWidth, fitHeight * ratio) * zoom
     readonly property real imageHeight: imageWidth / ratio
     function fit() { zoom = 1; flick.contentX = 0; flick.contentY = 0 }
@@ -33,8 +35,17 @@ Rectangle {
             y: (flick.contentHeight - height) / 2
             width: root.imageWidth; height: root.imageHeight
             source: root.preview
-            fillMode: Image.PreserveAspectFit
+            // Fit the logical image bounds above, independent of rounded raster dimensions.
+            fillMode: Image.Stretch
             cache: false; asynchronous: false
+            visible: GraphicsInfo.api === GraphicsInfo.Software
+        }
+        ShaderEffect {
+            visible: GraphicsInfo.api !== GraphicsInfo.Software
+            x: photo.x; y: photo.y; width: photo.width; height: photo.height
+            property variant source: photo
+            property vector4d textureTransform: root.textureTransform
+            fragmentShader: "../../build/shaders/preview.frag.qsb"
         }
         CropOverlay {
             x: photo.x; y: photo.y; width: photo.width; height: photo.height

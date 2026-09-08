@@ -35,6 +35,12 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     auto waiting = std::make_shared<bool>(false);
     auto dragging = std::make_shared<bool>(false);
     auto historyMarks = std::make_shared<QVariantMap>();
+    QObject::connect(&editor, &Editor::changed, &app, [&, historyMarks] {
+        if (editor.preview().startsWith("image://hover/")) {
+            const auto image = static_cast<Frames *>(engine.imageProvider("hover"))->image();
+            (*historyMarks)[QString("hover-width-%1").arg(image.width())] = true;
+        }
+    });
     auto *timer = new QTimer(&app);
     timer->setInterval(150);
     QObject::connect(
@@ -210,6 +216,14 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             } else if (step.contains("export")) {
                 editor.exportPhoto(QUrl::fromLocalFile(step["export"].toString()), 90);
                 *waiting = true;
+            } else if (step.contains("checkHoverFull")) {
+                const auto image = static_cast<Frames *>(engine.imageProvider("hover"))->image();
+                if (!editor.preview().startsWith("image://hover/") || image.width() != 1400 ||
+                    (*historyMarks)["hover-width-700"].toBool()) {
+                    qCritical() << "Expected full-resolution hover without a draft frame";
+                    app.exit(2);
+                    return;
+                }
             } else if (step.contains("checkPreviewWidth")) {
                 auto *displayFrames = editor.preview().startsWith("image://hover/")
                                           ? static_cast<Frames *>(engine.imageProvider("hover"))

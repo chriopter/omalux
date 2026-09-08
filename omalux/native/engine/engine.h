@@ -5,6 +5,10 @@ extern "C" {
 #endif
 // One worker owns this adapter. libdarktable itself remains process-global.
 typedef struct OmEngine OmEngine;
+typedef struct {
+    double aspect_ratio;
+    float scale_x, scale_y, offset_x, offset_y;
+} OmPreviewGeometry;
 OmEngine *om_engine_create(int argc, char **argv);
 const char *om_engine_gpu_warning(OmEngine *engine);
 int om_engine_open(OmEngine *engine, const char *path);
@@ -13,12 +17,12 @@ char *om_engine_style_details(OmEngine *engine, const char *path, const char *na
 void om_engine_free_json(char *value);
 void om_engine_read_controls(OmEngine *engine, float *values);
 int om_engine_update_controls(OmEngine *engine, const float *values, const unsigned char *changed);
-int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width, int *height,
-                     int interactive);
+int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width, int *height, int interactive,
+                     OmPreviewGeometry *geometry);
 void om_engine_cleanup(OmEngine *engine);
 int om_engine_halation(OmEngine *engine);
 int om_engine_preview_style(OmEngine *engine, const char *path, const char *name, unsigned char **pixels,
-                            int *width, int *height);
+                            int *width, int *height, OmPreviewGeometry *geometry);
 void om_engine_free_preview(unsigned char *pixels);
 char *om_engine_metadata(OmEngine *engine);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);

@@ -28,7 +28,7 @@ class EngineWorker : public QObject {
     void presetsReady(QVariantList presets);
     void styleReady(QString name);
     void frameReady(RenderResult result);
-    void hoverReady(QImage image, quint64 revision);
+    void hoverReady(QImage image, quint64 revision, double aspectRatio, QVector4D textureTransform);
     void failed(WorkTicket ticket, QString message);
 
   private:

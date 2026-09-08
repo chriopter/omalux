@@ -64,6 +64,8 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 theme: editorTheme
                 preview: editor.preview
+                previewAspectRatio: editor.previewAspectRatio
+                textureTransform: editor.previewTextureTransform
                 status: editor.status
             }
             EditorSidebar {

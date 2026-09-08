@@ -6,6 +6,12 @@
 QString Editor::preview() const {
     return hoverUrl.isEmpty() ? url : hoverUrl;
 }
+double Editor::previewAspectRatio() const {
+    return hoverUrl.isEmpty() ? normalAspectRatio : hoverAspectRatio;
+}
+QVector4D Editor::previewTextureTransform() const {
+    return hoverUrl.isEmpty() ? normalTextureTransform : hoverTextureTransform;
+}
 QString Editor::status() const {
     return hoverUrl.isEmpty() ? message : "Preset preview · click to apply";
 }
@@ -142,13 +148,17 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         emit changed();
     });
     connect(worker.get(), &EngineWorker::frameReady, this, &Editor::showFrame);
-    connect(worker.get(), &EngineWorker::hoverReady, this, [this](QImage image, quint64 revision) {
-        if (revision != hoverRevision || hoverId.isEmpty())
-            return;
-        hoverFrames->set(image);
-        hoverUrl = QString("image://hover/%1").arg(revision);
-        emit changed();
-    });
+    connect(worker.get(), &EngineWorker::hoverReady, this,
+            [this](QImage image, quint64 revision, double aspectRatio, QVector4D textureTransform) {
+                if (revision != hoverRevision || hoverId.isEmpty())
+                    return;
+                hoverFrames->set(image);
+                hoverAspectRatio = aspectRatio;
+                hoverTextureTransform = textureTransform;
+                hoverUrl =
+                    QString("image://hover/%1/%2x%3").arg(revision).arg(image.width()).arg(image.height());
+                emit changed();
+            });
     connect(worker.get(), &EngineWorker::failed, this, [this](WorkTicket ticket, QString error) {
         if (ticket.epoch != requestedTicket.epoch)
             return;
@@ -172,6 +182,8 @@ void Editor::showFrame(RenderResult result) {
     message = result.status;
     applyingStyle = false;
     frames->set(result.image);
+    normalAspectRatio = result.aspectRatio;
+    normalTextureTransform = result.textureTransform;
     url = QString("image://preview/%1").arg(result.ticket.revision);
     qInfo().noquote() << message;
     emit changed();

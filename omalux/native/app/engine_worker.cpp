@@ -147,12 +147,15 @@ void EngineWorker::renderHover(OmEngine *engine, const Request &request) {
         return;
     unsigned char *pixels = nullptr;
     int width = 0, height = 0;
+    OmPreviewGeometry geometry{};
     requireEngine(om_engine_preview_style(engine, preset->path.toUtf8().constData(),
-                                          preset->name.toUtf8().constData(), &pixels, &width, &height),
+                                          preset->name.toUtf8().constData(), &pixels, &width, &height,
+                                          &geometry),
                   "Could not render preset preview");
     const auto image = copyDisplayPixels(pixels, width, height);
     om_engine_free_preview(pixels);
-    emit hoverReady(image, request.hoverRevision);
+    emit hoverReady(image, request.hoverRevision, geometry.aspect_ratio,
+                    QVector4D(geometry.scale_x, geometry.scale_y, geometry.offset_x, geometry.offset_y));
 }
 void EngineWorker::replaceControls(OmEngine *engine, Request &request, ControlRevisions &processed) {
     om_engine_read_controls(engine, request.values.data());
@@ -245,12 +248,16 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     timer.start();
     const unsigned char *pixels = nullptr;
     int width = 0, height = 0;
-    requireEngine(om_engine_render(engine, &pixels, &width, &height, request.draft),
+    OmPreviewGeometry geometry{};
+    requireEngine(om_engine_render(engine, &pixels, &width, &height, request.draft, &geometry),
                   "darktable preview failed");
     RenderResult result{request.ticket,
                         copyDisplayPixels(pixels, width, height),
                         {},
                         QString::fromUtf8(om_engine_gpu_warning(engine))};
+    result.aspectRatio = geometry.aspect_ratio;
+    result.textureTransform =
+        QVector4D(geometry.scale_x, geometry.scale_y, geometry.offset_x, geometry.offset_y);
     if (!savedDirectory.isEmpty()) {
         catalog.finishPreview(savedDirectory, result.image);
         emit presetsReady(catalog.reload(engine));

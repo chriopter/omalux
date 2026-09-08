@@ -8,6 +8,8 @@
 class Editor : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString preview READ preview NOTIFY changed)
+    Q_PROPERTY(double previewAspectRatio READ previewAspectRatio NOTIFY changed)
+    Q_PROPERTY(QVector4D previewTextureTransform READ previewTextureTransform NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString gpuWarning READ gpuWarning NOTIFY changed)
     Q_PROPERTY(QString filename READ filename NOTIFY changed)
@@ -25,6 +27,8 @@ class Editor : public QObject {
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
     ~Editor() override;
     QString preview() const;
+    double previewAspectRatio() const;
+    QVector4D previewTextureTransform() const;
     QString status() const;
     QString gpuWarning() const;
     QString filename() const;
@@ -65,6 +69,8 @@ class Editor : public QObject {
     void showFrame(RenderResult result);
     std::unique_ptr<EngineWorker> worker;
     Frames *frames, *hoverFrames;
+    double normalAspectRatio = 1, hoverAspectRatio = 1;
+    QVector4D normalTextureTransform{1, 1, 0, 0}, hoverTextureTransform{1, 1, 0, 0};
     QString source, url, hoverUrl, hoverId, gpuMessage, message = "Loading image…";
     QString styleError, applyingId, styleName;
     ControlValues values{};

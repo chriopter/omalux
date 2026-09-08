@@ -23,6 +23,9 @@ if [[ ! -d "$headers/src" ]]; then
   mkdir -p "$headers"
   git -C darktable archive "$tag" src | tar -x -C "$headers"
 fi
+mkdir -p omalux/build/shaders
+/usr/lib/qt6/bin/qsb --glsl '100 es,120,150' --hlsl 50 --msl 12 \
+  -o omalux/build/shaders/preview.frag.qsb omalux/shaders/preview.frag
 # Build each module separately. Only objects from this invocation are linked.
 objects=()
 for source in omalux/native/engine/*.c; do
