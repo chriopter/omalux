@@ -17,7 +17,24 @@ App.Main {
 
     // Main calls this only once Qt has loaded the developed photo into its Image.
     // Override the export hook so the capture follows the real preview lifecycle.
+    function expandPresetList(item) {
+        if (item.expandedGroups !== undefined) {
+            item.expandedGroups = { film: true }
+            return true
+        }
+        for (const child of item.children || []) {
+            if (expandPresetList(child)) return true
+        }
+        return false
+    }
+
     function continueCliExport() {
+        window.selectedPanel = window.argumentValue("--panel", "filters") === "presets" ? 1 : 0
+        if (window.selectedPanel === 1 && !expandPresetList(window.contentItem)) {
+            console.error("Could not expand the preset list for capture")
+            Qt.exit(1)
+            return
+        }
         const theme = window.argumentValue("--theme", "current")
         if (theme !== "current") {
             // Change only this capture process; the user's desktop theme is untouched.
@@ -43,7 +60,7 @@ App.Main {
 
     Timer {
         id: settle
-        interval: 300
+        interval: 700
         onTriggered: {
             // ApplicationWindow's native contentItem cannot grabToImage itself.
             // Keep its actual children and background on a QML capture surface.

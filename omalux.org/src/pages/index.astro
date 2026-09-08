@@ -110,6 +110,7 @@
 			}
 			.btn-primary:hover { opacity: 0.85; }
 			.shot {
+				display: grid;
 				margin-top: 1.5rem; max-width: min(1150px, 94vw);
 				border: 1px solid var(--line);
 				border-radius: 10px; overflow: hidden;
@@ -117,6 +118,10 @@
 				background: var(--surface);
 			}
 			.shot img { display: block; width: 100%; height: auto; }
+			.slide { grid-area: 1 / 1; min-width: 0; transition: opacity 450ms ease-in-out; }
+			.slide-presets { opacity: 0; }
+			.shot[data-slide="presets"] .slide-presets { opacity: 1; }
+			@media (prefers-reduced-motion: reduce) { .slide { transition: none; } }
 			.shot .shot-light { display: none; }
 			:root[data-theme="light"] .shot-dark { display: none; }
 			:root[data-theme="light"] .shot-light { display: block; }
@@ -164,9 +169,15 @@
 					</a>
 				</div>
 				<div class="status">Status: <b>polishing UI &amp; presets</b></div>
-				<div class="shot">
+				<div class="shot" data-slide="filters" aria-label="Omalux filters and preset views">
+					<div class="slide slide-filters" aria-hidden="false">
 					<img class="shot-dark" src="/app-screenshot-dark.png" width="1440" height="920" alt="Omalux in dark mode — a beach photograph with exposure, contrast and color controls" />
 					<img class="shot-light" src="/app-screenshot.png" width="1440" height="920" alt="Omalux in light mode — a beach photograph with exposure, contrast and color controls" />
+					</div>
+					<div class="slide slide-presets" aria-hidden="true">
+					<img class="shot-dark" src="/app-presets-dark.png" width="1440" height="920" alt="Omalux in dark mode with the preset list expanded" />
+					<img class="shot-light" src="/app-presets.png" width="1440" height="920" alt="Omalux in light mode with the preset list expanded" />
+					</div>
 				</div>
 				<div class="keys">
 					<span><b>[O]</b> open</span>
@@ -205,6 +216,31 @@
 				system.addEventListener("change", () => {
 					if (!explicit) apply(system.matches ? "light" : "dark");
 				});
+			})();
+		</script>
+		<script is:inline>
+			(() => {
+				const gallery = document.querySelector(".shot");
+				const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+				let timer;
+				let ready = false;
+				function show(view) {
+					gallery.dataset.slide = view;
+					gallery.querySelector(".slide-filters").setAttribute("aria-hidden", String(view !== "filters"));
+					gallery.querySelector(".slide-presets").setAttribute("aria-hidden", String(view !== "presets"));
+				}
+				function sync() {
+					clearInterval(timer);
+					if (reducedMotion.matches) { show("filters"); return; }
+					if (ready && !document.hidden) {
+						timer = setInterval(() => show(gallery.dataset.slide === "filters" ? "presets" : "filters"), 2000);
+					}
+				}
+				Promise.all([...gallery.querySelectorAll("img")].map(image => image.decode()))
+					.then(() => { ready = true; sync(); })
+					.catch(() => show("filters"));
+				document.addEventListener("visibilitychange", sync);
+				reducedMotion.addEventListener("change", sync);
 			})();
 		</script>
 		<script>

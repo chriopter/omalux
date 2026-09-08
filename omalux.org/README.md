@@ -24,21 +24,27 @@ light/dark theme and uses a sun/moon button to switch modes.
 
 From any directory, run `omalux.org/scripts/screenshots.sh` using the appropriate
 path to this checkout. It builds the current GUI and captures the real app at
-1440×920 with the repository beach image, replacing `public/app-screenshot.png`
-(light) and `public/app-screenshot-dark.png` (dark).
+1440×920 with the repository beach image. It generates the filter view as
+`public/app-screenshot.png` / `public/app-screenshot-dark.png` and the preset
+view, with the Film group expanded, as `public/app-presets.png` /
+`public/app-presets-dark.png`.
 It requires the GUI build dependencies, Python 3, and GNU coreutils. No desktop
-session is needed. The pair uses fixed light/dark palettes and installed fonts;
+session is needed. The captures use fixed light/dark palettes and installed fonts;
 the desktop theme is not changed. The website follows the system color scheme
 on every page load and follows system changes until the visitor manually switches.
 The header switch changes both page colors and the displayed app screenshot for
 the current page visit; the next visit starts with the system color scheme again.
+The filter and preset views alternate every two seconds with a 450ms fade once
+all images have loaded. Rotation pauses in background tabs and is disabled when
+the visitor prefers reduced motion.
 
 ```bash
 # From the repository root:
 omalux.org/scripts/screenshots.sh
 omalux.org/scripts/screenshots.sh /path/to/photo.jpg
-# Capture one image; omit the last argument to use the current app theme:
+# Capture one image (theme defaults to current; panel defaults to filters):
 omalux.org/scripts/screenshot.sh /path/to/photo.jpg /tmp/omalux-screenshot.png dark
+omalux.org/scripts/screenshot.sh /path/to/photo.jpg /tmp/omalux-presets.png light presets
 ```
 
 The previous screenshot survives a build or capture failure. Review the resulting
