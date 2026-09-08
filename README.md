@@ -18,12 +18,12 @@ This is an independent project, not an official darktable edition or an endorsem
 
 ## Repository layout
 
-- [omalux/](omalux/): the Qt/QML interface, native C/C++ adapter and development launcher.
-- [darktable/](darktable/): unchanged upstream source, pinned to a stable release by the Git submodule entry.
-- [presets/](presets/README.md): bundled darktable styles, starting with Chromatic.
-- [assets/](assets/README.md): the logo and default beach volleyball image.
-- [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
-- [omalux.org/](omalux.org/README.md): the website.
+- [omalux/](omalux): the Qt/QML interface, native C/C++ adapter and development launcher.
+- [darktable/](darktable): unchanged upstream source, pinned to a stable release by the Git submodule entry.
+- [presets/](docs/presets.md): Chromatic and all 29 converted v0 looks, with bundled thumbnails and LUTs.
+- [assets/](docs/assets.md): the logo and default beach volleyball image.
+- [omalux-v0/](docs/v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
+- [omalux.org/](docs/website.md): the website.
 
 To run the original app:
 
@@ -73,6 +73,7 @@ Run from the repository root:
 
 - `bin/dev [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
 - `bin/dev_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
+- `bin/preset_preview <folder>` / `bin/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and reference metadata, e.g. `bin/preset_preview chromatic` (requires ImageMagick).
 - `bin/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
@@ -82,7 +83,7 @@ bin/dev --input "/path/to/photo.jpg"
 bin/dev_split "/path/to/photo.jpg"
 ```
 
-The UI follows the original dark Omalux layout. **Brightness, contrast and saturation** are active: drag a slider or use Left/Right for the last selected control. Press R to reset all three sliders (this does not undo other style modules, such as exposure). Under **PRESETS**, search the available looks, expand a name to inspect its modules and stored settings, and choose **Apply**. Chromatic combines stronger color/contrast with a gentle exposure lift. Styles can also affect modules that have no Omalux slider. Add `.dtstyle` files to `presets/` and restart; see [preset details and compatibility](presets/README.md). Open, save, zoom, preset creation and the other tools are placeholders. Images are chosen through the launch argument for now.
+The UI follows the original dark Omalux layout. **Brightness, contrast and saturation** are active: drag a slider or use Left/Right for the last selected control. Press R to reset all three sliders (this does not undo other style modules, such as exposure). In the separate **Presets** tab (second sidebar icon, as in v0), search the available looks, click its thumbnail/name to apply, and expand the arrow to inspect its modules and stored settings. The compact preview rows follow the v0 UI. Chromatic combines stronger color/contrast with a gentle exposure lift. Styles can also affect modules that have no Omalux slider. Add a folder with `preset.dtstyle` and `thumbnail.jpg` under `presets/` and restart; see [preset details and compatibility](docs/presets.md). Open, save, zoom, preset creation and the other tools are placeholders. Images are chosen through the launch argument for now.
 
 The launcher builds the C/C++ adapter on demand using `cc`, `c++`, `pkg-config` and Qt 6’s `moc`. It needs Python 3, Git, Qt 6 Quick/Quick Controls, and development headers for GTK 3, JSON-GLib, Little CMS, SQLite, Lua and librsvg. The current Linux build expects Qt tools under `/usr/lib/qt6/` and an installed release build of darktable 5.6.0 or 5.6.1. It does not build the darktable submodule itself.
 
@@ -92,9 +93,18 @@ The engine runs inside the Qt application on a dedicated worker thread. It keeps
 
 For AMD GPUs using Mesa Rusticl, install `opencl-mesa`; the dev launcher defaults `RUSTICL_ENABLE` to `radeonsi` unless you override it. The UI status “OpenCL auto” indicates automatic device selection, not that every module ran on the GPU.
 
-Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Edits are not saved when the session closes. Both scripts open their windows on your current workspace.
+Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Edits are not saved when the session closes. Window placement follows your desktop rules. On the development machine, Omalux opens silently on workspace 3 and the darktable comparison window on workspace 4.
 
 Split mode runs two independent engines with separate databases. Omalux publishes style events and coalesced control snapshots to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies it through darktable’s GUI actions when the darkroom is open. Omalux never waits for the comparison render. Synchronization is one-way and covers brightness, contrast, saturation and applying any compatible style in the preset catalogue; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
+
+### UI structure
+
+- `omalux/ui/Main.qml` — window layout, backend wiring and keyboard shortcuts.
+- `omalux/ui/EditorSidebar.qml` — tabs, panel selection and panel/backend connections.
+- `omalux/ui/panels/FiltersPanel.qml` — editing controls; `PresetsPanel.qml` — search, v0-style groups and expanded preset state.
+- `omalux/ui/components/` — reusable sliders, preset cards, toolbar, image viewport, GPU notice and status bar; `EditorTheme.qml` holds shared colors and typography.
+
+Give each new sidebar pane its own file. Panels receive data through properties and emit action signals; shared components do not access the global backend. Engine work stays in the native adapter and its worker thread.
 
 ### Adding a slider
 
@@ -102,4 +112,8 @@ Add one row to [`omalux/native/controls.h`](omalux/native/controls.h): ID, label
 
 `editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
 
-See the [darktable source analysis](omalux/docs/darktable-architecture.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. Current prototype limitations: the `IMAGE` pipe flag disables intermediate pixelpipe cache reuse, and the three sliders use the deprecated `colisa` module. Persistent decoded-input caching and intermediate processing caches are separate mechanisms.
+See the [darktable source analysis](docs/darktable-architecture.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. Current prototype limitations: the `IMAGE` pipe flag disables intermediate pixelpipe cache reuse, and the three sliders use the deprecated `colisa` module. Persistent decoded-input caching and intermediate processing caches are separate mechanisms.
+
+## TODO
+
+- [ ] **Calibrate presets** — tune all 29 converted v0 looks against their intended appearance using the current darktable engine; review the [conversion notes](docs/presets.md#one-time-v0-conversion).

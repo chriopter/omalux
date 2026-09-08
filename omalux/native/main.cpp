@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <QQuickWindow>
-#include <QQuickItem>
 #include <QQuickStyle>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -23,15 +22,9 @@
 #include <cmath>
 #include <condition_variable>
 #include <mutex>
+#include <memory>
 #include <thread>
 #include <vector>
-
-static QQuickItem *findVisualItem(QQuickItem *item, const QString &name) {
-    if(item->objectName()==name) return item;
-    for(auto *child:item->childItems())
-        if(auto *found=findVisualItem(child,name)) return found;
-    return nullptr;
-}
 
 extern "C" {
 int om_engine_init(int, char **);
@@ -160,7 +153,7 @@ private:
     QVariantList loadPresetCatalog() {
         QVariantList catalog;
         for(const auto &preset:presetFiles) {
-            QVariantMap entry{{"id",preset.id},{"name",preset.name},{"description",preset.description},{"error",preset.error},{"modules",QVariantList{}}};
+            QVariantMap entry{{"id",preset.id},{"name",preset.name},{"description",preset.description},{"previewUrl",preset.previewUrl},{"error",preset.error},{"modules",QVariantList{}}};
             if(preset.error.isEmpty()) {
                 char *raw=om_engine_style_details(preset.path.toUtf8().constData(),preset.name.toUtf8().constData());
                 auto details=QJsonDocument::fromJson(raw).object(); om_engine_free_json(raw);
@@ -298,16 +291,44 @@ int main(int argc,char **argv) {
     engine.rootContext()->setContextProperty("assetsRoot",QUrl::fromLocalFile(args[2]+"/"));
     engine.load(QUrl::fromLocalFile(QStringLiteral(OMALUX_QML)));
     if(engine.rootObjects().isEmpty()) return 1;
+    // Batch thumbnails advance only after a completed engine render, without per-style startup.
+    if(qEnvironmentVariableIsSet("OMALUX_PREVIEW_DIR")) {
+        auto ids=std::make_shared<QStringList>();
+        for(const auto &id:QJsonDocument::fromJson(qgetenv("OMALUX_PREVIEW_IDS")).array()) ids->append(id.toString());
+        auto index=std::make_shared<int>(0);
+        auto waiting=std::make_shared<bool>(false);
+        auto advance=[&,ids,index,waiting] {
+            if(!editor.presetsReady() || editor.preview().isEmpty() || editor.styleBusy()) return;
+            if(!editor.presetError().isEmpty() || !editor.status().startsWith("Ready")) {
+                qCritical() << "Batch render failed:" << editor.presetError() << editor.status(); app.exit(2); return;
+            }
+            if(*waiting) {
+                const QString path=QDir(qEnvironmentVariable("OMALUX_PREVIEW_DIR")).filePath(ids->at(*index)+".png");
+                if(!QDir().mkpath(QFileInfo(path).absolutePath()) || !frames->image().save(path)) {
+                    qCritical() << "Could not save preview:" << path; app.exit(2); return;
+                }
+                qInfo().noquote() << "Rendered" << ids->at(*index);
+                ++*index; *waiting=false;
+            }
+            if(*index==ids->size()) {app.quit(); return;}
+            *waiting=true; editor.applyPreset(ids->at(*index));
+        };
+        QObject::connect(&editor,&Editor::changed,&app,[&app,advance]{QTimer::singleShot(0,&app,advance);});
+        QTimer::singleShot(0,&app,advance);
+        QTimer::singleShot(300000,&app,[&]{qCritical() << "Batch preview timed out"; app.exit(2);});
+    }
     // Optional offscreen development capture, no effect during normal launches.
     if(qEnvironmentVariableIsSet("OMALUX_CAPTURE")) {
         QTimer::singleShot(qEnvironmentVariableIntValue("OMALUX_CAPTURE_DELAY") > 0 ? qEnvironmentVariableIntValue("OMALUX_CAPTURE_DELAY") / 2 : 2000,&app,[&]{frames->image().save(qEnvironmentVariable("OMALUX_CAPTURE")+".neutral.png");
-            if(qEnvironmentVariableIsSet("OMALUX_CAPTURE_EXPAND")) {
-                auto *window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
-                auto *toggle=window ? findVisualItem(window->contentItem(),"preset-toggle-"+qEnvironmentVariable("OMALUX_CAPTURE_EXPAND")) : nullptr;
-                if(toggle) toggle->setProperty("checked",true);
-                else qWarning() << "Preset expansion target not found";
-            } if(qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE")) editor.applyPreset(qEnvironmentVariable("OMALUX_CAPTURE_STYLE")=="1" ? "chromatic.dtstyle" : qEnvironmentVariable("OMALUX_CAPTURE_STYLE")); else editor.setControl(qEnvironmentVariable("OMALUX_CAPTURE_CONTROL", "brightness"), qEnvironmentVariableIsSet("OMALUX_CAPTURE_VALUE") ? qEnvironmentVariable("OMALUX_CAPTURE_VALUE").toDouble() : 0.30);});
+            if(qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE")) engine.rootObjects().first()->setProperty("selectedPanel",1);
+            if(qEnvironmentVariableIsSet("OMALUX_CAPTURE_EXPAND"))
+                QMetaObject::invokeMethod(engine.rootObjects().first(),"showPresetDetails",Q_ARG(QVariant,QVariant(qEnvironmentVariable("OMALUX_CAPTURE_EXPAND"))));
+            if(qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE")) editor.applyPreset(qEnvironmentVariable("OMALUX_CAPTURE_STYLE")=="1" ? "chromatic/preset.dtstyle" : qEnvironmentVariable("OMALUX_CAPTURE_STYLE")); else editor.setControl(qEnvironmentVariable("OMALUX_CAPTURE_CONTROL", "brightness"), qEnvironmentVariableIsSet("OMALUX_CAPTURE_VALUE") ? qEnvironmentVariable("OMALUX_CAPTURE_VALUE").toDouble() : 0.30);});
         QTimer::singleShot(qEnvironmentVariableIntValue("OMALUX_CAPTURE_DELAY") > 0 ? qEnvironmentVariableIntValue("OMALUX_CAPTURE_DELAY") : 4500,&app,[&]{
+            if(editor.preview().isEmpty() || editor.styleBusy() || !editor.presetError().isEmpty()
+               || (qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE") && editor.activeStyle().isEmpty())) {
+                qCritical() << "Capture did not finish applying the requested settings"; app.exit(2); return;
+            }
             auto window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());
             if(window) window->grabWindow().save(qEnvironmentVariable("OMALUX_CAPTURE"));
             frames->image().save(qEnvironmentVariable("OMALUX_CAPTURE")+".preview.png");

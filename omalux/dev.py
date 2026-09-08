@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build and run the native Qt/darktable prototype in a private session."""
 import argparse
+import json
+from preset_assets import prepare_assets
 import os
 from pathlib import Path
 import subprocess
@@ -35,23 +37,30 @@ def main():
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)
         dt = os.environ.get('DARKTABLE_BIN', '/usr/bin/darktable')
-        dtargs = [dt, '--configdir', str(session / 'config'), '--cachedir', str(session / 'cache'),
+        lut_config = 'plugins/darkroom/lut3d/def_path=' + str(Path(os.environ['OMALUX_PRESETS_DIR']).resolve())
+        dtargs = [dt, '--conf', lut_config, '--configdir', str(session / 'config'), '--cachedir', str(session / 'cache'),
                   '--library', str(session / 'library.db'), '--moduledir', os.environ.get('DARKTABLE_MODULEDIR','/usr/lib/darktable'),
                   '--datadir', os.environ.get('DARKTABLE_DATADIR','/usr/share/darktable'),
                   '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
                   '--conf', 'ui/show_welcome_screen=false']
         (session / 'config').mkdir()
+        configs = [session / 'config']
+        if args.split:
+            configs.append(session / 'comparison')
+            configs[-1].mkdir()
+        asset_errors = prepare_assets(Path(os.environ['OMALUX_PRESETS_DIR']).resolve(), configs)
         ui_env = os.environ.copy()
+        ui_env['OMALUX_PRESET_ASSET_ERRORS'] = json.dumps(asset_errors)
         ui_env.pop('OMALUX_COMPARISON_MAILBOX', None)
         try:
             if args.split:
-                other = session / 'comparison'; other.mkdir()
+                other = session / 'comparison'
                 mailbox = session / 'controls'
                 ui_env['OMALUX_COMPARISON_MAILBOX'] = str(mailbox)
                 (other / 'luarc').write_text((ROOT / 'omalux/comparison.lua').read_text())
                 comparison_env = os.environ.copy()
                 comparison_env['OMALUX_COMPARISON_MAILBOX'] = str(mailbox)
-                children.append(subprocess.Popen([dt, str(source), '-d', 'lua', '--configdir', str(other),
+                children.append(subprocess.Popen([dt, str(source), '-d', 'lua', '--conf', lut_config, '--configdir', str(other),
                     '--cachedir', str(other / 'cache'), '--library', str(other / 'library.db'),
                     '--conf', 'write_sidecar_files=never', '--conf', 'show_splash_screen=false',
                     '--conf', 'ui/show_welcome_screen=false'], env=comparison_env))

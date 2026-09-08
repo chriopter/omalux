@@ -18,20 +18,20 @@ Paths are relative to the darktable submodule.
 
 | Area | Entry points | Why Omalux needs it |
 | --- | --- | --- |
-| Process startup/shutdown | [`src/common/darktable.c`](../../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
-| Develop state | [`src/develop/develop.h`](../../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
-| Rendering coordinator | [`src/develop/develop.c`](../../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
-| Pixel processing | [`src/develop/pixelpipe_hb.c`](../../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
-| Cache | [`src/develop/pixelpipe_cache.c`](../../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
-| Module contract | [`src/iop/iop_api.h`](../../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
-| Processing order | [`src/common/iop_order.c`](../../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
-| Input/decoder dispatch | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
-| Import and persistence | [`src/common/image.c`](../../darktable/src/common/image.c), [`src/develop/develop.c`](../../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
-| Input/output color | [`src/iop/colorin.c`](../../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
-| OpenCL | [`src/common/opencl.c`](../../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
-| GTK darkroom | [`src/views/darkroom.c`](../../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
-| Lua bridge | [`src/lua/gui.c`](../../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
-| Export | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
+| Process startup/shutdown | [`src/common/darktable.c`](../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
+| Develop state | [`src/develop/develop.h`](../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
+| Rendering coordinator | [`src/develop/develop.c`](../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
+| Pixel processing | [`src/develop/pixelpipe_hb.c`](../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
+| Cache | [`src/develop/pixelpipe_cache.c`](../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
+| Module contract | [`src/iop/iop_api.h`](../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
+| Processing order | [`src/common/iop_order.c`](../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
+| Input/decoder dispatch | [`src/imageio/imageio.c`](../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
+| Import and persistence | [`src/common/image.c`](../darktable/src/common/image.c), [`src/develop/develop.c`](../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
+| Input/output color | [`src/iop/colorin.c`](../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
+| OpenCL | [`src/common/opencl.c`](../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
+| GTK darkroom | [`src/views/darkroom.c`](../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
+| Lua bridge | [`src/lua/gui.c`](../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
+| Export | [`src/imageio/imageio.c`](../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
 
 ## 1. Lifecycle and ownership
 
@@ -181,7 +181,7 @@ Use deterministic fixtures where possible, retain backend/profile/ROI metadata w
 
 ## Preset catalogue integration
 
-`native/presets.h` discovers root-level `.dtstyle` files. `native/style_details.h` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
+`native/presets.h` discovers `.dtstyle` files recursively under `presets/`, using relative paths as IDs and sibling `thumbnail.jpg` files for compact preview rows. `native/style_details.h` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
 
 Style application preflights every item, merges it through `dt_styles_apply_style_item`, rebinds controls and reads values back. Rendering no longer writes control snapshots indiscriminately: per-control revisions select changed parameters. This fixes the earlier startup-default overwrite and unintended re-enabling of modules during a style render. It does not resolve ambiguous duplicate-instance selection.
 

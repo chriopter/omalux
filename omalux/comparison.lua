@@ -29,7 +29,11 @@ dt.control.dispatch(function()
           local sequence, filename, name = line:match("^style (%d+) (%S+) (%S+)$")
           if sequence then
             filename, name = decode(filename), decode(name)
-            assert(not filename:find("[/\\]") and filename:match("%.dtstyle$"), "invalid style filename")
+            assert(not filename:find("[\\%z]") and not filename:match("^/") and not filename:find("//", 1, true)
+              and filename:match("%.dtstyle$"), "invalid style filename")
+            for segment in filename:gmatch("[^/]+") do
+              assert(segment ~= "." and segment ~= "..", "invalid style path")
+            end
             records[#records+1] = {kind="style", sequence=tonumber(sequence), filename=filename, name=name}
           else
             local epoch, module, parameter, value, revision = line:match("^control (%d+) ([%w_]+) ([%w_]+) ([%d.eE+%-]+) (%d+)$")

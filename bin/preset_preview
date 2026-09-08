@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Regenerate a bundled preset's beach thumbnail with the native darktable adapter."""
+import argparse
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'omalux'))
+from preset_assets import read_reference, bundle_file
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('preset', nargs='?', help='Bundle relative to presets/, e.g. chromatic')
+    parser.add_argument('--all', action='store_true', help='Render all bundles in one engine session')
+    args = parser.parse_args()
+    if bool(args.preset) == args.all:
+        parser.error('Choose one bundle or --all')
+    bundles = sorted(p.parent for p in (ROOT / 'presets').rglob('preset.dtstyle')) if args.all else [(ROOT / 'presets' / args.preset).resolve()]
+    for bundle in bundles:
+        if not bundle.is_relative_to(ROOT / 'presets') or not (bundle / 'preset.dtstyle').is_file():
+            parser.error('Expected a bundle in presets/ containing preset.dtstyle')
+    source = ROOT / 'assets/images/beach-volleyball.jpg'
+    with tempfile.TemporaryDirectory(prefix='omalux-preset-preview-') as tmp:
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('OMALUX_CAPTURE', 'OMALUX_PREVIEW'))}
+        ids = [(p / 'preset.dtstyle').relative_to(ROOT / 'presets').as_posix() for p in bundles]
+        env.update(QT_QPA_PLATFORM='offscreen', OMALUX_PRESETS_DIR=str(ROOT / 'presets'),
+                   OMALUX_PREVIEW_DIR=tmp, OMALUX_PREVIEW_IDS=json.dumps(ids))
+        subprocess.run([str(ROOT / 'bin/dev'), str(source)], env=env, check=True, timeout=360)
+        library = ctypes.CDLL(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so'), mode=ctypes.RTLD_GLOBAL)
+        version = ctypes.string_at(ctypes.addressof(ctypes.c_char.in_dll(library, 'darktable_package_version'))).decode()
+        for bundle, preset_id in zip(bundles, ids):
+            thumbnail = Path(tmp) / 'thumbnail.jpg'
+            subprocess.run(['magick', str(Path(tmp) / (preset_id + '.png')), '-resize', '384x256',
+                            '-strip', '-quality', '90', str(thumbnail)], check=True)
+            reference = read_reference(bundle)
+            reference.update({'version': 1, 'style': 'preset.dtstyle', 'renderer': 'omalux libdarktable preview', 'darktable_version': version,
+                         'source': str(source.relative_to(ROOT)), 'source_sha256': digest(source),
+                         'style_sha256': digest(bundle / 'preset.dtstyle'), 'thumbnail_sha256': digest(thumbnail)})
+            assets = {asset['path']: digest(bundle_file(bundle, asset['path'])) for asset in reference.get('assets', [])}
+            assets.update({p.relative_to(bundle).as_posix(): digest(p) for p in sorted(bundle.rglob('*.cube'))})
+            if assets:
+                reference['assets_sha256'] = assets
+            (bundle / 'thumbnail.jpg').write_bytes(thumbnail.read_bytes())
+            (bundle / 'reference.json').write_text(json.dumps(reference, indent=2) + '\n')
+            print(f'Updated {bundle.relative_to(ROOT)}/thumbnail.jpg and reference.json')
+
+
+if __name__ == '__main__':
+    main()

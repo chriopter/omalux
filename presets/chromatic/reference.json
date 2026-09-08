@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "renderer": "omalux libdarktable preview",
+  "darktable_version": "5.6.0",
+  "source": "assets/images/beach-volleyball.jpg",
+  "source_sha256": "a4e9ef9abe623c9d6b072f6a1b8a96fd0f85acc49e92eeb651be702e884cb666",
+  "style_sha256": "7afc73780c0d8a32f46cda4a41a9bca7db6759b6ffebafd17b6e2042dfc937f2",
+  "thumbnail_sha256": "7e6a1c44015b79d1c1942f27494cbb4109520a18d5e1306d84de6295ca197fe3",
+  "style": "preset.dtstyle",
+  "assets": []
+}
