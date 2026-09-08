@@ -30,9 +30,14 @@ python3 tools/calibration/cube_fit.py baseline            # score the bundled pr
 python3 tools/calibration/cube_fit.py fit <preset>        # fit the cube on tuning images
 python3 tools/calibration/slider_tune.py <preset>         # then search the spatial sliders
 python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
+python3 tools/calibration/report.py                       # work/report/index.html
 python3 tools/calibration/install_preset.py <preset>      # copy into presets/
 bin/preset_preview <preset>                               # refresh the thumbnail
 ```
+
+`run_queue.sh [-j 3] [preset ...]` runs fit, one slider pass, final scoring and the report for many presets, three at a time by default; without ids it queues every preset that has targets and no `final.json` yet. Progress and per-preset logs are under `work/queue/`. Budget about 15 minutes for a cube fit and 35 minutes for one slider pass per preset on 16 cores.
+
+`cube_fit.py roughness <cube>` prints the mean absolute Laplacian of a cube in 8-bit units. Bundled cubes sit around 1 to 4; above about 10 the interpolation between nodes turns tiny input differences into blotches in smooth gradients, so a fitted cube that scores well but is rough is not finished.
 
 ### Cube fit
 
@@ -45,6 +50,20 @@ The fit runs with `colisa` disabled (`work/<preset>/style.dtstyle`). Global tone
 Modules after `lut3d` with a spatial effect cannot be absorbed by the cube: shadows and highlights, vignette, sharpening, grain. `slider_tune.py` searches them by coordinate descent. Because the cube was fitted for the current slider values, every trial gets one cube update and a second render before it is judged; without that, leaving everything unchanged always wins. After each pass the cube is refitted for three iterations.
 
 Parameters before `lut3d` (exposure, black level) are not searched: any change there is undone by the cube once it is refitted.
+
+## What we learned
+
+These came out of the first darktable round and shape the tools. Re-read them before changing the fit.
+
+- **A display-referred module after the LUT fights the fit.** With `colisa` at saturation −1 behind `lut3d`, every tint the cube added was removed again and the fit stalled at ΔE 4. Disabling `colisa` let the same preset reach 2.4 in three iterations. The cube expresses global tone and colour; keep modules after it for spatial work only.
+- **Accumulated residuals make rough cubes.** Averaging residuals per node and adding them up produced cubes 15 to 60 times rougher than the originals; the pictures showed it as blotchy skies although the score kept improving. The regularised solve fixed both the roughness and the score.
+- **Sliders and cube are coupled.** After the cube is fitted, any slider change first makes the score worse, whichever direction it goes, because the cube compensated the old value. Trials must include a cube update, and only sliders the cube cannot absorb are worth searching.
+- **Exposure before the LUT is not a parameter.** Changing it just shifts the cube input; after a refit the result is the same. Leave it as the look defines it.
+- **RAW stays about 2 ΔE behind JPEG** with the same cube. Adding darktable's +0.7 EV RAW default on top of the style's exposure (`RAW_EXPOSURE_OFFSET`), or switching the RAW workflow to filmic, display-referred or none, does not close the gap; the scene-referred sigmoid default is the best base among them. The remaining difference is in how the RAW base is developed, not in the look, and needs a base rendition shared by all presets rather than per-preset fitting.
+- **darktable applies a style's exposure absolutely.** A RAW opened with the +0.7 EV default and then given a style with exposure +0.4 ends at +0.4, not +1.1. The application behaves the same way, so calibrate against that behaviour rather than against a relative reading of the value.
+- **The score is blind to noise.** Mean ΔE on 256-pixel proxies, and even on 1024-pixel renders, prefers a noisy render with the right tone over a clean one with a small offset. A slider search can exploit that (a tiny local-contrast radius scored better while amplifying noise). Look at full-size pairs before accepting a result.
+- **Parallel GPU renders are not safe on every driver.** A GPU reset in one darktable-cli process left the others' output dark and green-tinted without any error. Rendering on the CPU costs about 15 % because process start-up dominates.
+- **Check the reference images too.** One holdout target turned out to be a dark, letterboxed miniature rather than a rendering; it distorts that preset's holdout mean for every preset alike.
 
 ## Rules
 

@@ -11,6 +11,11 @@ its database per configuration.
 Environment:
   OMALUX_CALIBRATION_ROOT  work/dtcfg below it holds the per-worker configs
   OMALUX_PRESETS           LUT root passed to lut3d (default: <repo>/presets)
+  RAW_EXPOSURE_OFFSET      EV added to the style's exposure for RAW inputs only
+                           (darktable's own RAW default is +0.7 EV, which a
+                           style's absolute exposure value replaces)
+  DT_EXTRA_CONF            extra `--conf key=value` pairs, separated by ';'
+                           (for example plugins/darkroom/workflow=none)
   DT_OPENCL=1              use OpenCL. Off by default: with several parallel
                            processes a GPU reset silently corrupts the output
                            of the other processes on some drivers, and the
@@ -103,8 +108,19 @@ def parse_style(path):
     return items
 
 
+RAW_SUFFIXES = {".cr2", ".cr3", ".nef", ".raf", ".orf", ".dng", ".rw2", ".arw", ".pef", ".srw", ".3fr", ".iiq"}
+
+
 def dtstyle_to_xmp(style_path, src_name):
     items = parse_style(style_path)
+    offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0"))
+    if offset and Path(src_name).suffix.lower() in RAW_SUFFIXES:
+        import dtparams
+        for it in items:
+            if it["op"] == "exposure" and it["params"]:
+                d = dtparams.decode("exposure", it["params"])
+                d["exposure"] += offset
+                it["params"] = dtparams.encode("exposure", d)
     out = [XMP_HEAD.format(src=src_name, n=len(items))]
     for i, it in enumerate(items):
         bparams = f'\n      darktable:blendop_params="{it["bparams"]}"' if it["bparams"] else ""
@@ -155,7 +171,8 @@ def _render(inp, style_path, output, width, height, opencl, quality, extra_conf,
                 "--conf", f"plugins/imageio/format/jpeg/quality={quality}",
                 "--conf", "plugins/lighttable/export/iccprofile=sRGB",
                 "--conf", "write_sidecar_files=never"]
-        for c in extra_conf:
+        extra = list(extra_conf) + [c for c in os.environ.get("DT_EXTRA_CONF", "").split(";") if c]
+        for c in extra:
             cmd += ["--conf", c]
         if output.exists():
             output.unlink()

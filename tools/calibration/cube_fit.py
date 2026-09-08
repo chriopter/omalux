@@ -5,6 +5,7 @@
   cube_fit.py fit <preset> [--iters 15] [--resume]
   cube_fit.py fit-all [--presets a,b] [--iters 15]
   cube_fit.py final <preset>|--presets a,b
+  cube_fit.py roughness <cube.cube> [...]   mean |Laplacian| of a cube in 8-bit units
 
 Fixed-point fit. The LUT input is what the pipeline hands to lut3d, so it is
 rendered once per image with lut3d and everything after it disabled. Each
@@ -235,10 +236,21 @@ def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
         if k == iters or k - best[0] >= patience:
             break
         cube = cube_update(cube, imgs, A, B, out_dir, w / "input")
-    json.dump(dict(preset=pid, best_iter=best[0], best=best[1], history=history),
+    print(f"[{pid}] best cube roughness {roughness(read_cube(w / 'best.cube')):.2f}")
+    json.dump(dict(preset=pid, best_iter=best[0], best=best[1], history=history,
+                   roughness=roughness(read_cube(w / "best.cube"))),
               open(w / "best.json", "w"), indent=1)
     print(f"[{pid}] best iter {best[0]} dE {best[1]:.2f}")
     return best
+
+
+def roughness(cube):
+    """Mean absolute discrete Laplacian over interior nodes, in 8-bit units.
+    Bundled cubes sit around 1-4; anything above ~10 shows as blotches in smooth gradients."""
+    lap = np.zeros_like(cube)
+    for d in range(3):
+        lap += np.roll(cube, 1, axis=d) + np.roll(cube, -1, axis=d) - 2 * cube
+    return float(np.abs(lap[1:-1, 1:-1, 1:-1]).mean() * 255)
 
 
 def baseline(pids, split, tag="baseline"):
@@ -290,15 +302,19 @@ def finalize(pid, pdir):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["baseline", "fit", "fit-all", "final"])
-    ap.add_argument("preset", nargs="?")
+    ap.add_argument("cmd", choices=["baseline", "fit", "fit-all", "final", "roughness"])
+    ap.add_argument("preset", nargs="*")
     ap.add_argument("--presets")
     ap.add_argument("--split", default="all")
     ap.add_argument("--iters", type=int, default=15)
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
+    if a.cmd == "roughness":
+        for path in a.preset:
+            print(f"{path}: {roughness(read_cube(path)):.2f}")
+        return
     pd = preset_dirs()
-    pids = a.presets.split(",") if a.presets else ([a.preset] if a.preset else sorted(pd))
+    pids = a.presets.split(",") if a.presets else (a.preset or sorted(pd))
     if a.cmd == "baseline":
         baseline(pids, a.split)
     elif a.cmd in ("fit", "fit-all"):
