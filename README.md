@@ -53,7 +53,8 @@ See [architecture](docs/architecture.md), [CLI usage](docs/cli.md),
 and [contributor instructions](AGENTS.md).
 
 Releases mark completed, tested feature batches; small fixes can be collected
-between releases. See [release notes](CHANGELOG.md).
+between releases. See [GitHub Releases](https://github.com/chriopter/omalux/releases)
+for release notes and downloads.
 
 ## Example pictures
 
