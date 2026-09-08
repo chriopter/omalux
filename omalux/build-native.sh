@@ -23,16 +23,37 @@ if [[ ! -d "$headers/src" ]]; then
   mkdir -p "$headers"
   git -C darktable archive "$tag" src | tar -x -C "$headers"
 fi
-cc -O2 -fPIC -D_RELEASE -DHAVE_OPENCL -DCL_TARGET_OPENCL_VERSION=300 -fopenmp \
-  -DOMALUX_DT_VERSION="\"$version\"" \
-  -I"$headers/src" -I"$headers/src/external" -Idarktable/src/external/OpenCL \
-  $(pkg-config --cflags gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lua librsvg-2.0) \
-  -c omalux/native/engine.c -o omalux/build/engine.o
-/usr/lib/qt6/moc omalux/native/main.cpp -o omalux/build/main.moc
-c++ -std=c++20 -O2 -fPIC -pthread -Iomalux/build \
-  -DOMALUX_QML="\"$PWD/omalux/ui/Main.qml\"" \
-  $(pkg-config --cflags Qt6Quick Qt6QuickControls2) \
-  omalux/native/main.cpp omalux/build/engine.o "$library" \
+# Build each module separately. Only objects from this invocation are linked.
+objects=()
+for source in omalux/native/engine/*.c; do
+  relative="${source#omalux/native/}"
+  object="omalux/build/objects/${relative%.c}.o"
+  mkdir -p "$(dirname "$object")"
+  cc -O2 -fPIC -D_RELEASE -DHAVE_OPENCL -DCL_TARGET_OPENCL_VERSION=300 -fopenmp \
+    -DOMALUX_DT_VERSION="\"$version\"" \
+    -I"$headers/src" -I"$headers/src/external" -Idarktable/src/external/OpenCL \
+    $(pkg-config --cflags gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lua librsvg-2.0) \
+    -c "$source" -o "$object"
+  objects+=("$object")
+done
+moc_sources=()
+for header in omalux/native/app/editor.h omalux/native/app/engine_worker.h; do
+  source="omalux/build/moc_$(basename "${header%.h}").cpp"
+  /usr/lib/qt6/moc "$header" -o "$source"
+  moc_sources+=("$source")
+done
+for source in omalux/native/main.cpp omalux/native/app/*.cpp omalux/native/dev/*.cpp "${moc_sources[@]}"; do
+  relative="${source#omalux/native/}"
+  if [[ "$source" == omalux/build/* ]]; then relative="generated/$(basename "$source")"; fi
+  object="omalux/build/objects/${relative%.cpp}.o"
+  mkdir -p "$(dirname "$object")"
+  c++ -std=c++20 -O2 -fPIC -pthread -Iomalux/native \
+    -DOMALUX_QML="\"$PWD/omalux/ui/Main.qml\"" \
+    $(pkg-config --cflags Qt6Quick Qt6QuickControls2) \
+    -c "$source" -o "$object"
+  objects+=("$object")
+done
+c++ -pthread "${objects[@]}" "$library" \
   $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2) -fopenmp \
   -Wl,-rpath,"$(dirname "$library")" -o omalux/build/omalux
 printf '%s\n' "$library" > omalux/build/library-path

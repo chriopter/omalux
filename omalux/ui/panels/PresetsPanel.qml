@@ -15,6 +15,8 @@ SidebarScrollView {
     required property string applyingPreset
     required property string errorMessage
     readonly property bool textEditing: presetSearch.activeFocus
+    signal previewRequested(string id, bool active)
+    onVisibleChanged: if (!visible) previewRequested("", false)
     signal saveRequested()
     signal exportRequested(string id)
     signal deleteRequested(string id, string name)
@@ -124,6 +126,7 @@ SidebarScrollView {
                             expanded: !!root.expandedPresetDetails[modelData.id]
                             onExportRequested: root.exportRequested(modelData.id)
                             onDeleteRequested: root.deleteRequested(modelData.id, modelData.name)
+                            onPreviewRequested: active => root.previewRequested(modelData.id, active)
                             onApplyRequested: root.applyRequested(modelData.id)
                             onDetailsToggleRequested: root.togglePresetDetails(modelData.id)
                         }

@@ -10,6 +10,14 @@ Rectangle {
     required property string appliedStyle
     required property string applyingPreset
     required property bool expanded
+    signal previewRequested(bool active)
+    readonly property bool previewHovered: applyPresetButton.hovered && applyPresetButton.enabled && root.visible
+    onPreviewHoveredChanged: {
+        if (previewHovered) hoverDelay.restart()
+        else { hoverDelay.stop(); root.previewRequested(false) }
+    }
+    Component.onDestruction: root.previewRequested(false)
+    Timer { id: hoverDelay; interval: 150; onTriggered: if (root.previewHovered) root.previewRequested(true) }
     signal exportRequested()
     signal deleteRequested()
     signal applyRequested
@@ -37,10 +45,11 @@ Rectangle {
                 implicitHeight: 64
                 padding: 0
                 enabled: !root.busy && root.photoReady && root.preset.error === ""
-                onClicked: root.applyRequested()
+                hoverEnabled: true
+                onClicked: { hoverDelay.stop(); root.previewRequested(false); root.applyRequested() }
                 Accessible.name: "Apply " + root.preset.name
-                ToolTip.visible: hovered
-                ToolTip.text: root.preset.error || "Apply " + root.preset.name
+                ToolTip.visible: hovered && root.preset.error !== ""
+                ToolTip.text: root.preset.error
                 background: Rectangle {
                     color: parent.hovered || parent.down ? "#313244" : "transparent"
                     border.color: parent.activeFocus ? root.theme.accent : "transparent"

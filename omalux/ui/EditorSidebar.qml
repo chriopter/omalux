@@ -119,6 +119,7 @@ Rectangle {
         }
         PresetsPanel {
             id: presetsPanel
+            onPreviewRequested: (id, active) => root.backend.hoverPreset(id, active)
             onSaveRequested: root.presetSaveRequested()
             onExportRequested: id => root.presetExportRequested(id)
             onDeleteRequested: (id, name) => root.presetDeleteRequested(id, name)

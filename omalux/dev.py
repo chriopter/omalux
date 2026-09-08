@@ -26,7 +26,7 @@ def main():
     library = Path(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so')).resolve()
     if not library.is_file():
         parser.error(f'darktable library not found: {library}')
-    native_sources = list((ROOT / 'omalux/native').glob('*')) + [ROOT / 'omalux/build-native.sh', library]
+    native_sources = [p for p in (ROOT / 'omalux/native').rglob('*') if p.is_file()] + [ROOT / 'omalux/build-native.sh', library]
     marker = ROOT / 'omalux/build/library-path'
     if not binary.exists() or not marker.exists() or marker.read_text().strip() != str(library) or any(p.stat().st_mtime > binary.stat().st_mtime for p in native_sources):
         subprocess.run([str(ROOT / 'omalux/build-native.sh')], check=True)

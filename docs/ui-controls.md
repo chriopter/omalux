@@ -50,7 +50,7 @@ The halation button initializes a red-channel diffusion recipe (one iteration, r
 - Crop uses the native crop module; dragging the frame changes a draft until Apply/Enter. Escape restores prior crop enablement. Rotation uses darktable's signed display conversion.
 - Zoom, pan, pinch and fullscreen operate on the interactive preview. Zoom does not yet request a full-resolution detail render. JPEG/PNG export uses the actual full-resolution darktable export pipe.
 
-See the main README for keyboard bindings and development commands. The native registry is `omalux/native/controls.h`; source labels and formatting were checked against the pinned/installed `src/iop/` modules, including Bauhaus percent conversion and GUI action paths. Display units are converted to native values before both native edits and GTK actions. Curves, blend settings and the diffusion recipe use temporary single-module styles for split synchronization.
+See the main README for keyboard bindings and development commands. The native registry is `omalux/native/engine/controls.h`; source labels and formatting were checked against the pinned/installed `src/iop/` modules, including Bauhaus percent conversion and GUI action paths. Display units are converted to native values before both native edits and GTK actions. Curves, blend settings and the diffusion recipe use temporary single-module styles for split synchronization.
 
 ## Validation and remaining limits
 
@@ -61,3 +61,11 @@ The adapter edits the base module instance. It does not expose every darktable p
 Scrolling reference: [Omawrite 0.5.0, Main.qml](https://github.com/omacom/omawrite/blob/v0.5.0/src/Main.qml), event handling and `snapToPixel`. Omalux adopts its event classification and pixel alignment; its angle-only movement remains immediate rather than using Omawrite’s animated wheel curve.
 
 - Denoise is available only in the expandable Advanced section. The collapsed vignetting brightness slider focuses on darkening (−1 to 0); expanding its details restores the full darktable range. Existing positive brightness values remain visible and are never changed by collapsing. Names, units and the default −0.5 are unchanged.
+
+### Preset hover
+
+Hover over a preset's thumbnail/name to preview it on the open photograph. Leaving the card or the Presets pane restores the current edited image immediately. Hover does not change controls or history, including any future history after a backward jump. Click to apply the preset through the normal history path. Unsupported presets remain unavailable. The preview starts after a short hover delay and uses a separate temporary engine context.
+
+### Native regression checks
+
+Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `bin/dev`, uses isolated settings and a temporary copy of the preset bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.

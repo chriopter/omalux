@@ -115,8 +115,12 @@ Each launch uses temporary config, cache and database directories, with source s
 
 Split mode runs two independent instances of darktable’s engine with separate databases. Omalux publishes style events and coalesced control snapshots to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies scalar values through darktable’s GUI actions when the darkroom is open. Curve and blend changes use temporary single-module styles. Omalux never waits for the comparison render. Synchronization is one-way and covers the registered controls, module enablement, curve/recipe updates, image changes and compatible styles; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
 
-### UI structure
+### Application structure
 
+- `omalux/native/main.cpp` — application startup only.
+- `omalux/native/app/` — C++ Qt facade, render worker, preset catalogue, export and comparison bridge.
+- `omalux/native/engine/` — C adapter with an explicit engine context; no Qt dependencies.
+- `omalux/native/dev/` — optional smoke tests, screenshot capture and batch preview drivers.
 - `omalux/ui/Main.qml` — window layout, backend wiring and keyboard shortcuts.
 - `omalux/ui/EditorSidebar.qml` — tabs, panel selection and panel/backend connections.
 - `omalux/ui/panels/` — separate Filters, Presets, Geometry, History and Metadata panes.
@@ -126,11 +130,11 @@ Give each new sidebar pane its own file. Panels receive data through properties 
 
 ### Adding a slider
 
-Add one row to [`omalux/native/controls.h`](omalux/native/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix, decimal places, section, GTK action path, track colors, detail visibility and optional soft limits. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. Float parameters use introspection; integer fields, enablement, blend opacity, white balance and denoise curve ordinates have explicit native adapters. New special types require source and ABI review.
+Add one row to [`omalux/native/engine/controls.h`](omalux/native/engine/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix, decimal places, section, GTK action path, track colors, detail visibility and optional soft limits. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. Float parameters use introspection; integer fields, enablement, blend opacity, white balance and denoise curve ordinates have explicit native adapters. New special types require source and ABI review.
 
 `editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Presets restore a per-image opening baseline before applying their own settings. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
 
-See the [darktable source analysis](docs/darktable-architecture.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. Current prototype limitations: the `IMAGE` pipe flag disables intermediate pixelpipe cache reuse, and the three sliders use the deprecated `colisa` module. Persistent decoded-input caching and intermediate processing caches are separate mechanisms.
+See the [darktable source analysis](docs/darktable-architecture.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. The interactive FULL pipe reuses intermediate results; slider drags use reduced previews and release requests full preview quality. The colisa controls remain deprecated upstream. Color management, complex masks/instances and exact pixel parity between separate render contexts still have documented limitations.
 
 ## TODO
 
