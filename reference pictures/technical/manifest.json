@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "encoding": "16-bit RGB PNG; sRGB chunk; round-half-up; no dithering",
+  "scope": "Display-referred inputs, not linear HDR or RAW decoder fixtures.",
+  "patches_rgb8": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      8,
+      8,
+      8
+    ],
+    [
+      32,
+      32,
+      32
+    ],
+    [
+      64,
+      64,
+      64
+    ],
+    [
+      128,
+      128,
+      128
+    ],
+    [
+      192,
+      192,
+      192
+    ],
+    [
+      247,
+      247,
+      247
+    ],
+    [
+      255,
+      255,
+      255
+    ],
+    [
+      255,
+      0,
+      0
+    ],
+    [
+      255,
+      128,
+      0
+    ],
+    [
+      255,
+      255,
+      0
+    ],
+    [
+      0,
+      255,
+      0
+    ],
+    [
+      0,
+      255,
+      255
+    ],
+    [
+      0,
+      0,
+      255
+    ],
+    [
+      128,
+      0,
+      255
+    ],
+    [
+      255,
+      0,
+      255
+    ],
+    [
+      255,
+      192,
+      192
+    ],
+    [
+      255,
+      224,
+      192
+    ],
+    [
+      255,
+      255,
+      192
+    ],
+    [
+      192,
+      255,
+      192
+    ],
+    [
+      192,
+      255,
+      255
+    ],
+    [
+      192,
+      192,
+      255
+    ],
+    [
+      224,
+      192,
+      255
+    ],
+    [
+      255,
+      192,
+      255
+    ],
+    [
+      96,
+      64,
+      48
+    ],
+    [
+      176,
+      120,
+      88
+    ],
+    [
+      224,
+      176,
+      144
+    ],
+    [
+      208,
+      184,
+      128
+    ],
+    [
+      64,
+      96,
+      48
+    ],
+    [
+      48,
+      112,
+      96
+    ],
+    [
+      64,
+      112,
+      176
+    ],
+    [
+      112,
+      64,
+      128
+    ]
+  ],
+  "images": [
+    {
+      "file": "01-grayscale.png",
+      "width": 1024,
+      "height": 640,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "Top: continuous encoded sRGB 0\u20131 ramp. Bottom: 32 equal-width levels 0\u20131.",
+      "scanlines_sha256": "545092f2476e0465866eb091c02a54606cd2f5bba75a0253425ec16f2f01a4dd",
+      "file_sha256": "324a72bec16cd685090627fc59a38a260cafbd1357c9bfd2aaaef2244d9786b1"
+    },
+    {
+      "file": "02-shadows-highlights.png",
+      "width": 1024,
+      "height": 640,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "Four strips: smooth 0\u20130.08; 32 levels 0\u20130.08; smooth 0.92\u20131; 32 levels 0.92\u20131.",
+      "scanlines_sha256": "9c934a9dc95b55fb70627d8cfae476f8106af9ab3bf98bdb94f8991320e40700",
+      "file_sha256": "70cfec17571bf2e0bcd2b10265850c4921e3d0dec8e4adf5227fa62d85f3a8df"
+    },
+    {
+      "file": "03-channel-ramps.png",
+      "width": 1024,
+      "height": 768,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "Six pairs, red/green/blue/cyan/magenta/yellow: black to color, then color to white.",
+      "scanlines_sha256": "b62cf36e01d7f60fb5bebdb1e084520bd23558f9fa4eee05d36742209b1f0f21",
+      "file_sha256": "c92e158f5450d42677bd62891c1b6decc7e3715c4848f1b894a2dbdabc8686a3"
+    },
+    {
+      "file": "04-hue-saturation.png",
+      "width": 1024,
+      "height": 768,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "HSV hue left to right [0,1), saturation top to bottom in each band [0,1]; V=1,0.5,0.125. HSV computed in encoded sRGB, not perceptual lightness.",
+      "scanlines_sha256": "5dd3f6893e475c5204609ef525af98691a048fd27cf8f18dd0977dc518777974",
+      "file_sha256": "8bcfde8b8415ac89c81051e1b96cb9020b19a2e409966f0b2e4149e9722e0d8d"
+    },
+    {
+      "file": "05-color-patches.png",
+      "width": 1024,
+      "height": 512,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "8 columns \u00d7 4 rows: grays, saturated colors, pastels, earthy colors. Exact 8-bit-equivalent RGB triplets in manifest; not a calibrated physical chart.",
+      "scanlines_sha256": "43d0ecd3c6d7b193396ca0fe5c08a0f7dd40e8acec845a6133fde21260192a3e",
+      "file_sha256": "bc778cb1e53ed1d863cd699159fdabd0077b34a8c45fb3f3ad6b305baed805c6"
+    },
+    {
+      "file": "06-spatial-detail.png",
+      "width": 1152,
+      "height": 768,
+      "bit_depth": 16,
+      "color_space": "sRGB",
+      "description": "2 rows \u00d7 3 columns. Top: vertical edge, slanted edge, bars at six widths. Bottom: 8px checkerboard, uniform 0.5, fixed monochrome noise in [0.45,0.55].",
+      "scanlines_sha256": "9cc26b5bb1352c89002b9da9f671f1b4ee1a29ba6c3c13a7b40a48a55a554163",
+      "file_sha256": "438e70be6672d996ff7dd2201c847ab55bc940281b19c965018af646a82609ca"
+    }
+  ]
+}

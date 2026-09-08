@@ -2,7 +2,7 @@
 
 ![Omalux — RAW photo developer](docs/assets/screenshot.png)
 
-> **Status:** Currently polishing UI & Presets. ETA 10 days.
+> **Status:** In development; UI and presets are being polished.
 
 A focused photo developer for Omarchy. The workspace separates a Qt-free Rust
 processing core/CLI from the CXX-Qt and Qt Quick desktop application.
@@ -23,7 +23,7 @@ Implementation boundaries and directory responsibilities are documented in
 [`docs/architecture.md`](docs/architecture.md). The film-grain implementation
 and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 
-## MVP
+## Features
 
 - Open JPEG, PNG, BMP and common camera RAW files
 - Decode raster and full-resolution RAW sources through the bounded production decoder
@@ -36,6 +36,86 @@ and licensing provenance live in [`docs/grain-model.md`](docs/grain-model.md).
 - Zoom from 25% to 800% with the mouse wheel or touchpad pinch, and pan enlarged photographs
 - Navigate the TUI-inspired develop panel with J/K or arrows, adjust with H/L, and press `?` for the complete keyboard reference
 - Use the GPL-compatible darktable/RawTherapee three-octave grain and photographic-paper response model
+
+## Reference pictures
+
+Fixed inputs for visual checks of presets and pipeline changes live in
+[`reference pictures/`](reference%20pictures/). The beach photograph is AI-generated;
+the technical charts are computed from known values. Real photographs and RAW
+files can be added to `reference pictures/real pics/`, which is currently empty.
+
+<details>
+<summary>Show reference gallery — beach photograph and six technical charts</summary>
+
+### Overall scene
+
+The colored volleyball, sand, sea, clouds, and shadow provide a quick check of
+overall color, texture, highlights, and shadows. This is a fixed visual input,
+not a calibrated color reference.
+
+![Beach volleyball on sand, with sea and sky](reference%20pictures/main.jpg)
+
+### Grayscale
+
+A continuous black-to-white ramp above 32 discrete gray levels.
+
+![Continuous and stepped grayscale](reference%20pictures/technical/01-grayscale.png)
+
+### Shadows and highlights
+
+Smooth and stepped ramps in the darkest 8% and brightest 8% of encoded sRGB.
+Use these to inspect detail loss, clipping, and tonal discontinuities.
+
+![Near-black and near-white ramps](reference%20pictures/technical/02-shadows-highlights.png)
+
+### Color channels
+
+Red, green, blue, cyan, magenta, and yellow; each pair runs from black to the
+color and then from the color to white.
+
+![Six paired color ramps](reference%20pictures/technical/03-channel-ramps.png)
+
+### Hue and saturation
+
+Hue runs horizontally and saturation increases downward within each band.
+The three bands use HSV values of 1, 0.5, and 0.125; these are encoded RGB
+values, not equal perceptual lightness.
+
+![Hue and saturation at three brightness levels](reference%20pictures/technical/04-hue-saturation.png)
+
+### Known color patches
+
+Four rows of neutrals, saturated colors, pastels, and earthy colors. Exact RGB
+triplets are recorded in the technical manifest. This is a synthetic chart,
+not a measured ColorChecker.
+
+![Thirty-two known color patches](reference%20pictures/technical/05-color-patches.png)
+
+### Edges, fine detail, and noise
+
+Top row: vertical edge, slanted edge, and bars with widths from 1 to 32 pixels.
+Bottom row: checkerboard, uniform gray, and fixed monochrome noise. Inspect at
+100% zoom; the README's scaled preview can introduce moiré or hide fine detail.
+
+![Edges, bars, checkerboard, gray, and deterministic noise](reference%20pictures/technical/06-spatial-detail.png)
+
+</details>
+
+Regenerate the six lossless 16-bit sRGB PNGs with Python 3, with no extra packages:
+
+```bash
+python3 "reference pictures/technical/generate.py"
+```
+
+[`technical/manifest.json`](reference%20pictures/technical/manifest.json) records
+dimensions, values, and hashes. These are display-referred fixtures; they do not
+exercise RAW decoding or scene-linear values above white. The generation prompt
+and asset notes are in [`reference pictures/README.md`](reference%20pictures/README.md).
+
+The gallery supplies inputs, not an automated regression suite. For update
+comparisons, keep inputs, presets, settings, and random seeds fixed, then compare
+decoded output pixels against reviewed reference exports. Review intentional
+changes before replacing those references.
 
 ## Keyboard
 
