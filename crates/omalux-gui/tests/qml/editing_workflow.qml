@@ -1,8 +1,10 @@
 import QtQuick
+import QtTest
 import org.omalux
 
 Main {
     id: window
+    TestCase { id: pointer; when: false }
     property int phase: 0
     property string previousUrl: ""
     property string savedId: ""
@@ -46,6 +48,52 @@ Main {
                 geometry.quarter_turns_clockwise = 1
                 geometry.crop = { x: 0.125, y: 0.125, width: 0.75, height: 0.75 }
                 backend.setGeometry(JSON.stringify(geometry))
+                window.selectPanel(2)
+                window.phase = 20
+            } else if (window.phase === 20 && backend.cropPreview && !backend.loading) {
+                const overlay = window.find(window.contentItem, "cropOverlay")
+                if (!overlay.visible || overlay.width < 100) return
+                if (viewport.imageWidth >= viewport.imageHeight)
+                    return window.fail("Interactive preview lost the quarter turn")
+                const panel = window.find(window.contentItem, "geometryPanel")
+                pointer.mouseDrag(overlay, overlay.frameLeft + overlay.frameWidth/2,
+                    overlay.frameTop + overlay.frameHeight/2, 25, 20, Qt.LeftButton)
+                if (panel.crop.x <= 0.125 || panel.crop.y <= 0.125)
+                    return window.fail("Dragging inside crop did not move frame")
+                const oldWidth = panel.crop.width
+                pointer.mouseDrag(overlay, overlay.frameLeft+overlay.frameWidth,
+                    overlay.frameTop+overlay.frameHeight, -30, -30, Qt.LeftButton)
+                if (panel.crop.width >= oldWidth) return window.fail("Corner did not resize crop")
+                const ratio = window.find(window.contentItem, "cropAspect")
+                ratio.currentIndex = 2
+                panel.constrainAspect()
+                overlay.begin("se", 0, 0)
+                overlay.dragTo(10000, 10000)
+                if (Math.abs(panel.crop.width*overlay.width/(panel.crop.height*overlay.height)-1) > 0.01
+                    || panel.crop.x+panel.crop.width > 1.00001 || panel.crop.y+panel.crop.height > 1.00001)
+                    return window.fail("Locked aspect or image bounds failed")
+                panel.adjust(1, true)
+                if (panel.draftAngle !== 5) return window.fail("Fast rotation must advance by five degrees")
+                panel.applyCrop()
+                if (Math.abs(JSON.parse(backend.settingsJson).geometry.straighten_degrees-5) > 0.001)
+                    return window.fail("Draft rotation not committed")
+                window.selectPanel(2)
+                window.phase = 21
+            } else if (window.phase === 21 && backend.cropPreview && !backend.loading) {
+                window.phase = 22
+                if (window.capturePath) {
+                    window.phase = 23
+                    window.find(window.contentItem, "editorSurface").grabToImage(result => {
+                        result.saveToFile(window.capturePath + ".crop.png")
+                        window.phase = 22
+                    })
+                }
+            } else if (window.phase === 22) {
+                const panel = window.find(window.contentItem, "geometryPanel")
+                panel.adjust(1, true)
+                panel.cancel()
+                if (Math.abs(JSON.parse(backend.settingsJson).geometry.straighten_degrees-5) > 0.001)
+                    return window.fail("Cancel did not restore geometry")
                 backend.savePreset("Workflow look", "new")
                 window.phase = 3
             } else if (window.phase === 3 && !backend.savingPreset) {

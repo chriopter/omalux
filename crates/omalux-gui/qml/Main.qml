@@ -33,6 +33,10 @@ ApplicationWindow {
 
     property real zoom: 1.0
     property int selectedPanel: 0
+    onSelectedPanelChanged: {
+        backend.setCropEditing(selectedPanel === 2)
+        if (selectedPanel === 2) fitPhoto()
+    }
     property int selectedParameter: 0
     property bool effectsAdvancedExpanded: false
     property bool shortcutsVisible: false
@@ -68,6 +72,9 @@ ApplicationWindow {
         { sequences: ["Ctrl+-"], hint: "CTRL+−", description: "ZOOM OUT", section: "PHOTO", action: "zoomOut", needsPhoto: true },
         { sequences: ["Ctrl++", "Ctrl+="], hint: "CTRL++", description: "ZOOM IN", section: "PHOTO", action: "zoomIn", needsPhoto: true },
         { sequences: ["Ctrl+0"], hint: "CTRL+0", description: "FIT PHOTOGRAPH", section: "PHOTO", action: "photoFit", needsPhoto: true },
+
+        { sequences: ["Return", "Enter"], hint: "ENTER", description: "APPLY CROP", section: "CROP", action: "cropApply", scope: "crop", needsPhoto: true },
+        { sequences: ["Escape"], hint: "ESC", description: "CANCEL CROP", section: "CROP", action: "cropCancel", scope: "crop", needsPhoto: true },
 
         { sequences: ["O", "Ctrl+O"], hint: "O / CTRL+O", description: "OPEN PHOTOGRAPH", section: "FILES", action: "open" },
         { sequences: ["Ctrl+S"], hint: "CTRL+S", description: "SAVE / EXPORT", section: "FILES", action: "save", needsPhoto: true },
@@ -246,6 +253,7 @@ ApplicationWindow {
     }
 
     function openPhoto(url) {
+        if (selectedPanel === 2) geometryPanel.cancel()
         fitPhoto()
         backend.openPhoto(url)
     }
@@ -326,6 +334,7 @@ ApplicationWindow {
     function keyBindingEnabled(binding) {
         if (photoFullscreen || exportMenuVisible || shortcutsVisible || presetSaveDialog.visible || deletePresetDialog.visible)
             return false
+        if (binding.scope === "crop" && selectedPanel !== 2) return false
         if (binding.scope === "filters" && selectedPanel !== 0) {
             if (selectedPanel !== 2 || !(binding.action.startsWith("parameter")
                     || binding.action.startsWith("value")))
@@ -336,6 +345,8 @@ ApplicationWindow {
 
     function triggerKeyBinding(action) {
         switch (action) {
+        case "cropApply": geometryPanel.applyCrop(); break
+        case "cropCancel": geometryPanel.cancel(); break
         case "panelFilters": selectPanel(0); break
         case "panelPresets": selectPanel(1); break
         case "panelGeometry": selectPanel(2); break
@@ -419,6 +430,7 @@ ApplicationWindow {
     }
 
     function chooseExportFormat(format) {
+        if (selectedPanel === 2) geometryPanel.applyCrop()
         exportMenuVisible = false
         pendingExportFormat = format
 
@@ -761,7 +773,7 @@ ApplicationWindow {
                         boundsBehavior: Flickable.StopAtBounds
                         contentWidth: Math.max(width, photoSurface.width)
                         contentHeight: Math.max(height, photoSurface.height)
-                        interactive: window.zoom > 1.0
+                        interactive: window.zoom > 1.0 && window.selectedPanel !== 2
 
                         property real imageWidth: 1
                         property real imageHeight: 1
@@ -777,23 +789,38 @@ ApplicationWindow {
                             x: photoFlick.contentWidth > width ? (photoFlick.contentWidth - width) / 2 : 0
                             y: photoFlick.contentHeight > height ? (photoFlick.contentHeight - height) / 2 : 0
 
-                            Image {
-                                id: sourceImage
+                            Item {
                                 anchors.fill: parent
-                                source: backend.previewUrl
-                                autoTransform: true
-                                asynchronous: true
-                                retainWhileLoading: true
-                                cache: false
-                                onStatusChanged: {
-                                    if (status === Image.Ready) {
-                                        photoFlick.imageWidth = sourceSize.width
-                                        photoFlick.imageHeight = sourceSize.height
-                                        window.continueCliExport()
-                                    } else if (status === Image.Error
-                                             && window.cliInput.length > 0)
-                                        window.failCli("Qt could not load the developed image")
+                                clip: window.selectedPanel === 2
+                                Image {
+                                    id: sourceImage
+                                    rotation: window.selectedPanel === 2 && backend.cropPreview ? -geometryPanel.draftAngle : 0
+                                    anchors.fill: parent
+                                    source: backend.previewUrl
+                                    autoTransform: true
+                                    asynchronous: true
+                                    retainWhileLoading: true
+                                    cache: false
+                                    onStatusChanged: {
+                                        if (status === Image.Ready) {
+                                            photoFlick.imageWidth = sourceSize.width
+                                            photoFlick.imageHeight = sourceSize.height
+                                            window.continueCliExport()
+                                        } else if (status === Image.Error
+                                                 && window.cliInput.length > 0)
+                                            window.failCli("Qt could not load the developed image")
+                                    }
                                 }
+                            }
+                            CropOverlay {
+                                objectName: "cropOverlay"
+                                anchors.fill: parent
+                                visible: window.selectedPanel === 2 && backend.cropPreview
+                                    && sourceImage.status === Image.Ready
+                                enabled: visible && !backend.loading
+                                crop: geometryPanel.crop
+                                aspectRatio: geometryPanel.lockedRatio
+                                onCropChangedByUser: rect => geometryPanel.crop = rect
                             }
 
                         }
@@ -989,6 +1016,9 @@ ApplicationWindow {
                                 theme: window
                                 photoReady: sourceImage.status === Image.Ready
                                 settingsJson: backend.settingsJson
+                                editing: window.selectedPanel === 2
+                                imageAspect: photoFlick.imageWidth / photoFlick.imageHeight
+                                onFinished: window.selectPanel(0)
                                 onGeometryCommitted: json => backend.setGeometry(json)
                             }
 

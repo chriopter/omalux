@@ -33,6 +33,7 @@ pub mod qobject {
         #[qproperty(QString, last_job_report_json, cxx_name = "lastJobReportJson")]
         #[qproperty(QString, last_preview_report_json, cxx_name = "lastPreviewReportJson")]
         #[qproperty(bool, loading)]
+        #[qproperty(bool, crop_preview, cxx_name = "cropPreview")]
         #[qproperty(bool, saving_preset, cxx_name = "savingPreset")]
         #[qproperty(QString, preset_error, cxx_name = "presetError")]
         type PhotoBackend = super::PhotoBackendRust;
@@ -56,6 +57,10 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setParameter"]
         fn set_parameter(self: Pin<&mut Self>, id: &QString, value: f64);
+
+        #[qinvokable]
+        #[cxx_name = "setCropEditing"]
+        fn set_crop_editing(self: Pin<&mut Self>, editing: bool);
 
         #[qinvokable]
         #[cxx_name = "setGeometry"]
@@ -154,6 +159,8 @@ pub struct PhotoBackendRust {
     last_job_report_json: QString,
     last_preview_report_json: QString,
     loading: bool,
+    crop_preview: bool,
+    crop_editing: bool,
     saving_preset: bool,
     preset_error: QString,
     metadata_revision: AtomicU64,
@@ -400,6 +407,8 @@ impl Default for PhotoBackendRust {
             last_job_report_json: QString::from("{}"),
             last_preview_report_json: QString::from("{}"),
             loading: false,
+            crop_preview: false,
+            crop_editing: false,
             saving_preset: false,
             preset_error: QString::default(),
             metadata_revision: AtomicU64::new(0),
@@ -548,6 +557,15 @@ impl qobject::PhotoBackend {
         self.as_mut()
             .set_selected_preset_id(QString::from("custom"));
         self.as_mut().publish_settings_json();
+        self.as_mut().restart_preview();
+    }
+
+    pub fn set_crop_editing(mut self: Pin<&mut Self>, editing: bool) {
+        if self.rust().crop_editing == editing {
+            return;
+        }
+        self.as_mut().rust_mut().crop_editing = editing;
+        self.as_mut().set_crop_preview(false);
         self.as_mut().restart_preview();
     }
 
@@ -821,11 +839,16 @@ impl qobject::PhotoBackend {
         if let Some(cancellation) = self.as_mut().rust_mut().preview_cancellation.take() {
             cancellation.cancel();
         }
+        let mut settings = self.rust().settings.clone();
+        if self.rust().crop_editing {
+            settings.geometry.crop = None;
+            settings.geometry.straighten_degrees = 0.0;
+        }
         let request = PreviewRequest {
             revision,
             operation_revision,
             source,
-            settings: self.rust().settings.clone(),
+            settings,
             full_resolution: false,
         };
         let next = self.as_mut().rust_mut().preview_queue.enqueue(request);
@@ -871,6 +894,8 @@ impl qobject::PhotoBackend {
                             artifact.path().to_string_lossy().as_ref(),
                         ));
                         backend.as_mut().rust_mut().generated_preview = Some(artifact);
+                        let editing = backend.rust().crop_editing;
+                        backend.as_mut().set_crop_preview(editing);
                         backend.as_mut().set_preview_url(preview_url);
                     }
                 }

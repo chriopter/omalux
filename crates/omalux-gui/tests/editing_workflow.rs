@@ -17,7 +17,7 @@ fn main() {
             .env("QT_FORCE_STDERR_LOGGING", "1")
             .spawn()
             .unwrap();
-        let deadline = Instant::now() + Duration::from_secs(90);
+        let deadline = Instant::now() + Duration::from_secs(150);
         loop {
             if let Some(status) = child.try_wait().unwrap() {
                 assert!(status.success(), "Editing workflow failed: {status}");

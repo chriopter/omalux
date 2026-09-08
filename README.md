@@ -17,7 +17,9 @@ Press `?` for shortcuts. A separate Qt-free CLI exposes the same processing core
 Presets include [stored beach-scene previews and reference checks](docs/preset-previews.md).
 
 Panels: **1** Filters, **2** Presets, **3** Crop & Rotate, **4** Metadata.
-Crop using four percentage margins; rotate by 90° or straighten in 0.1° steps.
+Drag the crop frame and its handles; choose a free or fixed aspect ratio.
+Rotation previews update immediately; arrows adjust 0.1°, Shift + arrows 5°.
+Enter applies the crop, Escape cancels. Switching tools applies it.
 **Save as preset…** stores a personal look with a generated beach-scene thumbnail.
 Find it under **My Presets**, with rename, update, JSON export and delete actions.
 Personal looks omit geometry and local masks, preserving those edits when applied.

@@ -8,76 +8,121 @@ ScrollView {
     required property var theme
     required property bool photoReady
     required property string settingsJson
-    signal geometryCommitted(string json)
+    property bool editing: false
+    property real imageAspect: 1
     property var geometry: ({})
+    property var crop: ({ x:0, y:0, width:1, height:1 })
+    property real draftAngle: 0
+    property string originalGeometry: ""
     property int selectedParameter: 0
-    property var draftMargins: [0, 0, 0, 0]
-    readonly property bool cropValid: draftMargins[0] + draftMargins[2] < 100
-        && draftMargins[1] + draftMargins[3] < 100
+    property bool finishing: false
+    readonly property real aspectRatio: ratios.currentIndex === 1 ? imageAspect
+        : [0, 0, 1, 3/2, 4/3, 4/5, 16/9][ratios.currentIndex] * (portrait.checked ? -1 : 1)
+    readonly property real lockedRatio: aspectRatio < 0 ? -1/aspectRatio : aspectRatio
+    signal geometryCommitted(string json)
+    signal finished()
     contentWidth: availableWidth
     clip: true
 
     function synchronize() {
-        const settings = JSON.parse(settingsJson)
-        geometry = settings.geometry
-        const crop = geometry.crop || { x: 0, y: 0, width: 1, height: 1 }
-        const values = [crop.x, crop.y, 1 - crop.x - crop.width, 1 - crop.y - crop.height]
-        for (let i = 0; i < 4; ++i) {
-            const control = margins.itemAt(i)
-            if (control) control.value = Math.round(values[i] * 100)
-        }
-        angle.value = geometry.straighten_degrees
+        geometry = JSON.parse(settingsJson).geometry
+        crop = geometry.crop || { x:0, y:0, width:1, height:1 }
+        draftAngle = geometry.straighten_degrees
+        angle.value = draftAngle
     }
     onSettingsJsonChanged: synchronize()
     Component.onCompleted: synchronize()
-
-    function commit() { geometryCommitted(JSON.stringify(geometry)) }
-    function rotate(direction) {
-        geometry.quarter_turns_clockwise = (geometry.quarter_turns_clockwise + direction + 4) % 4
-        commit()
+    onEditingChanged: {
+        if (editing) {
+            originalGeometry = JSON.stringify(JSON.parse(settingsJson).geometry)
+            ratios.currentIndex = 0
+            synchronize()
+        } else if (!finishing && originalGeometry) {
+            applyGeometry()
+        }
+        finishing = false
     }
-    function applyCrop() {
-        if (!cropValid) return
-        // Binary fractions keep opposite crop edges exact in the core's f32 settings.
+    function applyGeometry() {
+        // Quantize edges once, when committing, to remain exact in f32 settings.
         const unit = 1048576
-        const left = Math.round(margins.itemAt(0).value / 100 * unit) / unit
-        const top = Math.round(margins.itemAt(1).value / 100 * unit) / unit
-        const right = Math.round(margins.itemAt(2).value / 100 * unit) / unit
-        const bottom = Math.round(margins.itemAt(3).value / 100 * unit) / unit
-        geometry.crop = { x: left, y: top, width: 1 - left - right, height: 1 - top - bottom }
-        commit()
+        const l = Math.round(crop.x*unit)/unit, t = Math.round(crop.y*unit)/unit
+        const r = Math.round((crop.x+crop.width)*unit)/unit
+        const b = Math.round((crop.y+crop.height)*unit)/unit
+        geometry.crop = l === 0 && t === 0 && r === 1 && b === 1 ? null
+            : { x:l, y:t, width:r-l, height:b-t }
+        geometry.straighten_degrees = draftAngle
+        geometryCommitted(JSON.stringify(geometry))
     }
-    function selectedControl() {
-        return selectedParameter === 4 ? angle : margins.itemAt(selectedParameter)
+    function applyCrop() { applyGeometry(); finishing = true; finished() }
+    function cancel() { finishing = true; geometryCommitted(originalGeometry); finished() }
+    function rotate(direction) {
+        const r = crop
+        crop = direction > 0 ? { x:1-r.y-r.height, y:r.x, width:r.height, height:r.width }
+            : { x:r.y, y:1-r.x-r.width, width:r.height, height:r.width }
+        geometry.quarter_turns_clockwise = (geometry.quarter_turns_clockwise+direction+4)%4
+        ratios.currentIndex = 0
+        applyGeometry()
     }
-    function moveSelection(direction) {
-        const order = [4, 0, 1, 2, 3]
-        selectedParameter = order[(order.indexOf(selectedParameter) + direction + 5) % 5]
+    function constrainAspect() {
+        if (lockedRatio <= 0) return
+        const ratio = lockedRatio/imageAspect
+        let w = crop.width, h = crop.height
+        if (w/h > ratio) w = h*ratio
+        else h = w/ratio
+        crop = { x:crop.x+(crop.width-w)/2, y:crop.y+(crop.height-h)/2, width:w, height:h }
     }
-    function adjust(direction, coarse) { selectedControl().nudge(direction, coarse) }
-    function resetSelected() { selectedControl().resetValue() }
+    function moveSelection(direction) { selectedParameter = 0 }
+    function adjust(direction, coarse) { angle.nudge(direction, coarse) }
+    function resetSelected() { angle.resetValue() }
 
     ColumnLayout {
         width: panel.availableWidth
-        spacing: 12
+        spacing: 20
         Text {
             text: "CROP & ROTATE"
             color: panel.theme.inkColor
             font.family: panel.theme.monoFont
-            font.pixelSize: 13
-            font.bold: true
+            font.pixelSize: 13; font.bold: true
+        }
+        Text {
+            Layout.fillWidth: true
+            text: "Drag the frame or its handles in the photograph."
+            wrapMode: Text.Wrap
+            color: panel.theme.mutedColor
+            font.family: panel.theme.monoFont; font.pixelSize: 11
         }
         RowLayout {
+            Layout.fillWidth: true
+            ComboBox {
+                id: ratios
+                objectName: "cropAspect"
+                Layout.fillWidth: true
+                model: ["Free", "Original", "1:1", "3:2", "4:3", "4:5", "16:9"]
+                enabled: panel.photoReady
+                onActivated: panel.constrainAspect()
+                Accessible.name: "Crop aspect ratio"
+            }
             TuiButton {
-                theme: panel.theme
-                text: "↶ 90°"
+                id: portrait
+                theme: panel.theme; text: "⇄"
+                checkable: true
+                enabled: panel.photoReady && ratios.currentIndex > 1
+                onClicked: panel.constrainAspect()
+                Accessible.name: "Swap aspect ratio orientation"
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            TuiButton {
+                Layout.fillWidth: true
+                theme: panel.theme; text: "↶ 90°"
                 enabled: panel.photoReady
                 onClicked: panel.rotate(-1)
                 Accessible.name: "Rotate counterclockwise"
             }
             TuiButton {
-                theme: panel.theme
-                text: "↷ 90°"
+                Layout.fillWidth: true
+                theme: panel.theme; text: "↷ 90°"
                 enabled: panel.photoReady
                 onClicked: panel.rotate(1)
                 Accessible.name: "Rotate clockwise"
@@ -85,75 +130,47 @@ ScrollView {
         }
         ParameterSlider {
             id: angle
+            objectName: "straightenSlider"
             Layout.fillWidth: true
-            theme: panel.theme
-            photoReady: panel.photoReady
-            label: "Straighten"
-            parameterIndex: 4
+            theme: panel.theme; photoReady: panel.photoReady
+            label: "Straighten"; parameterIndex: 0
             selectedParameter: panel.selectedParameter
-            from: -45
-            to: 45
-            stepSize: 0.1
-            decimalPlaces: 1
-            suffix: "°"
-            initialValue: 0
-            onSelectionRequested: index => panel.selectedParameter = index
-            onValueCommitted: value => {
-                panel.geometry.straighten_degrees = value
-                panel.commit()
-            }
+            from: -45; to: 45
+            stepSize: 0.1; coarseStep: 5
+            decimalPlaces: 1; suffix: "°"; initialValue: 0
+            onValueCommitted: value => panel.draftAngle = value
         }
         Text {
-            text: "CROP MARGINS"
-            color: panel.theme.accentColor
-            font.family: panel.theme.monoFont
-            font.bold: true
+            Layout.fillWidth: true
+            text: "Drag to rotate · ← / → 0.1°\nShift + ← / → 5°"
+            wrapMode: Text.Wrap
+            color: panel.theme.mutedColor
+            font.family: panel.theme.monoFont; font.pixelSize: 10
         }
-        Repeater {
-            id: margins
-            model: ["Left", "Top", "Right", "Bottom"]
-            delegate: ParameterSlider {
-                required property int index
-                required property string modelData
+        RowLayout {
+            Layout.fillWidth: true
+            TuiButton {
                 Layout.fillWidth: true
-                theme: panel.theme
-                photoReady: panel.photoReady
-                label: modelData
-                parameterIndex: index
-                selectedParameter: panel.selectedParameter
-                from: 0
-                to: 99
-                suffix: "%"
-                initialValue: 0
-                onSelectionRequested: index => panel.selectedParameter = index
-                onValueChanged: {
-                    const values = panel.draftMargins.slice()
-                    values[index] = value
-                    panel.draftMargins = values
-                }
+                theme: panel.theme; text: "APPLY"; primary: true
+                enabled: panel.photoReady
+                onClicked: panel.applyCrop()
+            }
+            TuiButton {
+                Layout.fillWidth: true
+                theme: panel.theme; text: "CANCEL"
+                enabled: panel.photoReady
+                onClicked: panel.cancel()
             }
         }
-        TuiButton {
-            theme: panel.theme
-            text: "APPLY CROP"
-            enabled: panel.photoReady && panel.cropValid
-            onClicked: panel.applyCrop()
-        }
-        Label {
-            visible: !panel.cropValid
-            Layout.fillWidth: true
-            text: "Opposite margins must total less than 100%."
-            wrapMode: Text.Wrap
-        }
         ResetButton {
-            theme: panel.theme
-            text: "RESET CROP & ROTATION"
+            theme: panel.theme; text: "RESET CROP & ROTATION"
             enabled: panel.photoReady
             onClicked: {
-                panel.geometry.crop = null
+                panel.crop = { x:0, y:0, width:1, height:1 }
+                panel.draftAngle = 0; angle.value = 0
                 panel.geometry.quarter_turns_clockwise = 0
-                panel.geometry.straighten_degrees = 0
-                panel.commit()
+                ratios.currentIndex = 0
+                panel.applyGeometry()
             }
         }
     }

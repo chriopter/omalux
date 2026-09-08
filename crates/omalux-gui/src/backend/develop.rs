@@ -270,6 +270,12 @@ pub(super) fn develop_preview_fast(
 ) -> Result<PreviewArtifact, GuiJobError> {
     use rayon::prelude::*;
 
+    // The LUT shortcut only handles point color. Geometry must use the same
+    // pipeline as export, at proxy resolution, so framing never jumps later.
+    if !settings.geometry.is_neutral() {
+        return develop_preview(source, settings, false, cancellation);
+    }
+
     let decoder = CachingProxyDecoder {
         inner: ProductionPhotoDecoder::new(),
         long_edge: PREVIEW_LONG_EDGE,
@@ -866,6 +872,14 @@ mod tests {
         assert!(preview_profile.color_v1);
         assert!(preview_profile.spatial_v1);
         assert_eq!(image::image_dimensions(preview.path()).unwrap(), (6, 8));
+        let interactive =
+            develop_preview_fast(input.path(), settings.clone(), &CancellationToken::new())
+                .unwrap();
+        assert_eq!(
+            std::fs::read(interactive.path()).unwrap(),
+            std::fs::read(preview.path()).unwrap(),
+            "interactive geometry must match the pipeline preview"
+        );
 
         let directory = tempfile::tempdir().unwrap();
         let output = directory.path().join("geometry-radial.jpg");
