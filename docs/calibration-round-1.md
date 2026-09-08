@@ -17,7 +17,7 @@ opcode, the grain paper model on lightness, and a master curve that crushes
 rather than inverts below zero. Every look was then re-tuned; four crush
 looks needed a neutral starting point instead of their archived values.
 
-Still weak on unseen images: blitz (a high-key look whose target treats
-raster and RAW sources differently), kerry, desert-signal, meadow-cross and
-kirche-2. On the camera side, per-camera exposure and the vignette opcode on
+Still weak on unseen images: lightning (a high-key look whose target treats
+raster and RAW sources differently), lough-leane, desert-signal, meadow-cross and
+church-soft. On the camera side, per-camera exposure and the vignette opcode on
 one phone remain open.

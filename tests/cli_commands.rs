@@ -232,11 +232,11 @@ fn representative_built_ins_run_through_real_jpeg_profiles() {
     .unwrap();
 
     for (id, color, spatial, radial) in [
-        ("experimental-verbania", false, true, false),
-        ("experimental-blume", true, false, false),
+        ("experimental-lakeside", false, true, false),
+        ("experimental-flower", true, false, false),
         ("series-meadow-cross", true, true, false),
         ("community-honey-hour", true, true, false),
-        ("experimental-lampe-1", false, true, false),
+        ("experimental-lamp", false, true, false),
     ] {
         let output = directory.path().join(format!("{id}.jpg"));
         let result = Command::new(env!("CARGO_BIN_EXE_omalux"))
