@@ -14,12 +14,13 @@ We are building on the work of the darktable developers and contributors, whose 
 
 We track the official darktable repository as a pinned Git submodule, keep its source unchanged, and will maintain the Omalux Qt/QML interface and adapter separately. Upstream updates will be adopted as complete revisions and tested against our integration.
 
-This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal Hello World UI are included; the image-processing adapter is not integrated yet. A local prototype has demonstrated a persistent darktable process serving the Omalux interface; integration into this repository is next. There is no new darktable-based release to download yet.
+This is an independent project, not an official darktable edition or an endorsement by its developers. The darktable source and a minimal editing UI are included. Brightness is connected directly to darktable’s interactive pixelpipe; the other tools are placeholders. The native prototype keeps a develop context and its caches alive, updates module parameters, and passes preview pixels directly to Qt. There is no new darktable-based release to download yet.
 
 ## Repository layout
 
-- [omalux/](omalux/): the new minimal Qt/QML interface and development launcher.
+- [omalux/](omalux/): the Qt/QML interface, native C/C++ adapter and development launcher.
 - [darktable/](darktable/): unchanged upstream source, pinned to a stable release by the Git submodule entry.
+- [assets/](assets/README.md): the logo and default beach volleyball image.
 - [omalux-v0/](omalux-v0/README.md): the original Rust engine, Qt/QML app, CLI, presets, tests and development tools, preserved together.
 - [omalux.org/](omalux.org/README.md): the website.
 
@@ -69,10 +70,23 @@ The script checks out the latest official stable release and its nested submodul
 
 Run from the repository root:
 
-- `bin/dev` — open the Hello World UI and keep darktable’s engine running without a window. Closing the UI stops the engine.
-- `bin/dev_split` — open the Hello World UI and the normal darktable window separately. Closing either window stops the development session.
+- `bin/dev [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
+- `bin/dev_split [image]` — open Omalux and the original darktable window with the same image. The comparison window has a separate database; edits are not synchronized. Closing Omalux stops both.
 - `bin/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
-The launchers require Python 3, Qt 6 with Qt Quick Controls and its `qml6`/`qml` runtime, and an installed darktable with Lua support. They currently use the **installed** darktable, not an automatic build of the submodule. `bin/dev` loads `libdarktable.so` in a separate process using the internal initialization API (tested with 5.6.0); this is a temporary development shim, not a stable public API. Override `DARKTABLE_LIBRARY` or `DARKTABLE_BIN` for another matching installation.
+```sh
+bin/dev
+bin/dev "/path/to/photo.CR3"
+bin/dev --input "/path/to/photo.jpg"
+bin/dev_split "/path/to/photo.jpg"
+```
 
-Each launch uses a temporary config, cache and database. There is no image editing or communication between the Hello World UI and darktable yet. These commands open windows on your current workspace.
+The UI follows the original dark Omalux layout. **Brightness** is the only active editing control: drag its slider, use Left/Right, or press R to reset it. Open, save, zoom, presets and the other tools are placeholders. Images are chosen through the launch argument for now.
+
+The launcher builds the C/C++ adapter on demand using `cc`, `c++`, `pkg-config` and Qt 6’s `moc`. It needs Python 3, Git, Qt 6 Quick/Quick Controls, and development headers for GTK 3, JSON-GLib, Little CMS, SQLite, Lua and librsvg. The current Linux build expects Qt tools under `/usr/lib/qt6/` and an installed release build of darktable 5.6.0 or 5.6.1. It does not build the darktable submodule itself.
+
+The build extracts the **matching installed release’s headers** into ignored `omalux/build/` (fetching its official tag if needed); it never changes the submodule checkout. Override `DARKTABLE_LIBRARY`, `DARKTABLE_BIN`, `DARKTABLE_MODULEDIR` and `DARKTABLE_DATADIR` for another matching installation. Unsupported versions are rejected until the adapter has been reviewed for their internal ABI.
+
+The engine runs inside the Qt application on a dedicated worker thread. It keeps the develop context, decoded image cache and pixelpipe alive; brightness changes update darktable’s `colisa` module using its internal parameter introspection. Only the newest requested value is queued, and obsolete frames are discarded. Preview buffers are copied directly into QImage, without XMP reloads, image export or JPEG encoding. The current CPU preview fits within 1400 × 1000 pixels; GPU rendering and viewport-dependent resolution are later steps.
+
+Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Edits are not saved when the session closes. Both scripts open their windows on your current workspace.
