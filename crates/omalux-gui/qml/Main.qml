@@ -739,14 +739,6 @@ ApplicationWindow {
                                 }
                             }
 
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "transparent"
-                                border.width: 1
-                                border.color: window.lineColor
-                                visible: sourceImage.status === Image.Ready
-                                    && !window.photoFullscreen
-                            }
                         }
 
                         WheelHandler {
