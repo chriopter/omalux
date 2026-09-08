@@ -437,7 +437,7 @@ ApplicationWindow {
         title: "Open photograph"
         fileMode: FileDialog.OpenFile
         nameFilters: [
-            "Photographs (*.jpg *.jpeg *.png *.bmp *.dng *.cr2 *.cr3 *.nef *.nrw *.arw *.raf *.rw2 *.orf *.pef)",
+            "Photographs (*.jpg *.JPG *.jpeg *.JPEG *.png *.PNG *.bmp *.BMP *.dng *.DNG *.cr2 *.CR2 *.cr3 *.CR3 *.nef *.NEF *.nrw *.NRW *.arw *.ARW *.raf *.RAF *.rw2 *.RW2 *.orf *.ORF *.pef *.PEF)",
             "All files (*)"
         ]
         onAccepted: backend.openPhoto(selectedFile)

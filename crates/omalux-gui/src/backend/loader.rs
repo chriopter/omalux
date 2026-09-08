@@ -20,6 +20,7 @@ mod tests {
     #[test]
     fn routes_standard_images_directly_to_qt() {
         assert!(is_qt_image(Path::new("portrait.JPG")));
+        assert!(is_qt_image(Path::new("portrait.JPEG")));
         assert!(is_qt_image(Path::new("scan.png")));
         assert!(is_qt_image(Path::new("reference.bmp")));
     }
