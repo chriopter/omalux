@@ -16,6 +16,10 @@ npm run dev
 Edit `src/pages/index.astro` for the landing page and `public/` for images
 and other static assets. Run `npm run build` to check the production build.
 
+The Lux wordmark is `public/assets/omalux-logo.svg`; `public/favicon.svg` and
+`public/favicon.ico` use its pixel sun. The header adapts the logo to the selected
+light/dark theme and uses a sun/moon button to switch modes.
+
 ## Screenshot
 
 From any directory, run `omalux.org/scripts/screenshots.sh` using the appropriate
