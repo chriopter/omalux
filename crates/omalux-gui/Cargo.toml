@@ -31,6 +31,10 @@ omalux = { path = "../..", version = "=0.1.0", default-features = false, feature
 
 [dev-dependencies]
 
+[[example]]
+name = "website_screenshot"
+path = "../../omalux.org/scripts/screenshot.rs"
+
 [[test]]
 name = "preset_previews"
 harness = false
