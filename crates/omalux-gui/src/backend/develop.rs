@@ -778,11 +778,11 @@ mod tests {
         let input = tempfile::NamedTempFile::with_suffix(".jpg").unwrap();
         jpeg_fixture(input.path());
         for id in [
-            "personal-verbania",
-            "personal-blume",
+            "experimental-verbania",
+            "experimental-blume",
             "series-alpine-cross",
             "community-honey-hour",
-            "personal-lampe-1",
+            "experimental-lampe-1",
         ] {
             let preview = develop_preview(
                 input.path(),

@@ -19,7 +19,9 @@ fn built_in_catalog_is_canonical_complete_sorted_and_searchable() {
     assert_eq!(ids.first(), Some(&"community-amber-grain"));
     assert_eq!(ids.last(), Some(&"series-cedar-fade"));
     assert_eq!(
-        ids.iter().filter(|id| id.starts_with("personal-")).count(),
+        ids.iter()
+            .filter(|id| id.starts_with("experimental-"))
+            .count(),
         13
     );
     assert_eq!(
