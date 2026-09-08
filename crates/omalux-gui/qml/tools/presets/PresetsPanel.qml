@@ -13,29 +13,40 @@ Item {
     signal presetRequested(string id)
 
     property var expandedGroups: ({ monochrome: true })
+    readonly property var catalogPresets: {
+        try {
+            return JSON.parse(catalogJson).presets || []
+        } catch (error) {
+            return []
+        }
+    }
+    readonly property var defaultPreset: catalogPresets.find(
+        preset => (preset.group || "basic") === "basic")
     readonly property var groups: {
         let result = []
-        try {
-            for (let preset of JSON.parse(catalogJson).presets || []) {
-                let key = preset.group || "basic"
-                if (key === "basic") continue
-                let group = result.find(group => group.id === key)
-                if (!group) {
-                    group = { id: key, name: key.replace(/\//g, " · ").replace(/-/g, " "), presets: [] }
-                    result.push(group)
-                }
-                group.presets.push(preset)
+        for (let preset of catalogPresets) {
+            let key = preset.group || "basic"
+            if (key === "basic") continue
+            let group = result.find(group => group.id === key)
+            if (!group) {
+                group = { id: key, name: key.replace(/\//g, " · ").replace(/-/g, " "), presets: [] }
+                result.push(group)
             }
-        } catch (error) {}
+            group.presets.push(preset)
+        }
         result.sort((a, b) => {
             if (a.id === "monochrome") return -1
             if (b.id === "monochrome") return 1
+            if (a.id === "experimental") return 1
+            if (b.id === "experimental") return -1
             return a.id.localeCompare(b.id)
         })
         return result
     }
     readonly property var rows: {
         let result = []
+        if (defaultPreset)
+            result.push(Object.assign({ isGroup: false, isDefault: true }, defaultPreset))
         for (let group of groups) {
             result.push({ id: group.id, name: group.name, isGroup: true })
             if (expandedGroups[group.id]) {

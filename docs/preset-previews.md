@@ -20,10 +20,10 @@ anything or change the selected preset, and works without an open photograph.
 Applying a preset requires a photograph. The previews illustrate each look on
 the beach scene, not its result on the user's current image.
 
-The list follows the preset directory groups, with Monochrome first and expanded
-by default; other groups start collapsed. Basic/Neutral is omitted from the look
-list. Expanded groups show compact, borderless image-and-name rows; the selected
-name uses the theme accent. All sidebar panels share one scroll handler: touchpad pixel deltas
+Neutral appears first as a standalone reset preset. The grouped looks follow with
+Monochrome expanded by default, both Series groups adjacent, and Experimental
+last; other groups start collapsed. Expanded groups show compact, borderless
+image-and-name rows; the selected name uses the theme accent. All sidebar panels share one scroll handler: touchpad pixel deltas
 are scaled by three, and a mouse notch advances 144 logical pixels. Movement
 is clamped at the content bounds without rounding or added animation.
 

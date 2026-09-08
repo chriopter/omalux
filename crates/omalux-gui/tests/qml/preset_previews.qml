@@ -14,7 +14,7 @@ ApplicationWindow {
     property bool selecting: false
     property int phase: 0
     property string capturePath: ""
-    readonly property var catalog: JSON.parse(backend.presetCatalogJson).presets.filter(preset => preset.group !== "basic")
+    readonly property var catalog: JSON.parse(backend.presetCatalogJson).presets
     readonly property var testTheme: ({ inkColor: "#eeeeee", accentColor: "#e8b66d",
         mutedColor: "#bbbbbb", selectionColor: "#383024", surfaceColor: "#252525",
         lineColor: "#444444", monoFont: "monospace" })
@@ -58,23 +58,26 @@ ApplicationWindow {
             if (window.phase === 0) {
                 if (panel.groups[0].id !== "monochrome" || !panel.expandedGroups.monochrome)
                     return window.fail("monochrome must start first and expanded")
+                if (panel.groups[panel.groups.length - 1].id !== "experimental")
+                    return window.fail("experimental must be the last group")
                 let lateSummer = panel.groups.findIndex(group => group.id === "series/late-summer")
                 let movie = panel.groups.findIndex(group => group.id === "series/movie")
                 if (lateSummer < 0 || movie !== lateSummer + 1)
                     return window.fail("series groups must stay together")
-                if (panel.groups.some(group => group.id === "basic") || panel.rows.some(row => row.id === "neutral"))
-                    return window.fail("neutral must not appear in the look list")
-                if (list.count !== panel.groups.length + panel.groups[0].presets.length)
+                if (panel.groups.some(group => group.id === "basic")
+                        || panel.rows[0].id !== "neutral" || !panel.rows[0].isDefault)
+                    return window.fail("neutral must be the standalone first preset")
+                if (list.count !== panel.groups.length + panel.groups[0].presets.length + 1)
                     return window.fail("only monochrome must start expanded")
-                let first = list.itemAtIndex(0)
-                if (!first) return
-                if (!first.enabled) return window.fail("groups must open without a photo")
-                first.clicked()
+                let monochrome = list.itemAtIndex(1)
+                if (!monochrome) return
+                if (!monochrome.enabled) return window.fail("groups must open without a photo")
+                monochrome.clicked()
                 window.phase = 1
                 return
             }
             if (window.phase === 1) {
-                if (list.count !== panel.groups.length)
+                if (list.count !== panel.groups.length + 1)
                     return window.fail("monochrome did not collapse")
                 for (let group of panel.groups) panel.toggleGroup(group.id)
                 window.phase = 2
@@ -88,7 +91,7 @@ ApplicationWindow {
                 window.phase = 3
             }
             if (window.phase === 4) {
-                if (list.count !== panel.groups.length) return window.fail("groups did not collapse")
+                if (list.count !== panel.groups.length + 1) return window.fail("groups did not collapse")
                 if (window.requests !== 1 || backend.selectedPresetId !== window.catalog[0].id)
                     return window.fail("group toggles changed selection")
                 console.log("All " + window.checked + " previews loaded; group defaults, compact rows and selection passed")
