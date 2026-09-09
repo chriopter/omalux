@@ -1,6 +1,6 @@
 # Development
 
-Commands run from the repository root. For the original Rust application, see the [v0 guide](v0/README.md).
+Commands run from the repository root. The original Rust application is preserved in [release v0.2.0](https://github.com/chriopter/omalux/releases/tag/v0.2.0) and Git history.
 
 ## Fetching darktable
 

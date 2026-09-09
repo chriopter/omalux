@@ -25,7 +25,7 @@ Sessions are temporary: export your photos or save presets before closing.
 - `bin/preset_preview <folder>` / `--all` — regenerate preset thumbnails.
 - `bin/update` — update the darktable submodule to the latest stable release; does not commit or push.
 
-[Development guide](docs/development.md) · [Engine architecture](docs/darktable-architecture.md) · [Original v0 app](docs/v0/README.md)
+[Development guide](docs/development.md) · [Engine architecture](docs/darktable-architecture.md) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)
 
 ## TODO
 
