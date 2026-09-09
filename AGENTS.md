@@ -2,7 +2,7 @@
 
 The repository is being prepared for an independent Qt/QML interface using darktable.
 
-- `omalux.org/` contains the website; its rules are collected below.
+- The website lives in the separate repository https://github.com/chriopter/omalux.org.
 - `darktable/` is the official upstream Git submodule, pinned to a stable release. Initialize it with `git submodule update --init --recursive`.
 - `omalux/` contains the Qt/QML UI, C/C++ native adapter and Python development launcher. The registered editing controls, crop, presets and JPEG/PNG export are connected to darktable; the History pane displays the current image’s native processing stack. See `docs/ui-controls.md` for the mappings and limitations. Do not describe planned functionality as released.
 - Keep the adapter and UI separate from upstream. Necessary internal engine changes are authorized, but keep them minimal and documented.
@@ -12,7 +12,7 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 - Declare preset dependencies in `preset.json` using `assets` (`path`, `role`, optional `target`). Style and thumbnail filenames are fixed conventions. Record the repository-relative source image under `preview.source` and rendering engine version under `preview.darktable_version` automatically when generating thumbnails; these are provenance, not runtime dependencies or compatibility requirements. Preserve asset declarations when regenerating thumbnails. Unsupported or missing dependencies must not silently produce a different look.
 - `assets/logo/`, `assets/images/` and `assets/icons/` contain shared visual assets. Reuse the existing beach photograph.
 - Credit darktable and its contributors. Do not imply official affiliation or endorsement.
-- Website and README screenshots show the current darktable-based development UI. Generate them with `omalux.org/scripts/screenshots.sh`; keep development-preview labels accurate.
+- Website and README screenshots show the current darktable-based development UI. Generate them with `scripts/screenshots.sh` in the website repository; keep development-preview labels accurate.
 - `bin/update` checks out the latest upstream stable release and its dependencies; it never stages, commits or pushes.
 - `tools/calibration/` fits bundled looks (`preset.dtstyle` + `look.cube`) to target renderings through `darktable-cli`; `docs/calibration.md` has the data layout and recipe. Fits use tuning images only; holdout images are judged once by a finished candidate. Datasets and targets are not in the repository.
 
@@ -33,28 +33,3 @@ The repository is being prepared for an independent Qt/QML interface using darkt
 6. Keep each implemented sidebar pane in its own file under `omalux/ui/panels/`. Shared visual components belong in `omalux/ui/components/`; pass data through explicit properties and actions through signals. Only `Main.qml` and the sidebar composition wire the backend; child components must not reach into global `editor` or window IDs.
 7. Keep special control adapters explicit: white balance uses darktable’s temperature/color math, denoise curves and blend changes synchronize as module snapshots. Do not substitute a display-only effect or assume a native field name is a GTK action path.
 8. Verify affected controls with the actual engine and comparison path. Do not claim identical output or performance without measuring it under matching settings.
-
-## Website rules (`omalux.org/`)
-
-### Development
-
-When starting the dev server, use background mode:
-
-```
-astro dev --background
-```
-
-Manage the background server with `astro dev stop`, `astro dev status`, and `astro dev logs`.
-
-### Documentation
-
-Full documentation: https://docs.astro.build
-
-Consult these guides before working on related tasks:
-
-- [Adding pages, dynamic routes, or middleware](https://docs.astro.build/en/guides/routing/)
-- [Working with Astro components](https://docs.astro.build/en/basics/astro-components/)
-- [Using React, Vue, Svelte, or other framework components](https://docs.astro.build/en/guides/framework-components/)
-- [Adding or managing content](https://docs.astro.build/en/guides/content-collections/)
-- [Adding styles or using Tailwind](https://docs.astro.build/en/guides/styling/)
-- [Supporting multiple languages](https://docs.astro.build/en/guides/internationalization/)

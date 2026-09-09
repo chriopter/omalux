@@ -4,7 +4,7 @@ A keyboard-friendly interface for [darktable](https://www.darktable.org/), built
 
 [Website](https://omalux.org) · [Releases](https://github.com/chriopter/omalux/releases) · [Documentation](docs/README.md)
 
-![Omalux development preview](omalux.org/public/app-screenshot-dark.png)
+![Omalux development preview](https://omalux.org/app-screenshot-dark.png)
 
 ## Run
 
