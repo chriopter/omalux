@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Search the spatial module parameters on top of a fitted cube.
+"""Search the module parameters around a fitted cube.
 
-  slider_tune.py <preset> [--passes 3]
+  slider_tune.py <preset> [--passes 2]
 
-Starts from work/<preset>/best.cube and style.dtstyle (see cube_fit.py).
-Only parameters after lut3d with a spatial effect are searched: shadows and
-highlights, vignette, sharpening, grain. Global tone and colour are left to
-the cube, which already absorbs them. Because the cube was fitted for the
-current sliders, every trial gets one cube update and a second render before
-it is judged; otherwise "no change" always wins. After each coordinate pass
-the cube is refitted for three iterations.
+Each pass has three parts:
+1. Scene-referred parameters before lut3d (exposure, tone equalizer bands,
+   color balance rgb contrast/vibrance/saturation/chroma). A trial re-renders
+   the LUT inputs and is judged by explainability: the score of the best
+   regularised cube for those inputs, solved in numpy. This is what lets a
+   look behave differently for bright and dark scenes.
+2. A cube refit against the new inputs, run to convergence.
+3. Spatial parameters after lut3d (local contrast, shadows and highlights,
+   vignette, sharpening, grain). Because the cube was fitted for the current
+   values, every trial gets one cube update and a second render before it is
+   judged; otherwise "no change" always wins. Then a short cube refit.
 
-Writes work/<preset>/tuned/preset.dtstyle, look.cube and tuned.json.
+Starts from work/<preset>/best.cube and style.dtstyle (see cube_fit.py), or
+from the previous tuned result when TUNE_FROM_TUNED=1. Writes
+work/<preset>/tuned/preset.dtstyle, look.cube and tuned.json.
 """
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -25,9 +32,26 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cube_fit  # noqa: E402
 import dtparams  # noqa: E402
-from common import WORK, images, preset_dirs  # noqa: E402
+import common  # noqa: E402
+from common import images, preset_dirs  # noqa: E402
 
-# (module, field, step, min, max)
+# scene-referred parameters before lut3d
+PARAMS_PRE = [
+    ("exposure", "exposure", 0.2, -3.0, 3.0),
+    ("exposure", "black", 0.005, -0.05, 0.05),
+    ("toneequal", "noise", 0.25, -2.0, 2.0),
+    ("toneequal", "deep_blacks", 0.25, -2.0, 2.0),
+    ("toneequal", "blacks", 0.25, -2.0, 2.0),
+    ("toneequal", "shadows", 0.25, -2.0, 2.0),
+    ("toneequal", "midtones", 0.25, -2.0, 2.0),
+    ("toneequal", "highlights", 0.25, -2.0, 2.0),
+    ("toneequal", "whites", 0.25, -2.0, 2.0),
+    ("colorbalancergb", "contrast", 0.15, -1.0, 1.0),
+    ("colorbalancergb", "vibrance", 0.2, -1.0, 1.0),
+    ("colorbalancergb", "saturation_global", 0.2, -1.0, 1.0),
+    ("colorbalancergb", "chroma_global", 0.2, -1.0, 1.0),
+]
+# spatial parameters after lut3d: (module, field, step, min, max)
 PARAMS = [
     ("bilat", "detail", 0.15, -1.0, 2.0),
     ("shadhi", "shadows", 15.0, -100.0, 100.0),
@@ -59,12 +83,25 @@ class Tuner:
                 params[field] = 0.0  # a module absent from the style starts switched off
                 self.state[op] = dict(params=params, enabled=False)
                 self.base_text = dtparams.ensure_module(self.base_text, op, params, enabled=False)
+        for op in ("toneequal", "colorbalancergb"):
+            if self.state.get(op, {}).get("params") is None:
+                self.base_text = dtparams.ensure_module(self.base_text, op, dict(dtparams.DEFAULTS[op]), enabled=True)
+                self.state[op] = dict(params=dict(dtparams.DEFAULTS[op]), enabled=True)
         self.rel = cube_fit.lut_relpath(self.pdir)
         self.lut_dir = self.t / "lut"
-        shutil.copy(self.w / "best.cube", self.cube_path())
+        start_cube = self.w / "best.cube"
+        if os.environ.get("TUNE_FROM_TUNED") == "1" and (self.t / "look.cube").exists():
+            start_cube = self.t / "look.cube"
+            prev = dtparams.read_style((self.t / "preset.dtstyle").read_text())
+            for op, v in prev.items():
+                if op in self.state and v["params"] is not None:
+                    self.state[op]["params"].update(v["params"])
+                    self.state[op]["enabled"] = v["enabled"]
+        shutil.copy(start_cube, self.cube_path())
         self.n = 0
         self.trial_cube = None
         self.A, self.B = cube_fit.lut_inputs(pid, self.w / "style.dtstyle", imgs, self.w / "input")
+        self.input_dir = self.w / "input"
 
     def cube_path(self):
         p = self.lut_dir / self.rel
@@ -93,7 +130,7 @@ class Tuner:
         self.trial_cube = None
         if refit:
             cube = cube_fit.cube_update(cube_fit.read_cube(self.cube_path()), self.imgs, self.A, self.B,
-                                        out, self.w / "input")
+                                        out, self.input_dir)
             tl = self.t / "trial-lut"
             cube_fit.write_cube(tl / self.rel, cube, "trial")
             out2 = self.render(sp, tag + "-refit", tl)
@@ -106,6 +143,59 @@ class Tuner:
         if self.trial_cube is not None:
             cube_fit.write_cube(self.cube_path(), self.trial_cube, f"{self.pid} tuned")
             self.trial_cube = None
+
+    def inputs_for(self, sp, tag):
+        """Render the LUT inputs of a style into tuned/inputs/<tag>; returns the directory."""
+        d = self.t / "inputs" / tag
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True)
+        in_style = d / "input.dtstyle"
+        in_style.write_text(cube_fit.disable_modules(sp.read_text(), cube_fit.POST_LUT | {"lut3d"}))
+        cube_fit.render_many([(i["path"], in_style, d / (i["id"] + ".png"), None) for i in self.imgs])
+        return d
+
+    def explain(self, d):
+        Ap, Bp = {}, {}
+        for i in self.imgs:
+            ref = common.target(self.pid, i, common.PROXY)
+            h, wd = ref.shape[:2]
+            Bp[i["id"]] = ref.reshape(-1, 3).astype(np.float64) / 255
+            Ap[i["id"]] = common.read_rgb(d / (i["id"] + ".png"), wd, h).reshape(-1, 3).astype(np.float64) / 255
+        return cube_fit.explainability(Ap, Bp)[0]
+
+    def scene_pass(self, log):
+        """Coordinate search over the pre-LUT parameters, judged by explainability."""
+        cur_dir = self.inputs_for(self.style_path(self.state), "current")
+        current = self.explain(cur_dir)
+        log(f"  scene pass start: explainability {current:.3f}")
+        for op, field, step, lo, hi in PARAMS_PRE:
+            base = self.state[op]["params"][field]
+            for direction in (+1, -1):
+                moved = False
+                while True:
+                    val = float(np.clip(base + direction * step, lo, hi))
+                    if abs(val - base) < 1e-9:
+                        break
+                    trial = json.loads(json.dumps(self.state))
+                    trial[op]["params"][field] = val
+                    d = self.inputs_for(self.style_path(trial), "trial")
+                    score = self.explain(d)
+                    log(f"  {op}.{field} {base:.3f} -> {val:.3f}: explainability {score:.3f} (current {current:.3f})")
+                    if score < current - MIN_GAIN:
+                        self.state, current, base, moved = trial, score, val, True
+                        shutil.rmtree(cur_dir, ignore_errors=True)
+                        shutil.copytree(d, cur_dir)
+                    else:
+                        break
+                if moved:
+                    break
+        A = {}
+        for i in self.imgs:
+            p = cur_dir / (i["id"] + ".png")
+            aw, ah = common.im_size(p)
+            A[i["id"]] = common.read_rgb(p, aw, ah).reshape(-1, 3).astype(np.float64) / 255
+        self.A, self.input_dir = A, cur_dir
+        return current
 
     def coordinate_pass(self, current, log):
         for op, field, step, lo, hi in PARAMS:
@@ -138,9 +228,11 @@ class Tuner:
             out = self.render(sp, f"refit-{k}", self.lut_dir)
             mean, _ = cube_fit.score_dir(self.pid, self.imgs, out)
             log(f"  cube refit iter {k}: {mean:.3f}")
-            if mean < best:
+            if mean < best - 0.01:
                 best, best_cube = mean, cube.copy()
-            cube = cube_fit.cube_update(cube, self.imgs, self.A, self.B, out, self.w / "input")
+            elif k >= 2:
+                break
+            cube = cube_fit.cube_update(cube, self.imgs, self.A, self.B, out, self.input_dir)
             cube_fit.write_cube(self.cube_path(), cube, f"{self.pid} refit")
         cube_fit.write_cube(self.cube_path(), best_cube, f"{self.pid} tuned")
         return best
@@ -149,7 +241,7 @@ class Tuner:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("preset")
-    ap.add_argument("--passes", type=int, default=3)
+    ap.add_argument("--passes", type=int, default=2)
     a = ap.parse_args()
     tn = Tuner(a.preset, images("tuning"))
     logf = open(tn.t / "tune.log", "a")
@@ -164,6 +256,9 @@ def main():
     history = [current]
     for p in range(a.passes):
         t0 = time.time()
+        tn.scene_pass(log)
+        current = tn.cube_refit(1e9, 12, log)
+        log(f"[{a.preset}] pass {p} scene: {current:.3f}")
         current = tn.coordinate_pass(current, log)
         log(f"[{a.preset}] pass {p} sliders: {current:.3f}")
         current = tn.cube_refit(current, 3, log)

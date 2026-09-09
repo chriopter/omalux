@@ -22,33 +22,24 @@ The score is the mean CIEDE2000 between the rendering and the target, both scale
 
 `dtrender.py` converts a `.dtstyle` into an XMP history sidecar and runs `darktable-cli` on it, so no database import is needed. All images of one fit round share a style, so they are rendered by one `darktable-cli` process from a folder of links: process start-up (about two seconds) is paid once per round instead of once per image. Fit rounds also let darktable scale early instead of processing RAW files at full resolution (`--hq false`); that is several times faster and differs from full-quality output by a few tenths of ΔE, so final scoring and the baseline use full quality. `DT_OMP` sets the OpenMP threads per process (default 4; several presets can then run side by side on 16 cores). Each worker uses its own configuration directory under `work/dtcfg/`. Rendering is CPU-only by default: the pixelpipe takes a small fraction of the two seconds a `darktable-cli` process needs, and with several parallel processes a GPU reset on some drivers silently corrupts the output of the other processes. `DT_OPENCL=1` enables OpenCL with a CPU retry on failure.
 
-## Recipe (scene-referred, current)
+## Recipe
 
-The looks are built from darktable modules that run before the tone mapper: exposure, color balance rgb, tone equalizer and sigmoid, plus local contrast, shadows and highlights, vignette, sharpening and grain. No cube. The result is an ordinary darktable style whose values can be read and edited in darktable.
-
-```sh
-export OMALUX_CALIBRATION_ROOT=/path/to/data
-python3 tools/calibration/scene_search.py <preset>       # search the module parameters from neutral
-python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
-python3 tools/calibration/report.py                       # work/report/index.html
-python3 tools/calibration/install_preset.py <preset>      # style into presets/, cube and asset removed
-dev/preset_preview <preset>                               # refresh the thumbnail
-```
-
-`scene_search.py` is coordinate descent over about forty parameters (see `PARAMS` in the file), one render round of the tuning images per trial, steps halving when a pass gains less than 0.05. Five passes take roughly an hour per preset on 16 cores; two presets can run side by side with `DT_OMP=8`. Why this instead of the cube: the targets behave like scene-referred processing (bright scenes and dark scenes get different treatment for the same display colour), which a display-referred cube after the tone mapper cannot express; see the findings below.
-
-## Recipe (display cube, first round)
+Tone is set scene-referred before the tone mapper (exposure, tone equalizer, color balance rgb), the remaining colour lives in a regularised cube after it, and the spatial modules (local contrast, shadows and highlights, vignette, sharpening, grain) follow. `slider_tune.py` searches all three parts around a fitted cube. The scene-referred part is judged by explainability, the score of the best cube for the new LUT inputs solved in numpy without a render; this is what lets a look treat bright and dark scenes differently, which the targets do.
 
 ```sh
 export OMALUX_CALIBRATION_ROOT=/path/to/data
 python3 tools/calibration/cube_fit.py baseline            # score the bundled presets as they are
 python3 tools/calibration/cube_fit.py fit <preset>        # fit the cube on tuning images
-python3 tools/calibration/slider_tune.py <preset>         # then search the spatial sliders
+python3 tools/calibration/slider_tune.py <preset>         # scene parameters, cube refit, spatial sliders
 python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
 python3 tools/calibration/report.py                       # work/report/index.html
 python3 tools/calibration/install_preset.py <preset>      # copy into presets/
-dev/preset_preview <preset>                               # refresh the thumbnail
+dev/preset_preview <group>/<preset>                       # refresh the thumbnail
 ```
+
+`TUNE_FROM_TUNED=1` continues from a previous tuned result. One pass takes about 20 minutes per preset on 16 cores; two presets run side by side with `DT_OMP=8`.
+
+`scene_search.py` builds the same modules without any cube, from a neutral start. It stalls around ΔE 9 where the cube reaches 4: color balance rgb and the tone equalizer cannot express the hue-dependent shifts of the looks, so the cube stays for colour.
 
 `run_queue.sh [-j 3] [preset ...]` runs fit, one slider pass, final scoring and the report for many presets, three at a time by default; without ids it queues every preset that has targets and no `final.json` yet. Progress and per-preset logs are under `work/queue/`. With four presets side by side, budget about 7 minutes for a cube fit and 17 minutes for one slider pass per preset on 16 cores.
 
@@ -60,11 +51,9 @@ The cube is fitted by fixed-point iteration. The input to `lut3d` is rendered on
 
 The fit runs with `colisa` disabled (`work/<preset>/style.dtstyle`). Global tone and colour are expressed by the cube; a display-referred contrast, brightness and saturation adjustment after the LUT fights the fit and, at saturation −1, removes any tint the cube adds.
 
-### Slider search
+### Parameter search
 
-Modules after `lut3d` with a spatial effect cannot be absorbed by the cube: shadows and highlights, vignette, sharpening, grain. `slider_tune.py` searches them by coordinate descent. Because the cube was fitted for the current slider values, every trial gets one cube update and a second render before it is judged; without that, leaving everything unchanged always wins. After each pass the cube is refitted for three iterations.
-
-Parameters before `lut3d` (exposure, black level) are not searched: any change there is undone by the cube once it is refitted.
+Each pass of `slider_tune.py` has three parts. First the scene-referred parameters before `lut3d` (exposure and black level, the tone equalizer bands, color balance rgb contrast, vibrance, saturation and chroma): a trial re-renders the LUT inputs and is accepted when their explainability improves. Then the cube is refitted against the new inputs until it converges. Then the spatial parameters after `lut3d` (local contrast, shadows and highlights, vignette, sharpening, grain): because the cube was fitted for the current values, every trial gets one cube update and a second render before it is judged; without that, leaving everything unchanged always wins. A short cube refit closes the pass.
 
 ## What we learned
 

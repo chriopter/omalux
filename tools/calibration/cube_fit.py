@@ -210,6 +210,43 @@ def cube_update(cube, imgs, A, B, out_dir, input_dir, damping=0.7):
     return np.clip(cube + damping * solve_update(num, den), 0, 1)
 
 
+def trilinear(cube, a):
+    """Apply a cube to (N,3) values in [0,1] with trilinear interpolation (numpy)."""
+    n = cube.shape[0]
+    x = np.clip(a * (n - 1), 0, n - 1 - 1e-6)
+    i0 = np.floor(x).astype(int)
+    f = x - i0
+    out = np.zeros_like(a)
+    for dr in (0, 1):
+        for dg in (0, 1):
+            for db in (0, 1):
+                w = ((f[:, 0] if dr else 1 - f[:, 0]) * (f[:, 1] if dg else 1 - f[:, 1])
+                     * (f[:, 2] if db else 1 - f[:, 2]))
+                out += cube[i0[:, 2] + db, i0[:, 1] + dg, i0[:, 0] + dr] * w[:, None]
+    return out
+
+
+def explainability(A, B, steps=4, damping=0.8):
+    """How well a pointwise cube can map LUT inputs A to targets B (both {id: (N,3) in [0,1]}):
+    a regularised cube is solved in numpy and evaluated without any darktable render.
+    Returns (mean dE over images, per-image dE, cube). Used to judge parameters before the LUT."""
+    cube = identity_cube()
+    for _ in range(steps):
+        num = np.zeros((LUT_SIZE,) * 3 + (3,))
+        den = np.zeros((LUT_SIZE,) * 3)
+        for k in A:
+            n1, d1 = scatter(A[k], B[k] - trilinear(cube, A[k]), LUT_SIZE)
+            s = 1e5 / max(d1.sum(), 1)
+            num += n1 * s
+            den += d1 * s
+        cube = np.clip(cube + damping * solve_update(num, den), 0, 1)
+    des = {}
+    for k in A:
+        o = np.clip(trilinear(cube, A[k]) * 255 + 0.5, 0, 255).astype(np.uint8)
+        des[k] = common.delta_e(o, (B[k] * 255 + 0.5).astype(np.uint8))
+    return float(np.mean(list(des.values()))), des, cube
+
+
 def lut_inputs(pid, style_path, imgs, input_dir):
     """LUT-input renders (fixed per style prefix) and targets at render size."""
     in_style = input_dir.parent / "input.dtstyle"
