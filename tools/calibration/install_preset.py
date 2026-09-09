@@ -7,6 +7,7 @@ Takes work/<preset>/tuned/ when slider_tune.py ran, otherwise the fitted
 style and best.cube from cube_fit.py. The thumbnail is not regenerated; run
 `bin/preset_preview <preset>` afterwards.
 """
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -20,7 +21,17 @@ def main(pids):
     for pid in pids:
         pdir = dirs[pid]
         w = WORK / pid
-        tuned = w / "tuned"
+        tuned, scene = w / "tuned", w / "scene"
+        if (scene / "preset.dtstyle").exists():
+            shutil.copy(scene / "preset.dtstyle", pdir / "preset.dtstyle")
+            (pdir / "look.cube").unlink(missing_ok=True)
+            manifest = pdir / "preset.json"
+            if manifest.exists():
+                d = json.load(open(manifest))
+                d["assets"] = []
+                manifest.write_text(json.dumps(d, indent=2) + "\n")
+            print(f"{pid}: installed scene/preset.dtstyle (no cube)")
+            continue
         if (tuned / "preset.dtstyle").exists():
             style, cube = tuned / "preset.dtstyle", tuned / "look.cube"
         else:

@@ -22,7 +22,22 @@ The score is the mean CIEDE2000 between the rendering and the target, both scale
 
 `dtrender.py` converts a `.dtstyle` into an XMP history sidecar and runs `darktable-cli` on it, so no database import is needed. All images of one fit round share a style, so they are rendered by one `darktable-cli` process from a folder of links: process start-up (about two seconds) is paid once per round instead of once per image. Fit rounds also let darktable scale early instead of processing RAW files at full resolution (`--hq false`); that is several times faster and differs from full-quality output by a few tenths of ΔE, so final scoring and the baseline use full quality. `DT_OMP` sets the OpenMP threads per process (default 4; several presets can then run side by side on 16 cores). Each worker uses its own configuration directory under `work/dtcfg/`. Rendering is CPU-only by default: the pixelpipe takes a small fraction of the two seconds a `darktable-cli` process needs, and with several parallel processes a GPU reset on some drivers silently corrupts the output of the other processes. `DT_OPENCL=1` enables OpenCL with a CPU retry on failure.
 
-## Recipe
+## Recipe (scene-referred, current)
+
+The looks are built from darktable modules that run before the tone mapper: exposure, color balance rgb, tone equalizer and sigmoid, plus local contrast, shadows and highlights, vignette, sharpening and grain. No cube. The result is an ordinary darktable style whose values can be read and edited in darktable.
+
+```sh
+export OMALUX_CALIBRATION_ROOT=/path/to/data
+python3 tools/calibration/scene_search.py <preset>       # search the module parameters from neutral
+python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
+python3 tools/calibration/report.py                       # work/report/index.html
+python3 tools/calibration/install_preset.py <preset>      # style into presets/, cube and asset removed
+bin/preset_preview <preset>                               # refresh the thumbnail
+```
+
+`scene_search.py` is coordinate descent over about forty parameters (see `PARAMS` in the file), one render round of the tuning images per trial, steps halving when a pass gains less than 0.05. Five passes take roughly an hour per preset on 16 cores; two presets can run side by side with `DT_OMP=8`. Why this instead of the cube: the targets behave like scene-referred processing (bright scenes and dark scenes get different treatment for the same display colour), which a display-referred cube after the tone mapper cannot express; see the findings below.
+
+## Recipe (display cube, first round)
 
 ```sh
 export OMALUX_CALIBRATION_ROOT=/path/to/data
@@ -64,7 +79,7 @@ These came out of the first darktable round and shape the tools. Re-read them be
 - **The score is blind to noise.** Mean ΔE on 256-pixel proxies, and even on 1024-pixel renders, prefers a noisy render with the right tone over a clean one with a small offset. A slider search can exploit that (a tiny local-contrast radius scored better while amplifying noise). Look at full-size pairs before accepting a result.
 - **Parallel GPU renders are not safe on every driver.** A GPU reset in one darktable-cli process left the others' output dark and green-tinted without any error. Rendering on the CPU costs about 15 % because process start-up dominates.
 - **Clarity and noise reduction did not survive the one-time conversion.** The archived presets carry `clarity` and luminance/colour noise reduction; the converted styles had neither. The fit now seeds darktable's local contrast (`bilat`, detail = clarity/100) and `nlmeans` (luma and chroma = value/100) from `tools/calibration/preset-seeds.json`, and the slider search may move local contrast. A wrong local-contrast value cannot be judged with the cube fixed: it shifts tones that the cube had compensated, so the coupled trial is the only fair test.
-- **Some targets are image-adaptive.** For several looks the target brightens one image and leaves another with the same input colours unchanged; a cube fitted to one image alone explains it to about ΔE 1, all images together do not. Stronger cube regularisation (λ 600, 1500) and a ridge toward no correction change nothing about that, they only trade tuning accuracy. A static style cannot reproduce per-image adaptation; matching it needs darktable's automatic modules to follow the same rule, which is an open investigation.
+- **The targets are scene-referred, a display cube is not.** For several looks the target brightens one image and leaves another with the same display colours unchanged; a cube fitted to one image alone explains it to about ΔE 1, all images together do not, and stronger cube regularisation (λ 600, 1500) or a ridge toward no correction changes nothing. The same display value comes from different scene values in different images, and the look acts on the scene values. Hence the second recipe: express the look with modules before the tone mapper. The first full cube round ended at tuning 3.78 / holdout 6.77 over 27 presets.
 - **Check the reference images too.** One holdout target turned out to be a dark, letterboxed miniature rather than a rendering; it distorts that preset's holdout mean for every preset alike.
 
 ## Rules

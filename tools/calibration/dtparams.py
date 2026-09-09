@@ -13,12 +13,14 @@ LAYOUTS = {
     "grain": ("<ifff", ["channel", "scale", "strength", "midtones_bias"]),
     "nlmeans": ("<ffff", ["radius", "strength", "luma", "chroma"]),
     "bilat": ("<iffff", ["mode", "sigma_r", "sigma_s", "detail", "midtone"]),
+    "colorbalancergb": ("<" + "f" * 32 + "i", ['shadows_Y', 'shadows_C', 'shadows_H', 'midtones_Y', 'midtones_C', 'midtones_H', 'highlights_Y', 'highlights_C', 'highlights_H', 'global_Y', 'global_C', 'global_H', 'shadows_weight', 'white_fulcrum', 'highlights_weight', 'chroma_shadows', 'chroma_highlights', 'chroma_global', 'chroma_midtones', 'saturation_global', 'saturation_highlights', 'saturation_midtones', 'saturation_shadows', 'hue_angle', 'brilliance_global', 'brilliance_highlights', 'brilliance_midtones', 'brilliance_shadows', 'mask_grey_fulcrum', 'vibrance', 'grey_fulcrum', 'contrast', 'saturation_formula']),
+    "toneequal": ("<" + "f" * 15 + "iii", ['noise', 'ultra_deep_blacks', 'deep_blacks', 'blacks', 'shadows', 'midtones', 'highlights', 'whites', 'speculars', 'blending', 'smoothing', 'feathering', 'quantization', 'contrast_boost', 'exposure_boost', 'details', 'method', 'iterations']),
     "sigmoid": ("<ffffiffffffffi", ["middle_grey_contrast", "contrast_skewness", "display_white_target",
                                    "display_black_target", "color_processing", "hue_preservation", "red_inset",
                                    "red_rotation", "green_inset", "green_rotation", "blue_inset", "blue_rotation",
                                    "purity", "base_primaries"]),
 }
-VERSIONS = {"bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
+VERSIONS = {"colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
 DEFAULTS = {
     "exposure": dict(mode=0, black=0.0, exposure=0.0, deflicker_percentile=50.0, deflicker_target_level=-4.0,
                      compensate_exposure_bias=0, compensate_hilite_pres=1),
@@ -31,6 +33,8 @@ DEFAULTS = {
     "grain": dict(channel=0, scale=1600.0 / 213.2, strength=25.0, midtones_bias=100.0),
     "nlmeans": dict(radius=2.0, strength=50.0, luma=0.5, chroma=1.0),
     "bilat": dict(mode=1, sigma_r=0.5, sigma_s=0.5, detail=0.25, midtone=0.5),
+    "colorbalancergb": {'shadows_Y': 0.0, 'shadows_C': 0.0, 'shadows_H': 0.0, 'midtones_Y': 0.0, 'midtones_C': 0.0, 'midtones_H': 0.0, 'highlights_Y': 0.0, 'highlights_C': 0.0, 'highlights_H': 0.0, 'global_Y': 0.0, 'global_C': 0.0, 'global_H': 0.0, 'shadows_weight': 1.0, 'white_fulcrum': 0.0, 'highlights_weight': 1.0, 'chroma_shadows': 0.0, 'chroma_highlights': 0.0, 'chroma_global': 0.0, 'chroma_midtones': 0.0, 'saturation_global': 0.0, 'saturation_highlights': 0.0, 'saturation_midtones': 0.0, 'saturation_shadows': 0.0, 'hue_angle': 0.0, 'brilliance_global': 0.0, 'brilliance_highlights': 0.0, 'brilliance_midtones': 0.0, 'brilliance_shadows': 0.0, 'mask_grey_fulcrum': 0.1845, 'vibrance': 0.0, 'grey_fulcrum': 0.1845, 'contrast': 0.0, 'saturation_formula': 1},
+    "toneequal": {'noise': 0.0, 'ultra_deep_blacks': 0.0, 'deep_blacks': 0.0, 'blacks': 0.0, 'shadows': 0.0, 'midtones': 0.0, 'highlights': 0.0, 'whites': 0.0, 'speculars': 0.0, 'blending': 5.0, 'smoothing': 1.414213562, 'feathering': 1.0, 'quantization': 0.0, 'contrast_boost': 0.0, 'exposure_boost': 0.0, 'details': 4, 'method': 4, 'iterations': 1},
     "sigmoid": dict(middle_grey_contrast=1.5, contrast_skewness=0.0, display_white_target=100.0,
                     display_black_target=0.0152, color_processing=0, hue_preservation=100.0, red_inset=0.0,
                     red_rotation=0.0, green_inset=0.0, green_rotation=0.0, blue_inset=0.0, blue_rotation=0.0,

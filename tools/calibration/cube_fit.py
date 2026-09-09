@@ -311,13 +311,17 @@ def finalize(pid, pdir):
     w = work_dir(pid)
     rel = lut_relpath(pdir)
     tuned = w / "tuned"
-    style = tuned / "preset.dtstyle" if (tuned / "preset.dtstyle").exists() else base_style(pid, pdir)
-    cube = tuned / "look.cube" if style.parent == tuned else w / "best.cube"
+    scene = w / "scene"
     lut_dir = w / "final-lut"
     shutil.rmtree(lut_dir, ignore_errors=True)
-    dst = lut_dir / rel
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(cube, dst)
+    if (scene / "preset.dtstyle").exists():  # scene-referred style: no cube
+        style, cube, lut_dir = scene / "preset.dtstyle", None, None
+    else:
+        style = tuned / "preset.dtstyle" if (tuned / "preset.dtstyle").exists() else base_style(pid, pdir)
+        cube = tuned / "look.cube" if style.parent == tuned else w / "best.cube"
+        dst = lut_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(cube, dst)
     out_dir = w / "final"
     shutil.rmtree(out_dir, ignore_errors=True)
     imgs = images("all")
@@ -328,8 +332,14 @@ def finalize(pid, pdir):
                for sp in ("tuning", "holdout")}
     summary["all"] = float(np.mean([x["de"] for x in scores.values()]))
     tuned_info = json.load(open(tuned / "tuned.json")) if (tuned / "tuned.json").exists() else None
+    scene_info = json.load(open(scene / "scene.json")) if (scene / "scene.json").exists() else None
+    if scene_info:
+        best = dict(best_iter=len(scene_info["history"]) - 1, best=scene_info["history"][-1],
+                    history=[dict(mean=h) for h in scene_info["history"]])
+    else:
+        best = json.load(open(w / "best.json"))
     json.dump(dict(preset=pid, summary=summary, scores=scores, style=str(style), cube=str(cube),
-                   tuned=tuned_info, best=json.load(open(w / "best.json"))),
+                   tuned=tuned_info, scene=scene_info, best=best),
               open(w / "final.json", "w"), indent=1)
     print(f"[{pid}] final: tuning {summary['tuning']:.2f} holdout {summary['holdout']:.2f} "
           f"all {summary['all']:.2f}")
