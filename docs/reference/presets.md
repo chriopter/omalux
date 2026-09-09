@@ -163,3 +163,9 @@ This differs from `dev/preset_preview`, which deliberately regenerates catalogue
 A card's menu exports the bundle under its catalogue-relative path in the chosen folder. Configure that folder as standalone darktable's LUT root. Export preserves the bundle contents; it does not discover undeclared or cross-bundle dependencies. Deletion requires confirmation and is available only for `my-presets/` entries, never for built-ins.
 
 The snapshot writer currently rejects drawn/raster masks, additional module instances, and enabled watermark/overlay/raster-file modules. It does not serialize custom module order. Keep complex imported styles in their original explicit bundles until those cases have portable serialization.
+
+## Website catalogue export
+
+The separate `omalux.org` checkout provides `npm run generate:presets` (see its `docs/presets.md`). It uses the optional native batch driver with `OMALUX_PREVIEW_DIR` and a JSON array of bundle style IDs in `OMALUX_PREVIEW_IDS`. Before applying any style, the driver writes `original.png` and `catalog.json` with the installed darktable version and the editor's preset catalogue. Each selected style then produces `<style-id>.png`. A failed baseline, catalogue or image write exits with an error. This mode is inactive during normal editing.
+
+The raw batch catalogue may contain local asset paths; it is a temporary development artifact. The website generator publishes only selected display metadata and resized images, never the raw catalogue.

@@ -3,6 +3,9 @@
 #include "smoke.h"
 #include "app/editor.h"
 #include "app/frames.h"
+#include "engine/engine.h"
+#include <QJsonObject>
+#include <QSaveFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
@@ -23,13 +26,29 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
             ids->append(id.toString());
         auto index = std::make_shared<int>(0);
         auto waiting = std::make_shared<bool>(false);
-        auto advance = [&, frames, ids, index, waiting] {
+        auto initialized = std::make_shared<bool>(false);
+        auto advance = [&, frames, ids, index, waiting, initialized] {
             if (!editor.presetsReady() || editor.preview().isEmpty() || editor.styleBusy())
                 return;
             if (!editor.presetError().isEmpty() || !editor.status().startsWith("Ready")) {
                 qCritical() << "Batch render failed:" << editor.presetError() << editor.status();
                 app.exit(2);
                 return;
+            }
+            if (!*initialized) {
+                const QDir output(qEnvironmentVariable("OMALUX_PREVIEW_DIR"));
+                QSaveFile manifest(output.filePath("catalog.json"));
+                const QJsonObject catalog{{"darktable_version", QString::fromUtf8(om_engine_version())},
+                                          {"presets", QJsonArray::fromVariantList(editor.presets())}};
+                const QByteArray json = QJsonDocument(catalog).toJson();
+                if (!QDir().mkpath(output.path()) || !frames->image().save(output.filePath("original.png")) ||
+                    !manifest.open(QIODevice::WriteOnly) || manifest.write(json) != json.size() ||
+                    !manifest.commit()) {
+                    qCritical() << "Could not write batch preview catalogue and baseline";
+                    app.exit(2);
+                    return;
+                }
+                *initialized = true;
             }
             if (*waiting) {
                 const QString path =
