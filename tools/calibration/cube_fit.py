@@ -78,7 +78,7 @@ def base_style(pid, pdir):
         if "colisa" in st:
             st["colisa"]["enabled"] = False
         text = dtparams.write_style(style_text(pdir), st)
-        v0 = archived_settings(pid)
+        v0 = preset_seed(pid)
         if v0:
             # clarity and noise reduction were not part of the one-time conversion
             clarity = float(v0.get("basics", {}).get("clarity", 0) or 0)
@@ -92,14 +92,10 @@ def base_style(pid, pdir):
     return p
 
 
-def archived_settings(pid):
-    """Settings of the archived v0 preset with this id, if the archive is present."""
-    import glob
-    hits = glob.glob(str(common.REPO / "omalux-v0/presets/builtin/**" / pid / "preset.json"), recursive=True)
-    if not hits:
-        return None
-    d = json.load(open(hits[0]))
-    return d.get("settings", d)
+def preset_seed(pid):
+    """Calibration inputs retained independently of the removed Rust application."""
+    with (common.REPO / "tools/calibration/preset-seeds.json").open() as source:
+        return json.load(source).get(pid)
 
 
 OMP_THREADS = int(os.environ.get("DT_OMP", "4"))

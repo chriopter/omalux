@@ -1,0 +1,263 @@
+{
+  "experimental-ansel-adams": {
+    "basics": {
+      "clarity": -56.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-church": {
+    "basics": {
+      "clarity": -8.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-church-soft": {
+    "basics": {
+      "clarity": -28.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-cinema": {
+    "basics": {
+      "clarity": 53.911663
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-flower": {
+    "basics": {
+      "clarity": 0.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-flower-plain": {
+    "basics": {
+      "clarity": 10.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-forge": {
+    "basics": {
+      "clarity": -32.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-lamp": {
+    "basics": {
+      "clarity": 30.294538
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-lightning": {
+    "basics": {
+      "clarity": -30.039986
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-lough-leane": {
+    "basics": {
+      "clarity": 30.294538
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-nightstreet": {
+    "basics": {
+      "clarity": 8.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-portrait": {
+    "basics": {
+      "clarity": 30.82136
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "experimental-verbania": {
+    "basics": {
+      "clarity": 6.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-chrome": {
+    "basics": {
+      "clarity": 0.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-grain": {
+    "basics": {
+      "clarity": 32.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-kodak": {
+    "basics": {
+      "clarity": 4.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-matte": {
+    "basics": {
+      "clarity": 0.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-negative": {
+    "basics": {
+      "clarity": -5.722222
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-polaroid": {
+    "basics": {
+      "clarity": -24.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "film-warm": {
+    "basics": {
+      "clarity": 32.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "monochrome-classic": {
+    "basics": {
+      "clarity": 0.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "neutral": {
+    "basics": {
+      "clarity": 0.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-late-summer-contrast": {
+    "basics": {
+      "clarity": 14.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-late-summer-cross": {
+    "basics": {
+      "clarity": 20.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-late-summer-neutral": {
+    "basics": {
+      "clarity": 6.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-movie-desert-signal": {
+    "basics": {
+      "clarity": 28.923967
+    },
+    "effects": {
+      "colour_noise_reduction": 60.0,
+      "luminance_noise_reduction": 20.0
+    }
+  },
+  "series-movie-honey-hour": {
+    "basics": {
+      "clarity": -6.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-movie-roseglass": {
+    "basics": {
+      "clarity": 40.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  },
+  "series-movie-studio-cut": {
+    "basics": {
+      "clarity": 20.0
+    },
+    "effects": {
+      "colour_noise_reduction": 0,
+      "luminance_noise_reduction": 0
+    }
+  }
+}
