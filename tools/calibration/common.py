@@ -44,7 +44,9 @@ def manifest():
 
 
 def images(split):
-    return [i for i in manifest() if split == "all" or i["split"] == split]
+    kind = os.environ.get("DT_KIND")  # optional filter: raw | jpeg
+    return [i for i in manifest() if (split == "all" or i["split"] == split)
+            and (not kind or (i["kind"] != "jpeg") == (kind == "raw"))]
 
 
 def preset_dirs():

@@ -29,6 +29,7 @@ from common import WORK, images, preset_dirs  # noqa: E402
 
 # (module, field, step, min, max)
 PARAMS = [
+    ("bilat", "detail", 0.15, -1.0, 2.0),
     ("shadhi", "shadows", 15.0, -100.0, 100.0),
     ("shadhi", "highlights", 15.0, -100.0, 100.0),
     ("shadhi", "radius", 40.0, 10.0, 300.0),
@@ -38,7 +39,7 @@ PARAMS = [
     ("sharpen", "amount", 0.25, 0.0, 2.0),
     ("grain", "strength", 10.0, 0.0, 100.0),
 ]
-ENABLE_WHEN = {"vignette": "brightness", "sharpen": "amount", "grain": "strength"}
+ENABLE_WHEN = {"vignette": "brightness", "sharpen": "amount", "grain": "strength", "bilat": "detail"}
 MIN_GAIN = 0.005
 
 
@@ -46,15 +47,18 @@ class Tuner:
     def __init__(self, pid, imgs):
         self.pid = pid
         self.pdir = preset_dirs()[pid]
-        self.w = WORK / pid
+        self.w = cube_fit.work_dir(pid)
         self.t = self.w / "tuned"
         self.t.mkdir(parents=True, exist_ok=True)
         self.imgs = imgs
         self.base_text = cube_fit.base_style(pid, self.pdir).read_text()
         self.state = dtparams.read_style(self.base_text)
-        for op in ENABLE_WHEN:
+        for op, field in ENABLE_WHEN.items():
             if self.state.get(op, {}).get("params") is None:
-                self.state[op] = dict(params=dict(dtparams.DEFAULTS[op]), enabled=False)
+                params = dict(dtparams.DEFAULTS[op])
+                params[field] = 0.0  # a module absent from the style starts switched off
+                self.state[op] = dict(params=params, enabled=False)
+                self.base_text = dtparams.ensure_module(self.base_text, op, params, enabled=False)
         self.rel = cube_fit.lut_relpath(self.pdir)
         self.lut_dir = self.t / "lut"
         shutil.copy(self.w / "best.cube", self.cube_path())

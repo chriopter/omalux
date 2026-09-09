@@ -20,6 +20,8 @@ Environment:
                            style's absolute exposure value replaces)
   DT_EXTRA_CONF            extra `--conf key=value` pairs, separated by ';'
                            (for example plugins/darkroom/workflow=none)
+  RAW_EXTRA_ITEMS          JSON list of {"op", "params"} history items appended
+                           for RAW inputs only (a RAW base rendition experiment)
   DT_OPENCL=1              use OpenCL. Off by default: with several parallel
                            processes a GPU reset silently corrupts the output
                            of the other processes on some drivers, and the
@@ -125,6 +127,16 @@ def dtstyle_to_xmp(style_path, src_name):
                 d = dtparams.decode("exposure", it["params"])
                 d["exposure"] += offset
                 it["params"] = dtparams.encode("exposure", d)
+    extra = os.environ.get("RAW_EXTRA_ITEMS")
+    if extra and Path(src_name).suffix.lower() in RAW_SUFFIXES:
+        import json
+        import dtparams
+        for e in json.loads(extra):
+            d = dict(dtparams.DEFAULTS[e["op"]])
+            d.update(e.get("params", {}))
+            items.append(dict(num=len(items), ver=dtparams.VERSIONS[e["op"]], op=e["op"],
+                              params=dtparams.encode(e["op"], d), enabled=int(e.get("enabled", 1)),
+                              bparams="", bver=0, mprio=0, mname="", mhand=0))
     out = [XMP_HEAD.format(src=src_name, n=len(items))]
     for i, it in enumerate(items):
         bparams = f'\n      darktable:blendop_params="{it["bparams"]}"' if it["bparams"] else ""
@@ -194,10 +206,10 @@ def render_batch_style(style_path, jobs, width=1024, height=1024, hq=False, qual
     With RAW_EXPOSURE_OFFSET set, RAW and non-RAW inputs go in separate batches."""
     if not jobs:
         return []
-    offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0"))
+    split = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0")) or os.environ.get("RAW_EXTRA_ITEMS")
     groups = {}
     for inp, out in jobs:
-        key = Path(inp).suffix.lower() in RAW_SUFFIXES if offset else False
+        key = Path(inp).suffix.lower() in RAW_SUFFIXES if split else False
         groups.setdefault(key, []).append((inp, out))
     failed = []
     for g in groups.values():

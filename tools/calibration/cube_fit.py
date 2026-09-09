@@ -37,8 +37,13 @@ import dtparams  # noqa: E402
 import dtrender  # noqa: E402
 from common import JOBS, PRESETS, RENDER, WORK, images, preset_dirs, score_render  # noqa: E402
 
-POST_LUT = {"colisa", "shadhi", "sharpen", "grain", "vignette"}
+POST_LUT = {"colisa", "shadhi", "sharpen", "grain", "vignette", "bilat"}
 LUT_SIZE = 33
+
+
+def work_dir(pid):
+    """work/<preset>, or work/<preset><DT_WORK_SUFFIX> for side experiments."""
+    return WORK / (pid + os.environ.get("DT_WORK_SUFFIX", ""))
 
 
 # ---------- style helpers ----------
@@ -65,15 +70,36 @@ def lut_relpath(preset_dir):
 
 def base_style(pid, pdir):
     """Bundled style with colisa disabled, written once to work/<pid>/style.dtstyle."""
-    w = WORK / pid
+    w = work_dir(pid)
     w.mkdir(parents=True, exist_ok=True)
     p = w / "style.dtstyle"
     if not p.exists():
         st = dtparams.read_style(style_text(pdir))
         if "colisa" in st:
             st["colisa"]["enabled"] = False
-        p.write_text(dtparams.write_style(style_text(pdir), st))
+        text = dtparams.write_style(style_text(pdir), st)
+        v0 = archived_settings(pid)
+        if v0:
+            # clarity and noise reduction were not part of the one-time conversion
+            clarity = float(v0.get("basics", {}).get("clarity", 0) or 0)
+            text = dtparams.ensure_module(text, "bilat", dict(detail=clarity / 100.0), enabled=abs(clarity) > 0.5)
+            eff = v0.get("effects", {})
+            luma = float(eff.get("luminance_noise_reduction", 0) or 0) / 100.0
+            chroma = float(eff.get("colour_noise_reduction", 0) or 0) / 100.0
+            text = dtparams.ensure_module(text, "nlmeans", dict(luma=luma, chroma=chroma),
+                                          enabled=(luma + chroma) > 0.005)
+        p.write_text(text)
     return p
+
+
+def archived_settings(pid):
+    """Settings of the archived v0 preset with this id, if the archive is present."""
+    import glob
+    hits = glob.glob(str(common.REPO / "omalux-v0/presets/builtin/**" / pid / "preset.json"), recursive=True)
+    if not hits:
+        return None
+    d = json.load(open(hits[0]))
+    return d.get("settings", d)
 
 
 OMP_THREADS = int(os.environ.get("DT_OMP", "4"))
@@ -158,6 +184,7 @@ def solve_update(num, den, lam=None, sweeps=60):
     (visible as blotches in smooth gradients) is suppressed. DT_CUBE_LAMBDA tunes lam."""
     if lam is None:
         lam = float(os.environ.get("DT_CUBE_LAMBDA", "150"))
+    mu = float(os.environ.get("DT_CUBE_MU", "0")) * lam  # optional ridge: unpopulated regions decay to zero
     dstar = np.where(den[..., None] > 0, num / np.maximum(den, 1e-9)[..., None], 0.0)
     u = np.zeros_like(num)
     for _ in range(sweeps):
@@ -166,7 +193,7 @@ def solve_update(num, den, lam=None, sweeps=60):
         for d in range(3):
             for sgn in (-1, 1):
                 nb += np.roll(up, sgn, axis=d)[1:-1, 1:-1, 1:-1]
-        u = (den[..., None] * dstar + lam * nb) / (den[..., None] + lam * 6)
+        u = (den[..., None] * dstar + lam * nb) / (den[..., None] + lam * 6 + mu)
     return u
 
 
@@ -212,7 +239,7 @@ def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
     if rel is None:
         print(f"[{pid}] no lut3d in style, skipping cube fit")
         return None
-    w = WORK / pid
+    w = work_dir(pid)
     lut_dir = w / "lut"
     cube_path = lut_dir / rel
     imgs = images(split)
@@ -285,7 +312,7 @@ def baseline(pids, split, tag="baseline"):
 
 def finalize(pid, pdir):
     """Render every image with the best style/cube (tuned if present), score both splits."""
-    w = WORK / pid
+    w = work_dir(pid)
     rel = lut_relpath(pdir)
     tuned = w / "tuned"
     style = tuned / "preset.dtstyle" if (tuned / "preset.dtstyle").exists() else base_style(pid, pdir)
