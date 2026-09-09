@@ -169,12 +169,17 @@ def main():
         logf.write(msg + "\n")
         logf.flush()
 
+    resume = tn.w / "scene.json"
+    if resume.exists():  # continue from the last saved pass
+        saved = json.load(open(resume))
+        tn.state = saved["state"]
+        log(f"[{a.preset}] resuming after {len(saved['history']) - 1} passes")
     current, sc = tn.evaluate(tn.state, "start")
     jp = np.mean([v for k, v in sc.items() if k.startswith("J")]); rw = np.mean([v for k, v in sc.items() if k.startswith("R")])
     log(f"[{a.preset}] scene start {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f})")
-    history = [current]
-    scale = 1.0
-    for p in range(a.passes):
+    history = saved["history"] if resume.exists() else [current]
+    scale = saved.get("scale", 1.0) if resume.exists() else 1.0
+    for p in range(len(history) - 1, a.passes):
         t0 = time.time()
         before = current
         current = tn.coordinate_pass(current, scale, log)
@@ -182,7 +187,7 @@ def main():
         jp = np.mean([v for k, v in sc.items() if k.startswith("J")]); rw = np.mean([v for k, v in sc.items() if k.startswith("R")])
         log(f"[{a.preset}] scene pass {p} (step x{scale:.2f}): {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f}) {time.time()-t0:.0f}s")
         history.append(current)
-        shutil.copy(tn.style_path(tn.state, "preset.dtstyle"), tn.w / "preset.dtstyle")
+        tn.style_path(tn.state, "preset.dtstyle")
         json.dump(dict(preset=a.preset, history=history, state=tn.state, scale=scale), open(tn.w / "scene.json", "w"), indent=1)
         if before - current < 0.05:
             scale *= 0.5
