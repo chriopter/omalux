@@ -2,7 +2,7 @@
 # Run the full chain (cube fit, one slider pass, final scoring, report) for
 # several presets, a few at a time.
 #
-#   dev/tools/calibration/run_queue.sh [-j 3] [preset ...]
+#   tools/calibration/run_queue.sh [-j 3] [preset ...]
 #
 # Without preset ids every bundled preset that has target renderings is
 # queued; presets whose work/<preset>/final.json already exists are skipped.

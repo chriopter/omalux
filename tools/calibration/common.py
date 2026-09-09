@@ -26,7 +26,7 @@ if not ROOT.is_dir():
 DATASETS = ROOT / "datasets"
 TARGETS = ROOT / "targets"
 WORK = ROOT / "work"
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[2]
 PRESETS = Path(os.environ.get("OMALUX_PRESETS", REPO / "presets"))
 PROXY = 256
 RENDER = 1024

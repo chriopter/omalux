@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import sys
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'omalux'))
 from preset_assets import read_manifest
 
@@ -33,7 +33,7 @@ def main():
         ids = [(p / 'preset.dtstyle').relative_to(ROOT / 'presets').as_posix() for p in bundles]
         env.update(QT_QPA_PLATFORM='offscreen', OMALUX_PRESETS_DIR=str(ROOT / 'presets'),
                    OMALUX_PREVIEW_DIR=tmp, OMALUX_PREVIEW_IDS=json.dumps(ids))
-        subprocess.run([str(ROOT / 'dev/scripts/start'), str(source)], env=env, check=True, timeout=360)
+        subprocess.run([str(ROOT / 'dev/start'), str(source)], env=env, check=True, timeout=360)
         library = ctypes.CDLL(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so'), mode=ctypes.RTLD_GLOBAL)
         version = ctypes.string_at(ctypes.addressof(ctypes.c_char.in_dll(library, 'darktable_package_version'))).decode()
         for bundle, preset_id in zip(bundles, ids):

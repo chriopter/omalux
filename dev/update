@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Update darktable to the latest stable release. Requires Git and GitHub CLI.
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
 if [[ -e darktable/.git ]] && [[ -n $(git -C darktable status --porcelain) ]]; then
   echo 'darktable has local changes; preserve them before updating.' >&2

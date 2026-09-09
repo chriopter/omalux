@@ -37,7 +37,7 @@ from pathlib import Path
 
 from common import ROOT, WORK
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[2]
 PRESETS = Path(os.environ.get("OMALUX_PRESETS", REPO / "presets"))
 CFG = WORK / "dtcfg"
 

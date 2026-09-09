@@ -23,7 +23,7 @@ The submodule points directly to the official upstream repository. Keep it at th
 Requires Git and the GitHub CLI (`gh`). Run from the repository root:
 
 ```sh
-dev/scripts/update
+dev/update
 git diff --submodule=short
 ```
 
@@ -33,16 +33,16 @@ The script checks out the latest official stable release and its nested submodul
 
 Run from the repository root:
 
-- `dev/scripts/start [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
-- `dev/scripts/start_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
-- `dev/scripts/preset_preview <folder>` / `dev/scripts/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and preview source/engine version in `preset.json`, e.g. `dev/scripts/preset_preview chromatic` (requires ImageMagick).
-- `dev/scripts/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
+- `dev/start [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
+- `dev/start_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
+- `dev/preset_preview <folder>` / `dev/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and preview source/engine version in `preset.json`, e.g. `dev/preset_preview chromatic` (requires ImageMagick).
+- `dev/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
-dev/scripts/start
-dev/scripts/start "/path/to/photo.CR3"
-dev/scripts/start --input "/path/to/photo.jpg"
-dev/scripts/start_split "/path/to/photo.jpg"
+dev/start
+dev/start "/path/to/photo.CR3"
+dev/start --input "/path/to/photo.jpg"
+dev/start_split "/path/to/photo.jpg"
 ```
 
 The UI follows the original dark Omalux layout, with SVG sidebar tabs, grouped controls, colored slider tracks and expandable details. Controls use **darktable’s names, units and precision**. Exposure, local contrast, shadows/highlights, white balance, color grading, bloom, grain, vignetting, sharpening, profiled denoising and LUT opacity are connected. See the [v0 control mapping](../reference/controls.md) for the exact modules and approximations.
@@ -90,7 +90,7 @@ Give each new sidebar pane its own file. Panels receive data through properties 
 
 ### Adding a slider
 
-Add one row to [`omalux/native/engine/controls.h`](../../../omalux/native/engine/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix, decimal places, section, GTK action path, track colors, detail visibility and optional soft limits. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. Float parameters use introspection; integer fields, enablement, blend opacity, white balance and denoise curve ordinates have explicit native adapters. New special types require source and ABI review.
+Add one row to [`omalux/native/engine/controls.h`](../../omalux/native/engine/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix, decimal places, section, GTK action path, track colors, detail visibility and optional soft limits. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. Float parameters use introspection; integer fields, enablement, blend opacity, white balance and denoise curve ordinates have explicit native adapters. New special types require source and ABI review.
 
 `editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Presets restore a per-image opening baseline before applying their own settings. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
 

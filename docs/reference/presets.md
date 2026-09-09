@@ -25,7 +25,7 @@ presets/
     preset.json
 ```
 
-Create another folder with `preset.dtstyle` and restart `dev/scripts/start` or `dev/scripts/start_split`. Each style needs a unique name. Bundles may be grouped in nested folders. Loose `.dtstyle` files still work, but a bundle keeps its preview with its settings. The UI discovers files automatically and provides search. In the separate **Presets** tab (second sidebar icon), compact rows as in v0 show a 96×64 beach preview beside the name; click the thumbnail or name to apply. The separate arrow expands the actual module settings. Neutral and Chromatic stay above the groups. As in v0, Monochrome opens initially, only one group is expanded at a time, series use their folder names, and Experimental sorts last. Search includes group names and reveals matching presets across collapsed groups. Applying first restores the photo’s state captured when it was opened, then applies all of the preset’s module settings, including modules without an Omalux control. Earlier session edits to other sliders, white balance, crop or effects do not carry over. Camera/workflow settings and sidecar edits already present at opening remain part of that baseline. Resets are recorded in history so the previous edits remain reachable. No QML button, slider definition or Lua mapping is needed for another style.
+Create another folder with `preset.dtstyle` and restart `dev/start` or `dev/start_split`. Each style needs a unique name. Bundles may be grouped in nested folders. Loose `.dtstyle` files still work, but a bundle keeps its preview with its settings. The UI discovers files automatically and provides search. In the separate **Presets** tab (second sidebar icon), compact rows as in v0 show a 96×64 beach preview beside the name; click the thumbnail or name to apply. The separate arrow expands the actual module settings. Neutral and Chromatic stay above the groups. As in v0, Monochrome opens initially, only one group is expanded at a time, series use their folder names, and Experimental sorts last. Search includes group names and reveals matching presets across collapsed groups. Applying first restores the photo’s state captured when it was opened, then applies all of the preset’s module settings, including modules without an Omalux control. Earlier session edits to other sliders, white balance, crop or effects do not carry over. Camera/workflow settings and sidecar edits already present at opening remain part of that baseline. Resets are recorded in history so the previous edits remain reachable. No QML button, slider definition or Lua mapping is needed for another style.
 
 The expanded card reads module names, enabled state and parameter descriptions from the installed engine and values from the actual style blob. It includes stored inactive parameters too. Known controls use darktable's display units; other fields show stored engine values, not guessed GUI conversions. Arrays and structured values are shown in full; untyped data is shown as hex. Blending is currently summarized, not individually editable in the inspector.
 
@@ -35,13 +35,13 @@ For an isolated development catalogue, set `OMALUX_PRESETS_DIR=/path/to/styles`.
 
 ## Updating thumbnails
 
-Run `dev/scripts/preset_preview chromatic` from the repository root. It renders the shared beach image with the bundle's actual style through the Omalux/darktable adapter and writes a 384×256 JPEG plus `preset.json` with `preview.source` and `preview.darktable_version`, preserving existing asset declarations. It requires the normal development dependencies and ImageMagick (`magick`). Use `dev/scripts/preset_preview --all` to regenerate every bundle in one persistent engine session. Each next style is applied after the preceding render completes. Regenerate explicitly after changing a style or LUT; startup only loads the stored thumbnail and does no extra preview rendering. A missing thumbnail displays “No preview” and does not prevent applying the style.
+Run `dev/preset_preview chromatic` from the repository root. It renders the shared beach image with the bundle's actual style through the Omalux/darktable adapter and writes a 384×256 JPEG plus `preset.json` with `preview.source` and `preview.darktable_version`, preserving existing asset declarations. It requires the normal development dependencies and ImageMagick (`magick`). Use `dev/preset_preview --all` to regenerate every bundle in one persistent engine session. Each next style is applied after the preceding render completes. Regenerate explicitly after changing a style or LUT; startup only loads the stored thumbnail and does no extra preview rendering. A missing thumbnail displays “No preview” and does not prevent applying the style.
 
 These files are shipped in the repository and loaded from disk, not embedded in the native executable. The preview is an illustration on the standard beach photograph; it does not preview the currently opened image. All 29 bundled v0 looks have been converted approximately; darktable still cannot read the old JSON directly. These are initial approximations; optical calibration remains on the project TODO list.
 
 ## Manifest format
 
-`preset.dtstyle` and `thumbnail.jpg` are fixed filenames, so they are not repeated in JSON. The standard beach image is chosen by `dev/scripts/preset_preview`, not by each preset. No file hashes are stored.
+`preset.dtstyle` and `thumbnail.jpg` are fixed filenames, so they are not repeated in JSON. The standard beach image is chosen by `dev/preset_preview`, not by each preset. No file hashes are stored.
 
 ```json
 {
@@ -69,7 +69,7 @@ These files are shipped in the repository and loaded from disk, not embedded in 
 
 The launcher reads dependency declarations before starting both engines. It passes setup errors to the UI, which marks the affected preset unavailable. Without a manifest, a standalone style still loads, but no external assets are prepared. Module version/layout compatibility is checked separately against the actual style.
 
-`dev/scripts/preset_preview` updates only the thumbnail, `preview.source` and `preview.darktable_version`, preserving asset declarations and other metadata. All bundled references were converted once to this format; archived v0 JSON remains unchanged.
+`dev/preset_preview` updates only the thumbnail, `preview.source` and `preview.darktable_version`, preserving asset declarations and other metadata. All bundled references were converted once to this format; archived v0 JSON remains unchanged.
 
 ## Chromatic
 
@@ -158,7 +158,7 @@ The launcher does not rewrite module parameter blobs or discover every undeclare
 
 “Save current look…” writes a new bundle under `presets/my-presets/<id>/`. Its style includes the current editable modules and other active history modules that the snapshot adapter can serialize. Referenced LUT files are copied to its own `assets/` directory, and the style's paths are adjusted accordingly. The thumbnail comes from the current edited photo. `preview.source` records that photo (repository-relative when possible, otherwise absolute); `preview.darktable_version` records the loaded engine. These fields remain informational. Check the source path before sharing if it contains private directory names.
 
-This differs from `dev/scripts/preset_preview`, which deliberately regenerates catalogue thumbnails using the standard beach photograph. Neither operation is a visual calibration against v0.
+This differs from `dev/preset_preview`, which deliberately regenerates catalogue thumbnails using the standard beach photograph. Neither operation is a visual calibration against v0.
 
 A card's menu exports the bundle under its catalogue-relative path in the chosen folder. Configure that folder as standalone darktable's LUT root. Export preserves the bundle contents; it does not discover undeclared or cross-bundle dependencies. Deletion requires confirmation and is available only for `my-presets/` entries, never for built-ins.
 

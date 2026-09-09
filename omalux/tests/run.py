@@ -53,7 +53,7 @@ def main():
         for script in scripts:
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
-            command = ROOT / ('dev/scripts/start_split' if args.split else 'dev/scripts/start')
+            command = ROOT / ('dev/start_split' if args.split else 'dev/start')
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
             with log.open('w') as output:
