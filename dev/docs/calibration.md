@@ -1,6 +1,6 @@
 # Calibrating the bundled looks
 
-The scripts in [`tools/calibration/`](../tools/calibration) adjust a bundled preset (`preset.dtstyle` plus `look.cube`) until darktable's rendering of a set of photographs matches a target rendering of the same photographs. They need Python 3 with numpy, ImageMagick (`magick`) and `darktable-cli` on the path. Target renderings and datasets are not part of the repository.
+The scripts in [`dev/tools/calibration/`](../tools/calibration) adjust a bundled preset (`preset.dtstyle` plus `look.cube`) until darktable's rendering of a set of photographs matches a target rendering of the same photographs. They need Python 3 with numpy, ImageMagick (`magick`) and `darktable-cli` on the path. Target renderings and datasets are not part of the repository.
 
 ## Data layout
 
@@ -28,11 +28,11 @@ The looks are built from darktable modules that run before the tone mapper: expo
 
 ```sh
 export OMALUX_CALIBRATION_ROOT=/path/to/data
-python3 tools/calibration/scene_search.py <preset>       # search the module parameters from neutral
-python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
-python3 tools/calibration/report.py                       # work/report/index.html
-python3 tools/calibration/install_preset.py <preset>      # style into presets/, cube and asset removed
-bin/preset_preview <preset>                               # refresh the thumbnail
+python3 dev/tools/calibration/scene_search.py <preset>       # search the module parameters from neutral
+python3 dev/tools/calibration/cube_fit.py final <preset>      # render and score every image
+python3 dev/tools/calibration/report.py                       # work/report/index.html
+python3 dev/tools/calibration/install_preset.py <preset>      # style into presets/, cube and asset removed
+dev/scripts/preset_preview <preset>                               # refresh the thumbnail
 ```
 
 `scene_search.py` is coordinate descent over about forty parameters (see `PARAMS` in the file), one render round of the tuning images per trial, steps halving when a pass gains less than 0.05. Five passes take roughly an hour per preset on 16 cores; two presets can run side by side with `DT_OMP=8`. Why this instead of the cube: the targets behave like scene-referred processing (bright scenes and dark scenes get different treatment for the same display colour), which a display-referred cube after the tone mapper cannot express; see the findings below.
@@ -41,13 +41,13 @@ bin/preset_preview <preset>                               # refresh the thumbnai
 
 ```sh
 export OMALUX_CALIBRATION_ROOT=/path/to/data
-python3 tools/calibration/cube_fit.py baseline            # score the bundled presets as they are
-python3 tools/calibration/cube_fit.py fit <preset>        # fit the cube on tuning images
-python3 tools/calibration/slider_tune.py <preset>         # then search the spatial sliders
-python3 tools/calibration/cube_fit.py final <preset>      # render and score every image
-python3 tools/calibration/report.py                       # work/report/index.html
-python3 tools/calibration/install_preset.py <preset>      # copy into presets/
-bin/preset_preview <preset>                               # refresh the thumbnail
+python3 dev/tools/calibration/cube_fit.py baseline            # score the bundled presets as they are
+python3 dev/tools/calibration/cube_fit.py fit <preset>        # fit the cube on tuning images
+python3 dev/tools/calibration/slider_tune.py <preset>         # then search the spatial sliders
+python3 dev/tools/calibration/cube_fit.py final <preset>      # render and score every image
+python3 dev/tools/calibration/report.py                       # work/report/index.html
+python3 dev/tools/calibration/install_preset.py <preset>      # copy into presets/
+dev/scripts/preset_preview <preset>                               # refresh the thumbnail
 ```
 
 `run_queue.sh [-j 3] [preset ...]` runs fit, one slider pass, final scoring and the report for many presets, three at a time by default; without ids it queues every preset that has targets and no `final.json` yet. Progress and per-preset logs are under `work/queue/`. With four presets side by side, budget about 7 minutes for a cube fit and 17 minutes for one slider pass per preset on 16 cores.
@@ -78,7 +78,7 @@ These came out of the first darktable round and shape the tools. Re-read them be
 - **darktable applies a style's exposure absolutely.** A RAW opened with the +0.7 EV default and then given a style with exposure +0.4 ends at +0.4, not +1.1. The application behaves the same way, so calibrate against that behaviour rather than against a relative reading of the value.
 - **The score is blind to noise.** Mean ΔE on 256-pixel proxies, and even on 1024-pixel renders, prefers a noisy render with the right tone over a clean one with a small offset. A slider search can exploit that (a tiny local-contrast radius scored better while amplifying noise). Look at full-size pairs before accepting a result.
 - **Parallel GPU renders are not safe on every driver.** A GPU reset in one darktable-cli process left the others' output dark and green-tinted without any error. Rendering on the CPU costs about 15 % because process start-up dominates.
-- **Clarity and noise reduction did not survive the one-time conversion.** The archived presets carry `clarity` and luminance/colour noise reduction; the converted styles had neither. The fit now seeds darktable's local contrast (`bilat`, detail = clarity/100) and `nlmeans` (luma and chroma = value/100) from `tools/calibration/preset-seeds.json`, and the slider search may move local contrast. A wrong local-contrast value cannot be judged with the cube fixed: it shifts tones that the cube had compensated, so the coupled trial is the only fair test.
+- **Clarity and noise reduction did not survive the one-time conversion.** The archived presets carry `clarity` and luminance/colour noise reduction; the converted styles had neither. The fit now seeds darktable's local contrast (`bilat`, detail = clarity/100) and `nlmeans` (luma and chroma = value/100) from `dev/tools/calibration/preset-seeds.json`, and the slider search may move local contrast. A wrong local-contrast value cannot be judged with the cube fixed: it shifts tones that the cube had compensated, so the coupled trial is the only fair test.
 - **The targets are scene-referred, a display cube is not.** For several looks the target brightens one image and leaves another with the same display colours unchanged; a cube fitted to one image alone explains it to about ΔE 1, all images together do not, and stronger cube regularisation (λ 600, 1500) or a ridge toward no correction changes nothing. The same display value comes from different scene values in different images, and the look acts on the scene values. Hence the second recipe: express the look with modules before the tone mapper. The first full cube round ended at tuning 3.78 / holdout 6.77 over 27 presets.
 - **Check the reference images too.** One holdout target turned out to be a dark, letterboxed miniature rather than a rendering; it distorts that preset's holdout mean for every preset alike.
 
@@ -89,4 +89,4 @@ These came out of the first darktable round and shape the tools. Re-read them be
 - Inspect full-size pairs before calling a preset finished; the score is a guide, not the verdict.
 - Regenerate the thumbnail after installing a preset.
 
-`tools/calibration/preset-seeds.json` retains only the three calibration inputs needed from the former presets (clarity and luminance/colour noise reduction), extracted from commit `1d5eaf6`. Calibration no longer depends on the removed Rust application.
+`dev/tools/calibration/preset-seeds.json` retains only the three calibration inputs needed from the former presets (clarity and luminance/colour noise reduction), extracted from commit `1d5eaf6`. Calibration no longer depends on the removed Rust application.

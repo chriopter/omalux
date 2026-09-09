@@ -68,4 +68,4 @@ Hover over a preset's thumbnail/name to preview it on the open photograph. Leavi
 
 ### Native regression checks
 
-Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `bin/dev`, uses isolated settings and a temporary copy of the preset bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.
+Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `dev/scripts/start`, uses isolated settings and a temporary copy of the preset bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.
