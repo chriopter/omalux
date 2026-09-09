@@ -21,6 +21,6 @@
 | `DT_DEVICE_NONE` might accidentally claim an already-locked device | Ruled out for this pin: `src/common/darktable.h:178–179` defines CPU = −1, NONE = −2; the claimed-device condition is `devid > DT_DEVICE_CPU`. |
 | Missing-control failure leaves a live partially initialized dev forever | The C open function does leave cleanup to its caller; the current C++ failure path calls `om_engine_cleanup`. This is an API-contract concern, not a confirmed leak through our current caller. |
 
-Do not replace GPU telemetry with a single different transient flag without tracing the full lifecycle. Configuration availability, runtime stopping, selected device, mixed CPU/GPU module execution and per-render fallback are distinct states. The primary [architecture analysis](darktable-architecture.md) includes the reconciled implementation priorities and runtime checks still needed.
+Do not replace GPU telemetry with a single different transient flag without tracing the full lifecycle. Configuration availability, runtime stopping, selected device, mixed CPU/GPU module execution and per-render fallback are distinct states. The primary [architecture analysis](darktable.md) includes the reconciled implementation priorities and runtime checks still needed.
 
 The preset implementation now rebinds parameter pointers after style application and updates history in `om_engine_update_controls` only for explicit edits. Rendering alone no longer enables the module. The review above records the earlier source snapshot.

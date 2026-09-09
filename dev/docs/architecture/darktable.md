@@ -2,7 +2,7 @@
 
 Source audit: 2026-09-08. Main reference: the pinned `release-5.6.1` submodule (`03179f8e080aa9cedebfe14b098b7ba88940a292`). Our installed adapter currently targets 5.6.0; the cache-disabling and OpenCL-error-reset findings below were also checked in its extracted source. Line numbers refer to 5.6.1 unless stated otherwise. Recheck symbols after an upstream update.
 
-This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was used for a focused independent review of the critical cache/GPU/control excerpts; its findings and rejected hypotheses are recorded in [the source cross-check](claude-review.md). A broader Claude investigation was also attempted but had not produced a report when the focused review completed. The original audit was source-only; the interactive-preview update and measurements below record subsequent implementation work.
+This is a source-grounded integration map, not a claim that every module has been audited or that performance parity has been measured. Claude Code was used for a focused independent review of the critical cache/GPU/control excerpts; its findings and rejected hypotheses are recorded in [the source cross-check](source-review.md). A broader Claude investigation was also attempted but had not produced a report when the focused review completed. The original audit was source-only; the interactive-preview update and measurements below record subsequent implementation work.
 
 ## Read this first
 
@@ -18,20 +18,20 @@ Paths are relative to the darktable submodule.
 
 | Area | Entry points | Why Omalux needs it |
 | --- | --- | --- |
-| Process startup/shutdown | [`src/common/darktable.c`](../../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
-| Develop state | [`src/develop/develop.h`](../../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
-| Rendering coordinator | [`src/develop/develop.c`](../../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
-| Pixel processing | [`src/develop/pixelpipe_hb.c`](../../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
-| Cache | [`src/develop/pixelpipe_cache.c`](../../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
-| Module contract | [`src/iop/iop_api.h`](../../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
-| Processing order | [`src/common/iop_order.c`](../../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
-| Input/decoder dispatch | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
-| Import and persistence | [`src/common/image.c`](../../darktable/src/common/image.c), [`src/develop/develop.c`](../../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
-| Input/output color | [`src/iop/colorin.c`](../../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
-| OpenCL | [`src/common/opencl.c`](../../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
-| GTK darkroom | [`src/views/darkroom.c`](../../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
-| Lua bridge | [`src/lua/gui.c`](../../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
-| Export | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
+| Process startup/shutdown | [`src/common/darktable.c`](../../../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
+| Develop state | [`src/develop/develop.h`](../../../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
+| Rendering coordinator | [`src/develop/develop.c`](../../../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
+| Pixel processing | [`src/develop/pixelpipe_hb.c`](../../../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
+| Cache | [`src/develop/pixelpipe_cache.c`](../../../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
+| Module contract | [`src/iop/iop_api.h`](../../../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../../../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
+| Processing order | [`src/common/iop_order.c`](../../../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
+| Input/decoder dispatch | [`src/imageio/imageio.c`](../../../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
+| Import and persistence | [`src/common/image.c`](../../../darktable/src/common/image.c), [`src/develop/develop.c`](../../../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
+| Input/output color | [`src/iop/colorin.c`](../../../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../../../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../../../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
+| OpenCL | [`src/common/opencl.c`](../../../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
+| GTK darkroom | [`src/views/darkroom.c`](../../../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../../../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
+| Lua bridge | [`src/lua/gui.c`](../../../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../../../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
+| Export | [`src/imageio/imageio.c`](../../../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
 
 ## 1. Lifecycle and ownership
 
@@ -202,7 +202,7 @@ The v3 comparison mailbox keeps style events with the preceding control snapshot
 
 ## Expanded UI adapter (2026-09-08)
 
-The original three-control audit above describes the starting prototype. The current registry now covers the [v0 mapping](ui-controls.md), including typed special controls. The GPU caveats above still apply; the cache and frame-publication update is described in section 3.
+The original three-control audit above describes the starting prototype. The current registry now covers the [v0 mapping](../reference/controls.md), including typed special controls. The GPU caveats above still apply; the cache and frame-publication update is described in section 3.
 
 `controls.h` separates display labels/units, native parameters and GTK action paths. Native binding selects `multi_priority == 0` deliberately and validates float type, size and hard range. Integer fields, enablement and blend opacity have explicit bindings. Denoise curves validate the 6 × 7 ordinate array. `native/engine/white_balance.c` adapts the installed darktable temperature module's spectral/XYZ math and camera matrices to convert temperature/tint into white-balance coefficients; this is not a new color-temperature algorithm.
 

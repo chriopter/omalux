@@ -8,7 +8,7 @@ A keyboard-friendly interface for [darktable](https://www.darktable.org/), built
 
 ## Run
 
-**Early development, source only.** Requires darktable 5.6.0 or 5.6.1, Qt 6 and build tools. See [setup requirements](dev/docs/development.md#development-scripts).
+**Early development, source only.** Requires darktable 5.6.0 or 5.6.1, Qt 6 and build tools. See [setup requirements](dev/docs/development/setup.md#development-scripts).
 
 ```sh
 git clone --recurse-submodules https://github.com/chriopter/omalux.git
@@ -27,8 +27,8 @@ Documentation, scripts and calibration tools live in `dev/`.
 - `dev/scripts/preset_preview <folder>` / `--all` — regenerate preset thumbnails.
 - `dev/scripts/update` — update the darktable submodule to the latest stable release; does not commit or push.
 
-[Development guide](dev/docs/development.md) · [Engine architecture](dev/docs/darktable-architecture.md) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)
+[Development guide](dev/docs/development/setup.md) · [Engine architecture](dev/docs/architecture/darktable.md) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)
 
 ## TODO
 
-- [ ] Calibrate presets against their intended appearance ([details](dev/docs/presets.md#one-time-v0-conversion)).
+- [ ] Calibrate presets against their intended appearance ([details](dev/docs/reference/presets.md#one-time-v0-conversion)).

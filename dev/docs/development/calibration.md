@@ -1,6 +1,6 @@
 # Calibrating the bundled looks
 
-The scripts in [`dev/tools/calibration/`](../tools/calibration) adjust a bundled preset (`preset.dtstyle` plus `look.cube`) until darktable's rendering of a set of photographs matches a target rendering of the same photographs. They need Python 3 with numpy, ImageMagick (`magick`) and `darktable-cli` on the path. Target renderings and datasets are not part of the repository.
+The scripts in [`dev/tools/calibration/`](../../tools/calibration) adjust a bundled preset (`preset.dtstyle` plus `look.cube`) until darktable's rendering of a set of photographs matches a target rendering of the same photographs. They need Python 3 with numpy, ImageMagick (`magick`) and `darktable-cli` on the path. Target renderings and datasets are not part of the repository.
 
 ## Data layout
 
