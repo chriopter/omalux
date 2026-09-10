@@ -170,10 +170,21 @@ SidebarScrollView {
                             font: root.theme.textFont
                             elide: Text.ElideRight
                         }
+                        // The module itself goes in and out of the pipeline here.
                         Text {
+                            id: moduleState
                             text: moduleBlock.modelData.enabled ? "on" : "off"
                             color: moduleBlock.modelData.enabled ? root.theme.accent : root.theme.muted
                             font: root.theme.textFont
+                            MouseArea {
+                                anchors.fill: parent
+                                anchors.margins: -6
+                                enabled: root.editable
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.parameterEdited(moduleBlock.modelData.operation,
+                                                                moduleBlock.modelData.instance, "@enabled",
+                                                                moduleBlock.modelData.enabled ? 0 : 1)
+                            }
                         }
                         Text {
                             text: moduleBlock.modelData.parameters.length

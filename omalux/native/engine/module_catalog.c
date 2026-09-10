@@ -157,7 +157,19 @@ int om_engine_set_parameter(OmEngine *engine, const char *operation, int instanc
     if (!engine->loaded)
         return 1;
     dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, operation, instance);
-    if (!module || !module->get_introspection)
+    if (!module)
+        return 2;
+    // "@enabled" is not a parameter of the module but the module itself being in the pipeline.
+    if (!strcmp(field_name, "@enabled")) {
+        const gboolean wanted = value > 0.5;
+        if (module->enabled == wanted)
+            return 0;
+        module->enabled = wanted;
+        dt_dev_add_history_item_ext(&engine->dev, module, TRUE, FALSE);
+        engine->dev.full.pipe->changed |= DT_DEV_PIPE_SYNCH;
+        return om_engine_bind_controls(engine);
+    }
+    if (!module->get_introspection)
         return 2;
     const dt_introspection_field_t *field = module->get_f(field_name);
     if (!field)

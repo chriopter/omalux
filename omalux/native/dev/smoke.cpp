@@ -337,6 +337,11 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 engine.rootObjects().first()->setProperty("selectedPanel", step["panel"].toInt());
             else if (step.contains("filterView"))
                 engine.rootObjects().first()->setProperty("filterView", step["filterView"].toInt());
+            else if (step.contains("setParameter")) {
+                const auto call = step["setParameter"].toObject();
+                editor.setParameter(call["operation"].toString(), call["instance"].toInt(),
+                                    call["field"].toString(), call["value"].toDouble());
+            }
             else if (step.contains("filterSearch"))
                 engine.rootObjects().first()->setProperty("filterSearch", step["filterSearch"].toString());
             else if (step.contains("rememberControls")) {
