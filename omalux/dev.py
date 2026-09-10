@@ -2,7 +2,7 @@
 """Build and run the native Qt/darktable prototype in a private session."""
 import argparse
 import json
-from preset_assets import prepare_assets
+from style_assets import prepare_assets
 import os
 from pathlib import Path
 import subprocess
@@ -32,12 +32,12 @@ def main():
         subprocess.run([str(ROOT / 'omalux/build-native.sh')], check=True)
     # Mesa Rusticl requires explicit driver opt-in; respect user overrides.
     os.environ.setdefault("RUSTICL_ENABLE", "radeonsi")
-    os.environ.setdefault("OMALUX_PRESETS_DIR", str(ROOT / "presets"))
+    os.environ.setdefault("OMALUX_STYLES_DIR", str(ROOT / "styles"))
     children = []
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)
         dt = os.environ.get('DARKTABLE_BIN', '/usr/bin/darktable')
-        lut_config = 'plugins/darkroom/lut3d/def_path=' + str(Path(os.environ['OMALUX_PRESETS_DIR']).resolve())
+        lut_config = 'plugins/darkroom/lut3d/def_path=' + str(Path(os.environ['OMALUX_STYLES_DIR']).resolve())
         performance_args = [
             '--conf', 'opencl_fast=false',
             '--conf', 'resourcelevel=' + os.environ.get('OMALUX_RESOURCES', 'default'),
@@ -53,9 +53,9 @@ def main():
         if args.split:
             configs.append(session / 'comparison')
             configs[-1].mkdir()
-        asset_errors = prepare_assets(Path(os.environ['OMALUX_PRESETS_DIR']).resolve(), configs)
+        asset_errors = prepare_assets(Path(os.environ['OMALUX_STYLES_DIR']).resolve(), configs)
         ui_env = os.environ.copy()
-        ui_env['OMALUX_PRESET_ASSET_ERRORS'] = json.dumps(asset_errors)
+        ui_env['OMALUX_STYLE_ASSET_ERRORS'] = json.dumps(asset_errors)
         ui_env.pop('OMALUX_COMPARISON_MAILBOX', None)
         try:
             if args.split:

@@ -6,7 +6,7 @@
                            (tuning|holdout), media_type
   datasets/proxies/        optional smaller versions of dataset files, used
                            instead of the original when present (same file name)
-  targets/<preset>/<id>.jpg  the rendering each preset should reproduce
+  targets/<style>/<id>.jpg  the rendering each style should reproduce
   work/                    everything the tools write
 
 Scores are the mean CIEDE2000 between proxies of 256 pixels on the long edge.
@@ -27,7 +27,7 @@ DATASETS = ROOT / "datasets"
 TARGETS = ROOT / "targets"
 WORK = ROOT / "work"
 REPO = Path(__file__).resolve().parents[2]
-PRESETS = Path(os.environ.get("OMALUX_PRESETS", REPO / "presets"))
+STYLES = Path(os.environ.get("OMALUX_STYLES", REPO / "styles"))
 PROXY = 256
 RENDER = 1024
 JOBS = int(os.environ.get("DT_JOBS", "6"))
@@ -49,10 +49,10 @@ def images(split):
             and (not kind or (i["kind"] != "jpeg") == (kind == "raw"))]
 
 
-def preset_dirs():
-    """Bundled presets that have target renderings, by id."""
+def style_dirs():
+    """Bundled styles that have target renderings, by id."""
     out = {}
-    for p in sorted(PRESETS.rglob("preset.dtstyle")):
+    for p in sorted(STYLES.rglob("style.dtstyle")):
         if (TARGETS / p.parent.name).is_dir():
             out[p.parent.name] = p.parent
     return out

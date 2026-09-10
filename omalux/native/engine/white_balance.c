@@ -202,8 +202,8 @@ gboolean om_wb_write(dt_iop_module_t *module, float temperature, float tint) {
         coeffs[a] = mul[a] / mul[1];
     if (dt_image_is_raw(&module->dev->image_storage) && module->dev->image_storage.flags & DT_IMAGE_4BAYER)
         coeffs[3] = mul[3] / mul[1];
-    int *preset = module->get_p(module->params, "preset");
-    if (preset)
-        *preset = 2;
+    int *style = module->get_p(module->params, "style");
+    if (style)
+        *style = 2;
     return TRUE;
 }

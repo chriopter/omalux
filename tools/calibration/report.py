@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Progress report for the calibration: work/report/index.html.
 
-One row per preset with target renderings: progress (0 % = score of the
-bundled preset before fitting, 100 % = mean tuning score at or below the
-target), tuning and holdout scores, cube roughness. Every preset has a
+One row per style with target renderings: progress (0 % = score of the
+bundled style before fitting, 100 % = mean tuning score at or below the
+target), tuning and holdout scores, cube roughness. Every style has a
 collapsed section with Original | Target | darktable per image, 1024-pixel
 thumbnails loaded on demand, linking to the full files.
 
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import DATASETS, TARGETS, WORK, images, preset_dirs  # noqa: E402
+from common import DATASETS, TARGETS, WORK, images, style_dirs  # noqa: E402
 
 REPORT = WORK / "report"
 THUMBS = REPORT / "thumbs"
@@ -48,7 +48,7 @@ def main():
     imgs = images("all")
     rows, sections, jobs, pcts = [], [], [], []
     done = 0
-    for pid in sorted(preset_dirs()):
+    for pid in sorted(style_dirs()):
         fin_path = WORK / pid / "final.json"
         if not fin_path.exists():
             pcts.append(0.0)
@@ -117,10 +117,10 @@ def main():
 </style></head><body>
 <h1>Omalux calibration</h1>
 <p class="note">{generated}. Score: mean CIEDE2000 on 256-pixel proxies against the target rendering, lower is better, target ≤ {TARGET_DE}.
-Progress: 0 % = bundled preset before fitting, 100 % = tuning score at or below the target. Holdout images were never fitted.</p>
-<h2>Overall {total:.0f}% · {done} of {len(pcts)} presets computed</h2>
+Progress: 0 % = bundled style before fitting, 100 % = tuning score at or below the target. Holdout images were never fitted.</p>
+<h2>Overall {total:.0f}% · {done} of {len(pcts)} styles computed</h2>
 <div class='bar big'><div style='width:{total:.0f}%'></div></div>
-<table><tr><th>Preset</th><th>Progress</th><th>ΔE start</th><th>ΔE tuning</th><th>ΔE holdout</th><th>cube roughness</th></tr>
+<table><tr><th>Style</th><th>Progress</th><th>ΔE start</th><th>ΔE tuning</th><th>ΔE holdout</th><th>cube roughness</th></tr>
 {''.join(rows)}</table>
 <h2>Per image (Original | Target | darktable)</h2>
 {''.join(sections)}
@@ -128,7 +128,7 @@ Progress: 0 % = bundled preset before fitting, 100 % = tuning score at or below 
 """
     REPORT.mkdir(parents=True, exist_ok=True)
     (REPORT / "index.html").write_text(page)
-    print(f"{REPORT / 'index.html'} written ({done}/{len(pcts)} presets, {total:.0f}%)")
+    print(f"{REPORT / 'index.html'} written ({done}/{len(pcts)} styles, {total:.0f}%)")
 
 
 if __name__ == "__main__":

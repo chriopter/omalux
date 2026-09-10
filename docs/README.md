@@ -3,7 +3,7 @@
 ## Development
 
 - [Setup and workflow](development/setup.md) — dependencies, scripts, keyboard shortcuts and code layout.
-- [Preset calibration](development/calibration.md) — datasets, fitting tools and validation.
+- [Style calibration](development/calibration.md) — datasets, fitting tools and validation.
 
 ## Architecture
 
@@ -13,7 +13,7 @@
 ## Reference
 
 - [Editing controls](reference/controls.md) — darktable mappings, names, units and UI behavior.
-- [Preset bundles](reference/presets.md) — format, assets and compatibility.
+- [Style bundles](reference/styles.md) — format, assets and compatibility.
 - [darktable bundle](reference/darktable-bundle.md) — distributing looks and camera presets to plain darktable.
 - [Shared assets](reference/assets.md) — image and logo provenance.
 

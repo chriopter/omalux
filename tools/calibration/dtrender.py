@@ -14,7 +14,7 @@ because darktable locks its database per configuration.
 
 Environment:
   OMALUX_CALIBRATION_ROOT  work/dtcfg below it holds the per-worker configs
-  OMALUX_PRESETS           LUT root passed to lut3d (default: <repo>/presets)
+  OMALUX_STYLES           LUT root passed to lut3d (default: <repo>/styles)
   RAW_EXPOSURE_OFFSET      EV added to the style's exposure for RAW inputs only
                            (darktable's own RAW default is +0.7 EV, which a
                            style's absolute exposure value replaces)
@@ -38,7 +38,7 @@ from pathlib import Path
 from common import ROOT, WORK
 
 REPO = Path(__file__).resolve().parents[2]
-PRESETS = Path(os.environ.get("OMALUX_PRESETS", REPO / "presets"))
+STYLES = Path(os.environ.get("OMALUX_STYLES", REPO / "styles"))
 CFG = WORK / "dtcfg"
 
 XMP_HEAD = """<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -148,13 +148,13 @@ def camera_items(path):
         import camera_presets
     except ImportError:
         return []
-    presets = camera_presets.load()
-    if not presets:
+    styles = camera_presets.load()
+    if not styles:
         return []
     maker, model = camera_of(path)
     is_raw = Path(path).suffix.lower() in RAW_SUFFIXES
     return [dict(op=p["operation"], ver=p["version"], params=p["params"], enabled=int(p["enabled"]), bparams="",
-                 bver=0, mprio=0, mname="", mhand=0) for p in camera_presets.matching(presets, maker, model, is_raw)]
+                 bver=0, mprio=0, mname="", mhand=0) for p in camera_presets.matching(styles, maker, model, is_raw)]
 
 
 def dtstyle_to_xmp(style_path, src_name, camera=()):
@@ -229,7 +229,7 @@ def _render(inp, style_path, output, width, height, opencl, quality, extra_conf,
             cmd += ["--height", str(height)]
         cmd += ["--core", "--configdir", str(cfg), "--cachedir", str(cache), "--library", ":memory:",
                 "--conf", f"opencl={'TRUE' if opencl else 'FALSE'}",
-                "--conf", f"plugins/darkroom/lut3d/def_path={PRESETS}",
+                "--conf", f"plugins/darkroom/lut3d/def_path={STYLES}",
                 "--conf", f"plugins/imageio/format/jpeg/quality={quality}",
                 "--conf", "plugins/lighttable/export/iccprofile=sRGB",
                 "--conf", "write_sidecar_files=never"]
@@ -288,7 +288,7 @@ def _render_batch(jobs, width, height, hq, quality, extra_conf, threads, style_p
                    "--width", str(width), "--height", str(height), "--hq", "true" if hq else "false",
                    "--core", "--configdir", str(cfg), "--cachedir", str(cache), "--library", ":memory:",
                    "--conf", f"opencl={'TRUE' if opencl else 'FALSE'}",
-                   "--conf", f"plugins/darkroom/lut3d/def_path={PRESETS}",
+                   "--conf", f"plugins/darkroom/lut3d/def_path={STYLES}",
                    "--conf", f"plugins/imageio/format/jpeg/quality={quality}",
                    "--conf", "plugins/lighttable/export/iccprofile=sRGB",
                    "--conf", "write_sidecar_files=never"]

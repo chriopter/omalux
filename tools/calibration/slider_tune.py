@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Search the module parameters around a fitted cube.
 
-  slider_tune.py <preset> [--passes 2]
+  slider_tune.py <style> [--passes 2]
 
 Each pass has three parts:
 1. Scene-referred parameters before lut3d (exposure, tone equalizer bands,
@@ -15,9 +15,9 @@ Each pass has three parts:
    values, every trial gets one cube update and a second render before it is
    judged; otherwise "no change" always wins. Then a short cube refit.
 
-Starts from work/<preset>/best.cube and style.dtstyle (see cube_fit.py), or
+Starts from work/<style>/best.cube and style.dtstyle (see cube_fit.py), or
 from the previous tuned result when TUNE_FROM_TUNED=1. Writes
-work/<preset>/tuned/preset.dtstyle, look.cube and tuned.json.
+work/<style>/tuned/style.dtstyle, look.cube and tuned.json.
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cube_fit  # noqa: E402
 import dtparams  # noqa: E402
 import common  # noqa: E402
-from common import images, preset_dirs  # noqa: E402
+from common import images, style_dirs  # noqa: E402
 
 # scene-referred parameters before lut3d
 PARAMS_PRE = [
@@ -70,7 +70,7 @@ MIN_GAIN = 0.005
 class Tuner:
     def __init__(self, pid, imgs):
         self.pid = pid
-        self.pdir = preset_dirs()[pid]
+        self.pdir = style_dirs()[pid]
         self.w = cube_fit.work_dir(pid)
         self.t = self.w / "tuned"
         self.t.mkdir(parents=True, exist_ok=True)
@@ -92,7 +92,7 @@ class Tuner:
         start_cube = self.w / "best.cube"
         if os.environ.get("TUNE_FROM_TUNED") == "1" and (self.t / "look.cube").exists():
             start_cube = self.t / "look.cube"
-            prev = dtparams.read_style((self.t / "preset.dtstyle").read_text())
+            prev = dtparams.read_style((self.t / "style.dtstyle").read_text())
             for op, v in prev.items():
                 if op in self.state and v["params"] is not None:
                     self.state[op]["params"].update(v["params"])
@@ -240,10 +240,10 @@ class Tuner:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("preset")
+    ap.add_argument("style")
     ap.add_argument("--passes", type=int, default=2)
     a = ap.parse_args()
-    tn = Tuner(a.preset, images("tuning"))
+    tn = Tuner(a.style, images("tuning"))
     logf = open(tn.t / "tune.log", "a")
 
     def log(msg):
@@ -252,25 +252,25 @@ def main():
         logf.flush()
 
     current, _ = tn.evaluate(tn.state, "start", refit=False)
-    log(f"[{a.preset}] start {current:.3f}")
+    log(f"[{a.style}] start {current:.3f}")
     history = [current]
     for p in range(a.passes):
         t0 = time.time()
         tn.scene_pass(log)
         current = tn.cube_refit(1e9, 12, log)
-        log(f"[{a.preset}] pass {p} scene: {current:.3f}")
+        log(f"[{a.style}] pass {p} scene: {current:.3f}")
         current = tn.coordinate_pass(current, log)
-        log(f"[{a.preset}] pass {p} sliders: {current:.3f}")
+        log(f"[{a.style}] pass {p} sliders: {current:.3f}")
         current = tn.cube_refit(current, 3, log)
-        log(f"[{a.preset}] pass {p} cube: {current:.3f} ({time.time() - t0:.0f}s)")
+        log(f"[{a.style}] pass {p} cube: {current:.3f} ({time.time() - t0:.0f}s)")
         history.append(current)
-        shutil.copy(tn.style_path(tn.state), tn.t / "preset.dtstyle")
+        shutil.copy(tn.style_path(tn.state), tn.t / "style.dtstyle")
         shutil.copy(tn.cube_path(), tn.t / "look.cube")
-        json.dump(dict(preset=a.preset, history=history, state=tn.state),
+        json.dump(dict(style=a.style, history=history, state=tn.state),
                   open(tn.t / "tuned.json", "w"), indent=1)
         if history[-2] - history[-1] < 0.02:
             break
-    log(f"[{a.preset}] tuned {current:.3f}")
+    log(f"[{a.style}] tuned {current:.3f}")
 
 
 if __name__ == "__main__":

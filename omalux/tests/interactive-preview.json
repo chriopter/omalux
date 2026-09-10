@@ -33,7 +33,7 @@
     "selectHistory": "opening"
   },
   {
-    "preset": "chromatic/preset.dtstyle"
+    "style": "chromatic/style.dtstyle"
   },
   {
     "rememberControls": "chromatic"
@@ -45,7 +45,7 @@
     }
   },
   {
-    "preset": "chromatic/preset.dtstyle"
+    "style": "chromatic/style.dtstyle"
   },
   {
     "checkControls": "chromatic"

@@ -15,11 +15,11 @@ class Editor : public QObject {
     Q_PROPERTY(QString filename READ filename NOTIFY changed)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
-    Q_PROPERTY(QVariantList presets READ presets NOTIFY presetsChanged)
-    Q_PROPERTY(bool presetsReady READ presetsReady NOTIFY presetsChanged)
-    Q_PROPERTY(QString presetError READ presetError NOTIFY changed)
+    Q_PROPERTY(QVariantList styles READ styles NOTIFY stylesChanged)
+    Q_PROPERTY(bool stylesReady READ stylesReady NOTIFY stylesChanged)
+    Q_PROPERTY(QString styleError READ styleError NOTIFY changed)
     Q_PROPERTY(bool styleBusy READ styleBusy NOTIFY changed)
-    Q_PROPERTY(QString applyingPreset READ applyingPreset NOTIFY changed)
+    Q_PROPERTY(QString applyingStyle READ applyingStyle NOTIFY changed)
     Q_PROPERTY(QString activeStyle READ activeStyle NOTIFY changed)
     Q_PROPERTY(QVariantList controls READ controls CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
@@ -35,22 +35,22 @@ class Editor : public QObject {
     QVariantList history() const;
     QVariantMap metadata() const;
     bool styleBusy() const;
-    QString applyingPreset() const;
+    QString applyingStyle() const;
     QString activeStyle() const;
-    QVariantList presets() const;
-    bool presetsReady() const;
-    QString presetError() const;
+    QVariantList styles() const;
+    bool stylesReady() const;
+    QString styleError() const;
     QVariantList controls() const;
     QVariantMap controlValues() const;
-    Q_INVOKABLE void hoverPreset(const QString &id, bool active);
-    Q_INVOKABLE void applyPreset(const QString &id);
+    Q_INVOKABLE void hoverStyle(const QString &id, bool active);
+    Q_INVOKABLE void applyStyle(const QString &id);
     Q_INVOKABLE void selectHistory(int step);
     Q_INVOKABLE void applyHalation();
     Q_INVOKABLE void openPhoto(const QUrl &url);
-    Q_INVOKABLE void savePreset(const QString &name);
+    Q_INVOKABLE void saveStyle(const QString &name);
     Q_INVOKABLE void exportPhoto(const QUrl &url, int quality);
-    Q_INVOKABLE void deletePreset(const QString &id);
-    Q_INVOKABLE void exportPreset(const QString &id, const QUrl &destination);
+    Q_INVOKABLE void deleteStyle(const QString &id);
+    Q_INVOKABLE void exportStyle(const QString &id, const QUrl &destination);
     Q_INVOKABLE void setInteractive(bool active);
     Q_INVOKABLE void setControl(const QString &id, double value);
     Q_INVOKABLE void setControls(const QVariantMap &updates);
@@ -60,10 +60,10 @@ class Editor : public QObject {
     void historyChanged();
     void changed();
     void controlsChanged();
-    void presetsChanged();
+    void stylesChanged();
 
   private:
-    bool presetAvailable(const QString &id) const;
+    bool styleAvailable(const QString &id) const;
     void queueAction(EditorAction action);
     void queueControls(int index);
     void showFrame(RenderResult result);
@@ -72,11 +72,11 @@ class Editor : public QObject {
     double normalAspectRatio = 1, hoverAspectRatio = 1;
     QVector4D normalTextureTransform{1, 1, 0, 0}, hoverTextureTransform{1, 1, 0, 0};
     QString source, url, hoverUrl, hoverId, gpuMessage, message = "Loading image…";
-    QString styleError, applyingId, styleName;
+    QString errorText, applyingId, styleName;
     ControlValues values{};
-    QVariantList presetCatalog, historyRows;
+    QVariantList styleCatalog, historyRows;
     QVariantMap imageMetadata;
-    bool catalogReady = false, applyingStyle = false;
+    bool catalogReady = false, applying = false;
     WorkTicket requestedTicket;
     quint64 presentedRevision = 0, hoverRevision = 0;
 };

@@ -85,7 +85,7 @@ dt.control.dispatch(function()
               if not imported[record.filename] then
                 local previous = find_style(record.name)
                 if previous then dt.styles.delete(previous) end
-                dt.styles.import(assert(os.getenv("OMALUX_PRESETS_DIR")) .. "/" .. record.filename)
+                dt.styles.import(assert(os.getenv("OMALUX_STYLES_DIR")) .. "/" .. record.filename)
                 imported[record.filename] = true
               end
               local selected = assert(find_style(record.name), "style import failed: " .. record.name)

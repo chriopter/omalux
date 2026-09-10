@@ -48,12 +48,12 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
         [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging] {
             if (*dragging)
                 return;
-            if (!editor.presetError().isEmpty()) {
-                qCritical() << editor.presetError();
+            if (!editor.styleError().isEmpty()) {
+                qCritical() << editor.styleError();
                 app.exit(2);
                 return;
             }
-            if (!editor.presetsReady() || editor.preview().isEmpty() || editor.styleBusy())
+            if (!editor.stylesReady() || editor.preview().isEmpty() || editor.styleBusy())
                 return;
             if (*waiting && editor.preview() == *previous)
                 return;
@@ -161,24 +161,24 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             } else if (step.contains("halation")) {
                 editor.applyHalation();
                 *waiting = true;
-            } else if (step.contains("preset")) {
-                editor.applyPreset(step["preset"].toString());
+            } else if (step.contains("style")) {
+                editor.applyStyle(step["style"].toString());
                 *waiting = true;
             } else if (step.contains("open")) {
                 editor.openPhoto(QUrl::fromLocalFile(step["open"].toString()));
                 *waiting = true;
-            } else if (step.contains("savePreset")) {
-                editor.savePreset(step["savePreset"].toString());
+            } else if (step.contains("saveStyle")) {
+                editor.saveStyle(step["saveStyle"].toString());
                 *waiting = true;
             } else if (step.contains("applyNamed")) {
-                for (const auto &p : editor.presets())
+                for (const auto &p : editor.styles())
                     if (p.toMap()["name"] == step["applyNamed"].toVariant()) {
-                        editor.applyPreset(p.toMap()["id"].toString());
+                        editor.applyStyle(p.toMap()["id"].toString());
                         *waiting = true;
                         break;
                     }
                 if (!*waiting) {
-                    qCritical() << "Saved preset missing";
+                    qCritical() << "Saved style missing";
                     app.exit(2);
                 }
             } else if (step.contains("geometry")) {
@@ -196,20 +196,20 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             } else if (step.contains("exportNamed") || step.contains("deleteNamed")) {
                 const auto name = step.contains("exportNamed") ? step["exportNamed"] : step["deleteNamed"];
                 bool found = false;
-                for (const auto &p : editor.presets())
+                for (const auto &p : editor.styles())
                     if (p.toMap()["name"] == name.toVariant()) {
                         const auto id = p.toMap()["id"].toString();
                         found = true;
                         if (step.contains("exportNamed"))
-                            editor.exportPreset(id, QUrl::fromLocalFile(step["destination"].toString()));
+                            editor.exportStyle(id, QUrl::fromLocalFile(step["destination"].toString()));
                         else {
-                            editor.deletePreset(id);
+                            editor.deleteStyle(id);
                             *waiting = true;
                         }
                         break;
                     }
                 if (!found) {
-                    qCritical() << "Preset missing";
+                    qCritical() << "Style missing";
                     app.exit(2);
                     return;
                 }
@@ -243,14 +243,14 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 QMouseEvent event(QEvent::MouseMove, point, window->mapToGlobal(point.toPoint()),
                                   Qt::NoButton, Qt::NoButton, Qt::NoModifier);
                 QGuiApplication::sendEvent(window, &event);
-            } else if (step.contains("hoverPreset")) {
-                editor.hoverPreset(step["hoverPreset"].toString(), true);
+            } else if (step.contains("hoverStyle")) {
+                editor.hoverStyle(step["hoverStyle"].toString(), true);
                 *waiting = true;
-            } else if (step.contains("leavePreset")) {
-                editor.hoverPreset("", false);
+            } else if (step.contains("leaveStyle")) {
+                editor.hoverStyle("", false);
             } else if (step.contains("cancelHover")) {
-                editor.hoverPreset(step["cancelHover"].toString(), true);
-                editor.hoverPreset("", false);
+                editor.hoverStyle(step["cancelHover"].toString(), true);
+                editor.hoverStyle("", false);
             } else if (step.contains("checkHover")) {
                 if (editor.preview().startsWith("image://hover/") != step["checkHover"].toBool()) {
                     qCritical() << "Unexpected hover state";
@@ -333,7 +333,7 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const auto actual = editor.controlValues();
                 for (auto it = expected.begin(); it != expected.end(); ++it)
                     if (std::abs(actual[it.key()].toDouble() - it.value().toDouble()) > .01) {
-                        qCritical() << "Preset retained an earlier edit" << it.key() << actual[it.key()]
+                        qCritical() << "Style retained an earlier edit" << it.key() << actual[it.key()]
                                     << it.value();
                         app.exit(2);
                         return;

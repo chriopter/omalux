@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Run the full chain (cube fit, one slider pass, final scoring, report) for
-# several presets, a few at a time.
+# several styles, a few at a time.
 #
-#   tools/calibration/run_queue.sh [-j 3] [preset ...]
+#   tools/calibration/run_queue.sh [-j 3] [style ...]
 #
-# Without preset ids every bundled preset that has target renderings is
-# queued; presets whose work/<preset>/final.json already exists are skipped.
+# Without style ids every bundled style that has target renderings is
+# queued; styles whose work/<style>/final.json already exists are skipped.
 # Each job runs with DT_JOBS render workers (default 5); with -j 3 that is
 # 15 darktable-cli processes at a time, about right for 16 cores.
-# Logs: work/queue/<preset>.log, progress in work/queue/progress.log.
+# Logs: work/queue/<style>.log, progress in work/queue/progress.log.
 set -euo pipefail
 : "${OMALUX_CALIBRATION_ROOT:?set OMALUX_CALIBRATION_ROOT}"
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -24,13 +24,13 @@ else
   python3 - "$here" > "$queue/queue.txt" <<'EOF'
 import sys
 sys.path.insert(0, sys.argv[1])
-from common import WORK, preset_dirs
-for pid in sorted(preset_dirs()):
+from common import WORK, style_dirs
+for pid in sorted(style_dirs()):
     if not (WORK / pid / "final.json").exists():
         print(pid)
 EOF
 fi
-echo "queued: $(wc -l < "$queue/queue.txt") presets, $parallel at a time"
+echo "queued: $(wc -l < "$queue/queue.txt") styles, $parallel at a time"
 
 one() {
   p="$1"

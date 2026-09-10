@@ -13,14 +13,14 @@ struct WorkTicket {
 };
 enum class ActionKind {
     None,
-    ApplyPreset,
+    ApplyStyle,
     History,
     Halation,
     Open,
     ExportImage,
-    SavePreset,
-    DeletePreset,
-    ExportPreset
+    SaveStyle,
+    DeleteStyle,
+    ExportStyle
 };
 struct EditorAction {
     ActionKind kind = ActionKind::None;

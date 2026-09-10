@@ -43,7 +43,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
     if (!dt_is_valid_imgid(image))
         return 1;
     if (engine->loaded) {
-        om_preset_baseline_clear(engine);
+        om_style_baseline_clear(engine);
         dt_dev_cleanup(&engine->dev);
         engine->loaded = 0;
     }
@@ -59,7 +59,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
     engine->dev.full.width = OM_PREVIEW_WIDTH;
     engine->dev.full.height = OM_PREVIEW_HEIGHT;
     engine->dev.full.color_assessment = FALSE;
-    om_preset_baseline_capture(engine);
+    om_style_baseline_capture(engine);
     return om_engine_bind_controls(engine);
 }
 int om_engine_bind_controls(OmEngine *engine) {
@@ -140,7 +140,7 @@ int om_engine_apply_style(OmEngine *engine, const char *path, const char *name, 
             return 3;
         }
     }
-    om_preset_baseline_restore(engine);
+    om_style_baseline_restore(engine);
     GList *used = NULL;
     dt_ioppr_update_for_style_items(&engine->dev, items, FALSE);
     for (GList *it = items; it; it = it->next)
@@ -230,7 +230,7 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
                : 3;
 }
 void om_engine_cleanup(OmEngine *engine) {
-    om_preset_baseline_clear(engine);
+    om_style_baseline_clear(engine);
     if (engine->loaded)
         dt_dev_cleanup(&engine->dev);
     dt_cleanup();

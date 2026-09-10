@@ -12,18 +12,18 @@ Rectangle {
     property alias geometry: geometryPanel
     onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
-    readonly property bool textEditing: selectedPanel === 1 && presetsPanel.textEditing
-    signal presetSaveRequested()
-    signal presetExportRequested(string id)
-    signal presetDeleteRequested(string id, string name)
+    readonly property bool textEditing: selectedPanel === 1 && stylesPanel.textEditing
+    signal styleSaveRequested()
+    signal styleExportRequested(string id)
+    signal styleDeleteRequested(string id, string name)
     signal controlSelected(string id)
 
     function navigateControl(direction) { filtersPanel.navigate(direction) }
     function revealControl(id) { selectedPanel = 0; controlSelected(id); filtersPanel.reveal(id) }
     function toggleGrainDetails() { filtersPanel.toggleGrainDetails() }
-    function showPresetDetails(id) {
+    function showStyleDetails(id) {
         selectedPanel = 1;
-        presetsPanel.showDetails(id);
+        stylesPanel.showDetails(id);
     }
 
     implicitWidth: 352
@@ -47,8 +47,8 @@ Rectangle {
                         name: "Filters"
                     },
                     {
-                        icon: "presets.svg",
-                        name: "Presets"
+                        icon: "styles.svg",
+                        name: "Styles"
                     },
                     {
                         icon: "crop.svg",
@@ -117,24 +117,24 @@ Rectangle {
             onControlSelected: id => root.controlSelected(id)
             onControlEdited: (id, value) => root.backend.setControl(id, value)
         }
-        PresetsPanel {
-            id: presetsPanel
-            onPreviewRequested: (id, active) => root.backend.hoverPreset(id, active)
-            onSaveRequested: root.presetSaveRequested()
-            onExportRequested: id => root.presetExportRequested(id)
-            onDeleteRequested: (id, name) => root.presetDeleteRequested(id, name)
+        StylesPanel {
+            id: stylesPanel
+            onPreviewRequested: (id, active) => root.backend.hoverStyle(id, active)
+            onSaveRequested: root.styleSaveRequested()
+            onExportRequested: id => root.styleExportRequested(id)
+            onDeleteRequested: (id, name) => root.styleDeleteRequested(id, name)
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.selectedPanel === 1
             theme: root.theme
-            presets: root.backend.presets
-            presetsReady: root.backend.presetsReady
+            styles: root.backend.styles
+            stylesReady: root.backend.stylesReady
             photoReady: root.backend.preview !== ""
             busy: root.backend.styleBusy
             appliedStyle: root.backend.activeStyle
-            applyingPreset: root.backend.applyingPreset
-            errorMessage: root.backend.presetError
-            onApplyRequested: id => root.backend.applyPreset(id)
+            applyingStyle: root.backend.applyingStyle
+            errorMessage: root.backend.styleError
+            onApplyRequested: id => root.backend.applyStyle(id)
         }
         GeometryPanel {
             id: geometryPanel

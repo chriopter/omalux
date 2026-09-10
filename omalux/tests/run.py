@@ -17,10 +17,10 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='omalux-regression-') as folder:
         work = Path(folder)
-        shutil.copytree(ROOT / 'presets', work / 'presets')
+        shutil.copytree(ROOT / 'styles', work / 'styles')
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
-                   OMALUX_PRESETS_DIR=str(work / 'presets'))
+                   OMALUX_STYLES_DIR=str(work / 'styles'))
         for key in ('OMALUX_CAPTURE', 'OMALUX_PREVIEW_DIR', 'OMALUX_FLUSH_PREVIEW_CACHE'):
             env.pop(key, None)
         workflow = [
@@ -29,9 +29,9 @@ def main():
             {'control': 'denoise_4_3', 'value': .6},
             {'halation': True},
             {'control': 'diffuse_enabled', 'value': 0},
-            {'preset': 'film/film-chrome/preset.dtstyle'},
+            {'style': 'film/film-chrome/style.dtstyle'},
             {'control': 'lut_opacity', 'value': 50},
-            {'savePreset': 'Omalux regression workflow'},
+            {'saveStyle': 'Omalux regression workflow'},
             {'applyNamed': 'Omalux regression workflow'},
             {'export': str(work / 'full.png')},
             {'panel': 2},
@@ -49,7 +49,7 @@ def main():
         ]
         (work / 'workflow.json').write_text(json.dumps(workflow))
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
-                   ROOT / 'omalux/tests/preset-hover.json', work / 'workflow.json']
+                   ROOT / 'omalux/tests/style-hover.json', work / 'workflow.json']
         for script in scripts:
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
@@ -70,14 +70,14 @@ def main():
                                               str(work / name)], text=True)
             if actual != size:
                 raise RuntimeError(f'{name}: expected {size}, got {actual}')
-        manifests = list((work / 'bundle').rglob('preset.json'))
+        manifests = list((work / 'bundle').rglob('style.json'))
         if len(manifests) != 1:
-            raise RuntimeError('Exported preset bundle missing')
+            raise RuntimeError('Exported style bundle missing')
         bundle = manifests[0].parent
         manifest = json.loads(manifests[0].read_text())
         if not manifest.get('assets'):
             raise RuntimeError('Exported LUT dependency missing')
-        for name in ['preset.dtstyle', 'thumbnail.jpg', *[asset['path'] for asset in manifest['assets']]]:
+        for name in ['style.dtstyle', 'thumbnail.jpg', *[asset['path'] for asset in manifest['assets']]]:
             if not (bundle / name).is_file():
                 raise RuntimeError(f'Bundle asset missing: {name}')
         print('All real-engine regressions passed; PNG/JPEG dimensions and bundled LUT verified.', flush=True)

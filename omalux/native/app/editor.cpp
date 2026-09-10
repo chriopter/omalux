@@ -13,7 +13,7 @@ QVector4D Editor::previewTextureTransform() const {
     return hoverUrl.isEmpty() ? normalTextureTransform : hoverTextureTransform;
 }
 QString Editor::status() const {
-    return hoverUrl.isEmpty() ? message : "Preset preview · click to apply";
+    return hoverUrl.isEmpty() ? message : "Style preview · click to apply";
 }
 QString Editor::gpuWarning() const {
     return gpuMessage;
@@ -28,22 +28,22 @@ QVariantMap Editor::metadata() const {
     return imageMetadata;
 }
 bool Editor::styleBusy() const {
-    return applyingStyle;
+    return applying;
 }
-QString Editor::applyingPreset() const {
+QString Editor::applyingStyle() const {
     return applyingId;
 }
 QString Editor::activeStyle() const {
     return styleName;
 }
-QVariantList Editor::presets() const {
-    return presetCatalog;
+QVariantList Editor::styles() const {
+    return styleCatalog;
 }
-bool Editor::presetsReady() const {
+bool Editor::stylesReady() const {
     return catalogReady;
 }
-QString Editor::presetError() const {
-    return styleError;
+QString Editor::styleError() const {
+    return errorText;
 }
 QVariantList Editor::controls() const {
     QVariantList result;
@@ -75,7 +75,7 @@ QVariantMap Editor::controlValues() const {
     return result;
 }
 void Editor::setControl(const QString &id, double next) {
-    if (applyingStyle || url.isEmpty() || !std::isfinite(next))
+    if (applying || url.isEmpty() || !std::isfinite(next))
         return;
     for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i) {
         const auto &c = om_controls[i];
@@ -90,7 +90,7 @@ void Editor::setControl(const QString &id, double next) {
     }
 }
 void Editor::setControls(const QVariantMap &updates) {
-    if (applyingStyle || url.isEmpty())
+    if (applying || url.isEmpty())
         return;
     for (auto it = updates.begin(); it != updates.end(); ++it)
         setControl(it.key(), it.value().toDouble());
@@ -107,19 +107,19 @@ void Editor::resetControl(const QString &id) {
 }
 Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteArray> arguments)
     : worker(std::make_unique<EngineWorker>(image, std::move(arguments),
-                                            qEnvironmentVariable("OMALUX_PRESETS_DIR"),
+                                            qEnvironmentVariable("OMALUX_STYLES_DIR"),
                                             qEnvironmentVariable("OMALUX_COMPARISON_MAILBOX"))),
       frames(normal), hoverFrames(hover), source(std::move(image)) {
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
         values[i] = om_controls[i].initial;
     connect(worker.get(), &EngineWorker::initialized, this,
-            [this](ControlValues initial, QVariantMap metadata, QVariantList presets) {
+            [this](ControlValues initial, QVariantMap metadata, QVariantList styles) {
                 values = initial;
                 imageMetadata = metadata;
-                presetCatalog = presets;
+                styleCatalog = styles;
                 catalogReady = true;
                 emit controlsChanged();
-                emit presetsChanged();
+                emit stylesChanged();
                 emit changed();
             });
     connect(worker.get(), &EngineWorker::controlsReady, this, [this](ControlValues next, quint64 revision) {
@@ -139,9 +139,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
             emit historyChanged();
         }
     });
-    connect(worker.get(), &EngineWorker::presetsReady, this, [this](QVariantList presets) {
-        presetCatalog = presets;
-        emit presetsChanged();
+    connect(worker.get(), &EngineWorker::stylesReady, this, [this](QVariantList styles) {
+        styleCatalog = styles;
+        emit stylesChanged();
     });
     connect(worker.get(), &EngineWorker::styleReady, this, [this](QString name) {
         styleName = name;
@@ -163,9 +163,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         if (ticket.epoch != requestedTicket.epoch)
             return;
         message = error;
-        if (applyingStyle)
-            styleError = error;
-        applyingStyle = false;
+        if (applying)
+            errorText = error;
+        applying = false;
         emit changed();
     });
     worker->start();
@@ -180,7 +180,7 @@ void Editor::showFrame(RenderResult result) {
     presentedRevision = result.ticket.revision;
     gpuMessage = result.gpuWarning;
     message = result.status;
-    applyingStyle = false;
+    applying = false;
     frames->set(result.image);
     normalAspectRatio = result.aspectRatio;
     normalTextureTransform = result.textureTransform;
@@ -188,15 +188,15 @@ void Editor::showFrame(RenderResult result) {
     qInfo().noquote() << message;
     emit changed();
 }
-bool Editor::presetAvailable(const QString &id) const {
-    for (const auto &entry : presetCatalog)
+bool Editor::styleAvailable(const QString &id) const {
+    for (const auto &entry : styleCatalog)
         if (entry.toMap()["id"].toString() == id)
             return entry.toMap()["error"].toString().isEmpty();
     return false;
 }
-void Editor::hoverPreset(const QString &id, bool active) {
+void Editor::hoverStyle(const QString &id, bool active) {
     if (active) {
-        if (applyingStyle || url.isEmpty() || !presetAvailable(id) || hoverId == id)
+        if (applying || url.isEmpty() || !styleAvailable(id) || hoverId == id)
             return;
     } else if (hoverId.isEmpty() || (!id.isEmpty() && hoverId != id))
         return;
@@ -206,33 +206,33 @@ void Editor::hoverPreset(const QString &id, bool active) {
     emit changed();
 }
 void Editor::queueAction(EditorAction action) {
-    if (applyingStyle || url.isEmpty())
+    if (applying || url.isEmpty())
         return;
-    hoverPreset("", false);
-    applyingStyle = true;
-    styleError.clear();
+    hoverStyle("", false);
+    applying = true;
+    errorText.clear();
     message = "Working…";
     requestedTicket = worker->action(std::move(action));
     emit changed();
 }
 void Editor::queueControls(int index) {
-    hoverPreset("", false);
+    hoverStyle("", false);
     requestedTicket = worker->controls(values, index);
     emit controlsChanged();
 }
 void Editor::setInteractive(bool active) {
     requestedTicket = worker->interactive(active);
 }
-void Editor::applyPreset(const QString &id) {
-    if (applyingStyle || url.isEmpty())
+void Editor::applyStyle(const QString &id) {
+    if (applying || url.isEmpty())
         return;
-    if (!presetAvailable(id)) {
-        styleError = "This preset is unavailable";
+    if (!styleAvailable(id)) {
+        errorText = "This style is unavailable";
         emit changed();
         return;
     }
     applyingId = id;
-    queueAction({ActionKind::ApplyPreset, id});
+    queueAction({ActionKind::ApplyStyle, id});
 }
 void Editor::selectHistory(int step) {
     for (const auto &row : historyRows)
@@ -254,16 +254,16 @@ void Editor::openPhoto(const QUrl &url) {
     }
     queueAction({ActionKind::Open, path});
 }
-void Editor::savePreset(const QString &name) {
+void Editor::saveStyle(const QString &name) {
     if (name.trimmed().isEmpty())
         return;
-    for (const auto &p : presetCatalog)
+    for (const auto &p : styleCatalog)
         if (p.toMap()["name"].toString() == name.trimmed()) {
-            styleError = "A preset with this name already exists";
+            errorText = "A style with this name already exists";
             emit changed();
             return;
         }
-    queueAction({ActionKind::SavePreset, name.trimmed()});
+    queueAction({ActionKind::SaveStyle, name.trimmed()});
 }
 void Editor::exportPhoto(const QUrl &url, int quality) {
     const QString path = url.toLocalFile();
@@ -280,10 +280,10 @@ void Editor::exportPhoto(const QUrl &url, int quality) {
     }
     queueAction({ActionKind::ExportImage, path, {}, qBound(1, quality, 100)});
 }
-void Editor::deletePreset(const QString &id) {
-    if (id.startsWith("my-presets/"))
-        queueAction({ActionKind::DeletePreset, id});
+void Editor::deleteStyle(const QString &id) {
+    if (id.startsWith("my-styles/"))
+        queueAction({ActionKind::DeleteStyle, id});
 }
-void Editor::exportPreset(const QString &id, const QUrl &destination) {
-    queueAction({ActionKind::ExportPreset, id, destination.toLocalFile()});
+void Editor::exportStyle(const QString &id, const QUrl &destination) {
+    queueAction({ActionKind::ExportStyle, id, destination.toLocalFile()});
 }

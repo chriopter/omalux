@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "work_types.h"
-#include "preset_catalog.h"
+#include "style_catalog.h"
 #include "comparison_bridge.h"
 #include <QObject>
 #include <QVariantMap>
@@ -13,7 +13,7 @@
 class EngineWorker : public QObject {
     Q_OBJECT
   public:
-    EngineWorker(QString source, std::vector<QByteArray> arguments, QString presets, QString mailbox);
+    EngineWorker(QString source, std::vector<QByteArray> arguments, QString styles, QString mailbox);
     ~EngineWorker() override;
     void start();
     WorkTicket controls(const ControlValues &, int index);
@@ -21,11 +21,11 @@ class EngineWorker : public QObject {
     WorkTicket action(EditorAction action);
     quint64 hover(QString id);
   signals:
-    void initialized(ControlValues values, QVariantMap metadata, QVariantList presets);
+    void initialized(ControlValues values, QVariantMap metadata, QVariantList styles);
     void controlsReady(ControlValues values, quint64 revision);
     void metadataReady(QString source, QVariantMap metadata);
     void historyReady(QVariantList rows);
-    void presetsReady(QVariantList presets);
+    void stylesReady(QVariantList styles);
     void styleReady(QString name);
     void frameReady(RenderResult result);
     void hoverReady(QImage image, quint64 revision, double aspectRatio, QVector4D textureTransform);
@@ -48,7 +48,7 @@ class EngineWorker : public QObject {
     void replaceControls(OmEngine *, Request &, ControlRevisions &);
     QString source;
     std::vector<QByteArray> arguments;
-    PresetCatalog catalog;
+    StyleCatalog catalog;
     ComparisonBridge bridge;
     std::mutex mutex;
     std::condition_variable wake;

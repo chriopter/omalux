@@ -6,19 +6,19 @@ import QtQuick.Layouts
 Item {
     id: root
     required property var theme
-    property string presetId: ""
-    property string presetName: ""
-    readonly property bool busy: openDialog.visible || exportDialog.visible || exportOptions.visible || savePresetDialog.visible || deleteDialog.visible || bundleDialog.visible
+    property string styleId: ""
+    property string styleName: ""
+    readonly property bool busy: openDialog.visible || exportDialog.visible || exportOptions.visible || saveStyleDialog.visible || deleteDialog.visible || bundleDialog.visible
     signal openRequested(url file)
     signal exportRequested(url file, int quality)
-    signal presetSaveRequested(string name)
-    signal presetDeleteRequested(string id)
-    signal presetExportRequested(string id, url directory)
+    signal styleSaveRequested(string name)
+    signal styleDeleteRequested(string id)
+    signal styleExportRequested(string id, url directory)
     function openImage() { openDialog.open() }
     function exportImage() { exportOptions.open() }
-    function savePreset() { nameInput.text="";savePresetDialog.open() }
-    function deletePreset(id, name) { presetId=id;presetName=name;deleteDialog.open() }
-    function exportPreset(id) { presetId=id;bundleDialog.open() }
+    function saveStyle() { nameInput.text="";saveStyleDialog.open() }
+    function deleteStyle(id, name) { styleId=id;styleName=name;deleteDialog.open() }
+    function exportStyle(id) { styleId=id;bundleDialog.open() }
     FileDialog {
         id: openDialog
         title: "Open photograph"
@@ -47,27 +47,27 @@ Item {
         onAccepted: root.exportRequested(selectedFile, Math.round(quality.value))
     }
     Dialog {
-        id: savePresetDialog
-        title: "Save preset"
+        id: saveStyleDialog
+        title: "Save style"
         anchors.centerIn: Overlay.overlay
         modal: true
         standardButtons: Dialog.Save | Dialog.Cancel
-        onAccepted: if (nameInput.text.trim()) root.presetSaveRequested(nameInput.text.trim())
-        TextField { id: nameInput; width: 300; placeholderText: "Preset name"; onAccepted: savePresetDialog.accept() }
+        onAccepted: if (nameInput.text.trim()) root.styleSaveRequested(nameInput.text.trim())
+        TextField { id: nameInput; width: 300; placeholderText: "Style name"; onAccepted: saveStyleDialog.accept() }
         onOpened: nameInput.forceActiveFocus()
     }
     Dialog {
         id: deleteDialog
-        title: "Delete preset?"
+        title: "Delete style?"
         anchors.centerIn: Overlay.overlay
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
-        contentItem: Text { text: root.presetName; color: root.theme.ink }
-        onAccepted: root.presetDeleteRequested(root.presetId)
+        contentItem: Text { text: root.styleName; color: root.theme.ink }
+        onAccepted: root.styleDeleteRequested(root.styleId)
     }
     FolderDialog {
         id: bundleDialog
-        title: "Export preset bundle into this folder"
-        onAccepted: root.presetExportRequested(root.presetId, selectedFolder)
+        title: "Export style bundle into this folder"
+        onAccepted: root.styleExportRequested(root.styleId, selectedFolder)
     }
 }

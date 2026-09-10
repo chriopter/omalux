@@ -28,10 +28,10 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
         auto waiting = std::make_shared<bool>(false);
         auto initialized = std::make_shared<bool>(false);
         auto advance = [&, frames, ids, index, waiting, initialized] {
-            if (!editor.presetsReady() || editor.preview().isEmpty() || editor.styleBusy())
+            if (!editor.stylesReady() || editor.preview().isEmpty() || editor.styleBusy())
                 return;
-            if (!editor.presetError().isEmpty() || !editor.status().startsWith("Ready")) {
-                qCritical() << "Batch render failed:" << editor.presetError() << editor.status();
+            if (!editor.styleError().isEmpty() || !editor.status().startsWith("Ready")) {
+                qCritical() << "Batch render failed:" << editor.styleError() << editor.status();
                 app.exit(2);
                 return;
             }
@@ -39,7 +39,7 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
                 const QDir output(qEnvironmentVariable("OMALUX_PREVIEW_DIR"));
                 QSaveFile manifest(output.filePath("catalog.json"));
                 const QJsonObject catalog{{"darktable_version", QString::fromUtf8(om_engine_version())},
-                                          {"presets", QJsonArray::fromVariantList(editor.presets())}};
+                                          {"styles", QJsonArray::fromVariantList(editor.styles())}};
                 const QByteArray json = QJsonDocument(catalog).toJson();
                 if (!QDir().mkpath(output.path()) || !frames->image().save(output.filePath("original.png")) ||
                     !manifest.open(QIODevice::WriteOnly) || manifest.write(json) != json.size() ||
@@ -67,7 +67,7 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
                 return;
             }
             *waiting = true;
-            editor.applyPreset(ids->at(*index));
+            editor.applyStyle(ids->at(*index));
         };
         QObject::connect(&editor, &Editor::changed, &app,
                          [&app, advance] { QTimer::singleShot(0, &app, advance); });
@@ -89,11 +89,11 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
                     engine.rootObjects().first()->setProperty("selectedPanel", 1);
                 if (qEnvironmentVariableIsSet("OMALUX_CAPTURE_EXPAND"))
                     QMetaObject::invokeMethod(
-                        engine.rootObjects().first(), "showPresetDetails",
+                        engine.rootObjects().first(), "showStyleDetails",
                         Q_ARG(QVariant, QVariant(qEnvironmentVariable("OMALUX_CAPTURE_EXPAND"))));
                 if (qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE"))
-                    editor.applyPreset(qEnvironmentVariable("OMALUX_CAPTURE_STYLE") == "1"
-                                           ? "chromatic/preset.dtstyle"
+                    editor.applyStyle(qEnvironmentVariable("OMALUX_CAPTURE_STYLE") == "1"
+                                           ? "chromatic/style.dtstyle"
                                            : qEnvironmentVariable("OMALUX_CAPTURE_STYLE"));
                 else
                     editor.setControl(qEnvironmentVariable("OMALUX_CAPTURE_CONTROL", "brightness"),
@@ -106,7 +106,7 @@ void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frame
                 ? qEnvironmentVariableIntValue("OMALUX_CAPTURE_DELAY")
                 : 4500,
             &app, [&, frames] {
-                if (editor.preview().isEmpty() || editor.styleBusy() || !editor.presetError().isEmpty() ||
+                if (editor.preview().isEmpty() || editor.styleBusy() || !editor.styleError().isEmpty() ||
                     (qEnvironmentVariableIsSet("OMALUX_CAPTURE_STYLE") && editor.activeStyle().isEmpty())) {
                     qCritical() << "Capture did not finish applying the requested settings";
                     app.exit(2);

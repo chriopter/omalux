@@ -5,4 +5,4 @@
 
 See [the original image notes](https://github.com/chriopter/omalux/blob/1d5eaf6/docs/v0/reference-pictures.md) for provenance and the generation prompt. Reuse this file rather than regenerating it.
 
-The five sidebar SVGs in `assets/icons/` are reused from the archived Omalux v0 UI (`edit`, `presets`, `crop`, `history`, `info`). Keep shared icon assets here rather than duplicating them in individual panels.
+The five sidebar SVGs in `assets/icons/` are reused from the archived Omalux v0 UI (`edit`, `styles`, `crop`, `history`, `info`). Keep shared icon assets here rather than duplicating them in individual panels.

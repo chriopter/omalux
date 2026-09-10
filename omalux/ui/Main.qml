@@ -28,8 +28,8 @@ ApplicationWindow {
     property string activeControl: "exposure"
     property alias selectedPanel: sidebar.selectedPanel
     function revealControl(id) { sidebar.revealControl(id) }
-    function showPresetDetails(id) {
-        sidebar.showPresetDetails(id);
+    function showStyleDetails(id) {
+        sidebar.showStyleDetails(id);
     }
 
     EditorTheme {
@@ -77,9 +77,9 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 theme: editorTheme
                 backend: editor
-                onPresetSaveRequested: dialogs.savePreset()
-                onPresetExportRequested: id => dialogs.exportPreset(id)
-                onPresetDeleteRequested: (id, name) => dialogs.deletePreset(id, name)
+                onStyleSaveRequested: dialogs.saveStyle()
+                onStyleExportRequested: id => dialogs.exportStyle(id)
+                onStyleDeleteRequested: (id, name) => dialogs.deleteStyle(id, name)
                 onControlSelected: id => window.activeControl = id
             }
         }
@@ -102,9 +102,9 @@ ApplicationWindow {
         theme: editorTheme
         onOpenRequested: file => { sidebar.geometry.cancel(); viewport.fit(); editor.openPhoto(file) }
         onExportRequested: (file, quality) => editor.exportPhoto(file, quality)
-        onPresetSaveRequested: name => editor.savePreset(name)
-        onPresetDeleteRequested: id => editor.deletePreset(id)
-        onPresetExportRequested: (id, directory) => editor.exportPreset(id, directory)
+        onStyleSaveRequested: name => editor.saveStyle(name)
+        onStyleDeleteRequested: id => editor.deleteStyle(id)
+        onStyleExportRequested: (id, directory) => editor.exportStyle(id, directory)
     }
     EditorShortcuts {
         id: shortcuts

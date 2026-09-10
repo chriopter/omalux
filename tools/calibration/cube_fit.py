@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Fit a preset's 3D LUT so darktable reproduces the target renderings.
+"""Fit a style's 3D LUT so darktable reproduces the target renderings.
 
-  cube_fit.py baseline [--presets a,b] [--split tuning|holdout|all]
-  cube_fit.py fit <preset> [--iters 15] [--resume]
-  cube_fit.py fit-all [--presets a,b] [--iters 15]
-  cube_fit.py final <preset>|--presets a,b
+  cube_fit.py baseline [--styles a,b] [--split tuning|holdout|all]
+  cube_fit.py fit <style> [--iters 15] [--resume]
+  cube_fit.py fit-all [--styles a,b] [--iters 15]
+  cube_fit.py final <style>|--styles a,b
   cube_fit.py roughness <cube.cube> [...]   mean |Laplacian| of a cube in 8-bit units
 
 Fixed-point fit. The LUT input is what the pipeline hands to lut3d, so it is
@@ -16,7 +16,7 @@ with damping. The style is
 fitted with `colisa` disabled: global tone and colour live in the cube, and a
 display-referred adjustment after the LUT would fight it.
 
-Work layout: work/<preset>/style.dtstyle (fitted style), lut/<catalogue path>
+Work layout: work/<style>/style.dtstyle (fitted style), lut/<catalogue path>
 (candidate cube), input/, iter-N/, best.cube, best.json, final/, final.json.
 """
 import argparse
@@ -35,20 +35,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
 import dtparams  # noqa: E402
 import dtrender  # noqa: E402
-from common import JOBS, PRESETS, RENDER, WORK, images, preset_dirs, score_render  # noqa: E402
+from common import JOBS, STYLES, RENDER, WORK, images, style_dirs, score_render  # noqa: E402
 
 POST_LUT = {"colisa", "shadhi", "sharpen", "grain", "vignette", "bilat"}
 LUT_SIZE = 33
 
 
 def work_dir(pid):
-    """work/<preset>, or work/<preset><DT_WORK_SUFFIX> for side experiments."""
+    """work/<style>, or work/<style><DT_WORK_SUFFIX> for side experiments."""
     return WORK / (pid + os.environ.get("DT_WORK_SUFFIX", ""))
 
 
 # ---------- style helpers ----------
-def style_text(preset_dir):
-    return (preset_dir / "preset.dtstyle").read_text()
+def style_text(style_dir):
+    return (style_dir / "style.dtstyle").read_text()
 
 
 def disable_modules(text, names):
@@ -60,8 +60,8 @@ def disable_modules(text, names):
                   repl, text)
 
 
-def lut_relpath(preset_dir):
-    s = style_text(preset_dir)
+def lut_relpath(style_dir):
+    s = style_text(style_dir)
     m = re.search(r"<operation>lut3d</operation>\s*<op_params>([0-9a-f]*)</op_params>\s*<enabled>(\d)", s)
     if not m or m.group(2) != "1":
         return None
@@ -78,7 +78,7 @@ def base_style(pid, pdir):
         if "colisa" in st:
             st["colisa"]["enabled"] = False
         text = dtparams.write_style(style_text(pdir), st)
-        v0 = preset_seed(pid)
+        v0 = style_seed(pid)
         if v0:
             # clarity and noise reduction were not part of the one-time conversion
             clarity = float(v0.get("basics", {}).get("clarity", 0) or 0)
@@ -92,9 +92,9 @@ def base_style(pid, pdir):
     return p
 
 
-def preset_seed(pid):
+def style_seed(pid):
     """Calibration inputs retained independently of the removed Rust application."""
-    with (common.REPO / "tools/calibration/preset-seeds.json").open() as source:
+    with (common.REPO / "tools/calibration/style-seeds.json").open() as source:
         return json.load(source).get(pid)
 
 
@@ -267,7 +267,7 @@ def score_dir(pid, imgs, out_dir):
     return float(np.mean(list(scores.values()))), scores
 
 
-def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
+def fit_style(pid, pdir, iters, resume=False, split="tuning", patience=3):
     rel = lut_relpath(pdir)
     if rel is None:
         print(f"[{pid}] no lut3d in style, skipping cube fit")
@@ -280,7 +280,7 @@ def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
     t0 = time.time()
     A, B = lut_inputs(pid, style, imgs, w / "input")
     print(f"[{pid}] lut inputs {time.time() - t0:.0f}s")
-    cube = read_cube(PRESETS / rel)
+    cube = read_cube(STYLES / rel)
     if resume and (w / "best.cube").exists():
         cube = read_cube(w / "best.cube")
         print(f"[{pid}] resuming from best.cube")
@@ -308,7 +308,7 @@ def fit_preset(pid, pdir, iters, resume=False, split="tuning", patience=3):
             break
         cube = cube_update(cube, imgs, A, B, out_dir, w / "input")
     print(f"[{pid}] best cube roughness {roughness(read_cube(w / 'best.cube')):.2f}")
-    json.dump(dict(preset=pid, best_iter=best[0], best=best[1], history=history,
+    json.dump(dict(style=pid, best_iter=best[0], best=best[1], history=history,
                    roughness=roughness(read_cube(w / "best.cube"))),
               open(w / "best.json", "w"), indent=1)
     print(f"[{pid}] best iter {best[0]} dE {best[1]:.2f}")
@@ -327,11 +327,11 @@ def roughness(cube):
 def baseline(pids, split, tag="baseline"):
     res = {}
     for pid in pids:
-        pdir = preset_dirs()[pid]
+        pdir = style_dirs()[pid]
         imgs = images(split)
         out_dir = WORK / pid / tag
         t0 = time.time()
-        render_many([(i["path"], pdir / "preset.dtstyle", out_dir / (i["id"] + ".jpg"), None) for i in imgs],
+        render_many([(i["path"], pdir / "style.dtstyle", out_dir / (i["id"] + ".jpg"), None) for i in imgs],
                     hq=True)
         _, scores = score_dir(pid, imgs, out_dir)
         res[pid] = scores
@@ -351,10 +351,10 @@ def finalize(pid, pdir):
     scene = w / "scene"
     lut_dir = w / "final-lut"
     shutil.rmtree(lut_dir, ignore_errors=True)
-    if (scene / "preset.dtstyle").exists():  # scene-referred style: no cube
-        style, cube, lut_dir = scene / "preset.dtstyle", None, None
+    if (scene / "style.dtstyle").exists():  # scene-referred style: no cube
+        style, cube, lut_dir = scene / "style.dtstyle", None, None
     else:
-        style = tuned / "preset.dtstyle" if (tuned / "preset.dtstyle").exists() else base_style(pid, pdir)
+        style = tuned / "style.dtstyle" if (tuned / "style.dtstyle").exists() else base_style(pid, pdir)
         cube = tuned / "look.cube" if style.parent == tuned else w / "best.cube"
         dst = lut_dir / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -375,7 +375,7 @@ def finalize(pid, pdir):
                     history=[dict(mean=h) for h in scene_info["history"]])
     else:
         best = json.load(open(w / "best.json"))
-    json.dump(dict(preset=pid, summary=summary, scores=scores, style=str(style), cube=str(cube),
+    json.dump(dict(style=pid, summary=summary, scores=scores, style=str(style), cube=str(cube),
                    tuned=tuned_info, scene=scene_info, best=best),
               open(w / "final.json", "w"), indent=1)
     print(f"[{pid}] final: tuning {summary['tuning']:.2f} holdout {summary['holdout']:.2f} "
@@ -385,23 +385,23 @@ def finalize(pid, pdir):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["baseline", "fit", "fit-all", "final", "roughness"])
-    ap.add_argument("preset", nargs="*")
-    ap.add_argument("--presets")
+    ap.add_argument("style", nargs="*")
+    ap.add_argument("--styles")
     ap.add_argument("--split", default="all")
     ap.add_argument("--iters", type=int, default=15)
     ap.add_argument("--resume", action="store_true")
     a = ap.parse_args()
     if a.cmd == "roughness":
-        for path in a.preset:
+        for path in a.style:
             print(f"{path}: {roughness(read_cube(path)):.2f}")
         return
-    pd = preset_dirs()
-    pids = a.presets.split(",") if a.presets else (a.preset or sorted(pd))
+    pd = style_dirs()
+    pids = a.styles.split(",") if a.styles else (a.style or sorted(pd))
     if a.cmd == "baseline":
         baseline(pids, a.split)
     elif a.cmd in ("fit", "fit-all"):
         for pid in pids:
-            fit_preset(pid, pd[pid], a.iters, a.resume)
+            fit_style(pid, pd[pid], a.iters, a.resume)
     elif a.cmd == "final":
         for pid in pids:
             finalize(pid, pd[pid])

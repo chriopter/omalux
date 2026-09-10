@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Regenerate a bundled style's beach thumbnail with the native darktable adapter."""
+import argparse
+import ctypes
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'omalux'))
+from style_assets import read_manifest
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('style', nargs='?', help='Bundle relative to styles/, e.g. chromatic')
+    parser.add_argument('--all', action='store_true', help='Render all bundles in one engine session')
+    args = parser.parse_args()
+    if bool(args.style) == args.all:
+        parser.error('Choose one bundle or --all')
+    bundles = sorted(p.parent for p in (ROOT / 'styles').rglob('style.dtstyle')) if args.all else [(ROOT / 'styles' / args.style).resolve()]
+    for bundle in bundles:
+        if not bundle.is_relative_to(ROOT / 'styles') or not (bundle / 'style.dtstyle').is_file():
+            parser.error('Expected a bundle in styles/ containing style.dtstyle')
+    for bundle in bundles:
+        read_manifest(bundle)
+    source = ROOT / 'assets/images/beach-volleyball.jpg'
+    with tempfile.TemporaryDirectory(prefix='omalux-style-preview-') as tmp:
+        env = {k: v for k, v in os.environ.items() if not k.startswith(('OMALUX_CAPTURE', 'OMALUX_PREVIEW'))}
+        ids = [(p / 'style.dtstyle').relative_to(ROOT / 'styles').as_posix() for p in bundles]
+        env.update(QT_QPA_PLATFORM='offscreen', OMALUX_STYLES_DIR=str(ROOT / 'styles'),
+                   OMALUX_PREVIEW_DIR=tmp, OMALUX_PREVIEW_IDS=json.dumps(ids))
+        subprocess.run([str(ROOT / 'dev/start'), str(source)], env=env, check=True, timeout=360)
+        library = ctypes.CDLL(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so'), mode=ctypes.RTLD_GLOBAL)
+        version = ctypes.string_at(ctypes.addressof(ctypes.c_char.in_dll(library, 'darktable_package_version'))).decode()
+        for bundle, style_id in zip(bundles, ids):
+            thumbnail = Path(tmp) / 'thumbnail.jpg'
+            subprocess.run(['magick', str(Path(tmp) / (style_id + '.png')), '-resize', '384x256',
+                            '-strip', '-quality', '90', str(thumbnail)], check=True)
+            manifest = read_manifest(bundle)
+            manifest.setdefault('preview', {}).update(source=source.relative_to(ROOT).as_posix(), darktable_version=version)
+            (bundle / 'thumbnail.jpg').write_bytes(thumbnail.read_bytes())
+            (bundle / 'style.json').write_text(json.dumps(manifest, indent=2) + '\n')
+            print(f'Updated {bundle.relative_to(ROOT)}/thumbnail.jpg and style.json')
+
+
+if __name__ == '__main__':
+    main()

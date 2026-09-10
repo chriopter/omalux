@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a darktable distribution bundle from the bundled presets.
+"""Build a darktable distribution bundle from the bundled styles.
 
     python3 tools/darktable/build_bundle.py [--out dist/darktable] [--embed-luts]
 
@@ -8,8 +8,8 @@ Output layout:
     dist/darktable/
       styles/<group>/<name>.dtstyle   one style per look, named "Omalux|<Group>|<Name>"
       luts/<catalogue path>.cube      the LUT files the styles reference (unless embedded)
-      camera/<maker>/<model>.dtpreset automatically applied input-profile presets
-      camera/<maker>/<model>.icc      the input profiles those presets select
+      camera/<maker>/<model>.dtpreset automatically applied camera presets
+      camera/<maker>/<model>.icc      input profiles those presets select, if any
       README.md                       how to install in darktable
 
 Styles keep the catalogue-relative LUT path, so darktable's LUT root
@@ -32,7 +32,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-PRESETS = REPO / "presets"
+STYLES = REPO / "styles"
 CAMERA = REPO / "camera"
 GROUP_NAMES = {"film": "Film", "experimental": "Experimental", "monochrome": "Monochrome",
                "series/movie": "Movie", "series/late-summer": "Late Summer"}
@@ -41,7 +41,7 @@ MAX_KEYPOINTS = 2048
 
 
 def group_of(bundle: Path):
-    rel = bundle.relative_to(PRESETS).parent.as_posix()
+    rel = bundle.relative_to(STYLES).parent.as_posix()
     return GROUP_NAMES.get(rel, rel.replace("/", " ").title() if rel != "." else "")
 
 
@@ -82,7 +82,7 @@ def compress_cube(cube: Path, error: float, work: Path):
 
 
 def convert_style(bundle: Path, out_styles: Path, out_luts: Path, embed: bool, error: float, work: Path):
-    text = (bundle / "preset.dtstyle").read_text()
+    text = (bundle / "style.dtstyle").read_text()
     original = re.search(r"<name>(.*?)</name>", text).group(1)
     name = style_name(bundle, original)
     text = text.replace(f"<name>{original}</name>", f"<name>{name}</name>", 1)
@@ -90,7 +90,7 @@ def convert_style(bundle: Path, out_styles: Path, out_luts: Path, embed: bool, e
     lut_note = ""
     if m and m.group(4) == "1":
         p = lut3d_params(m.group(2))
-        cube = PRESETS / p["path"]
+        cube = STYLES / p["path"]
         if embed:
             n, keypoints = compress_cube(cube, error, work)
             new = lut3d_encode(p["path"], p["colorspace"], p["interpolation"], n, keypoints, p["size"])
@@ -112,11 +112,11 @@ def copy_camera(out: Path):
     if not CAMERA.is_dir():
         return 0
     count = 0
-    for preset in sorted(CAMERA.rglob("*.dtpreset")):
-        rel = preset.relative_to(CAMERA)
+    for style in sorted(CAMERA.rglob("*.dtpreset")):
+        rel = style.relative_to(CAMERA)
         (out / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(preset, out / rel)
-        icc = preset.with_suffix(".icc")
+        shutil.copy(style, out / rel)
+        icc = style.with_suffix(".icc")
         if icc.exists():
             shutil.copy(icc, (out / rel).with_suffix(".icc"))
         count += 1
@@ -131,13 +131,13 @@ README = """# Omalux looks and camera presets for darktable
    They appear as `Omalux|<group>|<name>` and can be applied in lighttable or darkroom.
 2. {lut_step}
 
-## Camera presets (input profiles)
+## Camera presets
 
-1. Copy the `.icc` files from `camera/` into darktable's configuration folder under `color/in/`
-   (Linux: `~/.config/darktable/color/in/`). Restart darktable.
+1. If the bundle contains `.icc` files under `camera/`, copy them into darktable's configuration folder
+   under `color/in/` (Linux: `~/.config/darktable/color/in/`) and restart darktable.
 2. darktable → preferences → *presets* → *import…* → select the `.dtpreset` files in `camera/`.
    Each preset is applied automatically to RAW files of its camera model and selects that profile
-   in the *input color profile* module. Looks stay independent of it.
+   (for the current set: embedded lens correction). Looks stay independent of it.
 
 {camera_note}
 """
@@ -154,7 +154,7 @@ def main():
     styles, luts, camera = out / "styles", out / "luts", out / "camera"
     styles.mkdir(parents=True)
     with tempfile.TemporaryDirectory() as td:
-        for bundle in sorted(p.parent for p in PRESETS.rglob("preset.dtstyle")):
+        for bundle in sorted(p.parent for p in STYLES.rglob("style.dtstyle")):
             name, note = convert_style(bundle, styles, luts, a.embed_luts, a.error, Path(td))
             print(f"{name}{note}")
     n = copy_camera(camera)

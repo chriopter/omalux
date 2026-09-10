@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scene-referred preset search.
+"""Scene-referred style search.
 
 Builds the look from darktable modules that run before the tone mapper
 (exposure, color balance rgb, tone equalizer, sigmoid) plus the spatial
@@ -7,9 +7,9 @@ modules, with no display cube, and searches their parameters against the
 target renderings by coordinate descent from a neutral start. Steps halve
 when a pass gains less than 0.05.
 
-  scene_search.py <preset> [--passes 5] [--start neutral|bundled]
+  scene_search.py <style> [--passes 5] [--start neutral|bundled]
 
-Output: work/<preset>/scene/preset.dtstyle and scene.json (history, state).
+Output: work/<style>/scene/style.dtstyle and scene.json (history, state).
 The result is a plain darktable style that can be opened in darktable.
 """
 import argparse
@@ -24,7 +24,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cube_fit  # noqa: E402
 import dtparams  # noqa: E402
-from common import PRESETS, images, preset_dirs, score_render  # noqa: E402
+from common import STYLES, images, style_dirs, score_render  # noqa: E402
 
 # (module, field, step, min, max)
 PARAMS = [
@@ -75,13 +75,13 @@ ENABLE_WHEN = {"vignette": "brightness", "sharpen": "amount", "grain": "strength
 ALWAYS_ON = {"exposure", "colorbalancergb", "toneequal", "sigmoid", "shadhi"}
 OFF = {"colisa", "lut3d"}
 MIN_GAIN = 0.004
-NEUTRAL = PRESETS / "neutral/preset.dtstyle"
+NEUTRAL = STYLES / "neutral/style.dtstyle"
 
 
 class SceneTuner:
     def __init__(self, pid, imgs, start):
         self.pid = pid
-        self.pdir = preset_dirs()[pid]
+        self.pdir = style_dirs()[pid]
         self.w = cube_fit.work_dir(pid) / "scene"
         self.w.mkdir(parents=True, exist_ok=True)
         self.imgs = imgs
@@ -156,12 +156,12 @@ def calib_score(pid, imgs, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("preset")
+    ap.add_argument("style")
     ap.add_argument("--passes", type=int, default=5)
     ap.add_argument("--start", default="neutral")
     a = ap.parse_args()
     imgs = images("tuning")
-    tn = SceneTuner(a.preset, imgs, a.start)
+    tn = SceneTuner(a.style, imgs, a.start)
     logf = open(tn.w / "scene.log", "a")
 
     def log(msg):
@@ -173,10 +173,10 @@ def main():
     if resume.exists():  # continue from the last saved pass
         saved = json.load(open(resume))
         tn.state = saved["state"]
-        log(f"[{a.preset}] resuming after {len(saved['history']) - 1} passes")
+        log(f"[{a.style}] resuming after {len(saved['history']) - 1} passes")
     current, sc = tn.evaluate(tn.state, "start")
     jp = np.mean([v for k, v in sc.items() if k.startswith("J")]); rw = np.mean([v for k, v in sc.items() if k.startswith("R")])
-    log(f"[{a.preset}] scene start {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f})")
+    log(f"[{a.style}] scene start {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f})")
     history = saved["history"] if resume.exists() else [current]
     scale = saved.get("scale", 1.0) if resume.exists() else 1.0
     for p in range(len(history) - 1, a.passes):
@@ -185,15 +185,15 @@ def main():
         current = tn.coordinate_pass(current, scale, log)
         _, sc = tn.evaluate(tn.state, "pass")
         jp = np.mean([v for k, v in sc.items() if k.startswith("J")]); rw = np.mean([v for k, v in sc.items() if k.startswith("R")])
-        log(f"[{a.preset}] scene pass {p} (step x{scale:.2f}): {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f}) {time.time()-t0:.0f}s")
+        log(f"[{a.style}] scene pass {p} (step x{scale:.2f}): {current:.3f} (jpeg {jp:.2f}, raw {rw:.2f}) {time.time()-t0:.0f}s")
         history.append(current)
-        tn.style_path(tn.state, "preset.dtstyle")
-        json.dump(dict(preset=a.preset, history=history, state=tn.state, scale=scale), open(tn.w / "scene.json", "w"), indent=1)
+        tn.style_path(tn.state, "style.dtstyle")
+        json.dump(dict(style=a.style, history=history, state=tn.state, scale=scale), open(tn.w / "scene.json", "w"), indent=1)
         if before - current < 0.05:
             scale *= 0.5
             if scale < 0.2:
                 break
-    log(f"[{a.preset}] scene tuned {current:.3f}")
+    log(f"[{a.style}] scene tuned {current:.3f}")
 
 
 if __name__ == "__main__":

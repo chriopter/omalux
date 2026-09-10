@@ -7,7 +7,7 @@
 - `DT_DEV_PIXELPIPE_IMAGE` prevents intermediate cache reuse in our current pipe. The focused review had not seen the helper implementation; we checked `src/develop/pixelpipe_hb.h:306`, which directly tests that flag. See `pixelpipe_hb.c:3157` and `pixelpipe_cache.c:178`.
 - Reading `opencl_error` only after rendering misses the normal GPU-error-to-CPU-restart path, which clears it. See `pixelpipe_hb.c:3243–3284`.
 - The updated colisa controls match the module's native unitless range −1 to +1, default zero and identity conversion. Separately, we verified the actual GTK formatting: `src/iop/colisa.c:267` and `src/develop/imageop_gui.c:97–110` give two decimal places with no percentage format override.
-- Raw module parameter pointers need a lifecycle contract before adding history reload, presets or image/module replacement. This is a future invalidation risk, not evidence that today's single-image slider path reallocates its parameters on every render.
+- Raw module parameter pointers need a lifecycle contract before adding history reload, styles or image/module replacement. This is a future invalidation risk, not evidence that today's single-image slider path reallocates its parameters on every render.
 
 ## Claims rejected or narrowed after checking the surrounding code
 
@@ -23,4 +23,4 @@
 
 Do not replace GPU telemetry with a single different transient flag without tracing the full lifecycle. Configuration availability, runtime stopping, selected device, mixed CPU/GPU module execution and per-render fallback are distinct states. The primary [architecture analysis](darktable.md) includes the reconciled implementation priorities and runtime checks still needed.
 
-The preset implementation now rebinds parameter pointers after style application and updates history in `om_engine_update_controls` only for explicit edits. Rendering alone no longer enables the module. The review above records the earlier source snapshot.
+The style implementation now rebinds parameter pointers after style application and updates history in `om_engine_update_controls` only for explicit edits. Rendering alone no longer enables the module. The review above records the earlier source snapshot.

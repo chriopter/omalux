@@ -77,7 +77,7 @@ The flag came from the upstream helper for producing an image, not from a guaran
 
 The adapter now retains the FULL pipe initialized by `dt_dev_init`, with its normal cache allocation and history-driven invalidation. The source review covered IMAGE flag uses in both installed 5.6.0 and pinned 5.6.1: finalscale still recognizes FULL through CANVAS; IMAGE_FINAL was never set; hazeremoval’s IMAGE check only emits a warning when preview-derived estimates are unavailable; the zoom-only fast return in develop is not used by scalar edits. GTK-dependent work stays disabled through `gui_attached = FALSE`. We do not change upstream or enable GTK callbacks.
 
-The worker still serializes engine edits and coalesces pending slider values, but now publishes completed intermediate frames while newer scalar values are pending. It never writes old control values back over new input. A separate presentation epoch advances for image changes, presets, history and other session actions; completed frames from an earlier epoch are rejected both before queuing and on the Qt thread. Published render revisions are monotonic. This prevents starvation during continuous dragging without displaying an old image across a session action. In-flight rendering is not cancelled.
+The worker still serializes engine edits and coalesces pending slider values, but now publishes completed intermediate frames while newer scalar values are pending. It never writes old control values back over new input. A separate presentation epoch advances for image changes, styles, history and other session actions; completed frames from an earlier epoch are rejected both before queuing and on the Qt thread. Published render revisions are monotonic. This prevents starvation during continuous dragging without displaying an old image across a session action. In-flight rendering is not cancelled.
 
 `OMALUX_FLUSH_PREVIEW_CACHE=1` is an opt-in diagnostic: flush the intermediate cache immediately before each render, retaining the same FULL pipe, backend and ROI. Normal runs reuse eligible stages. Dirty-control revisions restrict history updates to changed modules.
 
@@ -86,7 +86,7 @@ Measured on this workstation with the shared beach JPEG, OpenCL enabled, fixed 1
 - 16 scalar updates across brightness, exposure and temperature: median render-plus-QImage-copy time **27.5 ms cached**, **36.5 ms forced recompute**. Cold startup excluded; first module activations included. This is not input-to-screen latency.
 - 15 distinct output images matched pixel-for-pixel against both the previous IMAGE path and forced recomputation (ImageMagick AE = 0).
 - Split-mode continuous brightness drag, 180 samples at a nominal 16 ms interval: **83 intermediate preview revisions** observed during the drag; final control value reached 0.3. These are published preview updates, not measured compositor frames.
-- Preset replacement and history restoration are exercised separately. No claim of parity across arbitrary RAWs, profiles, expensive modules or GPUs follows from this JPEG test.
+- Style replacement and history restoration are exercised separately. No claim of parity across arbitrary RAWs, profiles, expensive modules or GPUs follows from this JPEG test.
 
 Run the persistent-engine regression with:
 
@@ -94,7 +94,7 @@ Run the persistent-engine regression with:
 QT_FORCE_STDERR_LOGGING=1 OMALUX_SMOKE_SCRIPT="$PWD/omalux/tests/interactive-preview.json" dev/start_split
 ```
 
-It uses a private session, checks updates during sustained input, verifies final values, restores history and reapplies a preset after edits. Use `QT_QPA_PLATFORM=offscreen` for the Qt window when running unattended; the optional GTK twin still requires desktop access. Large RAW latency, memory pressure and cancellation remain follow-up performance work.
+It uses a private session, checks updates during sustained input, verifies final values, restores history and reapplies a style after edits. Use `QT_QPA_PLATFORM=offscreen` for the Qt window when running unattended; the optional GTK twin still requires desktop access. Large RAW latency, memory pressure and cancellation remain follow-up performance work.
 
 ## 4. Parameters, instances and history
 
@@ -104,7 +104,7 @@ Our registry only supports known floats and an affine UI-to-parameter transform.
 
 - Validate introspection presence, field type, range and transformed bounds; fail with the control ID rather than casting arbitrary fields to `float *`.
 - Identify a specific module instance, not merely the first operation-name match. `multi_priority`, operation and module order are part of identity.
-- Read loaded values/enabled state into UI. The preset-catalogue implementation now reads imported values at startup and preserves module enabled state until an explicit control edit.
+- Read loaded values/enabled state into UI. The style-catalogue implementation now reads imported values at startup and preserves module enabled state until an explicit control edit.
 - Separate native parameter identity from the GTK action path. Widget labels/sections may differ from C field names. `iop/module/parameter` works for colisa but is not a universal action naming rule. `develop/imageop_gui.c:66–149` derives labels from introspection descriptions or replaces underscores with spaces; `bauhaus/bauhaus.c:1052` defines actions from those labels and sections.
 - Keep complete snapshots to avoid losing edits when coalescing. Track dirty modules within the worker for history/synchronization efficiency.
 
@@ -153,7 +153,7 @@ Before more complex comparisons, align workflow, module instance, enabled state,
 
 ## 8. Saving, sidecars and export
 
-Image identity, metadata, processing history, presets/styles and user configuration are separate persistent concerns. Startup/history loading can apply defaults and matching auto-presets (`develop.c:1856`, `2301`). Existing XMP sidecars may be read during import (`common/image.c:1794`, `2050`); `write_sidecar_files=never` prevents writes, not reads.
+Image identity, metadata, processing history, presets, styles and user configuration are separate persistent concerns. Startup/history loading can apply defaults and matching auto-applied presets (`develop.c:1856`, `2301`). Existing XMP sidecars may be read during import (`common/image.c:1794`, `2050`); `write_sidecar_files=never` prevents writes, not reads.
 
 `dt_dev_write_history_ext` writes develop history to the image's database state (`develop.c:1769`); wrapper behavior and sidecar policy must be understood before adding Save. Our temporary databases are prototype behavior, not a persistence design.
 
@@ -173,7 +173,7 @@ Keep the official submodule unchanged while this can be done in the adapter. If 
 
 ## Verification still needed
 
-This source audit does not settle monitor color management on this Wayland/Qt setup, performance parity, cancellation races, complex imported XMP/masks, export equivalence or decoder support across cameras. Those need focused runtime experiments and representative RAW files. Revisit this document after each implementation change; the original audit targets commit `30f421a`; the preset integration section records subsequent changes.
+This source audit does not settle monitor color management on this Wayland/Qt setup, performance parity, cancellation races, complex imported XMP/masks, export equivalence or decoder support across cameras. Those need focused runtime experiments and representative RAW files. Revisit this document after each implementation change; the original audit targets commit `30f421a`; the style integration section records subsequent changes.
 
 ## Targeted regression experiments for the next changes
 
@@ -192,9 +192,9 @@ This source audit does not settle monitor color management on this Wayland/Qt se
 
 Use deterministic fixtures where possible, retain backend/profile/ROI metadata with results, and separate cold-start compilation/decoding from warm interactive timing. Do not run these all as boilerplate for documentation edits; they are gates for the corresponding future engine changes.
 
-## Preset catalogue integration
+## Style catalogue integration
 
-`native/app/presets.cpp` discovers `.dtstyle` files recursively under `presets/`, using relative paths as IDs and sibling `thumbnail.jpg` files for compact preview rows. `native/engine/style_details.c` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
+`native/app/style_bundles.cpp` discovers `.dtstyle` files recursively under `styles/`, using relative paths as IDs and sibling `thumbnail.jpg` files for compact preview rows. `native/engine/style_details.c` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
 
 Style application preflights every item, restores the per-image opening baseline, applies items through `dt_styles_apply_style_item`, rebinds controls and reads values back. Rendering no longer writes control snapshots indiscriminately: per-control revisions select changed parameters. This fixes the earlier startup-default overwrite and unintended re-enabling of modules during a style render. It does not resolve ambiguous duplicate-instance selection.
 
@@ -206,25 +206,25 @@ The original three-control audit above describes the starting prototype. The cur
 
 `controls.h` separates display labels/units, native parameters and GTK action paths. Native binding selects `multi_priority == 0` deliberately and validates float type, size and hard range. Integer fields, enablement and blend opacity have explicit bindings. Denoise curves validate the 6 × 7 ordinate array. `native/engine/white_balance.c` adapts the installed darktable temperature module's spectral/XYZ math and camera matrices to convert temperature/tint into white-balance coefficients; this is not a new color-temperature algorithm.
 
-`native/engine/metadata.c`, `style_snapshot.c` and `export.c` own metadata, compatible style snapshots and full-resolution export respectively. It serializes parameters using darktable's XMP encoder and packages local LUT assets for saved presets. Private single-module snapshots preserve existing LUT paths. JPEG/PNG export writes the worker's develop history to its temporary database and calls `dt_imageio_export`; source sidecars remain disabled. The resulting output is copied atomically to the user-selected destination.
+`native/engine/metadata.c`, `style_snapshot.c` and `export.c` own metadata, compatible style snapshots and full-resolution export respectively. It serializes parameters using darktable's XMP encoder and packages local LUT assets for saved styles. Private single-module snapshots preserve existing LUT paths. JPEG/PNG export writes the worker's develop history to its temporary database and calls `dt_imageio_export`; source sidecars remain disabled. The resulting output is copied atomically to the user-selected destination.
 
 The worker serializes all engine actions. Mailbox v3 includes the current image source, scalar revisions, style boundaries and module snapshots. Lua uses GUI actions for scalar changes and imports private module styles for curves/blend recipes. The comparison process remains independent and receives one-way edits. This is a development aid, not shared engine state or a performance guarantee.
 
 
 ## History display
 
-`native/engine/history.c` copies the worker-owned `dev.history` into a JSON list, newest first. Labels use `dt_history_get_name_label`, as `src/libs/history.c` does; the active prefix/current row comes from `dev.history_end`. The matching 5.6.0 headers and pinned 5.6.1 source were checked for the history-item layout. The list includes imported and automatic steps, module enablement, and preset modules without Omalux controls. It follows darktable’s merging of adjacent module edits, rather than logging every slider event.
+`native/engine/history.c` copies the worker-owned `dev.history` into a JSON list, newest first. Labels use `dt_history_get_name_label`, as `src/libs/history.c` does; the active prefix/current row comes from `dev.history_end`. The matching 5.6.0 headers and pinned 5.6.1 source were checked for the history-item layout. The list includes imported and automatic steps, module enablement, and style modules without Omalux controls. It follows darktable’s merging of adjacent module edits, rather than logging every slider event.
 
 Qt receives copied data through a queued signal; `panels/HistoryPanel.qml` displays it and emits a selected step. Reading the stack neither changes engine history nor sends comparison commands. The next worker update after opening another photo replaces the list with that photo’s history. Restoration runs on the owning worker via `dt_dev_pop_history_items_ext`, followed by a pipe rebuild, invalidation and control rebinding. It preserves the future stack until darktable truncates it on the next edit. A synthetic original row selects history position zero. Dedicated undo/redo shortcuts are not implemented.
 
-In split mode, a history jump writes the selected module state as a private style snapshot. This includes modules in the registry and history, including disabled modules, and preserves LUT paths. Lua applies that snapshot before subsequent controls. It synchronizes the rendering state rather than matching history row numbers between the independent engines. Snapshot compatibility limits (masks and extra module instances) still apply. The source image’s sidecar is not written. Export and preset saving use the selected state.
+In split mode, a history jump writes the selected module state as a private style snapshot. This includes modules in the registry and history, including disabled modules, and preserves LUT paths. Lua applies that snapshot before subsequent controls. It synchronizes the rendering state rather than matching history row numbers between the independent engines. Snapshot compatibility limits (masks and extra module instances) still apply. The source image’s sidecar is not written. Export and style saving use the selected state.
 
 
-## Preset replacement baseline
+## Style replacement baseline
 
-`native/engine/preset_baseline.c` owns copies of every loaded module’s parameters, blend settings and enabled state. The baseline is captured after image loading, cleared before develop cleanup, and recaptured for the next image. It preserves the loaded camera/workflow configuration and any opening sidecar edits. It is not built from fixed UI reset values.
+`native/engine/style_baseline.c` owns copies of every loaded module’s parameters, blend settings and enabled state. The baseline is captured after image loading, cleared before develop cleanup, and recaptured for the next image. It preserves the loaded camera/workflow configuration and any opening sidecar edits. It is not built from fixed UI reset values.
 
-After preset compatibility checks, changed modules are restored to this baseline with native history entries before the new style is applied. Thus earlier session changes to unrelated modules do not carry into the look, while history can still reach the previous edits. Preset application and history jumps both send a complete private style snapshot to the comparison process; sending only the newly selected style would leave stale comparison modules enabled. Existing snapshot limitations still apply.
+After style compatibility checks, changed modules are restored to this baseline with native history entries before the new style is applied. Thus earlier session changes to unrelated modules do not carry into the look, while history can still reach the previous edits. Style application and history jumps both send a complete private style snapshot to the comparison process; sending only the newly selected style would leave stale comparison modules enabled. Existing snapshot limitations still apply.
 
 ## Adaptive slider previews
 
@@ -234,33 +234,33 @@ The persistent regression now injects press/move/release mouse events into the r
 
 The launcher explicitly sets `opencl_fast=false`. Single-window runs use `very fast GPU` scheduling; split runs keep default scheduling. Override with `OMALUX_GPU_PROFILE=default` for comparisons. Resources remain at default because large showed no benefit on this fixture; `OMALUX_RESOURCES=large dev/start` enables the larger budget for heavier images. These options affect private dev sessions only. They do not rewrite the user's darktable configuration.
 
-## Preset hover preview
+## Style hover preview
 
-Preset cards debounce hover by 150 ms. `hoverPreset` schedules low-priority work on the existing engine worker; normal editing/session work takes priority. `native/engine/preset_preview.c` creates a scratch `dt_develop_t`, loads the current source image, restores copies of the opening baseline by operation/instance and applies the selected style only there. It uses the same native style/version checks and 1400 × 1000 fit preview size as click-to-apply. Hover renders once at full preview quality; there is no reduced-resolution stage or subsequent refinement. The fast 700 × 500 mode is reserved for slider gestures. Leaving rejects stale hover output. OpenCL precision stays unchanged. Unsupported/missing asset declarations are rejected by the existing catalogue before scheduling.
+Style cards debounce hover by 150 ms. `hoverStyle` schedules low-priority work on the existing engine worker; normal editing/session work takes priority. `native/engine/style_preview.c` creates a scratch `dt_develop_t`, loads the current source image, restores copies of the opening baseline by operation/instance and applies the selected style only there. It uses the same native style/version checks and 1400 × 1000 fit preview size as click-to-apply. Hover renders once at full preview quality; there is no reduced-resolution stage or subsequent refinement. The fast 700 × 500 mode is reserved for slider gestures. Leaving rejects stale hover output. OpenCL precision stays unchanged. Unsupported/missing asset declarations are rejected by the existing catalogue before scheduling.
 
-The scratch context has its own modules, history and pipes and is destroyed after copying its output. Its transient history entries are processing instructions only: they are never added to the editor context, written through the image-history save API, or sent to the comparison mailbox. The active editor's controls, history cursor and future history remain untouched. Hover uses the image-opening baseline plus preset, matching preset replacement semantics rather than stacking onto current slider edits.
+The scratch context has its own modules, history and pipes and is destroyed after copying its output. Its transient history entries are processing instructions only: they are never added to the editor context, written through the image-history save API, or sent to the comparison mailbox. The active editor's controls, history cursor and future history remain untouched. Hover uses the image-opening baseline plus style, matching style replacement semantics rather than stacking onto current slider edits.
 
-A separate Qt image provider holds the hover image. Leaving, hiding the pane, clicking a preset or editing cancels the hover revision and exposes the retained normal preview immediately. A completed stale hover render is discarded; in-flight processing itself is not cancelled. Applying a preset still uses the normal explicit action and history path. There is no additional persistent engine process.
+A separate Qt image provider holds the hover image. Leaving, hiding the pane, clicking a style or editing cancels the hover revision and exposes the retained normal preview immediately. A completed stale hover render is discarded; in-flight processing itself is not cancelled. Applying a style still uses the normal explicit action and history path. There is no additional persistent engine process.
 
-`omalux/tests/preset-hover.json` checks pointer hover/leave, preset-to-preset changes, cancellation, unchanged controls and the complete history including future steps, a normal re-render to read back native state, and click application. Before reducing hover resolution, a representative Chromatic comparison had identical active module parameters and dimensions, but separate-context rendered pixels were not byte-identical (mean absolute 8-bit channel difference approximately 0.34, maximum 85). Exact pixel parity is not asserted; the origin of that render-path difference remains unproven. Existing mask/multi-instance and color-management limitations still apply.
+`omalux/tests/style-hover.json` checks pointer hover/leave, style-to-style changes, cancellation, unchanged controls and the complete history including future steps, a normal re-render to read back native state, and click application. Before reducing hover resolution, a representative Chromatic comparison had identical active module parameters and dimensions, but separate-context rendered pixels were not byte-identical (mean absolute 8-bit channel difference approximately 0.34, maximum 85). Exact pixel parity is not asserted; the origin of that render-path difference remains unproven. Existing mask/multi-instance and color-management limitations still apply.
 
 ## Native module layout (2026-09-09)
 
-`omalux/native/main.cpp` creates Qt, the editor facade, image providers and optional development tools. It contains no engine dispatch or preset file operations.
+`omalux/native/main.cpp` creates Qt, the editor facade, image providers and optional development tools. It contains no engine dispatch or style file operations.
 
 | Directory/module | Responsibility |
 | --- | --- |
 | `app/editor.h/.cpp` | Qt-thread presentation state, input validation and QML actions; accepts copied worker results using revision/epoch checks |
 | `app/engine_worker.h/.cpp` | Typed, coalescing request queue; owns the worker thread, the adapter lifetime and the processing sequence |
 | `app/work_types.h` | Value-only control snapshots, requests, action enum, tickets and render results crossing the thread boundary |
-| `app/preset_catalog.h/.cpp`, `app/presets.h/.cpp` | Discovery, decoded detail formatting and portable bundle save/delete/export, confined to the worker |
+| `app/style_catalog.h/.cpp`, `app/styles.h/.cpp` | Discovery, decoded detail formatting and portable bundle save/delete/export, confined to the worker |
 | `app/comparison_bridge.h/.cpp` | Optional one-way mailbox and module/history snapshots; no hover traffic |
 | `app/image_export.h/.cpp` | Full-resolution engine export and atomic destination publication |
 | `app/frames.h/.cpp` | Owned opaque image copies and thread-safe QML image providers |
 | `engine/engine.h` | Opaque C API; each stateful call receives the worker-owned `OmEngine *` |
 | `engine/engine_internal.h` | Private adapter representation and internal helper declarations, never included by Qt code |
 | `engine/*.c` | Control binding/rendering, history, baseline, hover, style introspection, white balance and export/snapshot implementations |
-| `dev/` | Optional smoke tests, batch preset thumbnails and screenshots; inactive on ordinary launches |
+| `dev/` | Optional smoke tests, batch style thumbnails and screenshots; inactive on ordinary launches |
 
 The adapter no longer uses file-global editing state or implementation headers. The underlying libdarktable runtime is still process-global; this refactor does not promise multiple independent runtime instances in one process. The hover context is created and destroyed on the same worker as normal engine calls.
 
@@ -268,6 +268,6 @@ The adapter no longer uses file-global editing state or implementation headers. 
 
 The build compiles each `.c`/`.cpp` separately and generates moc sources from the two QObject headers. The launcher checks source files recursively, so changes inside these directories trigger a rebuild. The installed-release header/ABI check remains mandatory. The QML pane/component organization is unchanged.
 
-Validation after the module split: `python3 omalux/tests/run.py --split` passed real pointer drags, hover/leave/cancel with preserved future history, white balance, denoise curves, diffusion recipe, LUT preset save/reapply/export/delete, square cropping, full PNG/JPEG export and reopening the result. PNG output was 1536 × 1024, the square JPEG 1024 × 1024, and the exported bundle contained its declared LUT. The runner uses disposable configs, databases and a copied preset catalogue; it requires the desktop/OpenCL runtime and ImageMagick. It does not alter bundled presets or source sidecars. Batch screenshot/thumbnail helpers remain opt-in under `native/dev/`.
+Validation after the module split: `python3 omalux/tests/run.py --split` passed real pointer drags, hover/leave/cancel with preserved future history, white balance, denoise curves, diffusion recipe, LUT style save/reapply/export/delete, square cropping, full PNG/JPEG export and reopening the result. PNG output was 1536 × 1024, the square JPEG 1024 × 1024, and the exported bundle contained its declared LUT. The runner uses disposable configs, databases and a copied style catalogue; it requires the desktop/OpenCL runtime and ImageMagick. It does not alter bundled styles or source sidecars. Batch screenshot/thumbnail helpers remain opt-in under `native/dev/`.
 
 Preview placement uses the processed full-image aspect ratio from the pixelpipe, passed with each frame to Qt. It does not derive layout from the integer preview raster (for example 700 × 466 versus 1400 × 933). The viewport fits these logical bounds while still reflecting actual crop/rotation changes. A Qt fragment shader maps those bounds to the actual raster using `backbuf_scale` and the processed image dimensions. darktable samples integer source positions, while texture samplers address half-integer pixel centers; the mapping corrects that origin difference and preserves the fractional extent lost by integer raster truncation. Edge sampling clamps to the texture border. This fixes presentation geometry; resampling sharpness and scale-dependent module effects can still differ. The shader is compiled with Qt Shader Tools (`qsb`) during the native build. Qt software rendering falls back to the regular image with fixed outer bounds; the subpixel correction requires Qt GPU rendering. Offscreen shader checks must use `QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl`, since the default offscreen scene graph may use software.

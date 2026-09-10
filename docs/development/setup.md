@@ -35,7 +35,7 @@ Run from the repository root:
 
 - `dev/start [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
 - `dev/start_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
-- `dev/preset_preview <folder>` / `dev/preset_preview --all` — regenerate a bundled preset’s beach thumbnail and preview source/engine version in `preset.json`, e.g. `dev/preset_preview chromatic` (requires ImageMagick).
+- `dev/style_preview <folder>` / `dev/style_preview --all` — regenerate a bundled style’s beach thumbnail and preview source/engine version in `style.json`, e.g. `dev/style_preview chromatic` (requires ImageMagick).
 - `dev/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
@@ -47,11 +47,11 @@ dev/start_split "/path/to/photo.jpg"
 
 The UI follows the original dark Omalux layout, with SVG sidebar tabs, grouped controls, colored slider tracks and expandable details. Controls use **darktable’s names, units and precision**. Exposure, local contrast, shadows/highlights, white balance, color grading, bloom, grain, vignetting, sharpening, profiled denoising and LUT opacity are connected. See the [v0 control mapping](../reference/controls.md) for the exact modules and approximations.
 
-The **Presets** tab keeps v0’s groups, search, thumbnails and expandable module details. Applying a preset restores the photo’s opening state before applying the look, so earlier session edits do not leak into it. Save the current look with its thumbnail and LUT, export a bundle, or delete an own preset. Styles may affect modules without an Omalux control. The **Crop & Rotate** tab provides a draggable crop frame, aspect ratios and rotation; the information tab shows image metadata. Open photographs from the toolbar and export full-resolution JPEG or PNG. The **History** tab displays darktable’s processing stack, newest first, including module enablement and the current step. Click a step (or original) to restore it. Later steps remain selectable until a new edit replaces the future branch using darktable’s history rules.
+The **Styles** tab keeps v0’s groups, search, thumbnails and expandable module details. Applying a style restores the photo’s opening state before applying the look, so earlier session edits do not leak into it. Save the current look with its thumbnail and LUT, export a bundle, or delete an own style. Styles may affect modules without an Omalux control. The **Crop & Rotate** tab provides a draggable crop frame, aspect ratios and rotation; the information tab shows image metadata. Open photographs from the toolbar and export full-resolution JPEG or PNG. The **History** tab displays darktable’s processing stack, newest first, including module enablement and the current step. Click a step (or original) to restore it. Later steps remain selectable until a new edit replaces the future branch using darktable’s history rules.
 
 | Keys | Action |
 | --- | --- |
-| `1` / `2` / `3` / `4` / `5` | Filters / presets / crop / history / metadata |
+| `1` / `2` / `3` / `4` / `5` | Filters / styles / crop / history / metadata |
 | `Tab` / `Shift+Tab`, `]` / `[` | Next / previous panel |
 | `↑` / `↓`, `K` / `J` | Select parameter |
 | `←` / `→`, `H` / `L` | Adjust selected parameter; Shift makes larger steps |
@@ -71,20 +71,20 @@ The darktable engine runs inside the Qt application on a dedicated worker thread
 
 For AMD GPUs using Mesa Rusticl, install `opencl-mesa`; the dev launcher defaults `RUSTICL_ENABLE` to `radeonsi` unless you override it. The UI status “OpenCL auto” indicates automatic device selection, not that every module ran on the GPU.
 
-Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Session edits are discarded on close unless explicitly exported as an image or saved as a preset. Window placement follows your desktop rules. On the development machine, Omalux opens silently on workspace 3 and the darktable comparison window on workspace 4.
+Each launch uses temporary config, cache and database directories, with source sidecar writes disabled. Session edits are discarded on close unless explicitly exported as an image or saved as a style. Window placement follows your desktop rules. On the development machine, Omalux opens silently on workspace 3 and the darktable comparison window on workspace 4.
 
 Split mode runs two independent instances of darktable’s engine with separate databases. Omalux publishes style events and coalesced control snapshots to an atomic session file; `omalux/comparison.lua` polls it every 50 ms and applies scalar values through darktable’s GUI actions when the darkroom is open. Curve and blend changes use temporary single-module styles. Omalux never waits for the comparison render. Synchronization is one-way and covers the registered controls, module enablement, curve/recipe updates, image changes and compatible styles; changes made in darktable do not flow back. Two engines consume additional RAM/GPU resources and can compete for processing time. The comparison installation needs Lua support; bridge failures are logged in the launching terminal.
 
 ### Application structure
 
 - `omalux/native/main.cpp` — application startup only.
-- `omalux/native/app/` — C++ Qt facade, render worker, preset catalogue, export and comparison bridge.
+- `omalux/native/app/` — C++ Qt facade, render worker, style catalogue, export and comparison bridge.
 - `omalux/native/engine/` — C adapter with an explicit engine context; no Qt dependencies.
 - `omalux/native/dev/` — optional smoke tests, screenshot capture and batch preview drivers.
 - `omalux/ui/Main.qml` — window layout, backend wiring and keyboard shortcuts.
 - `omalux/ui/EditorSidebar.qml` — tabs, panel selection and panel/backend connections.
-- `omalux/ui/panels/` — separate Filters, Presets, Geometry, History and Metadata panes.
-- `omalux/ui/components/` — reusable sliders, preset cards, toolbar, image viewport, GPU notice, crop overlay, dialogs, keyboard bindings and status bar; `EditorTheme.qml` holds shared colors and typography.
+- `omalux/ui/panels/` — separate Filters, Styles, Geometry, History and Metadata panes.
+- `omalux/ui/components/` — reusable sliders, style cards, toolbar, image viewport, GPU notice, crop overlay, dialogs, keyboard bindings and status bar; `EditorTheme.qml` holds shared colors and typography.
 
 Give each new sidebar pane its own file. Panels receive data through properties and emit action signals; shared components do not access the global backend. Engine work stays in the native adapter and its worker thread.
 
@@ -92,7 +92,7 @@ Give each new sidebar pane its own file. Panels receive data through properties 
 
 Add one row to [`omalux/native/engine/controls.h`](../../omalux/native/engine/controls.h): ID, label, darktable module and float parameter name, UI minimum/maximum/step/default, scale/offset (`parameter = UI value × scale + offset`), unit suffix, decimal places, section, GTK action path, track colors, detail visibility and optional soft limits. Match darktable’s own slider label and displayed scale; the current colisa controls are unitless −1.00 to +1.00, not percentages. The QML sliders, native parameter lookup and split-mode messages all use this definition; no new Qt property or Lua mapping is needed. Verify the parameter type/range and GUI action in the matching darktable source first. Float parameters use introspection; integer fields, enablement, blend opacity, white balance and denoise curve ordinates have explicit native adapters. New special types require source and ABI review.
 
-`editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Presets restore a per-image opening baseline before applying their own settings. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
+`editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Styles restore a per-image opening baseline before applying their own settings. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
 
 See the [darktable source analysis](../architecture/darktable.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. The interactive FULL pipe reuses intermediate results; slider drags use reduced previews and release requests full preview quality. The colisa controls remain deprecated upstream. Color management, complex masks/instances and exact pixel parity between separate render contexts still have documented limitations.
 

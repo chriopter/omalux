@@ -19,7 +19,7 @@ Item {
     signal helpRequested()
     readonly property var bindings: [
         { keys: ["1"], label: "Filters", run: () => panelRequested(0) },
-        { keys: ["2"], label: "Presets", run: () => panelRequested(1) },
+        { keys: ["2"], label: "Styles", run: () => panelRequested(1) },
         { keys: ["3"], label: "Crop & Rotate", run: () => panelRequested(2) },
         { keys: ["4"], label: "History", run: () => panelRequested(3) },
         { keys: ["5"], label: "Metadata", run: () => panelRequested(4) },

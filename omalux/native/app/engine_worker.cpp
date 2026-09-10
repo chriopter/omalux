@@ -18,8 +18,8 @@ static void requireEngine(int result, const char *message) {
     if (result)
         throw std::runtime_error(message);
 }
-EngineWorker::EngineWorker(QString image, std::vector<QByteArray> args, QString presets, QString mailbox)
-    : source(std::move(image)), arguments(std::move(args)), catalog(std::move(presets)),
+EngineWorker::EngineWorker(QString image, std::vector<QByteArray> args, QString styles, QString mailbox)
+    : source(std::move(image)), arguments(std::move(args)), catalog(std::move(styles)),
       bridge(std::move(mailbox)) {
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
         requested[i] = om_controls[i].initial;
@@ -135,23 +135,23 @@ void EngineWorker::run() {
                 process(engine.get(), request, processed);
         } catch (const std::exception &error) {
             if (!request.hoverId.isEmpty())
-                qWarning() << "Could not preview preset" << request.hoverId << error.what();
+                qWarning() << "Could not preview style" << request.hoverId << error.what();
             else
                 emit failed(request.ticket, QString::fromUtf8(error.what()));
         }
     }
 }
 void EngineWorker::renderHover(OmEngine *engine, const Request &request) {
-    const auto *preset = catalog.find(request.hoverId);
-    if (!preset)
+    const auto *style = catalog.find(request.hoverId);
+    if (!style)
         return;
     unsigned char *pixels = nullptr;
     int width = 0, height = 0;
     OmPreviewGeometry geometry{};
-    requireEngine(om_engine_preview_style(engine, preset->path.toUtf8().constData(),
-                                          preset->name.toUtf8().constData(), &pixels, &width, &height,
+    requireEngine(om_engine_preview_style(engine, style->path.toUtf8().constData(),
+                                          style->name.toUtf8().constData(), &pixels, &width, &height,
                                           &geometry),
-                  "Could not render preset preview");
+                  "Could not render style preview");
     const auto image = copyDisplayPixels(pixels, width, height);
     om_engine_free_preview(pixels);
     emit hoverReady(image, request.hoverRevision, geometry.aspect_ratio,
@@ -196,16 +196,16 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     if (action.kind == ActionKind::Halation)
         recipes.append("diffuse");
     bridge.modules(engine, recipes, revision);
-    if (action.kind == ActionKind::ApplyPreset) {
-        const auto *preset = catalog.find(action.value);
-        if (!preset)
-            throw std::runtime_error("Preset is unavailable");
-        requireEngine(om_engine_apply_style(engine, preset->path.toUtf8().constData(),
-                                            preset->name.toUtf8().constData(), values.data()),
-                      "Could not apply preset; check its module compatibility");
-        emit styleReady(preset->name);
+    if (action.kind == ActionKind::ApplyStyle) {
+        const auto *style = catalog.find(action.value);
+        if (!style)
+            throw std::runtime_error("Style is unavailable");
+        requireEngine(om_engine_apply_style(engine, style->path.toUtf8().constData(),
+                                            style->name.toUtf8().constData(), values.data()),
+                      "Could not apply style; check its module compatibility");
+        emit styleReady(style->name);
     }
-    if (action.kind == ActionKind::History || action.kind == ActionKind::ApplyPreset) {
+    if (action.kind == ActionKind::History || action.kind == ActionKind::ApplyStyle) {
         if (action.kind == ActionKind::History) {
             requireEngine(om_engine_history_select(engine, action.value.toInt()),
                           "Could not restore history step");
@@ -229,14 +229,14 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     case ActionKind::ExportImage:
         exportImage(engine, action.value, action.quality);
         break;
-    case ActionKind::SavePreset:
+    case ActionKind::SaveStyle:
         savedDirectory = catalog.save(engine, action.value, source);
         break;
-    case ActionKind::DeletePreset:
+    case ActionKind::DeleteStyle:
         catalog.remove(action.value);
-        emit presetsReady(catalog.reload(engine));
+        emit stylesReady(catalog.reload(engine));
         break;
-    case ActionKind::ExportPreset:
+    case ActionKind::ExportStyle:
         catalog.exportBundle(action.value, action.destination);
         break;
     default:
@@ -260,7 +260,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
         QVector4D(geometry.scale_x, geometry.scale_y, geometry.offset_x, geometry.offset_y);
     if (!savedDirectory.isEmpty()) {
         catalog.finishPreview(savedDirectory, result.image);
-        emit presetsReady(catalog.reload(engine));
+        emit stylesReady(catalog.reload(engine));
     }
     result.status = QString("%1 · %2 · %3 ms")
                         .arg(request.draft ? "Preview" : "Ready")
@@ -268,9 +268,9 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
                         .arg(timer.elapsed());
     if (action.kind == ActionKind::ExportImage)
         result.status = "Saved " + action.value;
-    if (action.kind == ActionKind::SavePreset)
-        result.status = "Saved preset: " + action.value;
-    if (action.kind == ActionKind::ExportPreset)
-        result.status = "Preset bundle exported; use the selected folder as darktable LUT root";
+    if (action.kind == ActionKind::SaveStyle)
+        result.status = "Saved style: " + action.value;
+    if (action.kind == ActionKind::ExportStyle)
+        result.status = "Style bundle exported; use the selected folder as darktable LUT root";
     emit frameReady(result);
 }

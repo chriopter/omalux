@@ -16,7 +16,7 @@ cd omalux
 dev/start
 ```
 
-Sessions are temporary: export your photos or save presets before closing.
+Sessions are temporary: export your photos or save styles before closing.
 
 ## Development
 
@@ -24,11 +24,11 @@ Start scripts live in `dev/`, calibration tools in `tools/calibration/`, and doc
 
 - `dev/start [image]` — start Omalux; defaults to the beach photo.
 - `dev/start_split [image]` — also open darktable for comparison.
-- `dev/preset_preview <folder>` / `--all` — regenerate preset thumbnails.
+- `dev/style_preview <folder>` / `--all` — regenerate style thumbnails.
 - `dev/update` — update the darktable submodule to the latest stable release; does not commit or push.
 
 [Development guide](docs/development/setup.md) · [Engine architecture](docs/architecture/darktable.md) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)
 
 ## TODO
 
-- [ ] Calibrate presets against their intended appearance ([details](docs/reference/presets.md#one-time-v0-conversion)).
+- [ ] Calibrate styles against their intended appearance ([details](docs/reference/styles.md#one-time-v0-conversion)).
