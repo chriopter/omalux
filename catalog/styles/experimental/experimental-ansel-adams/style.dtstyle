@@ -9,7 +9,7 @@
       <num>0</num>
       <module>7</module>
       <operation>exposure</operation>
-      <op_params>00000000cdcc4cbc000080bf00004842000080c00000000001000000</op_params>
+      <op_params>00000000cdcc4cbccdcc8cbf00004842000080c00000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -33,7 +33,7 @@
       <num>2</num>
       <module>5</module>
       <operation>shadhi</operation>
-      <op_params>000000000000a041000024c20000803f00006c4200000000000048420000c842000048427f000000bd37863501000000</op_params>
+      <op_params>000000000000a041000024c20000803f00004e4200000000000048420000c842000048427f000000bd37863501000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -57,8 +57,8 @@
       <num>4</num>
       <module>2</module>
       <operation>grain</operation>
-      <op_params>0200000004189641000000000000c842</op_params>
-      <enabled>0</enabled>
+      <op_params>02000000041896410000a0400000c842</op_params>
+      <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
       <multi_priority>0</multi_priority>
@@ -69,7 +69,7 @@
       <num>5</num>
       <module>4</module>
       <operation>vignette</operation>
-      <op_params>0000a04200004842cdccccbd000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
+      <op_params>0080894200006642cdccccbd000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -93,7 +93,7 @@
       <num>7</num>
       <module>3</module>
       <operation>bilat</operation>
-      <op_params>010000000000003f0000003f0ad7233d0000003f</op_params>
+      <op_params>010000000000003f0000003f295c2f3e0000003f</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -117,7 +117,7 @@
       <num>9</num>
       <module>2</module>
       <operation>toneequal</operation>
-      <op_params>0000000000000000000000000000000000000000000000000000000000000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
+      <op_params>0000003e0000000000000000000000000000000000000000000000000000003d000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
