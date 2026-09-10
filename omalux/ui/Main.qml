@@ -28,6 +28,7 @@ ApplicationWindow {
     property string activeControl: "exposure"
     property alias selectedPanel: sidebar.selectedPanel
     property alias filterView: sidebar.filterView
+    property alias filterSearch: sidebar.filterSearch
     function revealControl(id) { sidebar.revealControl(id) }
     function showStyleDetails(id) {
         sidebar.showStyleDetails(id);

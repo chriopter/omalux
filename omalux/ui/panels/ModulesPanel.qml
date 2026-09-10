@@ -60,6 +60,11 @@ SidebarScrollView {
                      .reduce((n, m) => n + m.parameters.filter(p => p.curated).length, 0)
     }
 
+    // An enum whose options carry no description is an internal version marker, not a choice.
+    function choosable(parameter) {
+        return parameter.type === "enum" && parameter.values && parameter.values.length > 0
+               && parameter.values.every(option => option.label)
+    }
     function slidable(parameter) {
         return (parameter.type === "float" || parameter.type === "int")
                && isFinite(parameter.minimum) && isFinite(parameter.maximum)
@@ -191,7 +196,9 @@ SidebarScrollView {
                         delegate: Loader {
                             required property var modelData
                             width: moduleBlock.width
-                            sourceComponent: root.slidable(modelData) ? sliderRow : plainRow
+                            sourceComponent: root.slidable(modelData) ? sliderRow
+                                           : root.choosable(modelData) ? choiceRow
+                                           : modelData.type === "bool" ? switchRow : plainRow
                             property var parameter: modelData
                             property var module: moduleBlock.modelData
                         }
@@ -214,6 +221,29 @@ SidebarScrollView {
             onEdited: value => root.parameterEdited(module.operation, module.instance, parameter.name,
                                                    value / (root.control(module, parameter).factor || 1))
             onInteractionChanged: active => root.interactionChanged(active)
+        }
+    }
+    Component {
+        id: choiceRow
+        ControlChoice {
+            theme: root.theme
+            label: parameter.label || parameter.field
+            options: parameter.values
+            value: parameter.value
+            editable: root.editable
+            onEdited: value => root.parameterEdited(module.operation, module.instance,
+                                                    parameter.name, value)
+        }
+    }
+    Component {
+        id: switchRow
+        ControlSwitch {
+            theme: root.theme
+            label: parameter.label || parameter.field
+            value: parameter.value
+            editable: root.editable
+            onEdited: value => root.parameterEdited(module.operation, module.instance,
+                                                    parameter.name, value)
         }
     }
     Component {

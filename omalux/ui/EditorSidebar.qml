@@ -14,6 +14,7 @@ Rectangle {
     property int selectedPanel: 0
     // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
     property int filterView: 0
+    property alias filterSearch: modulesPanel.search
     readonly property bool textEditing: selectedPanel === 1 && stylesPanel.textEditing
     signal styleSaveRequested()
     signal styleExportRequested(string id)
