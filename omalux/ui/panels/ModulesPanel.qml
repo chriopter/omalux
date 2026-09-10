@@ -40,25 +40,24 @@ SidebarScrollView {
         const term = root.search.trim().toLowerCase()
         return parsed.filter(m => !m.hidden)
                      .map(m => Object.assign({}, m, {
-                         parameters: m.parameters.filter(p => (!root.onlyOpen || !p.curated)
+                         parameters: m.parameters.filter(p => root.offered(p)
+                             && (!root.onlyOpen || !p.curated)
                              && (!term || (p.label || p.field).toLowerCase().includes(term)
                                        || m.label.toLowerCase().includes(term)
                                        || m.operation.toLowerCase().includes(term)))
                      }))
                      .filter(m => m.parameters.length > 0)
     }
+    // darktable describes the parameters it offers to people; the rest is the module's own
+    // storage, such as picked coordinates or the numbers behind a curve widget.
+    function offered(parameter) { return !!parameter.label }
+    function controllable(parameter) {
+        return root.slidable(parameter) || root.choosable(parameter) || parameter.type === "bool"
+    }
     readonly property int shownParameters: modules.reduce((n, m) => n + m.parameters.length, 0)
-    readonly property int describedParameters: {
-        let parsed = []
-        try { parsed = JSON.parse(root.catalog || "[]") } catch (e) { return 0 }
-        return parsed.filter(m => !m.hidden).reduce((n, m) => n + m.parameters.length, 0)
-    }
-    readonly property int curatedParameters: {
-        let parsed = []
-        try { parsed = JSON.parse(root.catalog || "[]") } catch (e) { return 0 }
-        return parsed.filter(m => !m.hidden)
-                     .reduce((n, m) => n + m.parameters.filter(p => p.curated).length, 0)
-    }
+    // Of what is on show, how much still has no shape of its own.
+    readonly property int withoutControl:
+        modules.reduce((n, m) => n + m.parameters.filter(p => !root.controllable(p)).length, 0)
 
     // An enum whose options carry no description is an internal version marker, not a choice.
     function choosable(parameter) {
@@ -106,7 +105,7 @@ SidebarScrollView {
         RowLayout {
             width: parent.width - 36
             Text {
-                text: root.onlyOpen ? "NOT YET DESIGNED" : "ALL MODULES"
+                text: root.onlyOpen ? "NOT CURATED YET" : "ALL MODULES"
                 color: root.theme.ink; font.bold: true; font.letterSpacing: 2
             }
             Item { Layout.fillWidth: true }
@@ -118,9 +117,11 @@ SidebarScrollView {
         Text {
             width: parent.width - 36
             text: root.onlyOpen
-                  ? root.curatedParameters + " of " + root.describedParameters
-                    + " parameters have a designed control. What is left is listed here."
-                  : "Every parameter darktable describes, designed or not."
+                  ? (root.withoutControl > 0
+                     ? root.withoutControl + " of these have no control of their own yet; the rest "
+                       + "are built from what darktable describes."
+                     : "All of these are built from what darktable describes.")
+                  : "Every parameter darktable offers, designed or not."
             color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
         }
         TextField {
