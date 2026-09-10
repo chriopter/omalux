@@ -16,6 +16,7 @@ enum class ActionKind {
     ApplyStyle,
     History,
     Halation,
+    SetParameter,
     Open,
     ExportImage,
     SaveStyle,

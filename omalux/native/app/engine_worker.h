@@ -19,12 +19,14 @@ class EngineWorker : public QObject {
     WorkTicket controls(const ControlValues &, int index);
     WorkTicket interactive(bool active);
     WorkTicket action(EditorAction action);
+    WorkTicket parameter(const QString &operation, int instance, const QString &field, double value);
     quint64 hover(QString id);
   signals:
     void initialized(ControlValues values, QVariantMap metadata, QVariantList styles,
-                     QVariantList cameraDefaults);
+                     QVariantList cameraDefaults, QString modules);
     void controlsReady(ControlValues values, quint64 revision);
     void metadataReady(QString source, QVariantMap metadata, QVariantList cameraDefaults);
+    void modulesReady(QString catalog);
     void historyReady(QVariantList rows);
     void stylesReady(QVariantList styles);
     void styleReady(QString name);

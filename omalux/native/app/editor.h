@@ -16,6 +16,7 @@ class Editor : public QObject {
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
     Q_PROPERTY(QVariantList cameraDefaults READ cameraDefaults NOTIFY changed)
+    Q_PROPERTY(QString moduleCatalog READ moduleCatalog NOTIFY modulesChanged)
     Q_PROPERTY(QVariantList styles READ styles NOTIFY stylesChanged)
     Q_PROPERTY(bool stylesReady READ stylesReady NOTIFY stylesChanged)
     Q_PROPERTY(QString styleError READ styleError NOTIFY changed)
@@ -23,6 +24,7 @@ class Editor : public QObject {
     Q_PROPERTY(QString applyingStyle READ applyingStyle NOTIFY changed)
     Q_PROPERTY(QString activeStyle READ activeStyle NOTIFY changed)
     Q_PROPERTY(QVariantList controls READ controls CONSTANT)
+    Q_PROPERTY(bool developerMode READ developerMode CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
   public:
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
@@ -43,6 +45,7 @@ class Editor : public QObject {
     bool stylesReady() const;
     QString styleError() const;
     QVariantList controls() const;
+    bool developerMode() const;
     QVariantMap controlValues() const;
     Q_INVOKABLE void hoverStyle(const QString &id, bool active);
     Q_INVOKABLE void applyStyle(const QString &id);
@@ -58,11 +61,14 @@ class Editor : public QObject {
     Q_INVOKABLE void setControls(const QVariantMap &updates);
     Q_INVOKABLE void adjustControl(const QString &id, int steps);
     Q_INVOKABLE void resetControl(const QString &id);
+    QString moduleCatalog() const;
+    Q_INVOKABLE void setParameter(const QString &operation, int instance, const QString &field, double value);
   signals:
     void historyChanged();
     void changed();
     void controlsChanged();
     void stylesChanged();
+    void modulesChanged();
 
   private:
     bool styleAvailable(const QString &id) const;
@@ -79,6 +85,7 @@ class Editor : public QObject {
     QVariantList styleCatalog, historyRows;
     QVariantMap imageMetadata;
     QVariantList imageCameraDefaults;
+    QString modules;
     bool catalogReady = false, applying = false;
     WorkTicket requestedTicket;
     quint64 presentedRevision = 0, hoverRevision = 0;

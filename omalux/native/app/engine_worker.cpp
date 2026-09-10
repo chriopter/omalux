@@ -63,6 +63,13 @@ WorkTicket EngineWorker::interactive(bool active) {
     }
     return ticket;
 }
+WorkTicket EngineWorker::parameter(const QString &operation, int instance, const QString &field,
+                                   double value) {
+    // One field of one module, addressed by name; the worker owns the engine.
+    return action({ActionKind::SetParameter,
+                   QStringList{operation, QString::number(instance), field, QString::number(value, 'g', 9)}
+                       .join('\x1f')});
+}
 WorkTicket EngineWorker::action(EditorAction action) {
     std::lock_guard lock(mutex);
     pendingAction = std::move(action);
@@ -100,6 +107,12 @@ bool EngineWorker::take(Request &request) {
     }
     return true;
 }
+static QString takeModuleCatalog(OmEngine *engine) {
+    char *text = om_engine_modules(engine);
+    const QString result = QString::fromUtf8(text ? text : "[]");
+    om_engine_free_json(text);
+    return result;
+}
 void EngineWorker::run() {
     std::vector<char *> argv;
     for (auto &arg : arguments)
@@ -123,7 +136,8 @@ void EngineWorker::run() {
     }
     emit initialized(initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
                      catalog.reload(engine.get()),
-                     takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList());
+                     takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
+                     takeModuleCatalog(engine.get()));
     ControlRevisions processed{};
     for (;;) {
         Request request;
@@ -186,6 +200,15 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     }
     emit controlsReady(values, revision);
     processed = request.revisions;
+    if (action.kind == ActionKind::SetParameter) {
+        const auto parts = action.value.split('\x1f');
+        const auto operation = parts.value(0).toUtf8(), field = parts.value(2).toUtf8();
+        const auto message = QString("Could not set %1.%2").arg(parts.value(0), parts.value(2)).toUtf8();
+        requireEngine(om_engine_set_parameter(engine, operation.constData(), parts.value(1).toInt(),
+                                              field.constData(), parts.value(3).toDouble()),
+                      message.constData());
+        replaceControls(engine, request, processed);
+    }
     if (action.kind == ActionKind::Halation) {
         requireEngine(om_engine_halation(engine), "Could not configure diffuse or sharpen");
         replaceControls(engine, request, processed);
@@ -226,6 +249,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
         replaceControls(engine, request, processed);
         emit metadataReady(source, takeJson(om_engine_metadata(engine)).object().toVariantMap(),
                            takeJson(om_engine_camera_defaults(engine)).object().toVariantMap()["entries"].toList());
+        emit modulesReady(takeModuleCatalog(engine));
         emit styleReady({});
         break;
     case ActionKind::ExportImage:
@@ -244,6 +268,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     default:
         break;
     }
+    emit modulesReady(takeModuleCatalog(engine));
     bridge.publish(source, revision, values, request.revisions);
     emit historyReady(takeJson(om_engine_history(engine)).array().toVariantList());
     QElapsedTimer timer;

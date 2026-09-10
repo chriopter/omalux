@@ -30,6 +30,12 @@ QVariantMap Editor::metadata() const {
 QVariantList Editor::cameraDefaults() const {
     return imageCameraDefaults;
 }
+QString Editor::moduleCatalog() const {
+    return modules;
+}
+void Editor::setParameter(const QString &operation, int instance, const QString &field, double value) {
+    worker->parameter(operation, instance, field, value);
+}
 bool Editor::styleBusy() const {
     return applying;
 }
@@ -48,6 +54,12 @@ bool Editor::stylesReady() const {
 QString Editor::styleError() const {
     return errorText;
 }
+// Set OMALUX_DEV=1 to get the tools we build the interface with, such as the switch
+// between the curated panel and the parameters that still have no designed control.
+bool Editor::developerMode() const {
+    return qEnvironmentVariable("OMALUX_DEV") == QLatin1String("1");
+}
+
 QVariantList Editor::controls() const {
     QVariantList result;
     for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i) {
@@ -117,7 +129,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         values[i] = om_controls[i].initial;
     connect(worker.get(), &EngineWorker::initialized, this,
             [this](ControlValues initial, QVariantMap metadata, QVariantList styles,
-                   QVariantList cameraDefaults) {
+                   QVariantList cameraDefaults, QString moduleCatalog) {
+                modules = std::move(moduleCatalog);
+                emit modulesChanged();
                 values = initial;
                 imageMetadata = metadata;
                 imageCameraDefaults = std::move(cameraDefaults);
@@ -139,6 +153,12 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         source = image;
         imageMetadata = metadata;
         emit changed();
+    });
+    connect(worker.get(), &EngineWorker::modulesReady, this, [this](QString catalog) {
+        if (catalog == modules)
+            return;
+        modules = std::move(catalog);
+        emit modulesChanged();
     });
     connect(worker.get(), &EngineWorker::historyReady, this, [this](QVariantList rows) {
         if (historyRows != rows) {

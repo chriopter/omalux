@@ -320,8 +320,16 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
+            } else if (step.contains("dumpModules")) {
+                QFile file(step["dumpModules"].toString());
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(editor.moduleCatalog().toUtf8());
+                    file.close();
+                }
             } else if (step.contains("panel"))
                 engine.rootObjects().first()->setProperty("selectedPanel", step["panel"].toInt());
+            else if (step.contains("filterView"))
+                engine.rootObjects().first()->setProperty("filterView", step["filterView"].toInt());
             else if (step.contains("rememberControls")) {
                 (*historyMarks)[step["rememberControls"].toString()] = editor.controlValues();
             } else if (step.contains("checkControls")) {

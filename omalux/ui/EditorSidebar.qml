@@ -12,6 +12,8 @@ Rectangle {
     property alias geometry: geometryPanel
     onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
+    // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
+    property int filterView: 0
     readonly property bool textEditing: selectedPanel === 1 && stylesPanel.textEditing
     signal styleSaveRequested()
     signal styleExportRequested(string id)
@@ -101,6 +103,42 @@ Rectangle {
             height: 1
             color: root.theme.line
         }
+        // While building the interface, switch between the designed controls and the
+        // parameters that still wait for one.
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: 18
+            Layout.rightMargin: 18
+            spacing: 0
+            visible: root.backend.developerMode && root.selectedPanel === 0
+            Repeater {
+                model: ["Curated", "Open"]
+                Button {
+                    id: viewButton
+                    required property string modelData
+                    required property int index
+                    objectName: "filter-view-" + index
+                    Layout.fillWidth: true
+                    implicitHeight: 24
+                    padding: 0
+                    onClicked: root.filterView = index
+                    contentItem: Text {
+                        text: viewButton.modelData
+                        color: root.filterView === viewButton.index ? root.theme.accent : root.theme.muted
+                        font.family: root.theme.textFont.family
+                        font.pixelSize: root.theme.textFont.pixelSize
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: root.filterView === viewButton.index
+                               ? Qt.lighter(root.theme.background, 1.16) : "transparent"
+                        border.color: root.filterView === viewButton.index ? root.theme.line : "transparent"
+                        radius: 4
+                    }
+                }
+            }
+        }
         FiltersPanel {
             id: filtersPanel
             onInteractionChanged: active => root.backend.setInteractive(active)
@@ -109,7 +147,7 @@ Rectangle {
             onControlReset: id => root.backend.resetControl(id)
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.selectedPanel === 0
+            visible: root.selectedPanel === 0 && root.filterView === 0
             theme: root.theme
             controls: root.backend.controls
             values: root.backend.controlValues
@@ -135,6 +173,17 @@ Rectangle {
             applyingStyle: root.backend.applyingStyle
             errorMessage: root.backend.styleError
             onApplyRequested: id => root.backend.applyStyle(id)
+        }
+        ModulesPanel {
+            id: modulesPanel
+            visible: root.selectedPanel === 0 && root.filterView === 1
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            theme: root.theme
+            catalog: root.backend.moduleCatalog
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            onInteractionChanged: active => root.backend.setInteractive(active)
+            onParameterEdited: (operation, instance, field, value) => root.backend.setParameter(operation, instance, field, value)
         }
         GeometryPanel {
             id: geometryPanel

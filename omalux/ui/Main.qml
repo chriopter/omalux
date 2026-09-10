@@ -27,6 +27,7 @@ ApplicationWindow {
     property bool photoFullscreen: false
     property string activeControl: "exposure"
     property alias selectedPanel: sidebar.selectedPanel
+    property alias filterView: sidebar.filterView
     function revealControl(id) { sidebar.revealControl(id) }
     function showStyleDetails(id) {
         sidebar.showStyleDetails(id);
