@@ -2,8 +2,8 @@
 
 ## Development
 
-- [Setup and workflow](development/setup.md) — dependencies, scripts, keyboard shortcuts and code layout.
-- [Style calibration](development/calibration.md) — datasets, fitting tools and validation.
+- [Setup and workflow](setup.md) — dependencies, scripts, keyboard shortcuts and code layout.
+- [Style calibration](calibration.md) — datasets, fitting tools and validation.
 
 ## Architecture
 
@@ -17,4 +17,4 @@
 - [darktable bundle](reference/darktable-bundle.md) — distributing looks and camera presets to plain darktable.
 - [Shared assets](reference/assets.md) — image and logo provenance.
 
-[Project overview](../README.md) · [Contributor rules](../AGENTS.md) · [Website repository](https://github.com/chriopter/omalux.org) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)
+[Project overview](../../README.md) · [Contributor rules](../../AGENTS.md) · [Website repository](https://github.com/chriopter/omalux.org) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)

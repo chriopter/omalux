@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
     QCoreApplication::setOrganizationDomain("omalux.org");
     const auto args = app.arguments();
     if (args.size() < 4) {
-        qCritical() << "Use dev/start [image]";
+        qCritical() << "Use development/start [image]";
         return 1;
     }
     auto *frames = new Frames;

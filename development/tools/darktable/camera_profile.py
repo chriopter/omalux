@@ -26,7 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 CAMERAS_XML = REPO / "darktable/src/external/rawspeed/data/cameras.xml"
 D50 = (0.9642, 1.0, 0.8249)
 # Bradford cone response, used by ICC for chromatic adaptation between white points.

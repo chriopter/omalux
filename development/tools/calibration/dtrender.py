@@ -37,7 +37,7 @@ from pathlib import Path
 
 from common import ROOT, WORK
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 STYLES = Path(os.environ.get("OMALUX_STYLES", REPO / "catalog/styles"))
 CFG = WORK / "dtcfg"
 
@@ -144,7 +144,7 @@ def camera_items(path):
     if os.environ.get("DT_CAMERA_PRESETS", "1") != "1":
         return []
     try:
-        sys.path.insert(0, str(REPO / "tools/darktable"))
+        sys.path.insert(0, str(REPO / "development/tools/darktable"))
         import camera_presets
     except ImportError:
         return []

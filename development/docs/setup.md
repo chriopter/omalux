@@ -23,7 +23,7 @@ The submodule points directly to the official upstream repository. Keep it at th
 Requires Git and the GitHub CLI (`gh`). Run from the repository root:
 
 ```sh
-dev/update
+development/update
 git diff --submodule=short
 ```
 
@@ -33,19 +33,19 @@ The script checks out the latest official stable release and its nested submodul
 
 Run from the repository root:
 
-- `dev/start [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
-- `dev/start_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
-- `dev/style_preview <folder>` / `dev/style_preview --all` — regenerate a bundled style’s beach thumbnail and preview source/engine version in `style.json`, e.g. `dev/style_preview chromatic` (requires ImageMagick).
-- `dev/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
+- `development/start [image]` — build and open Omalux with the image; defaults to `assets/images/beach-volleyball.jpg`. `--input image` also works.
+- `development/start_split [image]` — open Omalux and the original darktable window with the same image. Slider changes and resets in Omalux also update the comparison window. Closing Omalux stops both.
+- `development/style_preview <folder>` / `development/style_preview --all` — regenerate a bundled style’s beach thumbnail and preview source/engine version in `style.json`, e.g. `development/style_preview chromatic` (requires ImageMagick).
+- `development/update` — check out the latest stable darktable release and its dependencies; review and commit the new pin yourself.
 
 ```sh
-dev/start
-dev/start "/path/to/photo.CR3"
-dev/start --input "/path/to/photo.jpg"
-dev/start_split "/path/to/photo.jpg"
+development/start
+development/start "/path/to/photo.CR3"
+development/start --input "/path/to/photo.jpg"
+development/start_split "/path/to/photo.jpg"
 ```
 
-The UI follows the original dark Omalux layout, with SVG sidebar tabs, grouped controls, colored slider tracks and expandable details. Controls use **darktable’s names, units and precision**. Exposure, local contrast, shadows/highlights, white balance, color grading, bloom, grain, vignetting, sharpening, profiled denoising and LUT opacity are connected. See the [v0 control mapping](../reference/controls.md) for the exact modules and approximations.
+The UI follows the original dark Omalux layout, with SVG sidebar tabs, grouped controls, colored slider tracks and expandable details. Controls use **darktable’s names, units and precision**. Exposure, local contrast, shadows/highlights, white balance, color grading, bloom, grain, vignetting, sharpening, profiled denoising and LUT opacity are connected. See the [v0 control mapping](reference/controls.md) for the exact modules and approximations.
 
 The **Styles** tab keeps v0’s groups, search, thumbnails and expandable module details. Applying a style restores the photo’s opening state before applying the look, so earlier session edits do not leak into it. Save the current look with its thumbnail and LUT, export a bundle, or delete an own style. Styles may affect modules without an Omalux control. The **Crop & Rotate** tab provides a draggable crop frame, aspect ratios and rotation; the information tab shows image metadata. Open photographs from the toolbar and export full-resolution JPEG or PNG. The **History** tab displays darktable’s processing stack, newest first, including module enablement and the current step. Click a step (or original) to restore it. Later steps remain selectable until a new edit replaces the future branch using darktable’s history rules.
 
@@ -94,5 +94,5 @@ Add one row to [`omalux/native/engine/controls.h`](../../omalux/native/engine/co
 
 `editor.setControl(id, value)` queues a complete parameter snapshot. Per-control revisions identify actual changes; the engine updates only those parameters and adds history once per affected module. Startup and style application read values from darktable. Styles restore a per-image opening baseline before applying their own settings. Rendering alone does not overwrite style values or enable unchanged modules. The split bridge receives the same revisions and values; style boundaries retain intervening control snapshots, so coalescing does not lose earlier edits.
 
-See the [darktable source analysis](../architecture/darktable.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. The interactive FULL pipe reuses intermediate results; slider drags use reduced previews and release requests full preview quality. The colisa controls remain deprecated upstream. Color management, complex masks/instances and exact pixel parity between separate render contexts still have documented limitations.
+See the [darktable source analysis](architecture/darktable.md) for lifecycle, pixelpipe caching, color management, history, GPU reporting and export. The interactive FULL pipe reuses intermediate results; slider drags use reduced previews and release requests full preview quality. The colisa controls remain deprecated upstream. Color management, complex masks/instances and exact pixel parity between separate render contexts still have documented limitations.
 

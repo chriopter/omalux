@@ -2,7 +2,7 @@
 # Run the full chain (cube fit, one slider pass, final scoring, report) for
 # several styles, a few at a time.
 #
-#   tools/calibration/run_queue.sh [-j 3] [style ...]
+#   development/tools/calibration/run_queue.sh [-j 3] [style ...]
 #
 # Without style ids every bundled style that has target renderings is
 # queued; styles whose work/<style>/final.json already exists are skipped.

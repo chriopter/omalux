@@ -18,20 +18,20 @@ Paths are relative to the darktable submodule.
 
 | Area | Entry points | Why Omalux needs it |
 | --- | --- | --- |
-| Process startup/shutdown | [`src/common/darktable.c`](../../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
-| Develop state | [`src/develop/develop.h`](../../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
-| Rendering coordinator | [`src/develop/develop.c`](../../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
-| Pixel processing | [`src/develop/pixelpipe_hb.c`](../../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
-| Cache | [`src/develop/pixelpipe_cache.c`](../../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
-| Module contract | [`src/iop/iop_api.h`](../../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
-| Processing order | [`src/common/iop_order.c`](../../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
-| Input/decoder dispatch | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
-| Import and persistence | [`src/common/image.c`](../../darktable/src/common/image.c), [`src/develop/develop.c`](../../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
-| Input/output color | [`src/iop/colorin.c`](../../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
-| OpenCL | [`src/common/opencl.c`](../../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
-| GTK darkroom | [`src/views/darkroom.c`](../../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
-| Lua bridge | [`src/lua/gui.c`](../../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
-| Export | [`src/imageio/imageio.c`](../../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
+| Process startup/shutdown | [`src/common/darktable.c`](../../../darktable/src/common/darktable.c): `dt_init`, `dt_cleanup` | Global configuration, databases, modules, caches, OpenCL, signals and lifecycle |
+| Develop state | [`src/develop/develop.h`](../../../darktable/src/develop/develop.h): `dt_develop_t`, `dt_dev_viewport_t` | Image, module instances, history, viewports and pipe ownership |
+| Rendering coordinator | [`src/develop/develop.c`](../../../darktable/src/develop/develop.c): `dt_dev_process_image_job` (597), `dt_dev_image` (near 3930) | Input loading, node synchronization, ROI, restart and publication |
+| Pixel processing | [`src/develop/pixelpipe_hb.c`](../../../darktable/src/develop/pixelpipe_hb.c): `dt_dev_pixelpipe_process` (3147) | Recursive module processing, GPU/CPU, caching and output |
+| Cache | [`src/develop/pixelpipe_cache.c`](../../../darktable/src/develop/pixelpipe_cache.c): basic hash (103), availability (178) | Reuse is keyed by image, pipe, profiles, upstream state and ROI |
+| Module contract | [`src/iop/iop_api.h`](../../../darktable/src/iop/iop_api.h), [`src/develop/imageop.h`](../../../darktable/src/develop/imageop.h) | Parameters, introspection, processing callbacks, instances |
+| Processing order | [`src/common/iop_order.c`](../../../darktable/src/common/iop_order.c) | Workflow/image-dependent order, not sidebar order |
+| Input/decoder dispatch | [`src/imageio/imageio.c`](../../../darktable/src/imageio/imageio.c): `dt_imageio_open` (1626) | Signature dispatch and decoder fallbacks |
+| Import and persistence | [`src/common/image.c`](../../../darktable/src/common/image.c), [`src/develop/develop.c`](../../../darktable/src/develop/develop.c) | Image IDs, sidecars, history and database |
+| Input/output color | [`src/iop/colorin.c`](../../../darktable/src/iop/colorin.c), [`src/iop/colorout.c`](../../../darktable/src/iop/colorout.c), [`src/iop/gamma.c`](../../../darktable/src/iop/gamma.c) | Camera/working/display profiles and display byte layout |
+| OpenCL | [`src/common/opencl.c`](../../../darktable/src/common/opencl.c): `dt_opencl_lock_device` (2041), enabled/running checks (3727) | Device policy and runtime state |
+| GTK darkroom | [`src/views/darkroom.c`](../../../darktable/src/views/darkroom.c), [`src/bauhaus/bauhaus.c`](../../../darktable/src/bauhaus/bauhaus.c) | View scheduling, module widgets and actions |
+| Lua bridge | [`src/lua/gui.c`](../../../darktable/src/lua/gui.c): `_action_cb` (109), registration (428); [`src/lua/call.c`](../../../darktable/src/lua/call.c): GTK wrapper (635) | Safe dispatch of comparison actions to GTK |
+| Export | [`src/imageio/imageio.c`](../../../darktable/src/imageio/imageio.c): `dt_imageio_export_with_flags` (1045) | Independent full-resolution pipe, output formats and metadata |
 
 ## 1. Lifecycle and ownership
 
@@ -91,7 +91,7 @@ Measured on this workstation with the shared beach JPEG, OpenCL enabled, fixed 1
 Run the persistent-engine regression with:
 
 ```sh
-QT_FORCE_STDERR_LOGGING=1 OMALUX_SMOKE_SCRIPT="$PWD/omalux/tests/interactive-preview.json" dev/start_split
+QT_FORCE_STDERR_LOGGING=1 OMALUX_SMOKE_SCRIPT="$PWD/omalux/tests/interactive-preview.json" development/start_split
 ```
 
 It uses a private session, checks updates during sustained input, verifies final values, restores history and reapplies a style after edits. Use `QT_QPA_PLATFORM=offscreen` for the Qt window when running unattended; the optional GTK twin still requires desktop access. Large RAW latency, memory pressure and cancellation remain follow-up performance work.
@@ -232,7 +232,7 @@ Qt sliders explicitly use `live: true` and pass their pressed state through comp
 
 The persistent regression now injects press/move/release mouse events into the real QML slider, checks that reduced frames appear while pressed and verifies full-width output after release. On the shared beach JPEG, single-process test runs observed median draft render/copy times of 8–10 ms (not compositor latency). `very fast GPU` scheduling gave 8 ms in one run versus 10 ms with default scheduling and large resources; default resources also gave 8 ms with default scheduling, so these short runs do not establish a reliable scheduling or memory advantage. Adaptive rendering is the main measured improvement.
 
-The launcher explicitly sets `opencl_fast=false`. Single-window runs use `very fast GPU` scheduling; split runs keep default scheduling. Override with `OMALUX_GPU_PROFILE=default` for comparisons. Resources remain at default because large showed no benefit on this fixture; `OMALUX_RESOURCES=large dev/start` enables the larger budget for heavier images. These options affect private dev sessions only. They do not rewrite the user's darktable configuration.
+The launcher explicitly sets `opencl_fast=false`. Single-window runs use `very fast GPU` scheduling; split runs keep default scheduling. Override with `OMALUX_GPU_PROFILE=default` for comparisons. Resources remain at default because large showed no benefit on this fixture; `OMALUX_RESOURCES=large development/start` enables the larger budget for heavier images. These options affect private dev sessions only. They do not rewrite the user's darktable configuration.
 
 ## Style hover preview
 

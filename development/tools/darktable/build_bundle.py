@@ -31,7 +31,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 STYLES = REPO / "catalog/styles"
 CAMERA = REPO / "catalog/camera"
 GROUP_NAMES = {"film": "Film", "experimental": "Experimental", "monochrome": "Monochrome",

@@ -22,7 +22,7 @@ from xml.etree import ElementTree as ET
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calibration"))
 import dtparams  # noqa: E402
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 CAMERA = REPO / "catalog/camera"
 FLOAT_MAX = "340282346638528859811704183484516925440"
 # darktable's default blending parameters (develop_blend_params_t v14), taken from a preset it

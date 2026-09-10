@@ -5,7 +5,7 @@
 
 Takes work/<style>/tuned/ when slider_tune.py ran, otherwise the fitted
 style and best.cube from cube_fit.py. The thumbnail is not regenerated; run
-`dev/style_preview <style>` afterwards.
+`development/style_preview <style>` afterwards.
 """
 import json
 import shutil

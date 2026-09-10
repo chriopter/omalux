@@ -94,7 +94,7 @@ def base_style(pid, pdir):
 
 def style_seed(pid):
     """Calibration inputs retained independently of the removed Rust application."""
-    with (common.REPO / "tools/calibration/style-seeds.json").open() as source:
+    with (common.REPO / "development/tools/calibration/style-seeds.json").open() as source:
         return json.load(source).get(pid)
 
 

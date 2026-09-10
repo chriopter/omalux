@@ -68,7 +68,7 @@ Hover over a style's thumbnail/name to preview it on the open photograph. Leavin
 
 ### Native regression checks
 
-Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `dev/start`, uses isolated settings and a temporary copy of the style bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.
+Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `development/start`, uses isolated settings and a temporary copy of the style bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.
 
 ## What was applied for this camera
 

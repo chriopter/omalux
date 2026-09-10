@@ -33,7 +33,7 @@ def main():
         ids = [(p / 'style.dtstyle').relative_to(ROOT / 'catalog/styles').as_posix() for p in bundles]
         env.update(QT_QPA_PLATFORM='offscreen', OMALUX_STYLES_DIR=str(ROOT / 'catalog/styles'),
                    OMALUX_PREVIEW_DIR=tmp, OMALUX_PREVIEW_IDS=json.dumps(ids))
-        subprocess.run([str(ROOT / 'dev/start'), str(source)], env=env, check=True, timeout=360)
+        subprocess.run([str(ROOT / 'development/start'), str(source)], env=env, check=True, timeout=360)
         library = ctypes.CDLL(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so'), mode=ctypes.RTLD_GLOBAL)
         version = ctypes.string_at(ctypes.addressof(ctypes.c_char.in_dll(library, 'darktable_package_version'))).decode()
         for bundle, style_id in zip(bundles, ids):
