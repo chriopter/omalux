@@ -188,7 +188,7 @@ def main():
         model = a.model or (" ".join(a.camera.split()[1:]) if a.camera else "%")
         params = dict(dtparams.DEFAULTS["colorin"])
         params.update(type=0, filename=Path(a.out).name.encode())  # 0 = DT_COLORSPACE_FILE
-        text = camera_presets.preset_xml(f"Omalux {name} input profile", f"{name}: Omalux input profile",
+        text = camera_presets.preset_xml(f"Omalux {name} input profile", f"{name}: input profile rebuilt from the camera matrix",
                                          "colorin", dtparams.encode("colorin", params),
                                          dtparams.VERSIONS["colorin"], maker, model,
                                          autoapply=a.autoapply)
