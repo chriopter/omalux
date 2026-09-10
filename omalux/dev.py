@@ -34,6 +34,7 @@ def main():
     os.environ.setdefault("RUSTICL_ENABLE", "radeonsi")
     os.environ.setdefault("OMALUX_STYLES_DIR", str(ROOT / "catalog/styles"))
     os.environ.setdefault("OMALUX_CAMERA_DIR", str(ROOT / "catalog/camera"))
+    os.environ.setdefault("OMALUX_DESIGN_DIR", str(ROOT / "omalux/design"))
     children = []
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)

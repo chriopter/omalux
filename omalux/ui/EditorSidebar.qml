@@ -181,6 +181,7 @@ Rectangle {
             Layout.fillHeight: true
             theme: root.theme
             catalog: root.backend.moduleCatalog
+            display: root.backend.displayData
             editable: !root.backend.styleBusy && root.backend.preview !== ""
             onInteractionChanged: active => root.backend.setInteractive(active)
             onParameterEdited: (operation, instance, field, value) => root.backend.setParameter(operation, instance, field, value)

@@ -25,6 +25,7 @@ class Editor : public QObject {
     Q_PROPERTY(QString activeStyle READ activeStyle NOTIFY changed)
     Q_PROPERTY(QVariantList controls READ controls CONSTANT)
     Q_PROPERTY(bool developerMode READ developerMode CONSTANT)
+    Q_PROPERTY(QString displayData READ displayData CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
   public:
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
@@ -46,6 +47,7 @@ class Editor : public QObject {
     QString styleError() const;
     QVariantList controls() const;
     bool developerMode() const;
+    QString displayData() const;
     QVariantMap controlValues() const;
     Q_INVOKABLE void hoverStyle(const QString &id, bool active);
     Q_INVOKABLE void applyStyle(const QString &id);

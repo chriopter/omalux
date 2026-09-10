@@ -11,6 +11,8 @@ SidebarScrollView {
     objectName: "modulesScroll"
     required property var theme
     required property string catalog
+    // How darktable shows each slider: unit, factor, digits, and the range it covers first.
+    required property string display
     required property bool editable
     // Show only what the curated panel does not cover yet, so the list is the remaining work.
     property bool onlyOpen: true
@@ -63,17 +65,28 @@ SidebarScrollView {
                && isFinite(parameter.minimum) && isFinite(parameter.maximum)
                && parameter.maximum > parameter.minimum
     }
-    // Ranges from the module sources are hard limits; pick a readable step and precision.
+    readonly property var displayData: {
+        try { return JSON.parse(root.display || "{}") } catch (e) { return ({}) }
+    }
+    // Ranges from the module sources are hard limits. Where darktable says how it shows the
+    // value, follow it; otherwise pick a readable step and precision.
     function control(module, parameter) {
-        const span = parameter.maximum - parameter.minimum
-        const decimals = parameter.type === "int" ? 0 : span > 200 ? 1 : span > 20 ? 2 : 3
+        const shown = root.displayData[module.operation + "/" + parameter.field] || {}
+        const factor = shown.factor || 1
+        const span = (parameter.maximum - parameter.minimum) * Math.abs(factor)
+        const decimals = shown.digits !== undefined ? shown.digits
+                       : parameter.type === "int" ? 0 : span > 200 ? 1 : span > 20 ? 2 : 3
+        const low = Math.min(parameter.minimum * factor, parameter.maximum * factor)
+        const high = Math.max(parameter.minimum * factor, parameter.maximum * factor)
         return {
             id: module.operation + "/" + module.instance + "/" + parameter.name,
             label: parameter.label || parameter.field,
-            unit: "", colors: "", decimals: decimals,
+            unit: shown.format || "", colors: "", decimals: decimals,
             step: parameter.type === "int" ? 1 : span / 1000,
-            minimum: parameter.minimum, maximum: parameter.maximum,
-            softMinimum: parameter.minimum, softMaximum: parameter.maximum
+            minimum: low, maximum: high,
+            softMinimum: shown.soft_minimum !== undefined ? shown.soft_minimum * factor : low,
+            softMaximum: shown.soft_maximum !== undefined ? shown.soft_maximum * factor : high,
+            factor: factor
         }
     }
     function setExpanded(key, value) {
@@ -193,12 +206,13 @@ SidebarScrollView {
         ControlSlider {
             theme: root.theme
             control: root.control(module, parameter)
-            value: parameter.value
+            value: parameter.value * (root.control(module, parameter).factor || 1)
             editable: root.editable
             compact: true
             moduleToggleAvailable: false
             qualifyLabel: false
-            onEdited: value => root.parameterEdited(module.operation, module.instance, parameter.name, value)
+            onEdited: value => root.parameterEdited(module.operation, module.instance, parameter.name,
+                                                   value / (root.control(module, parameter).factor || 1))
             onInteractionChanged: active => root.interactionChanged(active)
         }
     }

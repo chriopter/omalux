@@ -1,0 +1,977 @@
+{
+ "agx/dynamic_range_scaling": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 0.5
+ },
+ "agx/master_unrotation_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 5.0,
+  "soft_minimum": 1.0
+ },
+ "ashift/crop_factor": {
+  "soft_maximum": 2.0,
+  "soft_minimum": 1.0
+ },
+ "ashift/f_length": {
+  "digits": 0,
+  "format": " mm",
+  "soft_maximum": 1000.0,
+  "soft_minimum": 10.0
+ },
+ "ashift/lensshift_h": {
+  "digits": 3
+ },
+ "ashift/lensshift_v": {
+  "digits": 3
+ },
+ "ashift/orthocorr": {
+  "format": "%"
+ },
+ "ashift/rotation": {
+  "factor": -1.0,
+  "format": "\u00b0"
+ },
+ "basecurve/exposure_bias": {
+  "digits": 3
+ },
+ "basecurve/exposure_stops": {
+  "digits": 3
+ },
+ "basicadj/black_point": {
+  "digits": 4,
+  "soft_maximum": 0.1,
+  "soft_minimum": -0.1
+ },
+ "basicadj/brightness": {
+  "soft_maximum": 1.0,
+  "soft_minimum": -1.0
+ },
+ "basicadj/clip": {
+  "digits": 3
+ },
+ "basicadj/contrast": {
+  "soft_maximum": 1.0,
+  "soft_minimum": -1.0
+ },
+ "basicadj/exposure": {
+  "format": " EV",
+  "soft_maximum": 4.0,
+  "soft_minimum": -4.0
+ },
+ "basicadj/hlcompr": {
+  "soft_maximum": 100.0
+ },
+ "basicadj/middle_grey": {
+  "format": "%"
+ },
+ "bilat/detail": {
+  "format": "%",
+  "offset": 100.0
+ },
+ "bilat/midtone": {
+  "digits": 3
+ },
+ "bilat/sigma_r": {
+  "digits": 0,
+  "format": "%"
+ },
+ "bilat/sigma_s": {
+  "digits": 0,
+  "format": "%"
+ },
+ "bloom/size": {
+  "format": "%"
+ },
+ "bloom/strength": {
+  "format": "%"
+ },
+ "bloom/threshold": {
+  "format": "%"
+ },
+ "blurs/angle": {
+  "factor": -57.29577951308232,
+  "format": "\u00b0"
+ },
+ "blurs/radius": {
+  "format": " px",
+  "soft_maximum": 64.0
+ },
+ "blurs/rotation": {
+  "factor": 57.29577951308232,
+  "format": "\u00b0"
+ },
+ "borders/frame_offset": {
+  "digits": 4,
+  "format": "%"
+ },
+ "borders/frame_size": {
+  "digits": 4,
+  "format": "%"
+ },
+ "borders/size": {
+  "digits": 4,
+  "format": "%"
+ },
+ "cacorrectrgb/radius": {
+  "soft_maximum": 20.0,
+  "soft_minimum": 1.0
+ },
+ "channelmixerrgb/gamut": {
+  "soft_maximum": 4.0
+ },
+ "channelmixerrgb/temperature": {
+  "digits": 0,
+  "format": " K",
+  "soft_maximum": 7000.0,
+  "soft_minimum": 3000.0
+ },
+ "clipping/angle": {
+  "factor": -1.0,
+  "format": "\u00b0"
+ },
+ "clipping/ch": {
+  "digits": 4,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0
+ },
+ "clipping/cw": {
+  "digits": 4,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0
+ },
+ "clipping/cx": {
+  "digits": 4,
+  "format": "%"
+ },
+ "clipping/cy": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalance/contrast": {
+  "digits": 4,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0,
+  "soft_maximum": 1.5,
+  "soft_minimum": 0.5
+ },
+ "colorbalance/grey": {
+  "format": "%"
+ },
+ "colorbalance/saturation": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 1.5,
+  "soft_minimum": 0.5
+ },
+ "colorbalance/saturation_out": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 1.5,
+  "soft_minimum": 0.5
+ },
+ "colorbalancergb/brilliance_global": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/brilliance_highlights": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/brilliance_midtones": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/brilliance_shadows": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/chroma_global": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": -0.5
+ },
+ "colorbalancergb/chroma_highlights": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/chroma_midtones": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/chroma_shadows": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/contrast": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": -0.5
+ },
+ "colorbalancergb/global_C": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.01,
+  "soft_minimum": 0.0
+ },
+ "colorbalancergb/global_H": {
+  "format": "\u00b0"
+ },
+ "colorbalancergb/global_Y": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.05,
+  "soft_minimum": -0.05
+ },
+ "colorbalancergb/grey_fulcrum": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": 0.1
+ },
+ "colorbalancergb/highlights_C": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.2,
+  "soft_minimum": 0.0
+ },
+ "colorbalancergb/highlights_H": {
+  "format": "\u00b0"
+ },
+ "colorbalancergb/highlights_Y": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": -0.5
+ },
+ "colorbalancergb/highlights_weight": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/hue_angle": {
+  "format": "\u00b0"
+ },
+ "colorbalancergb/mask_grey_fulcrum": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/midtones_C": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.1,
+  "soft_minimum": 0.0
+ },
+ "colorbalancergb/midtones_H": {
+  "format": "\u00b0"
+ },
+ "colorbalancergb/midtones_Y": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.25,
+  "soft_minimum": -0.25
+ },
+ "colorbalancergb/saturation_global": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/saturation_highlights": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/saturation_midtones": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/saturation_shadows": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/shadows_C": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": 0.0
+ },
+ "colorbalancergb/shadows_H": {
+  "format": "\u00b0"
+ },
+ "colorbalancergb/shadows_Y": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 1.0,
+  "soft_minimum": -1.0
+ },
+ "colorbalancergb/shadows_weight": {
+  "digits": 4,
+  "format": "%"
+ },
+ "colorbalancergb/vibrance": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 0.5,
+  "soft_minimum": -0.5
+ },
+ "colorbalancergb/white_fulcrum": {
+  "format": " EV",
+  "soft_maximum": 2.0,
+  "soft_minimum": -2.0
+ },
+ "colorequal/chroma_size": {
+  "digits": 1
+ },
+ "colorequal/contrast": {
+  "digits": 3
+ },
+ "colorequal/hue_shift": {
+  "digits": 0,
+  "format": "\u00b0"
+ },
+ "colorequal/param_size": {
+  "digits": 1
+ },
+ "colorequal/threshold": {
+  "digits": 3,
+  "format": "%"
+ },
+ "colorequal/white_level": {
+  "format": " EV",
+  "soft_maximum": 2.0,
+  "soft_minimum": -2.0
+ },
+ "colorharmonizer/neutral_protection": {
+  "digits": 2
+ },
+ "colorharmonizer/num_custom_nodes": {
+  "digits": 0
+ },
+ "colorharmonizer/pull_width": {
+  "digits": 2
+ },
+ "colorharmonizer/smoothing": {
+  "digits": 2
+ },
+ "colorize/hue": {
+  "factor": 360.0,
+  "format": "\u00b0"
+ },
+ "colorize/lightness": {
+  "format": "%"
+ },
+ "colorize/saturation": {
+  "format": "%"
+ },
+ "colorize/source_lightness_mix": {
+  "format": "%"
+ },
+ "colormapping/dominance": {
+  "format": "%"
+ },
+ "colormapping/equalization": {
+  "format": "%"
+ },
+ "colorreconstruction/hue": {
+  "factor": 360.0,
+  "format": "\u00b0"
+ },
+ "colorzones/strength": {
+  "format": "%"
+ },
+ "crop/ch": {
+  "digits": 4,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0
+ },
+ "crop/cw": {
+  "digits": 4,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0
+ },
+ "crop/cx": {
+  "digits": 4,
+  "format": "%"
+ },
+ "crop/cy": {
+  "digits": 4,
+  "format": "%"
+ },
+ "demosaic/cs_boost": {
+  "digits": 2
+ },
+ "demosaic/cs_center": {
+  "digits": 0,
+  "format": "%"
+ },
+ "demosaic/cs_radius": {
+  "digits": 2
+ },
+ "demosaic/dual_thrs": {
+  "digits": 2
+ },
+ "demosaic/median_thrs": {
+  "digits": 3
+ },
+ "denoiseprofile/bias": {
+  "soft_maximum": 10.0,
+  "soft_minimum": -10.0
+ },
+ "denoiseprofile/central_pixel_weight": {
+  "soft_maximum": 1.0
+ },
+ "denoiseprofile/nbhood": {
+  "digits": 0
+ },
+ "denoiseprofile/overshooting": {
+  "soft_maximum": 4.0
+ },
+ "denoiseprofile/radius": {
+  "digits": 0,
+  "soft_maximum": 8.0,
+  "soft_minimum": 0.0
+ },
+ "denoiseprofile/scattering": {
+  "soft_maximum": 1.0
+ },
+ "denoiseprofile/strength": {
+  "digits": 3,
+  "soft_maximum": 4.0
+ },
+ "diffuse/anisotropy_first": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/anisotropy_fourth": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/anisotropy_second": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/anisotropy_third": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/first": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/fourth": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/iterations": {
+  "soft_maximum": 128.0,
+  "soft_minimum": 1.0
+ },
+ "diffuse/radius": {
+  "format": " px",
+  "soft_maximum": 512.0,
+  "soft_minimum": 1.0
+ },
+ "diffuse/radius_center": {
+  "format": " px",
+  "soft_maximum": 512.0,
+  "soft_minimum": 0.0
+ },
+ "diffuse/second": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/sharpness": {
+  "digits": 3,
+  "format": "%",
+  "soft_maximum": 0.25,
+  "soft_minimum": -0.25
+ },
+ "diffuse/third": {
+  "digits": 4,
+  "format": "%"
+ },
+ "diffuse/threshold": {
+  "format": "%"
+ },
+ "dither/random.damping": {
+  "digits": 3,
+  "format": " dB"
+ },
+ "enlargecanvas/percent_bottom": {
+  "format": "%"
+ },
+ "enlargecanvas/percent_left": {
+  "format": "%"
+ },
+ "enlargecanvas/percent_right": {
+  "format": "%"
+ },
+ "enlargecanvas/percent_top": {
+  "format": "%"
+ },
+ "exposure/black": {
+  "digits": 4,
+  "soft_maximum": 0.1,
+  "soft_minimum": -0.1
+ },
+ "exposure/deflicker_percentile": {
+  "format": "%"
+ },
+ "exposure/deflicker_target_level": {
+  "format": " EV"
+ },
+ "exposure/exposure": {
+  "digits": 3,
+  "format": " EV",
+  "soft_maximum": 4.0,
+  "soft_minimum": -3.0
+ },
+ "filmicrgb/balance": {
+  "format": "%"
+ },
+ "filmicrgb/black_point_source": {
+  "format": " EV",
+  "soft_maximum": -3.0,
+  "soft_minimum": -14.0
+ },
+ "filmicrgb/black_point_target": {
+  "digits": 4,
+  "format": "%"
+ },
+ "filmicrgb/contrast": {
+  "digits": 3,
+  "soft_maximum": 3.0,
+  "soft_minimum": 0.5
+ },
+ "filmicrgb/grey_point_source": {
+  "format": "%",
+  "soft_maximum": 36.0,
+  "soft_minimum": 0.1
+ },
+ "filmicrgb/grey_point_target": {
+  "digits": 4,
+  "format": "%"
+ },
+ "filmicrgb/latitude": {
+  "format": "%",
+  "soft_maximum": 90.0,
+  "soft_minimum": 0.1
+ },
+ "filmicrgb/reconstruct_bloom_vs_details": {
+  "format": "%"
+ },
+ "filmicrgb/reconstruct_feather": {
+  "format": " EV"
+ },
+ "filmicrgb/reconstruct_grey_vs_color": {
+  "format": "%"
+ },
+ "filmicrgb/reconstruct_structure_vs_texture": {
+  "format": "%"
+ },
+ "filmicrgb/reconstruct_threshold": {
+  "format": " EV"
+ },
+ "filmicrgb/saturation": {
+  "format": "%",
+  "soft_maximum": 50.0,
+  "soft_minimum": -50.0
+ },
+ "filmicrgb/security_factor": {
+  "format": "%",
+  "soft_maximum": 50.0
+ },
+ "filmicrgb/white_point_source": {
+  "format": " EV",
+  "soft_maximum": 8.0,
+  "soft_minimum": 2.0
+ },
+ "filmicrgb/white_point_target": {
+  "digits": 4,
+  "format": "%",
+  "soft_maximum": 100.0
+ },
+ "globaltonemap/detail": {
+  "digits": 3
+ },
+ "graduatednd/density": {
+  "format": " EV"
+ },
+ "graduatednd/hardness": {
+  "format": "%"
+ },
+ "graduatednd/hue": {
+  "factor": 360.0,
+  "format": "\u00b0"
+ },
+ "graduatednd/rotation": {
+  "factor": -1.0,
+  "format": "\u00b0"
+ },
+ "graduatednd/saturation": {
+  "format": "%"
+ },
+ "grain/midtones_bias": {
+  "format": "%"
+ },
+ "grain/scale": {
+  "digits": 0,
+  "format": " ISO"
+ },
+ "grain/strength": {
+  "format": "%"
+ },
+ "hazeremoval/distance": {
+  "digits": 3
+ },
+ "highlights/candidating": {
+  "digits": 0,
+  "format": "%"
+ },
+ "highlights/clip": {
+  "digits": 3
+ },
+ "highlights/combine": {
+  "digits": 0
+ },
+ "highlights/solid_color": {
+  "format": "%"
+ },
+ "highlights/strength": {
+  "digits": 0,
+  "format": "%"
+ },
+ "highpass/contrast": {
+  "format": "%"
+ },
+ "highpass/sharpness": {
+  "format": "%"
+ },
+ "hotpixels/strength": {
+  "digits": 4
+ },
+ "hotpixels/threshold": {
+  "digits": 4
+ },
+ "levels/black": {
+  "format": "%"
+ },
+ "levels/gray": {
+  "format": "%"
+ },
+ "levels/white": {
+  "format": "%"
+ },
+ "lowlight/blueness": {
+  "format": "%"
+ },
+ "negadoctor/D_max": {
+  "format": " dB"
+ },
+ "negadoctor/Dmin[0]": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "negadoctor/Dmin[1]": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "negadoctor/Dmin[2]": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "negadoctor/black": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "negadoctor/exposure": {
+  "format": " EV",
+  "soft_minimum": -1.0
+ },
+ "negadoctor/offset": {
+  "format": " dB"
+ },
+ "negadoctor/soft_clip": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "nlmeans/chroma": {
+  "format": "%"
+ },
+ "nlmeans/luma": {
+  "format": "%"
+ },
+ "nlmeans/radius": {
+  "digits": 0,
+  "soft_maximum": 4.0
+ },
+ "nlmeans/strength": {
+  "digits": 0,
+  "format": "%",
+  "soft_maximum": 100.0
+ },
+ "overlay/opacity": {
+  "format": "%"
+ },
+ "overlay/rotate": {
+  "factor": -1.0,
+  "format": "\u00b0"
+ },
+ "overlay/scale": {
+  "format": "%",
+  "soft_maximum": 100.0
+ },
+ "overlay/xoffset": {
+  "digits": 3
+ },
+ "overlay/yoffset": {
+  "digits": 3
+ },
+ "primaries/achromatic_tint_hue": {
+  "digits": 1,
+  "factor": 57.29577951308232,
+  "format": "\u00b0"
+ },
+ "primaries/achromatic_tint_purity": {
+  "digits": 1,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 0.2,
+  "soft_minimum": 0.0
+ },
+ "profile_gamma/dynamic_range": {
+  "format": " EV",
+  "soft_maximum": 16.0,
+  "soft_minimum": 0.5
+ },
+ "profile_gamma/gamma": {
+  "digits": 4
+ },
+ "profile_gamma/grey_point": {
+  "format": "%"
+ },
+ "profile_gamma/linear": {
+  "digits": 4
+ },
+ "profile_gamma/security_factor": {
+  "format": "%"
+ },
+ "profile_gamma/shadows_range": {
+  "format": " EV",
+  "soft_maximum": 0.0
+ },
+ "rawdenoise/threshold": {
+  "digits": 3,
+  "soft_maximum": 0.1
+ },
+ "rawprepare/bottom": {
+  "soft_maximum": 256.0
+ },
+ "rawprepare/left": {
+  "soft_maximum": 256.0
+ },
+ "rawprepare/raw_white_point": {
+  "soft_maximum": 16384.0
+ },
+ "rawprepare/right": {
+  "soft_maximum": 256.0
+ },
+ "rawprepare/top": {
+  "soft_maximum": 256.0
+ },
+ "relight/ev": {
+  "format": " EV"
+ },
+ "retouch/blur_radius": {
+  "format": " px"
+ },
+ "retouch/fill_brightness": {
+  "digits": 4,
+  "format": "%"
+ },
+ "shadhi/compress": {
+  "format": "%"
+ },
+ "shadhi/highlights_ccorrect": {
+  "format": "%"
+ },
+ "shadhi/shadows_ccorrect": {
+  "format": "%"
+ },
+ "sharpen/amount": {
+  "digits": 3
+ },
+ "sharpen/radius": {
+  "digits": 3,
+  "soft_maximum": 8.0
+ },
+ "sharpen/threshold": {
+  "digits": 3
+ },
+ "sigmoid/display_white_target": {
+  "digits": 4,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 100.0,
+  "soft_minimum": 50.0
+ },
+ "sigmoid/hue_preservation": {
+  "format": "%"
+ },
+ "soften/amount": {
+  "format": "%"
+ },
+ "soften/brightness": {
+  "format": " EV"
+ },
+ "soften/saturation": {
+  "format": "%"
+ },
+ "soften/size": {
+  "format": "%"
+ },
+ "splittoning/balance": {
+  "digits": 4,
+  "factor": -100.0,
+  "offset": 100.0
+ },
+ "splittoning/compress": {
+  "format": "%"
+ },
+ "splittoning/highlight_hue": {
+  "factor": 360.0,
+  "format": "\u00b0"
+ },
+ "splittoning/shadow_hue": {
+  "factor": 360.0,
+  "format": "\u00b0"
+ },
+ "temperature/blue": {
+  "digits": 3
+ },
+ "temperature/green": {
+  "digits": 3
+ },
+ "temperature/red": {
+  "digits": 3
+ },
+ "temperature/various": {
+  "digits": 3
+ },
+ "toneequal/blacks": {
+  "format": " EV"
+ },
+ "toneequal/blending": {
+  "format": "%",
+  "soft_maximum": 45.0,
+  "soft_minimum": 1.0
+ },
+ "toneequal/contrast_boost": {
+  "format": " EV",
+  "soft_maximum": 2.0,
+  "soft_minimum": -2.0
+ },
+ "toneequal/deep_blacks": {
+  "format": " EV"
+ },
+ "toneequal/exposure_boost": {
+  "format": " EV",
+  "soft_maximum": 4.0,
+  "soft_minimum": -4.0
+ },
+ "toneequal/feathering": {
+  "soft_maximum": 50.0,
+  "soft_minimum": 0.1
+ },
+ "toneequal/highlights": {
+  "format": " EV"
+ },
+ "toneequal/iterations": {
+  "soft_maximum": 5.0
+ },
+ "toneequal/midtones": {
+  "format": " EV"
+ },
+ "toneequal/noise": {
+  "format": " EV"
+ },
+ "toneequal/quantization": {
+  "format": " EV"
+ },
+ "toneequal/shadows": {
+  "format": " EV"
+ },
+ "toneequal/speculars": {
+  "format": " EV"
+ },
+ "toneequal/ultra_deep_blacks": {
+  "format": " EV"
+ },
+ "toneequal/whites": {
+  "format": " EV"
+ },
+ "useless/factor": {
+  "digits": 2,
+  "factor": -100.0,
+  "format": "%",
+  "offset": 100.0,
+  "soft_maximum": 1.5,
+  "soft_minimum": 0.5
+ },
+ "velvia/strength": {
+  "format": "%"
+ },
+ "vibrance/amount": {
+  "format": "%"
+ },
+ "vignette/brightness": {
+  "digits": 3
+ },
+ "vignette/center.x": {
+  "digits": 3
+ },
+ "vignette/center.y": {
+  "digits": 3
+ },
+ "vignette/falloff_scale": {
+  "format": "%"
+ },
+ "vignette/saturation": {
+  "digits": 3
+ },
+ "vignette/scale": {
+  "format": "%"
+ },
+ "vignette/whratio": {
+  "digits": 3
+ },
+ "watermark/opacity": {
+  "format": "%"
+ },
+ "watermark/rotate": {
+  "factor": -1.0,
+  "format": "\u00b0"
+ },
+ "watermark/scale": {
+  "format": "%",
+  "soft_maximum": 100.0
+ },
+ "watermark/xoffset": {
+  "digits": 3
+ },
+ "watermark/yoffset": {
+  "digits": 3
+ }
+}

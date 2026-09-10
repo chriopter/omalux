@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "editor.h"
+#include <QFile>
 #include <QFileInfo>
 #include <QDebug>
 #include <cmath>
@@ -58,6 +59,16 @@ QString Editor::styleError() const {
 // between the curated panel and the parameters that still have no designed control.
 bool Editor::developerMode() const {
     return qEnvironmentVariable("OMALUX_DEV") == QLatin1String("1");
+}
+
+// How darktable itself shows a slider: unit, factor, digits and the range it covers
+// before the value has to be forced wider. Collected from the module sources by
+// development/tools/darktable/extract_display.py.
+QString Editor::displayData() const {
+    QFile file(qEnvironmentVariable("OMALUX_DESIGN_DIR") + QStringLiteral("/display.json"));
+    if (!file.open(QIODevice::ReadOnly))
+        return QStringLiteral("{}");
+    return QString::fromUtf8(file.readAll());
 }
 
 QVariantList Editor::controls() const {

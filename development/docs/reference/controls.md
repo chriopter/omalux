@@ -73,3 +73,22 @@ Run `python3 omalux/tests/run.py --split` from the repository root to exercise t
 ## What was applied for this camera
 
 The History pane starts with a box listing what darktable set up before any style: the input profile and white balance (Colour), the lens correction (Lens), and exposure, tone mapping, highlight reconstruction, denoising and sharpening (Base tone). Values are read from the loaded modules after the image's history has been applied, so they show the actual state; entries in grey are not applied. Camera presets from `catalog/camera/` are imported into the session and their profiles copied into darktable's `color/in`, so this box also reflects them.
+
+## Display data from darktable
+
+darktable's introspection gives a parameter's name, type, range and default, but not how
+the value reads on screen. That part lives in the calls that build the module's own
+widgets: the unit, the factor between stored and shown value, the digits worth showing,
+and the range a slider covers before it has to be forced wider.
+
+`development/tools/darktable/extract_display.py` collects those calls from the module
+sources into `omalux/design/display.json`, keyed `operation/field`. The raw module list
+builds its sliders from it, so a parameter reads correctly without an entry in the
+registry. Re-run the tool after updating the darktable submodule:
+
+```
+python3 development/tools/darktable/extract_display.py
+```
+
+It covers the 57 modules that build their sliders declaratively. The rest draw their own
+widgets and still need a dedicated adapter.
