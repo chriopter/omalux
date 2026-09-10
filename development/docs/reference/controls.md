@@ -92,3 +92,15 @@ python3 development/tools/darktable/extract_display.py
 
 It covers the 57 modules that build their sliders declaratively. The rest draw their own
 widgets and still need a dedicated adapter.
+
+## The curated decisions as data
+
+`development/tools/darktable/export_controls.py` writes the part of the registry that is
+genuinely our own — which parameters are worth showing, under which name, in which group
+and order, with which colour track — to `omalux/design/controls.json`, and reports every
+row that says something other than darktable does.
+
+Six rows do, and all for the same reason: `colisa` and `shadhi` draw their own widgets and
+describe nothing, so their labels, units and ranges have to be ours. The remaining rows
+agree with darktable value for value, which is what makes the generated display data
+trustworthy.
