@@ -14,6 +14,7 @@
 
 - [Editing controls](reference/controls.md) — darktable mappings, names, units and UI behavior.
 - [Preset bundles](reference/presets.md) — format, assets and compatibility.
+- [darktable bundle](reference/darktable-bundle.md) — distributing looks and camera presets to plain darktable.
 - [Shared assets](reference/assets.md) — image and logo provenance.
 
 [Project overview](../README.md) · [Contributor rules](../AGENTS.md) · [Website repository](https://github.com/chriopter/omalux.org) · [Original v0 release](https://github.com/chriopter/omalux/releases/tag/v0.2.0)

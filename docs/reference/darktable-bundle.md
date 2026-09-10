@@ -1,0 +1,62 @@
+# Distributing looks and camera presets for darktable
+
+Everything Omalux ships can be used in plain darktable. darktable separates two things, and the bundle follows that split:
+
+| darktable term | what it is | file | how a user installs it |
+| --- | --- | --- | --- |
+| Style | a look: settings of several modules | `.dtstyle` (XML) plus a `.cube` LUT where the look uses one | lighttable → *styles* → import |
+| Module preset | settings of one module, optionally applied automatically by camera, lens, ISO or file type | `.dtpreset` (XML) | preferences → *presets* → import |
+| Input profile | the camera's colour characterisation used by *input color profile* | `.icc` in the configuration's `color/in/` | copy the file, restart |
+
+A "camera preset" in Omalux's words is therefore an input profile plus a module preset for `colorin` that selects it automatically for that camera. Looks never set the input profile, so both layers stay independent, as camera profiles and presets do in Lightroom.
+
+## Building the bundle
+
+```sh
+python3 tools/darktable/build_bundle.py               # dist/darktable/, LUTs as files
+python3 tools/darktable/build_bundle.py --embed-luts  # LUTs compressed into the styles (needs gmic)
+```
+
+The builder rewrites every style's name to `Omalux|<group>|<name>` so the looks appear as one tree in darktable's styles module. Group names come from the preset folder: `film` → Film, `series/movie` → Movie, `series/late-summer` → Late Summer, `experimental` → Experimental, `monochrome` → Monochrome; `neutral` and `chromatic` sit directly under `Omalux`. The repository's own `preset.dtstyle` files keep their short names; the hierarchy is added only in the bundle.
+
+Styles reference their LUT by the catalogue-relative path (for example `film/film-chrome/look.cube`). Without `--embed-luts` the bundle copies the cubes to `luts/` in that layout, and the user sets darktable's *3D LUT root folder* to it. With `--embed-luts` the cube is compressed with G'MIC into up to 2048 colour keypoints and stored in the `lut3d` parameters, darktable's own mechanism for `.gmz` LUTs, so the style needs no external file. This is lossy for our cubes: at G'MIC error 2 the desert-signal cube came back with a mean deviation of 4.3 and a maximum of 76 in 8-bit units, which is more than the calibration tolerates. Use it only when an external LUT folder is impossible, and check the result; it also needs `gmic` on the path and a darktable built with G'MIC support (the Arch package is).
+
+## Camera presets
+
+Camera presets live in `camera/<maker>/<model>.dtpreset` with the profile beside it as `camera/<maker>/<model>.icc`. A preset file is what darktable itself writes from preferences → presets → export:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<darktable_preset version="1.0">
+  <preset>
+    <name>Omalux camera profile</name>
+    <description>Input profile for FUJIFILM X-T4</description>
+    <operation>colorin</operation>
+    <op_params>…hex…</op_params>       <!-- type = 0 (file), filename = "omalux-fujifilm-x-t4.icc" -->
+    <op_version>7</op_version>
+    <enabled>1</enabled>
+    <autoapply>1</autoapply>
+    <model>X-T4</model>
+    <maker>FUJIFILM</maker>
+    <lens>%</lens>
+    <iso_min>0</iso_min> <iso_max>340282346638528859811704183484516925440</iso_max>
+    <exposure_min>0</exposure_min> <exposure_max>340282346638528859811704183484516925440</exposure_max>
+    <aperture_min>0</aperture_min> <aperture_max>340282346638528859811704183484516925440</aperture_max>
+    <focal_length_min>0</focal_length_min> <focal_length_max>1000</focal_length_max>
+    <blendop_params></blendop_params>
+    <blendop_version>0</blendop_version>
+    <multi_priority>0</multi_priority>
+    <multi_name></multi_name>
+    <multi_name_hand_edited>0</multi_name_hand_edited>
+    <filter>0</filter>
+    <def>0</def>
+    <format>2</format>                 <!-- FOR_RAW; 1 = LDR, 4 = HDR -->
+  </preset>
+</darktable_preset>
+```
+
+`maker` and `model` are matched as SQL patterns against the EXIF maker and model, so `X-T%` covers a family. The profile itself is an ICC input profile; Adobe DCP files must be converted first (for example with DCamProf), and only profiles whose licence allows redistribution belong in the repository. No camera presets are included yet.
+
+## What the bundle does not do
+
+It does not change darktable's defaults, workflow or module order, and it does not install anything by itself. Looks applied in darktable behave exactly as in Omalux only when the same darktable release renders them; the parameter layouts target 5.6.
