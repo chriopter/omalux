@@ -320,6 +320,13 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
+            } else if (step.contains("dumpControls")) {
+                QFile file(step["dumpControls"].toString());
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(QJsonDocument(QJsonArray::fromVariantList(editor.controls()))
+                                   .toJson(QJsonDocument::Indented));
+                    file.close();
+                }
             } else if (step.contains("dumpModules")) {
                 QFile file(step["dumpModules"].toString());
                 if (file.open(QIODevice::WriteOnly)) {

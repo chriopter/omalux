@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "editor.h"
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QFileInfo>
 #include <QDebug>
 #include <cmath>
@@ -72,19 +74,36 @@ QString Editor::displayData() const {
 }
 
 QVariantList Editor::controls() const {
+    const QJsonObject display = QJsonDocument::fromJson(displayData().toUtf8()).object();
     QVariantList result;
     for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i) {
         const auto &c = om_controls[i];
+        // Where a row leaves the unit or the working range open, take what darktable says.
+        // Its numbers are native, ours are the displayed value, so they are converted first.
+        const QJsonObject shown =
+            display.value(QStringLiteral("%1/%2").arg(c.module, c.parameter)).toObject();
+        const auto displayed = [&c](double native) { return (native - c.offset) / c.scale; };
+        const bool ownRange = c.soft_minimum != c.soft_maximum;
+        double softLow = ownRange ? c.soft_minimum : c.minimum;
+        double softHigh = ownRange ? c.soft_maximum : c.maximum;
+        if (!ownRange && shown.contains(QStringLiteral("soft_minimum"))) {
+            softLow = displayed(shown.value(QStringLiteral("soft_minimum")).toDouble());
+            softHigh = displayed(shown.value(QStringLiteral("soft_maximum")).toDouble());
+            if (softLow > softHigh)
+                std::swap(softLow, softHigh);
+        }
+        const QString unit = *c.unit ? QString::fromUtf8(c.unit)
+                                     : shown.value(QStringLiteral("format")).toString();
         result.append(
             QVariantMap{{"id", c.id},
                         {"module", c.module},
                         {"label", c.label},
                         {"minimum", c.minimum},
                         {"maximum", c.maximum},
-                        {"softMinimum", c.soft_minimum != c.soft_maximum ? c.soft_minimum : c.minimum},
-                        {"softMaximum", c.soft_minimum != c.soft_maximum ? c.soft_maximum : c.maximum},
+                        {"softMinimum", softLow},
+                        {"softMaximum", softHigh},
                         {"step", c.step},
-                        {"unit", c.unit},
+                        {"unit", unit},
                         {"decimals", c.decimals},
                         {"group", c.group},
                         {"section", c.section},
