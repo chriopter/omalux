@@ -20,6 +20,9 @@ The score is the mean CIEDE2000 between the rendering and the target, both scale
 
 ## Rendering
 
+Camera presets from `camera/` (see `docs/reference/darktable-bundle.md`) are applied to RAW inputs by maker and model before the style, exactly as darktable applies them automatically; `DT_CAMERA_PRESETS=0` switches that off.
+
+
 `dtrender.py` converts a `.dtstyle` into an XMP history sidecar and runs `darktable-cli` on it, so no database import is needed. All images of one fit round share a style, so they are rendered by one `darktable-cli` process from a folder of links: process start-up (about two seconds) is paid once per round instead of once per image. Fit rounds also let darktable scale early instead of processing RAW files at full resolution (`--hq false`); that is several times faster and differs from full-quality output by a few tenths of ΔE, so final scoring and the baseline use full quality. `DT_OMP` sets the OpenMP threads per process (default 4; several presets can then run side by side on 16 cores). Each worker uses its own configuration directory under `work/dtcfg/`. Rendering is CPU-only by default: the pixelpipe takes a small fraction of the two seconds a `darktable-cli` process needs, and with several parallel processes a GPU reset on some drivers silently corrupts the output of the other processes. `DT_OPENCL=1` enables OpenCL with a CPU retry on failure.
 
 ## Recipe

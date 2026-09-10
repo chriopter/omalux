@@ -117,8 +117,50 @@ def parse_style(path):
 RAW_SUFFIXES = {".cr2", ".cr3", ".nef", ".raf", ".orf", ".dng", ".rw2", ".arw", ".pef", ".srw", ".3fr", ".iiq"}
 
 
-def dtstyle_to_xmp(style_path, src_name):
+_camera_cache = {}
+
+
+def camera_of(path):
+    """(maker, model) from EXIF via exiv2, cached per file."""
+    key = str(path)
+    if key not in _camera_cache:
+        maker = model = ""
+        try:
+            out = subprocess.run(["exiv2", "-g", "Exif.Image.Make", "-g", "Exif.Image.Model", "-Pkv", key],
+                                 capture_output=True, text=True).stdout
+            for line in out.splitlines():
+                if line.startswith("Exif.Image.Make"):
+                    maker = line.split(None, 1)[1].strip()
+                elif line.startswith("Exif.Image.Model"):
+                    model = line.split(None, 1)[1].strip()
+        except OSError:
+            pass
+        _camera_cache[key] = (maker, model)
+    return _camera_cache[key]
+
+
+def camera_items(path):
+    """History items of the camera presets (camera/*.dtpreset) that darktable would auto-apply."""
+    if os.environ.get("DT_CAMERA_PRESETS", "1") != "1":
+        return []
+    try:
+        sys.path.insert(0, str(REPO / "tools/darktable"))
+        import camera_presets
+    except ImportError:
+        return []
+    presets = camera_presets.load()
+    if not presets:
+        return []
+    maker, model = camera_of(path)
+    is_raw = Path(path).suffix.lower() in RAW_SUFFIXES
+    return [dict(op=p["operation"], ver=p["version"], params=p["params"], enabled=int(p["enabled"]), bparams="",
+                 bver=0, mprio=0, mname="", mhand=0) for p in camera_presets.matching(presets, maker, model, is_raw)]
+
+
+def dtstyle_to_xmp(style_path, src_name, camera=()):
     items = parse_style(style_path)
+    for it in camera:  # camera presets sit before the style, as darktable applies them at import
+        items.insert(0, dict(it))
     offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0"))
     if offset and Path(src_name).suffix.lower() in RAW_SUFFIXES:
         import dtparams
@@ -137,6 +179,10 @@ def dtstyle_to_xmp(style_path, src_name):
             items.append(dict(num=len(items), ver=dtparams.VERSIONS[e["op"]], op=e["op"],
                               params=dtparams.encode(e["op"], d), enabled=int(e.get("enabled", 1)),
                               bparams="", bver=0, mprio=0, mname="", mhand=0))
+    seen = {}
+    for it in items:  # a style item for the same module wins over the camera preset
+        seen[it["op"]] = it
+    items = [it for it in items if seen[it["op"]] is it]
     out = [XMP_HEAD.format(src=src_name, n=len(items))]
     for i, it in enumerate(items):
         bparams = f'\n      darktable:blendop_params="{it["bparams"]}"' if it["bparams"] else ""
@@ -175,7 +221,7 @@ def render(inp, style_path, output, width=0, height=0, opencl=None, quality=90, 
 def _render(inp, style_path, output, width, height, opencl, quality, extra_conf, cfg, cache):
     with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR", "/tmp")) as td:
         xmp = Path(td) / (inp.name + ".xmp")
-        xmp.write_text(dtstyle_to_xmp(style_path, inp.name))
+        xmp.write_text(dtstyle_to_xmp(style_path, inp.name, camera_items(inp)))
         cmd = ["darktable-cli", str(inp), str(xmp), str(output)]
         if width:
             cmd += ["--width", str(width)]
@@ -209,7 +255,8 @@ def render_batch_style(style_path, jobs, width=1024, height=1024, hq=False, qual
     split = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0")) or os.environ.get("RAW_EXTRA_ITEMS")
     groups = {}
     for inp, out in jobs:
-        key = Path(inp).suffix.lower() in RAW_SUFFIXES if split else False
+        key = (Path(inp).suffix.lower() in RAW_SUFFIXES if split else False,
+               tuple(sorted(str(it["params"]) for it in camera_items(inp))))
         groups.setdefault(key, []).append((inp, out))
     failed = []
     for g in groups.values():
@@ -235,7 +282,7 @@ def _render_batch(jobs, width, height, hq, quality, extra_conf, threads, style_p
                 link.symlink_to(inp.resolve())
                 names[inp.stem] = Path(out)
             xmp = td / "style.xmp"
-            xmp.write_text(dtstyle_to_xmp(style_path, "x" + Path(jobs[0][0]).suffix))
+            xmp.write_text(dtstyle_to_xmp(style_path, "x" + Path(jobs[0][0]).suffix, camera_items(jobs[0][0])))
             ext = Path(jobs[0][1]).suffix or ".jpg"
             cmd = ["darktable-cli", str(inp_dir), str(xmp), str(out_dir / ("$(FILE_NAME)" + ext)),
                    "--width", str(width), "--height", str(height), "--hq", "true" if hq else "false",
