@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='omalux-regression-') as folder:
         work = Path(folder)
-        shutil.copytree(ROOT / 'styles', work / 'styles')
+        shutil.copytree(ROOT / 'catalog/styles', work / 'styles')
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
                    OMALUX_STYLES_DIR=str(work / 'styles'))

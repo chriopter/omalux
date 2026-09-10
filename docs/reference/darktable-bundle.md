@@ -23,7 +23,7 @@ Styles reference their LUT by the catalogue-relative path (for example `film/fil
 
 ## Camera presets
 
-Camera presets live in `camera/<maker>/<model>.dtpreset`; a preset that selects an input profile keeps the profile beside it as `camera/<maker>/<model>.icc`. Omalux imports these presets into its own session and copies the profiles into darktable's `color/in`, so the app shows the same base as a darktable user who installed the bundle. A preset file is what darktable itself writes from preferences → presets → export:
+Camera presets live in `catalog/camera/<maker>/<model>.dtpreset`; a preset that selects an input profile keeps the profile beside it as `catalog/camera/<maker>/<model>.icc`. Omalux imports these presets into its own session and copies the profiles into darktable's `color/in`, so the app shows the same base as a darktable user who installed the bundle. A preset file is what darktable itself writes from preferences → presets → export:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -65,12 +65,12 @@ The second kind of camera preset is an ICC input profile plus a `colorin` preset
 
 ```sh
 python3 tools/darktable/camera_profile.py --camera "FUJIFILM X-T10" \
-    --name "Fujifilm X-T10" --out camera/fujifilm/x-t10.icc --preset
+    --name "Fujifilm X-T10" --out catalog/camera/fujifilm/x-t10.icc --preset
 ```
 
 It reads the camera's colour matrix from rawspeed's `data/cameras.xml` in the darktable submodule (the numbers behind darktable's "standard color matrix"), inverts it, maps camera white onto the ICC connection white point D50 and writes a v2 matrix/TRC input profile with linear tone curves. `--matrix` takes nine values instead, so a measured or DCP-derived characterisation can be used the same way.
 
-`camera/fujifilm/x-t10.icc` is included as a worked example. Its preset does **not** apply itself: a profile rebuilt from the camera matrix is a starting point, not a measurement, and it does not reproduce darktable's own matrix path exactly (measured on one file: about 3 ΔE, because darktable combines that matrix with its own white balance and colour calibration chain). Import it and pick it in the *input color profile* module to compare; generate with `--autoapply` for a profile that should replace darktable's choice for a camera.
+`catalog/camera/fujifilm/x-t10.icc` is included as a worked example. Its preset does **not** apply itself: a profile rebuilt from the camera matrix is a starting point, not a measurement, and it does not reproduce darktable's own matrix path exactly (measured on one file: about 3 ΔE, because darktable combines that matrix with its own white balance and colour calibration chain). Import it and pick it in the *input color profile* module to compare; generate with `--autoapply` for a profile that should replace darktable's choice for a camera.
 
 Adobe DCP files must be converted first (for example with DCamProf), and only profiles whose licence allows redistribution belong in the repository.
 

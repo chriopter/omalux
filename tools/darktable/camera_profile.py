@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Write an ICC input profile for a camera, and the preset that selects it.
 
-    camera_profile.py --camera "FUJIFILM X-T10" [--out camera/fujifilm/x-t10.icc]
+    camera_profile.py --camera "FUJIFILM X-T10" [--out catalog/camera/fujifilm/x-t10.icc]
     camera_profile.py --matrix "8458 -2451 -855 -4597 12447 2407 -1475 2482 6526" \
-                      --name "Fujifilm X-T10" --out camera/fujifilm/x-t10.icc
+                      --name "Fujifilm X-T10" --out catalog/camera/fujifilm/x-t10.icc
 
 The matrix is the DNG/dcraw convention: XYZ (D65) to camera RGB, scaled by
 10000, the same numbers rawspeed keeps in `data/cameras.xml` and darktable

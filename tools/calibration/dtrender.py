@@ -38,7 +38,7 @@ from pathlib import Path
 from common import ROOT, WORK
 
 REPO = Path(__file__).resolve().parents[2]
-STYLES = Path(os.environ.get("OMALUX_STYLES", REPO / "styles"))
+STYLES = Path(os.environ.get("OMALUX_STYLES", REPO / "catalog/styles"))
 CFG = WORK / "dtcfg"
 
 XMP_HEAD = """<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>

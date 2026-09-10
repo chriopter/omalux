@@ -21,17 +21,17 @@ def main():
     args = parser.parse_args()
     if bool(args.style) == args.all:
         parser.error('Choose one bundle or --all')
-    bundles = sorted(p.parent for p in (ROOT / 'styles').rglob('style.dtstyle')) if args.all else [(ROOT / 'styles' / args.style).resolve()]
+    bundles = sorted(p.parent for p in (ROOT / 'catalog/styles').rglob('style.dtstyle')) if args.all else [(ROOT / 'catalog/styles' / args.style).resolve()]
     for bundle in bundles:
-        if not bundle.is_relative_to(ROOT / 'styles') or not (bundle / 'style.dtstyle').is_file():
+        if not bundle.is_relative_to(ROOT / 'catalog/styles') or not (bundle / 'style.dtstyle').is_file():
             parser.error('Expected a bundle in styles/ containing style.dtstyle')
     for bundle in bundles:
         read_manifest(bundle)
     source = ROOT / 'assets/images/beach-volleyball.jpg'
     with tempfile.TemporaryDirectory(prefix='omalux-style-preview-') as tmp:
         env = {k: v for k, v in os.environ.items() if not k.startswith(('OMALUX_CAPTURE', 'OMALUX_PREVIEW'))}
-        ids = [(p / 'style.dtstyle').relative_to(ROOT / 'styles').as_posix() for p in bundles]
-        env.update(QT_QPA_PLATFORM='offscreen', OMALUX_STYLES_DIR=str(ROOT / 'styles'),
+        ids = [(p / 'style.dtstyle').relative_to(ROOT / 'catalog/styles').as_posix() for p in bundles]
+        env.update(QT_QPA_PLATFORM='offscreen', OMALUX_STYLES_DIR=str(ROOT / 'catalog/styles'),
                    OMALUX_PREVIEW_DIR=tmp, OMALUX_PREVIEW_IDS=json.dumps(ids))
         subprocess.run([str(ROOT / 'dev/start'), str(source)], env=env, check=True, timeout=360)
         library = ctypes.CDLL(os.environ.get('DARKTABLE_LIBRARY', '/usr/lib/darktable/libdarktable.so'), mode=ctypes.RTLD_GLOBAL)

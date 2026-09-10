@@ -32,8 +32,8 @@ def main():
         subprocess.run([str(ROOT / 'omalux/build-native.sh')], check=True)
     # Mesa Rusticl requires explicit driver opt-in; respect user overrides.
     os.environ.setdefault("RUSTICL_ENABLE", "radeonsi")
-    os.environ.setdefault("OMALUX_STYLES_DIR", str(ROOT / "styles"))
-    os.environ.setdefault("OMALUX_CAMERA_DIR", str(ROOT / "camera"))
+    os.environ.setdefault("OMALUX_STYLES_DIR", str(ROOT / "catalog/styles"))
+    os.environ.setdefault("OMALUX_CAMERA_DIR", str(ROOT / "catalog/camera"))
     children = []
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)

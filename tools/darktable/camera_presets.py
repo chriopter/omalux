@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calibration"))
 import dtparams  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-CAMERA = REPO / "camera"
+CAMERA = REPO / "catalog/camera"
 FLOAT_MAX = "340282346638528859811704183484516925440"
 # darktable's default blending parameters (develop_blend_params_t v14), taken from a preset it
 # migrated itself. A preset without valid blending data is skipped when it is applied, so the

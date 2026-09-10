@@ -32,8 +32,8 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-STYLES = REPO / "styles"
-CAMERA = REPO / "camera"
+STYLES = REPO / "catalog/styles"
+CAMERA = REPO / "catalog/camera"
 GROUP_NAMES = {"film": "Film", "experimental": "Experimental", "monochrome": "Monochrome",
                "series/movie": "Movie", "series/late-summer": "Late Summer"}
 LUT3D_KEYPOINT_BYTES = 2048 * 2 * 3

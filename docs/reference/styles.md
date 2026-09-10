@@ -126,7 +126,7 @@ All source geometry and radial masks were checked and are neutral/empty. Bloom/h
 
 Each bundled style sets or disables the same seven modules (exposure, colisa, shadhi, lut3d, grain, vignette, sharpen), so switching looks clears the previous look's LUT/effects. Like every style, Neutral first restores the opening baseline, then resets this seven-module family.
 
-Both development processes set darktable's LUT root to `styles/`. When importing a style into standalone darktable, also set its 3D LUT root to that directory and keep `look.cube` alongside the style. The cube is not embedded in `.dtstyle`.
+Both development processes set darktable's LUT root to `catalog/styles/`. When importing a style into standalone darktable, also set its 3D LUT root to that directory and keep `look.cube` alongside the style. The cube is not embedded in `.dtstyle`.
 
 ## Declaring external dependencies
 
@@ -156,7 +156,7 @@ The launcher does not rewrite module parameter blobs or discover every undeclare
 
 ## Saving and sharing a look from the UI
 
-“Save current look…” writes a new bundle under `styles/my-styles/<id>/`. Its style includes the current editable modules and other active history modules that the snapshot adapter can serialize. Referenced LUT files are copied to its own `assets/` directory, and the style's paths are adjusted accordingly. The thumbnail comes from the current edited photo. `preview.source` records that photo (repository-relative when possible, otherwise absolute); `preview.darktable_version` records the loaded engine. These fields remain informational. Check the source path before sharing if it contains private directory names.
+“Save current look…” writes a new bundle under `catalog/styles/my-styles/<id>/`. Its style includes the current editable modules and other active history modules that the snapshot adapter can serialize. Referenced LUT files are copied to its own `assets/` directory, and the style's paths are adjusted accordingly. The thumbnail comes from the current edited photo. `preview.source` records that photo (repository-relative when possible, otherwise absolute); `preview.darktable_version` records the loaded engine. These fields remain informational. Check the source path before sharing if it contains private directory names.
 
 This differs from `dev/style_preview`, which deliberately regenerates catalogue thumbnails using the standard beach photograph. Neither operation is a visual calibration against v0.
 

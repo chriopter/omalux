@@ -194,7 +194,7 @@ Use deterministic fixtures where possible, retain backend/profile/ROI metadata w
 
 ## Style catalogue integration
 
-`native/app/style_bundles.cpp` discovers `.dtstyle` files recursively under `styles/`, using relative paths as IDs and sibling `thumbnail.jpg` files for compact preview rows. `native/engine/style_details.c` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
+`native/app/style_bundles.cpp` discovers `.dtstyle` files recursively under `catalog/styles/`, using relative paths as IDs and sibling `thumbnail.jpg` files for compact preview rows. `native/engine/style_details.c` imports them into the private session database, checks module versions/sizes and decodes settings through darktable introspection. The UI is a generic expandable inspector; application is not limited by the three-control registry. Unsupported files remain visible with an error. Custom ordering and drawn-mask records are currently rejected. Old parameter layouts are not migrated.
 
 Style application preflights every item, restores the per-image opening baseline, applies items through `dt_styles_apply_style_item`, rebinds controls and reads values back. Rendering no longer writes control snapshots indiscriminately: per-control revisions select changed parameters. This fixes the earlier startup-default overwrite and unintended re-enabling of modules during a style render. It does not resolve ambiguous duplicate-instance selection.
 
