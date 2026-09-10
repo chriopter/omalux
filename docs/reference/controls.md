@@ -69,3 +69,7 @@ Hover over a style's thumbnail/name to preview it on the open photograph. Leavin
 ### Native regression checks
 
 Run `python3 omalux/tests/run.py --split` from the repository root to exercise the actual engine and comparison path after integration changes. The runner builds through `dev/start`, uses isolated settings and a temporary copy of the style bundles, and checks slider gestures, hover/history, special controls, bundle assets, crop, export and image reopening. `magick` and a working desktop/OpenCL runtime are required. Omit `--split` to run only Omalux.
+
+## What was applied for this camera
+
+The History pane starts with a box listing what darktable set up before any style: the input profile and white balance (Colour), the lens correction (Lens), and exposure, tone mapping, highlight reconstruction, denoising and sharpening (Base tone). Values are read from the loaded modules after the image's history has been applied, so they show the actual state; entries in grey are not applied. Camera presets from `camera/` are imported into the session and their profiles copied into darktable's `color/in`, so this box also reflects them.

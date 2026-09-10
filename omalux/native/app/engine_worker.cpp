@@ -122,7 +122,8 @@ void EngineWorker::run() {
         requested = initial;
     }
     emit initialized(initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
-                     catalog.reload(engine.get()));
+                     catalog.reload(engine.get()),
+                     takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList());
     ControlRevisions processed{};
     for (;;) {
         Request request;
@@ -223,7 +224,8 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
         source = action.value;
         bridge.reset();
         replaceControls(engine, request, processed);
-        emit metadataReady(source, takeJson(om_engine_metadata(engine)).object().toVariantMap());
+        emit metadataReady(source, takeJson(om_engine_metadata(engine)).object().toVariantMap(),
+                           takeJson(om_engine_camera_defaults(engine)).object().toVariantMap()["entries"].toList());
         emit styleReady({});
         break;
     case ActionKind::ExportImage:

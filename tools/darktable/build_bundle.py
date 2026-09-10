@@ -161,7 +161,8 @@ def main():
     lut_step = ("Nothing else: the LUT data is stored inside each style." if a.embed_luts else
                 "darktable → preferences → *processing* → *3D LUT root folder*: choose the `luts/` folder from this bundle. "
                 "The styles reference their LUT files relative to it.")
-    camera_note = (f"{n} camera preset(s) included." if n else
+    camera_note = (f"{n} camera preset(s) included; presets marked auto-apply take effect for their "
+                   "camera as soon as they are imported, the others can be chosen in the module." if n else
                    "No camera presets are included in this bundle yet; darktable's own colour matrices are used.")
     (out / "README.md").write_text(README.format(lut_step=lut_step, camera_note=camera_note))
     print(f"bundle written to {out} ({n} camera presets)")

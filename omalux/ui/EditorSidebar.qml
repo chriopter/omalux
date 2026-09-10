@@ -153,6 +153,7 @@ Rectangle {
             Layout.fillHeight: true
             theme: root.theme
             entries: root.backend.history
+            cameraDefaults: root.backend.cameraDefaults
             busy: root.backend.styleBusy
             onStepRequested: step => root.backend.selectHistory(step)
             ready: root.backend.preview !== ""

@@ -27,6 +27,9 @@ QVariantList Editor::history() const {
 QVariantMap Editor::metadata() const {
     return imageMetadata;
 }
+QVariantList Editor::cameraDefaults() const {
+    return imageCameraDefaults;
+}
 bool Editor::styleBusy() const {
     return applying;
 }
@@ -113,9 +116,11 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
         values[i] = om_controls[i].initial;
     connect(worker.get(), &EngineWorker::initialized, this,
-            [this](ControlValues initial, QVariantMap metadata, QVariantList styles) {
+            [this](ControlValues initial, QVariantMap metadata, QVariantList styles,
+                   QVariantList cameraDefaults) {
                 values = initial;
                 imageMetadata = metadata;
+                imageCameraDefaults = std::move(cameraDefaults);
                 styleCatalog = styles;
                 catalogReady = true;
                 emit controlsChanged();
@@ -128,7 +133,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         values = next;
         emit controlsChanged();
     });
-    connect(worker.get(), &EngineWorker::metadataReady, this, [this](QString image, QVariantMap metadata) {
+    connect(worker.get(), &EngineWorker::metadataReady, this,
+            [this](QString image, QVariantMap metadata, QVariantList cameraDefaults) {
+        imageCameraDefaults = std::move(cameraDefaults);
         source = image;
         imageMetadata = metadata;
         emit changed();

@@ -13,6 +13,8 @@ LAYOUTS = {
     "grain": ("<ifff", ["channel", "scale", "strength", "midtones_bias"]),
     "nlmeans": ("<ffff", ["radius", "strength", "luma", "chroma"]),
     "bilat": ("<iffff", ["mode", "sigma_r", "sigma_s", "detail", "midtone"]),
+    # dt_iop_colorin_params_t: type, filename[512], intent, normalize, blue_mapping, type_work, filename_work[512]
+    "colorin": ("<i512siiii512s", ["type", "filename", "intent", "normalize", "blue_mapping", "type_work", "filename_work"]),
     "lens": ("<iiifffffi128s128sifffffffififffff", ['method', 'modify_flags', 'inverse', 'scale', 'crop', 'focal', 'aperture', 'distance', 'target_geom', 'camera', 'lens', 'tca_override', 'tca_r', 'tca_b', 'cor_dist_ft', 'cor_vig_ft', 'cor_ca_r_ft', 'cor_ca_b_ft', 'scale_md_v1', 'md_version', 'scale_md', 'has_been_set', 'v_strength', 'v_radius', 'v_steepness', 'reserved0', 'reserved1']),
     "demosaic": ("<ififfffffifi", ["green_eq", "median_thrs", "color_smoothing", "demosaicing_method", "lmmse_refine",
                                    "dual_thrs", "cs_radius", "cs_thrs", "cs_boost", "cs_iter", "cs_center", "cs_enabled"]),
@@ -23,7 +25,7 @@ LAYOUTS = {
                                    "red_rotation", "green_inset", "green_rotation", "blue_inset", "blue_rotation",
                                    "purity", "base_primaries"]),
 }
-VERSIONS = {"lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
+VERSIONS = {"colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
 DEFAULTS = {
     "exposure": dict(mode=0, black=0.0, exposure=0.0, deflicker_percentile=50.0, deflicker_target_level=-4.0,
                      compensate_exposure_bias=0, compensate_hilite_pres=1),
@@ -36,6 +38,7 @@ DEFAULTS = {
     "grain": dict(channel=0, scale=1600.0 / 213.2, strength=25.0, midtones_bias=100.0),
     "nlmeans": dict(radius=2.0, strength=50.0, luma=0.5, chroma=1.0),
     "bilat": dict(mode=1, sigma_r=0.5, sigma_s=0.5, detail=0.25, midtone=0.5),
+    "colorin": dict(type=12, filename=b"", intent=0, normalize=0, blue_mapping=0, type_work=4, filename_work=b""),
     "lens": dict(method=1, modify_flags=7, inverse=0, scale=1.0, crop=0.0, focal=0.0, aperture=0.0, distance=0.0, target_geom=1,
                  camera=b"", lens=b"", tca_override=0, tca_r=1.0, tca_b=1.0, cor_dist_ft=1.0, cor_vig_ft=1.0, cor_ca_r_ft=1.0,
                  cor_ca_b_ft=1.0, scale_md_v1=1.0, md_version=1, scale_md=1.0, has_been_set=0, v_strength=0.0, v_radius=0.5,

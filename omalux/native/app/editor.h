@@ -15,6 +15,7 @@ class Editor : public QObject {
     Q_PROPERTY(QString filename READ filename NOTIFY changed)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
+    Q_PROPERTY(QVariantList cameraDefaults READ cameraDefaults NOTIFY changed)
     Q_PROPERTY(QVariantList styles READ styles NOTIFY stylesChanged)
     Q_PROPERTY(bool stylesReady READ stylesReady NOTIFY stylesChanged)
     Q_PROPERTY(QString styleError READ styleError NOTIFY changed)
@@ -34,6 +35,7 @@ class Editor : public QObject {
     QString filename() const;
     QVariantList history() const;
     QVariantMap metadata() const;
+    QVariantList cameraDefaults() const;
     bool styleBusy() const;
     QString applyingStyle() const;
     QString activeStyle() const;
@@ -76,6 +78,7 @@ class Editor : public QObject {
     ControlValues values{};
     QVariantList styleCatalog, historyRows;
     QVariantMap imageMetadata;
+    QVariantList imageCameraDefaults;
     bool catalogReady = false, applying = false;
     WorkTicket requestedTicket;
     quint64 presentedRevision = 0, hoverRevision = 0;

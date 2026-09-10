@@ -2,7 +2,7 @@
 """Build and run the native Qt/darktable prototype in a private session."""
 import argparse
 import json
-from style_assets import prepare_assets
+from style_assets import prepare_assets, prepare_camera_profiles
 import os
 from pathlib import Path
 import subprocess
@@ -33,6 +33,7 @@ def main():
     # Mesa Rusticl requires explicit driver opt-in; respect user overrides.
     os.environ.setdefault("RUSTICL_ENABLE", "radeonsi")
     os.environ.setdefault("OMALUX_STYLES_DIR", str(ROOT / "styles"))
+    os.environ.setdefault("OMALUX_CAMERA_DIR", str(ROOT / "camera"))
     children = []
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)
@@ -54,6 +55,7 @@ def main():
             configs.append(session / 'comparison')
             configs[-1].mkdir()
         asset_errors = prepare_assets(Path(os.environ['OMALUX_STYLES_DIR']).resolve(), configs)
+        prepare_camera_profiles(os.environ.get('OMALUX_CAMERA_DIR'), configs)
         ui_env = os.environ.copy()
         ui_env['OMALUX_STYLE_ASSET_ERRORS'] = json.dumps(asset_errors)
         ui_env.pop('OMALUX_COMPARISON_MAILBOX', None)

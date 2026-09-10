@@ -25,6 +25,10 @@ int om_engine_preview_style(OmEngine *engine, const char *path, const char *name
                             int *width, int *height, OmPreviewGeometry *geometry);
 void om_engine_free_preview(unsigned char *pixels);
 char *om_engine_metadata(OmEngine *engine);
+// What darktable set up for this camera before any style: colour, lens and base tone.
+char *om_engine_camera_defaults(OmEngine *engine);
+// Import camera presets (.dtpreset) so darktable auto-applies them; call before opening images.
+int om_engine_import_camera_presets(const char *directory);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);
 char *om_engine_snapshot(OmEngine *engine, const char *name, const char *prefix);
 char *om_engine_module_snapshot(OmEngine *engine, const char *name, const char *module);

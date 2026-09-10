@@ -22,6 +22,7 @@ OmEngine *om_engine_create(int argc, char **argv) {
     }
     if (dt_init(argc, argv, FALSE, TRUE, NULL))
         return NULL;
+    om_engine_import_camera_presets(g_getenv("OMALUX_CAMERA_DIR"));
     return g_new0(OmEngine, 1);
 }
 const char *om_engine_gpu_warning(OmEngine *engine) {
@@ -53,6 +54,9 @@ int om_engine_open(OmEngine *engine, const char *path) {
     // Keep the interactive FULL pipe created by dt_dev_init. IMAGE is a
     // one-shot helper flag which disables intermediate cache reuse.
     dt_dev_load_image(&engine->dev, image);
+    // Apply the history darktable just read (auto-applied camera presets and any sidecar), so
+    // modules, controls and the style baseline reflect the image's actual opening state.
+    dt_dev_pop_history_items_ext(&engine->dev, engine->dev.history_end);
     engine->dev.full.dev = &engine->dev;
     engine->dev.full.zoom = DT_ZOOM_FIT;
     engine->dev.full.ppd = 1.0;

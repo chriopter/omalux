@@ -21,9 +21,10 @@ class EngineWorker : public QObject {
     WorkTicket action(EditorAction action);
     quint64 hover(QString id);
   signals:
-    void initialized(ControlValues values, QVariantMap metadata, QVariantList styles);
+    void initialized(ControlValues values, QVariantMap metadata, QVariantList styles,
+                     QVariantList cameraDefaults);
     void controlsReady(ControlValues values, quint64 revision);
-    void metadataReady(QString source, QVariantMap metadata);
+    void metadataReady(QString source, QVariantMap metadata, QVariantList cameraDefaults);
     void historyReady(QVariantList rows);
     void stylesReady(QVariantList styles);
     void styleReady(QString name);

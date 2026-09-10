@@ -41,6 +41,21 @@ def read_manifest(bundle):
     return manifest
 
 
+def prepare_camera_profiles(camera_root, configs):
+    """Copy camera/**/*.icc into each configuration's color/in, where darktable looks for
+    input profiles. The .dtpreset files beside them select these profiles per camera."""
+    copied = []
+    if not camera_root or not Path(camera_root).is_dir():
+        return copied
+    for profile in sorted(Path(camera_root).rglob('*.icc')):
+        for config in configs:
+            destination = Path(config) / 'color/in' / profile.name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(profile, destination)
+        copied.append(profile.name)
+    return copied
+
+
 def prepare_assets(catalogue, configs):
     """Return per-style errors; validate all destinations before copying any."""
     errors, plans, owners = {}, {}, {}
