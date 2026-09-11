@@ -9,7 +9,7 @@
       <num>0</num>
       <module>7</module>
       <operation>exposure</operation>
-      <op_params>000000008965d53b0000003f00004842000080c00000000001000000</op_params>
+      <op_params>00000000f2aed8bb0000603f00004842000080c00000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -33,7 +33,7 @@
       <num>2</num>
       <module>5</module>
       <operation>shadhi</operation>
-      <op_params>000000000000a041e2705ec20000003fa7f0914200000000000048420000c842000048427f000000bd37863501000000</op_params>
+      <op_params>000000000000a04171d892c20000003fa7f0914200000000000048420000c842000048427f000000bd37863501000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -69,7 +69,7 @@
       <num>5</num>
       <module>4</module>
       <operation>vignette</operation>
-      <op_params>000082420000824285ebd1be000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
+      <op_params>00807c4200c094421f85cbbe000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -81,8 +81,8 @@
       <num>6</num>
       <module>1</module>
       <operation>sharpen</operation>
-      <op_params>000000400000803e0000003f</op_params>
-      <enabled>1</enabled>
+      <op_params>00000040000000000000003f</op_params>
+      <enabled>0</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
       <multi_priority>0</multi_priority>
@@ -117,7 +117,7 @@
       <num>9</num>
       <module>2</module>
       <operation>toneequal</operation>
-      <op_params>00000000000000000000000000000000000000000000003f0000803e00000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
+      <op_params>00000000000000000000000000000000000000000000003e0000a03e0000803d000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -129,7 +129,7 @@
       <num>10</num>
       <module>5</module>
       <operation>colorbalancergb</operation>
-      <op_params>0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e9a99193f91ed3c3e6666e6be01000000</op_params>
+      <op_params>0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000091ed3c3e3433333f91ed3c3e6666e6be01000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
