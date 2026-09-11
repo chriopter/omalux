@@ -9,7 +9,7 @@
       <num>0</num>
       <module>7</module>
       <operation>exposure</operation>
-      <op_params>00000000ebd766bb0000803f00004842000080c00000000001000000</op_params>
+      <op_params>00000000b8619cbbcdcc4c3f00004842000080c00000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -33,7 +33,7 @@
       <num>2</num>
       <module>5</module>
       <operation>shadhi</operation>
-      <op_params>000000000000204100808ec20000803f0080d94100000000000048420000c842000048427f000000bd37863501000000</op_params>
+      <op_params>0000000000002041000070c20000803f0000704100000000000048420000c842000048427f000000bd37863501000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -117,7 +117,7 @@
       <num>9</num>
       <module>2</module>
       <operation>toneequal</operation>
-      <op_params>00000000000000000000000000000000000000000000803d0000403e00000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
+      <op_params>00000000000000000000000000000000000000000000803e0000803e00000000000000000000a040f304b53f0000803f000000000000000000000000040000000400000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>

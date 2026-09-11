@@ -9,7 +9,7 @@
       <num>0</num>
       <module>7</module>
       <operation>exposure</operation>
-      <op_params>000000005d1f2d3c0000403f00004842000080c00000000001000000</op_params>
+      <op_params>000000002015563ccdcc4c3f00004842000080c00000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -33,7 +33,7 @@
       <num>2</num>
       <module>5</module>
       <operation>shadhi</operation>
-      <op_params>000000000000484224c252c200008040dc0d204200000000000048420000c842000048427f000000bd37863501000000</op_params>
+      <op_params>000000000000a04124c216c200008040b71bc84100000000000048420000c842000048427f000000bd37863501000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -69,7 +69,7 @@
       <num>5</num>
       <module>4</module>
       <operation>vignette</operation>
-      <op_params>000075420000484298220bbe000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
+      <op_params>000082420000484298222bbe000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -93,7 +93,7 @@
       <num>7</num>
       <module>3</module>
       <operation>bilat</operation>
-      <op_params>010000000000003f0000003f2cceb53e0000003f</op_params>
+      <op_params>010000000000003f0000003f2cce9d3e0000003f</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
@@ -129,7 +129,7 @@
       <num>10</num>
       <module>5</module>
       <operation>colorbalancergb</operation>
-      <op_params>0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f00000000000000000000003f000000006666a6be000000000000000000000000000000000000000000000000000000000000000091ed3c3e3433333f91ed3c3e9a9919be01000000</op_params>
+      <op_params>0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000803f000000000000803f0000000000000000cdcccc3e00000000cdcc4cbe000000000000000000000000000000000000000000000000000000000000000091ed3c3e9a99193f91ed3c3e9a9919be01000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
