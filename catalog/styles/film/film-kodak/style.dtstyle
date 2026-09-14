@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Kodak</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>Among the brightest in the catalogue and visible grain.</description>
   </info>
   <style>
     <plugin>

@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Late Summer Neutral</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>Among the brightest in the catalogue and a curve that deepens the shadows and opens the highlights.</description>
   </info>
   <style>
     <plugin>

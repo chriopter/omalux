@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Honey Hour</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>0.3 EV brighter, a little more vibrance and a little more local contrast.</description>
   </info>
   <style>
     <plugin>

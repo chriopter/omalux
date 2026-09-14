@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Chrome</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>1.0 EV brighter and a little more vibrance.</description>
   </info>
   <style>
     <plugin>

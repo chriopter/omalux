@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Verbania</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>A clear vignette.</description>
   </info>
   <style>
     <plugin>

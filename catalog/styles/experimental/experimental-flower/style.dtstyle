@@ -2,7 +2,7 @@
 <darktable_style version="1.0">
   <info>
     <name>Flower</name>
-    <description>Converted from Omalux v0. Approximate darktable look; calibration pending.</description>
+    <description>A curve that deepens the shadows and opens the highlights, visible grain, a clear vignette and sharpening.</description>
   </info>
   <style>
     <plugin>

@@ -20,12 +20,21 @@ LAYOUTS = {
                                    "dual_thrs", "cs_radius", "cs_thrs", "cs_boost", "cs_iter", "cs_center", "cs_enabled"]),
     "colorbalancergb": ("<" + "f" * 32 + "i", ['shadows_Y', 'shadows_C', 'shadows_H', 'midtones_Y', 'midtones_C', 'midtones_H', 'highlights_Y', 'highlights_C', 'highlights_H', 'global_Y', 'global_C', 'global_H', 'shadows_weight', 'white_fulcrum', 'highlights_weight', 'chroma_shadows', 'chroma_highlights', 'chroma_global', 'chroma_midtones', 'saturation_global', 'saturation_highlights', 'saturation_midtones', 'saturation_shadows', 'hue_angle', 'brilliance_global', 'brilliance_highlights', 'brilliance_midtones', 'brilliance_shadows', 'mask_grey_fulcrum', 'vibrance', 'grey_fulcrum', 'contrast', 'saturation_formula']),
     "toneequal": ("<" + "f" * 15 + "iii", ['noise', 'ultra_deep_blacks', 'deep_blacks', 'blacks', 'shadows', 'midtones', 'highlights', 'whites', 'speculars', 'blending', 'smoothing', 'feathering', 'quantization', 'contrast_boost', 'exposure_boost', 'details', 'method', 'iterations']),
+    # Curve modules: 3 channels x 20 nodes of (x, y), then node counts, types and the rest.
+    "rgbcurve": ("<" + "f" * 120 + "i" * 9,
+                 [f"node_{c}_{n}_{a}" for c in range(3) for n in range(20) for a in "xy"]
+                 + [f"num_nodes_{c}" for c in range(3)] + [f"curve_type_{c}" for c in range(3)]
+                 + ["curve_autoscale", "compensate_middle_grey", "preserve_colors"]),
+    "colorzones": ("<i" + "f" * 120 + "i" * 6 + "fii",
+                   ["channel"] + [f"node_{c}_{n}_{a}" for c in range(3) for n in range(20) for a in "xy"]
+                   + [f"num_nodes_{c}" for c in range(3)] + [f"curve_type_{c}" for c in range(3)]
+                   + ["strength", "mode", "splines_version"]),
     "sigmoid": ("<ffffiffffffffi", ["middle_grey_contrast", "contrast_skewness", "display_white_target",
                                    "display_black_target", "color_processing", "hue_preservation", "red_inset",
                                    "red_rotation", "green_inset", "green_rotation", "blue_inset", "blue_rotation",
                                    "purity", "base_primaries"]),
 }
-VERSIONS = {"colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
+VERSIONS = {"rgbcurve": 1, "colorzones": 5, "colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
 DEFAULTS = {
     "exposure": dict(mode=0, black=0.0, exposure=0.0, deflicker_percentile=50.0, deflicker_target_level=-4.0,
                      compensate_exposure_bias=0, compensate_hilite_pres=1),
@@ -47,6 +56,16 @@ DEFAULTS = {
                      cs_radius=0.0, cs_thrs=0.4, cs_boost=0.0, cs_iter=8, cs_center=0.0, cs_enabled=0),
     "colorbalancergb": {'shadows_Y': 0.0, 'shadows_C': 0.0, 'shadows_H': 0.0, 'midtones_Y': 0.0, 'midtones_C': 0.0, 'midtones_H': 0.0, 'highlights_Y': 0.0, 'highlights_C': 0.0, 'highlights_H': 0.0, 'global_Y': 0.0, 'global_C': 0.0, 'global_H': 0.0, 'shadows_weight': 1.0, 'white_fulcrum': 0.0, 'highlights_weight': 1.0, 'chroma_shadows': 0.0, 'chroma_highlights': 0.0, 'chroma_global': 0.0, 'chroma_midtones': 0.0, 'saturation_global': 0.0, 'saturation_highlights': 0.0, 'saturation_midtones': 0.0, 'saturation_shadows': 0.0, 'hue_angle': 0.0, 'brilliance_global': 0.0, 'brilliance_highlights': 0.0, 'brilliance_midtones': 0.0, 'brilliance_shadows': 0.0, 'mask_grey_fulcrum': 0.1845, 'vibrance': 0.0, 'grey_fulcrum': 0.1845, 'contrast': 0.0, 'saturation_formula': 1},
     "toneequal": {'noise': 0.0, 'ultra_deep_blacks': 0.0, 'deep_blacks': 0.0, 'blacks': 0.0, 'shadows': 0.0, 'midtones': 0.0, 'highlights': 0.0, 'whites': 0.0, 'speculars': 0.0, 'blending': 5.0, 'smoothing': 1.414213562, 'feathering': 1.0, 'quantization': 0.0, 'contrast_boost': 0.0, 'exposure_boost': 0.0, 'details': 4, 'method': 4, 'iterations': 1},
+    # A straight line on every channel, and for colour zones a flat curve through the middle.
+    "rgbcurve": dict(
+        **{f"node_{c}_{n}_{a}": (0.0 if n else 0.0) for c in range(3) for n in range(20) for a in "xy"},
+        **{f"num_nodes_{c}": 2 for c in range(3)}, **{f"curve_type_{c}": 2 for c in range(3)},
+        curve_autoscale=0, compensate_middle_grey=0, preserve_colors=1),
+    "colorzones": dict(
+        channel=2,
+        **{f"node_{c}_{n}_{a}": 0.0 for c in range(3) for n in range(20) for a in "xy"},
+        **{f"num_nodes_{c}": 2 for c in range(3)}, **{f"curve_type_{c}": 2 for c in range(3)},
+        strength=0.0, mode=0, splines_version=1),
     "sigmoid": dict(middle_grey_contrast=1.5, contrast_skewness=0.0, display_white_target=100.0,
                     display_black_target=0.0152, color_processing=0, hue_preservation=100.0, red_inset=0.0,
                     red_rotation=0.0, green_inset=0.0, green_rotation=0.0, blue_inset=0.0, blue_rotation=0.0,
