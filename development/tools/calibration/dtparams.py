@@ -29,12 +29,16 @@ LAYOUTS = {
                    ["channel"] + [f"node_{c}_{n}_{a}" for c in range(3) for n in range(20) for a in "xy"]
                    + [f"num_nodes_{c}" for c in range(3)] + [f"curve_type_{c}" for c in range(3)]
                    + ["strength", "mode", "splines_version"]),
+    # dt_iop_diffuse_params_t v2 ("diffuse or sharpen")
+    "diffuse": ("<ifi" + "f" * 11 + "i", ["iterations", "sharpness", "radius", "regularization", "variance_threshold",
+                                        "anisotropy_first", "anisotropy_second", "anisotropy_third", "anisotropy_fourth",
+                                        "threshold", "first", "second", "third", "fourth", "radius_center"]),
     "sigmoid": ("<ffffiffffffffi", ["middle_grey_contrast", "contrast_skewness", "display_white_target",
                                    "display_black_target", "color_processing", "hue_preservation", "red_inset",
                                    "red_rotation", "green_inset", "green_rotation", "blue_inset", "blue_rotation",
                                    "purity", "base_primaries"]),
 }
-VERSIONS = {"rgbcurve": 1, "colorzones": 5, "colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3}
+VERSIONS = {"rgbcurve": 1, "colorzones": 5, "colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3, "diffuse": 2}
 DEFAULTS = {
     "exposure": dict(mode=0, black=0.0, exposure=0.0, deflicker_percentile=50.0, deflicker_target_level=-4.0,
                      compensate_exposure_bias=0, compensate_hilite_pres=1),
@@ -44,6 +48,10 @@ DEFAULTS = {
     "vignette": dict(scale=80.0, falloff_scale=50.0, brightness=-0.5, saturation=-0.5, center_x=0.0, center_y=0.0,
                      autoratio=0, whratio=1.0, shape=1.0, dithering=0, unbound=1),
     "sharpen": dict(radius=2.0, amount=0.5, threshold=0.5),
+    # darktable's own preset "sharpen demosaicing | AA filter" (diffuse.c init_presets)
+    "diffuse": dict(iterations=1, sharpness=0.0, radius=8, regularization=1.0, variance_threshold=0.0,
+                    anisotropy_first=1.0, anisotropy_second=1.0, anisotropy_third=1.0, anisotropy_fourth=1.0,
+                    threshold=0.0, first=-0.25, second=-0.25, third=-0.25, fourth=-0.25, radius_center=0),
     "grain": dict(channel=0, scale=1600.0 / 213.2, strength=25.0, midtones_bias=100.0),
     "nlmeans": dict(radius=2.0, strength=50.0, luma=0.5, chroma=1.0),
     "bilat": dict(mode=1, sigma_r=0.5, sigma_s=0.5, detail=0.25, midtone=0.5),
@@ -135,3 +143,15 @@ def ensure_module(text, op, params=None, enabled=True):
     block = _PLUGIN.format(num=num, ver=VERSIONS[op], op=op, params=encode(op, dict(DEFAULTS[op], **(params or {}))),
                            enabled=1 if enabled else 0)
     return text.replace("  </style>", block + "  </style>")
+
+
+def remove_module(text, op):
+    """Return style text without any `op` item, the remaining items renumbered.
+
+    A style item wins over an automatically applied camera preset for the same module, also
+    when the item is switched off. A style that carries a disabled module therefore switches
+    off whatever the camera preset set up. Leave the module out to leave it alone."""
+    text = re.sub(r"[ \t]*<plugin>(?:(?!</plugin>).)*?<operation>%s</operation>.*?</plugin>\n?" % re.escape(op),
+                  "", text, flags=re.S)
+    count = iter(range(10 ** 6))
+    return re.sub(r"<num>\d+</num>", lambda m: f"<num>{next(count)}</num>", text)

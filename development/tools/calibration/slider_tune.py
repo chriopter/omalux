@@ -60,10 +60,9 @@ PARAMS = [
     ("vignette", "brightness", 0.1, -1.0, 0.3),
     ("vignette", "scale", 15.0, 0.0, 150.0),
     ("vignette", "falloff_scale", 15.0, 0.0, 150.0),
-    ("sharpen", "amount", 0.25, 0.0, 2.0),
     ("grain", "strength", 10.0, 0.0, 100.0),
 ]
-ENABLE_WHEN = {"vignette": "brightness", "sharpen": "amount", "grain": "strength", "bilat": "detail"}
+ENABLE_WHEN = {"vignette": "brightness", "grain": "strength", "bilat": "detail"}
 MIN_GAIN = 0.005
 
 

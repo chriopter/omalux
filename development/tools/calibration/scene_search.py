@@ -67,11 +67,10 @@ PARAMS = [
     ("shadhi", "shadows", 15.0, -100.0, 100.0),
     ("shadhi", "highlights", 15.0, -100.0, 100.0),
     ("vignette", "brightness", 0.1, -1.0, 0.3),
-    ("sharpen", "amount", 0.25, 0.0, 2.0),
     ("grain", "strength", 10.0, 0.0, 100.0),
 ]
 HUE_OF = {"shadows_H": "shadows_C", "midtones_H": "midtones_C", "highlights_H": "highlights_C", "global_H": "global_C"}
-ENABLE_WHEN = {"vignette": "brightness", "sharpen": "amount", "grain": "strength", "bilat": "detail"}
+ENABLE_WHEN = {"vignette": "brightness", "grain": "strength", "bilat": "detail"}
 ALWAYS_ON = {"exposure", "colorbalancergb", "toneequal", "sigmoid", "shadhi"}
 OFF = {"colisa", "lut3d"}
 MIN_GAIN = 0.004

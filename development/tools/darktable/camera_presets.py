@@ -35,15 +35,34 @@ FOR_LDR, FOR_RAW, FOR_HDR = 1, 2, 4
 # (maker pattern, model pattern, file name, description, operation, params)
 # Embedded lens metadata: distortion, vignetting and chromatic aberration data the camera
 # writes into the file. Enabled for makers whose files carry it and whose target renderings
-# show it applied; not for Ricoh or Panasonic, where the same correction made things worse.
+# show it applied; not for Ricoh, where the same correction made things worse. Panasonic was
+# once left out on the same grounds, judged while the camera presets were silently not applied
+# at all; with them applied, the TZ60 frame loses its dark corners and matches the target.
 LENS_EMBEDDED = dict(method=0, modify_flags=7)
+# Colour noise only. A preset that removed all sensor noise (nlmeans, luma and chroma 1,
+# strength 100, radius 4) turned grass into mush and skies into blotches at full size, while
+# the target renderings keep their fine luminance grain. What they do not keep is colour
+# mottle: with luma left alone and chroma at 0.5, a flat sky loses its blotches and a textured
+# fabric keeps its grain. Measured on six RAW files under three styles, 0.5 brings flat-area
+# roughness and detail closest to the targets together (1.0 over-smooths, 0.3 leaves mottle).
+RAW_CHROMA_DENOISE = dict(radius=2.0, strength=50.0, luma=0.0, chroma=0.5)
+# Capture sharpening, for every RAW file. darktable sharpens nothing by itself, and the target
+# renderings are sharper than ours on RAW files only (JPEG sources already match). Measured at
+# full size on six RAW files under four styles, against the targets' detail and flat-area
+# roughness together: amount 1.5 with threshold 2 comes closest to both; the threshold keeps
+# low-contrast noise out, which plain sharpening and darktable's demosaicing sharpening
+# (diffuse or sharpen) both amplify.
+RAW_SHARPEN = dict(radius=2.0, amount=1.5, threshold=2.0)
 TABLE = [
+    ("%", "%", "all/sharpen", "Every camera: capture sharpening", "sharpen", RAW_SHARPEN),
+    ("%", "%", "all/colour-noise", "Every camera: colour noise reduction", "nlmeans", RAW_CHROMA_DENOISE),
     ("FUJIFILM", "%", "fujifilm/all", "Fujifilm: embedded lens correction", "lens", LENS_EMBEDDED),
     ("OLYMPUS%", "%", "olympus/all", "Olympus: embedded lens correction", "lens", LENS_EMBEDDED),
     ("OM Digital%", "%", "om-system/all", "OM System: embedded lens correction", "lens", LENS_EMBEDDED),
     ("DJI", "%", "dji/all", "DJI: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Google", "Pixel%", "google/pixel", "Google Pixel: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Apple", "iPhone%", "apple/iphone", "Apple iPhone: embedded lens correction", "lens", LENS_EMBEDDED),
+    ("Panasonic", "%", "panasonic/all", "Panasonic: embedded lens correction", "lens", LENS_EMBEDDED),
 ]
 
 

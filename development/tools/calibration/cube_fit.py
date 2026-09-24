@@ -10,9 +10,9 @@
 Fixed-point fit. The LUT input is what the pipeline hands to lut3d, so it is
 rendered once per image with lut3d and everything after it disabled. Each
 iteration renders the full style, scatters the residual (target minus output)
-trilinearly into the 33^3 grid keyed by the LUT input, solves a
-Laplacian-regularised correction field on the grid, and adds it to the cube
-with damping. The style is
+trilinearly into the 33^3 grid keyed by the LUT input, solves for the
+corrected cube under a curvature penalty on the whole cube, and moves the cube
+towards it with damping. The style is
 fitted with `colisa` disabled: global tone and colour live in the cube, and a
 display-referred adjustment after the LUT would fight it.
 
@@ -37,7 +37,9 @@ import dtparams  # noqa: E402
 import dtrender  # noqa: E402
 from common import JOBS, STYLES, RENDER, WORK, images, style_dirs, score_render  # noqa: E402
 
-POST_LUT = {"colisa", "shadhi", "sharpen", "grain", "vignette", "bilat"}
+# Modules after lut3d in the v3.0 pipe order the styles use (list position, not the float keys
+# in iop_order.c). sharpen is not one of them: it runs before colour balance and the tone mapper.
+POST_LUT = {"colisa", "shadhi", "grain", "vignette", "bilat"}
 LUT_SIZE = 33
 
 
@@ -86,8 +88,12 @@ def base_style(pid, pdir):
             eff = v0.get("effects", {})
             luma = float(eff.get("luminance_noise_reduction", 0) or 0) / 100.0
             chroma = float(eff.get("colour_noise_reduction", 0) or 0) / 100.0
-            text = dtparams.ensure_module(text, "nlmeans", dict(luma=luma, chroma=chroma),
-                                          enabled=(luma + chroma) > 0.005)
+            # Only a style that asks for noise reduction carries the module. Switched off, it
+            # would still override the camera preset that removes sensor noise from RAW files.
+            if (luma + chroma) > 0.005:
+                text = dtparams.ensure_module(text, "nlmeans", dict(luma=luma, chroma=chroma), enabled=True)
+            else:
+                text = dtparams.remove_module(text, "nlmeans")
         p.write_text(text)
     return p
 
@@ -173,24 +179,62 @@ def scatter(a_rgb, resid, n):
     return num, den
 
 
-def solve_update(num, den, lam=None, sweeps=60):
-    """Laplacian-regularised least squares for the correction field u:
-    minimise sum den*(u - d*)^2 + lam*sum|grad u|^2 with d* = num/den at populated nodes.
-    The penalty acts on the correction, so contrast curves are kept while node noise
-    (visible as blotches in smooth gradients) is suppressed. DT_CUBE_LAMBDA tunes lam."""
+def _second_difference(f, axis):
+    f = np.moveaxis(f, axis, 0)
+    return np.moveaxis(f[:-2] - 2 * f[1:-1] + f[2:], 0, axis)
+
+
+def _second_difference_adjoint(g, axis, n):
+    g = np.moveaxis(g, axis, 0)
+    out = np.zeros((n,) + g.shape[1:])
+    out[:-2] += g
+    out[1:-1] -= 2 * g
+    out[2:] += g
+    return np.moveaxis(out, 0, axis)
+
+
+def solve_update(num, den, cube, lam=None, iterations=600):
+    """The correction that leaves the whole cube smooth: minimise
+    sum den*(c - t)^2 + lam*sum|second differences of c|^2 with t = cube + num/den,
+    and return c - cube. DT_CUBE_CURVATURE tunes lam.
+
+    An earlier version smoothed each correction and never the cube. Dozens of smooth
+    corrections add up to a rough cube: scored on small proxies it looks like progress, at
+    full size it turns compression blocks into contours and sensor noise into speckle, and on
+    images it has not seen it does worse than the smooth cube. Second differences charge
+    nothing for an affine map, so turning colour into monochrome stays free; only bending
+    costs. Nodes without data continue their neighbours in a straight line.
+    Matrix-free conjugate gradients, a second or two for a 33-node cube."""
     if lam is None:
-        lam = float(os.environ.get("DT_CUBE_LAMBDA", "150"))
-    mu = float(os.environ.get("DT_CUBE_MU", "0")) * lam  # optional ridge: unpopulated regions decay to zero
-    dstar = np.where(den[..., None] > 0, num / np.maximum(den, 1e-9)[..., None], 0.0)
-    u = np.zeros_like(num)
-    for _ in range(sweeps):
-        up = np.pad(u, ((1, 1), (1, 1), (1, 1), (0, 0)), mode="edge")
-        nb = np.zeros_like(u)
-        for d in range(3):
-            for sgn in (-1, 1):
-                nb += np.roll(up, sgn, axis=d)[1:-1, 1:-1, 1:-1]
-        u = (den[..., None] * dstar + lam * nb) / (den[..., None] + lam * 6 + mu)
-    return u
+        lam = float(os.environ.get("DT_CUBE_CURVATURE", "300"))
+    n = cube.shape[0]
+    w = den[..., None]
+    eps = 1e-3
+    target = cube + np.where(w > 0, num / np.maximum(w, 1e-9), 0.0)
+
+    def apply(c):
+        out = (w + eps) * c
+        for axis in range(3):
+            out = out + lam * _second_difference_adjoint(_second_difference(c, axis), axis, n)
+        return out
+
+    b = w * target + eps * cube
+    c = cube.copy()
+    r = b - apply(c)
+    p = r.copy()
+    rs = float((r * r).sum())
+    floor = 1e-10 * max(float((b * b).sum()), 1e-30)
+    for _ in range(iterations):
+        ap = apply(p)
+        alpha = rs / max(float((p * ap).sum()), 1e-30)
+        c += alpha * p
+        r -= alpha * ap
+        rs_new = float((r * r).sum())
+        if rs_new < floor:
+            break
+        p = r + (rs_new / rs) * p
+        rs = rs_new
+    return c - cube
 
 
 def cube_update(cube, imgs, A, B, out_dir, input_dir, damping=0.7):
@@ -207,7 +251,7 @@ def cube_update(cube, imgs, A, B, out_dir, input_dir, damping=0.7):
         s = 1e5 / max(d1.sum(), 1)  # every image weighs the same
         num += n1 * s
         den += d1 * s
-    return np.clip(cube + damping * solve_update(num, den), 0, 1)
+    return np.clip(cube + damping * solve_update(num, den, cube), 0, 1)
 
 
 def trilinear(cube, a):
@@ -239,7 +283,7 @@ def explainability(A, B, steps=4, damping=0.8):
             s = 1e5 / max(d1.sum(), 1)
             num += n1 * s
             den += d1 * s
-        cube = np.clip(cube + damping * solve_update(num, den), 0, 1)
+        cube = np.clip(cube + damping * solve_update(num, den, cube), 0, 1)
     des = {}
     for k in A:
         o = np.clip(trilinear(cube, A[k]) * 255 + 0.5, 0, 255).astype(np.uint8)
@@ -375,7 +419,7 @@ def finalize(pid, pdir):
                     history=[dict(mean=h) for h in scene_info["history"]])
     else:
         best = json.load(open(w / "best.json"))
-    json.dump(dict(style=pid, summary=summary, scores=scores, style=str(style), cube=str(cube),
+    json.dump(dict(style=pid, summary=summary, scores=scores, style_path=str(style), cube=str(cube),
                    tuned=tuned_info, scene=scene_info, best=best),
               open(w / "final.json", "w"), indent=1)
     print(f"[{pid}] final: tuning {summary['tuning']:.2f} holdout {summary['holdout']:.2f} "
