@@ -45,7 +45,7 @@
       <num>3</num>
       <module>2</module>
       <operation>grain</operation>
-      <op_params>0200000004189641000020400000c842</op_params>
+      <op_params>02000000000060410000c0400000c842</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>

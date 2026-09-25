@@ -45,8 +45,8 @@
       <num>3</num>
       <module>2</module>
       <operation>grain</operation>
-      <op_params>02000000062461410000000000009842</op_params>
-      <enabled>0</enabled>
+      <op_params>020000000000d0410000e04100009842</op_params>
+      <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
       <multi_priority>0</multi_priority>
