@@ -129,10 +129,13 @@ def camera_of(path):
             out = subprocess.run(["exiv2", "-g", "Exif.Image.Make", "-g", "Exif.Image.Model", "-Pkv", key],
                                  capture_output=True, text=True).stdout
             for line in out.splitlines():
-                if line.startswith("Exif.Image.Make"):
-                    maker = line.split(None, 1)[1].strip()
-                elif line.startswith("Exif.Image.Model"):
-                    model = line.split(None, 1)[1].strip()
+                key, _, value = line.partition(" ")
+                # Exact keys: a prefix match also caught Exif.Image.MakerNoteSafety, which read the
+                # maker of a Google, Leica or Sigma DNG as "1" or "0" and kept their presets off.
+                if key == "Exif.Image.Make":
+                    maker = value.strip()
+                elif key == "Exif.Image.Model":
+                    model = value.strip()
         except OSError:
             pass
         _camera_cache[key] = (maker, model)

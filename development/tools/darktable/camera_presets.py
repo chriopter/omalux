@@ -53,6 +53,15 @@ RAW_CHROMA_DENOISE = dict(radius=2.0, strength=50.0, luma=0.0, chroma=0.5)
 # low-contrast noise out, which plain sharpening and darktable's demosaicing sharpening
 # (diffuse or sharpen) both amplify.
 RAW_SHARPEN = dict(radius=2.0, amount=1.5, threshold=2.0)
+# The Hasselblad L1D (the camera of a DJI drone) writes its vignetting correction into the DNG as
+# a gain map in OpcodeList3, which the DNG specification marks mandatory and darktable 5.6 skips
+# ("unsupported mandatory opcode 9"): corners come out up to 2.4 times too dark. darktable's
+# manual vignette correction is fitted to that gain map (taken from the file, not from any
+# rendering): strength 0.625, radius 0.1, steepness 0.8 match it within 3 % out to 85 % of the
+# half diagonal and fall short only in the extreme corners (1.94 against 2.26).
+# has_been_set: without it darktable replaces every lens parameter by its own autodetected
+# defaults at render time, keeping only the method, and the vignette strength falls back to 0.
+L1D_LENS = dict(LENS_EMBEDDED, v_strength=0.625, v_radius=0.1, v_steepness=0.8, has_been_set=1)
 TABLE = [
     ("%", "%", "all/sharpen", "Every camera: capture sharpening", "sharpen", RAW_SHARPEN),
     ("%", "%", "all/colour-noise", "Every camera: colour noise reduction", "nlmeans", RAW_CHROMA_DENOISE),
@@ -63,6 +72,9 @@ TABLE = [
     ("Google", "Pixel%", "google/pixel", "Google Pixel: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Apple", "iPhone%", "apple/iphone", "Apple iPhone: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Panasonic", "%", "panasonic/all", "Panasonic: embedded lens correction", "lens", LENS_EMBEDDED),
+    ("SIGMA%", "%fp%", "sigma/fp", "Sigma fp: embedded lens correction", "lens", LENS_EMBEDDED),
+    ("Hasselblad", "L1D%", "hasselblad/l1d", "Hasselblad L1D: embedded lens correction and vignetting",
+     "lens", L1D_LENS),
 ]
 
 
