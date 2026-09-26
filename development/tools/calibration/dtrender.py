@@ -157,14 +157,22 @@ def camera_items(path):
     maker, model = camera_of(path)
     is_raw = Path(path).suffix.lower() in RAW_SUFFIXES
     return [dict(op=p["operation"], ver=p["version"], params=p["params"], enabled=int(p["enabled"]), bparams="",
-                 bver=0, mprio=0, mname="", mhand=0) for p in camera_presets.matching(styles, maker, model, is_raw)]
+                 bver=0, mprio=0, mname=p.get("multi_name", ""), mhand=int(bool(p.get("multi_name"))))
+            for p in camera_presets.matching(styles, maker, model, is_raw)]
 
 
 def dtstyle_to_xmp(style_path, src_name, camera=()):
     items = parse_style(style_path)
+    camera_ev = 0.0
     for it in camera:  # camera presets sit before the style, as darktable applies them at import
+        if it["op"] == "exposure" and it.get("mname"):
+            # A named exposure instance survives a look, which adds its own exposure instance on
+            # top; two exposure modules add up, so fold it into the look's exposure here.
+            import dtparams as _dp
+            camera_ev += _dp.decode("exposure", it["params"])["exposure"]
+            continue
         items.insert(0, dict(it))
-    offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0"))
+    offset = float(os.environ.get("RAW_EXPOSURE_OFFSET", "0")) + camera_ev
     if offset and Path(src_name).suffix.lower() in RAW_SUFFIXES:
         import dtparams
         for it in items:

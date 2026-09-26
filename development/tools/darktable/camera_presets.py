@@ -62,6 +62,17 @@ RAW_SHARPEN = dict(radius=2.0, amount=1.5, threshold=2.0)
 # has_been_set: without it darktable replaces every lens parameter by its own autodetected
 # defaults at render time, keeping only the method, and the vignette strength falls back to 0.
 L1D_LENS = dict(LENS_EMBEDDED, v_strength=0.625, v_radius=0.1, v_steepness=0.8, has_been_set=1)
+# Exposure per camera model, as RAW developers apply a baseline exposure by model and darktable
+# does not. Measured on the reference set: the EV that fits all looks at once for that camera's
+# image (one photograph per camera, so treat the values as a first estimate). It is a second
+# exposure instance with a hand-edited name: a look's own exposure item matches instances by name,
+# or by priority only where the name was not set by hand, so the look adds its exposure on top
+# instead of replacing this one. Without any look it replaces darktable's default +0.7 EV for
+# these models.
+CAMERA_EXPOSURE = "camera exposure"
+def camera_ev(ev):
+    return dict(mode=0, black=0.0, exposure=ev, compensate_exposure_bias=0, compensate_hilite_pres=0,
+                instance=CAMERA_EXPOSURE)
 TABLE = [
     ("%", "%", "all/sharpen", "Every camera: capture sharpening", "sharpen", RAW_SHARPEN),
     ("%", "%", "all/colour-noise", "Every camera: colour noise reduction", "nlmeans", RAW_CHROMA_DENOISE),
@@ -75,19 +86,26 @@ TABLE = [
     ("SIGMA%", "%fp%", "sigma/fp", "Sigma fp: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Hasselblad", "L1D%", "hasselblad/l1d", "Hasselblad L1D: embedded lens correction and vignetting",
      "lens", L1D_LENS),
+    ("Canon%", "%EOS 6D", "canon/eos-6d", "Canon EOS 6D: exposure", "exposure", camera_ev(0.3)),
+    ("FUJIFILM%", "X-T10", "fujifilm/x-t10-exposure", "Fujifilm X-T10: exposure", "exposure", camera_ev(0.2)),
+    ("OLYMPUS%", "E-M1", "olympus/e-m1", "Olympus E-M1: exposure", "exposure", camera_ev(0.6)),
+    ("DJI", "FC220", "dji/fc220", "DJI FC220: exposure", "exposure", camera_ev(0.2)),
+    ("RICOH%", "%GR III", "ricoh/gr-iii", "Ricoh GR III: exposure", "exposure", camera_ev(-0.2)),
+    ("Canon%", "%SX100 IS", "canon/powershot-sx100-is", "Canon PowerShot SX100 IS: exposure", "exposure", camera_ev(-0.3)),
+    ("Apple", "iPhone XS", "apple/iphone-xs", "Apple iPhone XS: exposure", "exposure", camera_ev(-0.1)),
 ]
 
 
 def preset_xml(name, description, operation, params_hex, version, maker, model, fmt=FOR_RAW,
-               autoapply=True):
+               autoapply=True, multi_name=""):
     root = ET.Element("darktable_preset", version="1.0")
     p = ET.SubElement(root, "preset")
     fields = [("name", name), ("description", description), ("operation", operation), ("op_params", params_hex),
               ("op_version", str(version)), ("enabled", "1"), ("autoapply", "1" if autoapply else "0"), ("model", model), ("maker", maker),
               ("lens", "%"), ("iso_min", "0"), ("iso_max", FLOAT_MAX), ("exposure_min", "0"), ("exposure_max", FLOAT_MAX),
               ("aperture_min", "0"), ("aperture_max", FLOAT_MAX), ("focal_length_min", "0"), ("focal_length_max", "1000"),
-              ("blendop_params", BLEND_PARAMS), ("blendop_version", str(BLEND_VERSION)), ("multi_priority", "0"), ("multi_name", ""),
-              ("multi_name_hand_edited", "0"), ("filter", "0"), ("def", "0"), ("format", str(fmt))]
+              ("blendop_params", BLEND_PARAMS), ("blendop_version", str(BLEND_VERSION)), ("multi_priority", "0"), ("multi_name", multi_name),
+              ("multi_name_hand_edited", "1" if multi_name else "0"), ("filter", "0"), ("def", "0"), ("format", str(fmt))]
     for tag, value in fields:
         ET.SubElement(p, tag).text = value
     ET.indent(root)
@@ -98,9 +116,10 @@ def generate():
     for maker, model, file, description, op, params in TABLE:
         full = dict(dtparams.DEFAULTS[op])
         full.update(params)
+        instance = full.pop("instance", "") if "instance" in full else ""
         # darktable replaces a preset with the same name and operation, so each file needs its own name.
         text = preset_xml(f"Omalux {description}", description, op, dtparams.encode(op, full),
-                          dtparams.VERSIONS[op], maker, model)
+                          dtparams.VERSIONS[op], maker, model, multi_name=instance)
         dest = CAMERA / (file + ".dtpreset")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text)
@@ -115,7 +134,8 @@ def load():
         get = lambda tag: (p.findtext(tag) or "")
         out.append(dict(path=path, maker=get("maker"), model=get("model"), operation=get("operation"),
                         params=get("op_params"), version=int(get("op_version") or 0), enabled=get("enabled") == "1",
-                        autoapply=get("autoapply") == "1", format=int(get("format") or 0), description=get("description")))
+                        autoapply=get("autoapply") == "1", format=int(get("format") or 0), description=get("description"),
+                        multi_name=get("multi_name")))
     return out
 
 
