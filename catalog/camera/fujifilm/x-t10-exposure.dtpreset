@@ -4,7 +4,7 @@
     <name>Omalux Fujifilm X-T10: exposure</name>
     <description>Fujifilm X-T10: exposure</description>
     <operation>exposure</operation>
-    <op_params>0000000000000000cdcc4c3e00004842000080c00000000000000000</op_params>
+    <op_params>0000000000000000cdcccc3e00004842000080c00000000000000000</op_params>
     <op_version>7</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>

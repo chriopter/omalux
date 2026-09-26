@@ -4,7 +4,7 @@
     <name>Omalux Canon PowerShot SX100 IS: exposure</name>
     <description>Canon PowerShot SX100 IS: exposure</description>
     <operation>exposure</operation>
-    <op_params>00000000000000009a9999be00004842000080c00000000000000000</op_params>
+    <op_params>0000000000000000cdccccbe00004842000080c00000000000000000</op_params>
     <op_version>7</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>

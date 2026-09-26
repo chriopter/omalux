@@ -29,6 +29,8 @@ LAYOUTS = {
                    ["channel"] + [f"node_{c}_{n}_{a}" for c in range(3) for n in range(20) for a in "xy"]
                    + [f"num_nodes_{c}" for c in range(3)] + [f"curve_type_{c}" for c in range(3)]
                    + ["strength", "mode", "splines_version"]),
+    # dt_iop_rgblevels_params_t v1: mode, preserve colours, levels[3][black, grey, white]
+    "rgblevels": ("<ii" + "f" * 9, ["autoscale", "preserve_colors"] + [f"{c}_{k}" for c in "rgb" for k in ("black", "grey", "white")]),
     # dt_iop_diffuse_params_t v2 ("diffuse or sharpen")
     "diffuse": ("<ifi" + "f" * 11 + "i", ["iterations", "sharpness", "radius", "regularization", "variance_threshold",
                                         "anisotropy_first", "anisotropy_second", "anisotropy_third", "anisotropy_fourth",
@@ -38,7 +40,7 @@ LAYOUTS = {
                                    "red_rotation", "green_inset", "green_rotation", "blue_inset", "blue_rotation",
                                    "purity", "base_primaries"]),
 }
-VERSIONS = {"rgbcurve": 1, "colorzones": 5, "colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3, "diffuse": 2}
+VERSIONS = {"rgbcurve": 1, "colorzones": 5, "colorin": 7, "lens": 10, "demosaic": 6, "colorbalancergb": 5, "toneequal": 2, "bilat": 3, "nlmeans": 2, "exposure": 7, "colisa": 1, "shadhi": 5, "vignette": 4, "sharpen": 1, "grain": 2, "sigmoid": 3, "diffuse": 2, "rgblevels": 1}
 DEFAULTS = {
     "exposure": dict(mode=0, black=0.0, exposure=0.0, deflicker_percentile=50.0, deflicker_target_level=-4.0,
                      compensate_exposure_bias=0, compensate_hilite_pres=1),
@@ -48,6 +50,7 @@ DEFAULTS = {
     "vignette": dict(scale=80.0, falloff_scale=50.0, brightness=-0.5, saturation=-0.5, center_x=0.0, center_y=0.0,
                      autoratio=0, whratio=1.0, shape=1.0, dithering=0, unbound=1),
     "sharpen": dict(radius=2.0, amount=0.5, threshold=0.5),
+    "rgblevels": dict(autoscale=0, preserve_colors=1, **{f"{c}_{k}": v for c in "rgb" for k, v in (("black", 0.0), ("grey", 0.5), ("white", 1.0))}),
     # darktable's own preset "sharpen demosaicing | AA filter" (diffuse.c init_presets)
     "diffuse": dict(iterations=1, sharpness=0.0, radius=8, regularization=1.0, variance_threshold=0.0,
                     anisotropy_first=1.0, anisotropy_second=1.0, anisotropy_third=1.0, anisotropy_fourth=1.0,

@@ -4,7 +4,7 @@
     <name>Omalux Canon EOS 6D: exposure</name>
     <description>Canon EOS 6D: exposure</description>
     <operation>exposure</operation>
-    <op_params>00000000000000009a99993e00004842000080c00000000000000000</op_params>
+    <op_params>0000000000000000cdcccc3e00004842000080c00000000000000000</op_params>
     <op_version>7</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>

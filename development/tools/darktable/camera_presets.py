@@ -86,12 +86,12 @@ TABLE = [
     ("SIGMA%", "%fp%", "sigma/fp", "Sigma fp: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Hasselblad", "L1D%", "hasselblad/l1d", "Hasselblad L1D: embedded lens correction and vignetting",
      "lens", L1D_LENS),
-    ("Canon%", "%EOS 6D", "canon/eos-6d", "Canon EOS 6D: exposure", "exposure", camera_ev(0.3)),
-    ("FUJIFILM%", "X-T10", "fujifilm/x-t10-exposure", "Fujifilm X-T10: exposure", "exposure", camera_ev(0.2)),
+    ("Canon%", "%EOS 6D", "canon/eos-6d", "Canon EOS 6D: exposure", "exposure", camera_ev(0.4)),
+    ("FUJIFILM%", "X-T10", "fujifilm/x-t10-exposure", "Fujifilm X-T10: exposure", "exposure", camera_ev(0.4)),
     ("OLYMPUS%", "E-M1", "olympus/e-m1", "Olympus E-M1: exposure", "exposure", camera_ev(0.6)),
-    ("DJI", "FC220", "dji/fc220", "DJI FC220: exposure", "exposure", camera_ev(0.2)),
-    ("RICOH%", "%GR III", "ricoh/gr-iii", "Ricoh GR III: exposure", "exposure", camera_ev(-0.2)),
-    ("Canon%", "%SX100 IS", "canon/powershot-sx100-is", "Canon PowerShot SX100 IS: exposure", "exposure", camera_ev(-0.3)),
+    ("DJI", "FC220", "dji/fc220", "DJI FC220: exposure", "exposure", camera_ev(0.4)),
+    ("RICOH%", "%GR III", "ricoh/gr-iii", "Ricoh GR III: exposure", "exposure", camera_ev(-0.1)),
+    ("Canon%", "%SX100 IS", "canon/powershot-sx100-is", "Canon PowerShot SX100 IS: exposure", "exposure", camera_ev(-0.4)),
     ("Apple", "iPhone XS", "apple/iphone-xs", "Apple iPhone XS: exposure", "exposure", camera_ev(-0.1)),
 ]
 
