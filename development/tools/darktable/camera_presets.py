@@ -64,15 +64,15 @@ RAW_SHARPEN = dict(radius=2.0, amount=1.5, threshold=2.0)
 L1D_LENS = dict(LENS_EMBEDDED, v_strength=0.625, v_radius=0.1, v_steepness=0.8, has_been_set=1)
 # Exposure per camera model, as RAW developers apply a baseline exposure by model and darktable
 # does not. Measured on the reference set: the EV that fits all looks at once for that camera's
-# image (one photograph per camera, so treat the values as a first estimate). It is a second
-# exposure instance with a hand-edited name: a look's own exposure item matches instances by name,
-# or by priority only where the name was not set by hand, so the look adds its exposure on top
-# instead of replacing this one. Without any look it replaces darktable's default +0.7 EV for
-# these models.
-CAMERA_EXPOSURE = "camera exposure"
+# image (one photograph per camera, so treat the values as a first estimate).
+# It is carried by rgb levels, which no look uses: linked channels, luminance-preserving, grey at
+# the middle (gamma 1) and the white point at 2^-EV, which is a pure gain, extended above white.
+# A second exposure instance was tried first; darktable placed the look's own exposure instance
+# differently when applying the style, and looks with an exposure of their own came out darker.
 def camera_ev(ev):
-    return dict(mode=0, black=0.0, exposure=ev, compensate_exposure_bias=0, compensate_hilite_pres=0,
-                instance=CAMERA_EXPOSURE)
+    white = 2.0 ** -ev
+    return {f"{c}_{k}": v for c in "rgb" for k, v in (("black", 0.0), ("grey", white / 2), ("white", white))} | dict(
+        autoscale=0, preserve_colors=1)
 TABLE = [
     ("%", "%", "all/sharpen", "Every camera: capture sharpening", "sharpen", RAW_SHARPEN),
     ("%", "%", "all/colour-noise", "Every camera: colour noise reduction", "nlmeans", RAW_CHROMA_DENOISE),
@@ -86,13 +86,13 @@ TABLE = [
     ("SIGMA%", "%fp%", "sigma/fp", "Sigma fp: embedded lens correction", "lens", LENS_EMBEDDED),
     ("Hasselblad", "L1D%", "hasselblad/l1d", "Hasselblad L1D: embedded lens correction and vignetting",
      "lens", L1D_LENS),
-    ("Canon%", "%EOS 6D", "canon/eos-6d", "Canon EOS 6D: exposure", "exposure", camera_ev(0.4)),
-    ("FUJIFILM%", "X-T10", "fujifilm/x-t10-exposure", "Fujifilm X-T10: exposure", "exposure", camera_ev(0.4)),
-    ("OLYMPUS%", "E-M1", "olympus/e-m1", "Olympus E-M1: exposure", "exposure", camera_ev(0.6)),
-    ("DJI", "FC220", "dji/fc220", "DJI FC220: exposure", "exposure", camera_ev(0.4)),
-    ("RICOH%", "%GR III", "ricoh/gr-iii", "Ricoh GR III: exposure", "exposure", camera_ev(-0.1)),
-    ("Canon%", "%SX100 IS", "canon/powershot-sx100-is", "Canon PowerShot SX100 IS: exposure", "exposure", camera_ev(-0.4)),
-    ("Apple", "iPhone XS", "apple/iphone-xs", "Apple iPhone XS: exposure", "exposure", camera_ev(-0.1)),
+    ("Canon%", "%EOS 6D", "canon/eos-6d", "Canon EOS 6D: exposure", "rgblevels", camera_ev(0.4)),
+    ("FUJIFILM%", "X-T10", "fujifilm/x-t10-exposure", "Fujifilm X-T10: exposure", "rgblevels", camera_ev(0.4)),
+    ("OLYMPUS%", "E-M1", "olympus/e-m1", "Olympus E-M1: exposure", "rgblevels", camera_ev(0.6)),
+    ("DJI", "FC220", "dji/fc220", "DJI FC220: exposure", "rgblevels", camera_ev(0.4)),
+    ("RICOH%", "%GR III", "ricoh/gr-iii", "Ricoh GR III: exposure", "rgblevels", camera_ev(-0.1)),
+    ("Canon%", "%SX100 IS", "canon/powershot-sx100-is", "Canon PowerShot SX100 IS: exposure", "rgblevels", camera_ev(-0.4)),
+    ("Apple", "iPhone XS", "apple/iphone-xs", "Apple iPhone XS: exposure", "rgblevels", camera_ev(-0.1)),
 ]
 
 
