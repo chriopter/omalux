@@ -4,7 +4,7 @@
     <name>Omalux Ricoh GR III: exposure</name>
     <description>Ricoh GR III: exposure</description>
     <operation>rgblevels</operation>
-    <op_params>000000000100000000000000df2f093fdf2f893f00000000df2f093fdf2f893f00000000df2f093fdf2f893f</op_params>
+    <op_params>0000000001000000000000000000003f0000803f000000000000003f0000803f000000000000003f0000803f</op_params>
     <op_version>1</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>

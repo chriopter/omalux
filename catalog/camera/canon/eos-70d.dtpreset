@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <darktable_preset version="1.0">
   <preset>
-    <name>Omalux Canon PowerShot SX100 IS: exposure</name>
-    <description>Canon PowerShot SX100 IS: exposure</description>
+    <name>Omalux Canon EOS 70D: exposure</name>
+    <description>Canon EOS 70D: exposure</description>
     <operation>rgblevels</operation>
-    <op_params>00000000010000000000000024961d3f24969d3f0000000024961d3f24969d3f0000000024961d3f24969d3f</op_params>
+    <op_params>00000000010000000000000040dbee3e40db6e3f0000000040dbee3e40db6e3f0000000040dbee3e40db6e3f</op_params>
     <op_version>1</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>
-    <model>%SX100 IS</model>
+    <model>%EOS 70D</model>
     <maker>Canon%</maker>
     <lens>%</lens>
     <iso_min>0</iso_min>

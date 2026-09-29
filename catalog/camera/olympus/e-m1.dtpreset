@@ -4,7 +4,7 @@
     <name>Omalux Olympus E-M1: exposure</name>
     <description>Olympus E-M1: exposure</description>
     <operation>rgblevels</operation>
-    <op_params>000000000100000000000000a3e5a83ea3e5283f00000000a3e5a83ea3e5283f00000000a3e5a83ea3e5283f</op_params>
+    <op_params>000000000100000000000000f304b53ef304353f00000000f304b53ef304353f00000000f304b53ef304353f</op_params>
     <op_version>1</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>

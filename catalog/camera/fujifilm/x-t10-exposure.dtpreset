@@ -4,7 +4,7 @@
     <name>Omalux Fujifilm X-T10: exposure</name>
     <description>Fujifilm X-T10: exposure</description>
     <operation>rgblevels</operation>
-    <op_params>0000000001000000000000000003c23e0003423f000000000003c23e0003423f000000000003c23e0003423f</op_params>
+    <op_params>000000000100000000000000f304b53ef304353f00000000f304b53ef304353f00000000f304b53ef304353f</op_params>
     <op_version>1</op_version>
     <enabled>1</enabled>
     <autoapply>1</autoapply>
