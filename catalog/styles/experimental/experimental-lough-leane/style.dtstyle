@@ -57,7 +57,7 @@
       <num>4</num>
       <module>4</module>
       <operation>vignette</operation>
-      <op_params>00e0674200408d42735bbdbe000000000000000000000000010000000000803f0000803f0000000001000000</op_params>
+      <op_params>1ede56417d64c142f58af4be0000000000000000000000000000000088e0823f689a833f0000000001000000</op_params>
       <enabled>1</enabled>
       <blendop_params />
       <blendop_version>0</blendop_version>
