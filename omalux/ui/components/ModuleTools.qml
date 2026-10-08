@@ -191,7 +191,10 @@ QtObject {
         relight: { center: { tool: "center", kind: "pointarea", band: true, hint: "toggle tool for picking median lightness in image" } },
         colorequal: { hue_shift: { tool: "hue_shift", kind: "pointarea", band: true },
                       white_level: { tool: "white_level", kind: "area" } },
-        retouch: { fill_color: { tool: "fill_color", kind: "point", hint: "pick fill color from image" } }
+        retouch: { fill_color: { tool: "fill_color", kind: "point", hint: "pick fill color from image" } },
+        // toneequal.c:3326, 3338: magic-wand buttons on the two mask compensation sliders.
+        toneequal: { exposure_boost: { tool: "exposure_boost", kind: "button", icon: "wand", hint: "auto-adjust the average exposure" },
+                     contrast_boost: { tool: "contrast_boost", kind: "button", icon: "wand", hint: "auto-adjust the contrast" } }
     })
     readonly property var histograms: ({ rgblevels: "levels", levels: "levels" })
 

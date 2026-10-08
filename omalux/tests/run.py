@@ -98,7 +98,7 @@ def main():
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
                    ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
                    ROOT / 'omalux/tests/blending.json', ROOT / 'omalux/tests/module-tools.json',
-                   ROOT / 'omalux/tests/module-tools-ui.json',
+                   ROOT / 'omalux/tests/module-tools-ui.json', ROOT / 'omalux/tests/module-tools-rest.json',
                    ROOT / 'omalux/tests/keyboard.json',
                    ROOT / 'omalux/tests/canvas-engine.json', ROOT / 'omalux/tests/canvas.json',
                    work / 'workflow.json']

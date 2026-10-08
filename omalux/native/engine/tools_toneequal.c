@@ -9,7 +9,10 @@
 // capture), the mask is computed with the module's own helpers (common/luminance_mask.h,
 // fast_guided_filter.h, eigf.h) from the parameters exactly as commit_params and
 // modify_roi_in prepare them, and the same statistics drive the same formulas.
+// darktable's build defines this for GCC (CMake check); luminance_mask.h's OpenMP loops need it.
+#define HAVE_OMP_FIRSTPRIVATE_WITH_CONST 1
 #include "module_tools_internal.h"
+#include "control/control.h"
 #include "common/eigf.h"
 #include "common/fast_guided_filter.h"
 #include "common/luminance_mask.h"
