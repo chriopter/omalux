@@ -188,9 +188,10 @@ Column {
     Loader {
         active: root.expanded && root.section.name === "denoise (profiled)"
         visible: active
-        x: 12; width: parent.width - 12
+        // Aligned with the slider rows above it, clear of the disclosure column on the right.
+        width: parent.width - 28
         sourceComponent: DenoiseCurve {
-            opacity: root.moduleEnabled ? 1 : .45
+            opacity: root.moduleEnabled ? 1 : .7
             theme: root.theme; values: root.values; editable: root.editable
             group: root.section.key
             onEdited: (id, value) => root.controlEdited(id, value)
