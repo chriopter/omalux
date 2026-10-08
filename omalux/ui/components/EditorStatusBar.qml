@@ -5,7 +5,8 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     required property var theme
-    required property string activeControl
+    // The keys that apply to the current selection, from KeyboardNavigator.
+    required property string hints
     required property string status
     implicitHeight: 28
     color: "#242438"
@@ -14,12 +15,13 @@ Rectangle {
         anchors.leftMargin: 12
         anchors.rightMargin: 12
         Text {
-            text: "[←/→] " + root.activeControl + "   [R] RESET VALUE   [?] HELP"
+            objectName: "keyHints"
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            text: root.hints
+            elide: Text.ElideRight
             color: root.theme.muted
             font: root.theme.textFont
-        }
-        Item {
-            Layout.fillWidth: true
         }
         Text {
             text: root.status

@@ -16,6 +16,19 @@ Item {
     signal colorEdited(var rgb)
     signal interactionChanged(bool active)
     signal resetRequested()
+    // Keyboard: Enter opens the picker, R resets (see NavTarget).
+    property alias navTarget: navTarget
+    NavTarget {
+        id: navTarget
+        navId: "color"
+        label: root.label || "colour"
+        kind: "button"
+        activateLabel: "PICK COLOUR"
+        resettable: true
+        enabled: root.editable
+        onActivate: root.openPicker()
+        onReset: root.resetRequested()
+    }
 
     readonly property var rgb: {
         const c = root.color
@@ -87,7 +100,7 @@ Item {
                 radius: 4
                 color: root.qcolor
                 border.width: 1
-                border.color: swatch.hovered || swatch.visualFocus || popup.opened ? root.theme.accent : root.theme.line
+                border.color: swatch.hovered || swatch.visualFocus || popup.opened || navTarget.current ? root.theme.accent : root.theme.line
                 opacity: root.editable ? 1 : 0.5
             }
             TapHandler {

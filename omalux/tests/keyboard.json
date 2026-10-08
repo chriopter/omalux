@@ -1,0 +1,200 @@
+[
+ {
+  "logFocus": "start"
+ },
+ {
+  "controls": {
+   "exposure": 0.2,
+   "grain_size": 1600
+  }
+ },
+ {
+  "key": "Right",
+  "repeat": 10
+ },
+ {
+  "check": {
+   "exposure": 0.3
+  }
+ },
+ {
+  "key": "Shift+Left"
+ },
+ {
+  "check": {
+   "exposure": 0.2
+  }
+ },
+ {
+  "key": "R"
+ },
+ {
+  "check": {
+   "exposure": 0
+  }
+ },
+ {
+  "key": "Down"
+ },
+ {
+  "checkRoot": {
+   "activeControl": "brightness"
+  }
+ },
+ {
+  "key": "S"
+ },
+ {
+  "checkRoot": {
+   "activeControl": "grain_size",
+   "selectedPanel": 0
+  }
+ },
+ {
+  "key": "Right"
+ },
+ {
+  "check": {
+   "grain_size": 1620
+  }
+ },
+ {
+  "filterView": 1
+ },
+ {
+  "key": "Right"
+ },
+ {
+  "key": "R"
+ },
+ {
+  "check": {
+   "grain_size": 1620
+  }
+ },
+ {
+  "filterView": 0
+ },
+ {
+  "key": "2"
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "key": "/"
+ },
+ {
+  "type": "1j?r"
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "logFocus": "typing in search"
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "key": "1"
+ },
+ {
+  "checkPanel": 0
+ },
+ {
+  "key": "7"
+ },
+ {
+  "checkPanel": 2
+ },
+ {
+  "key": "Home"
+ },
+ {
+  "key": "Right",
+  "repeat": 5
+ },
+ {
+  "check": {
+   "rotation": 0.05
+  }
+ },
+ {
+  "key": "R"
+ },
+ {
+  "check": {
+   "rotation": 0
+  }
+ },
+ {
+  "key": "?"
+ },
+ {
+  "logFocus": "help open"
+ },
+ {
+  "key": "1"
+ },
+ {
+  "checkPanel": 2
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "key": "1"
+ },
+ {
+  "checkPanel": 0
+ },
+ {
+  "key": "3"
+ },
+ {
+  "checkPanel": 5
+ },
+ {
+  "reveal": "sigmoid/0/middle_grey_contrast"
+ },
+ {
+  "key": "Shift+Right"
+ },
+ {
+  "checkParameter": {
+   "operation": "sigmoid",
+   "path": "middle_grey_contrast",
+   "value": 1.51,
+   "tolerance": 0.0005
+  }
+ },
+ {
+  "key": "R"
+ },
+ {
+  "checkParameter": {
+   "operation": "sigmoid",
+   "path": "middle_grey_contrast",
+   "value": 1.5,
+   "tolerance": 0.0005
+  }
+ },
+ {
+  "key": "E"
+ },
+ {
+  "checkParameter": {
+   "operation": "sigmoid",
+   "path": "@enabled",
+   "value": 0,
+   "enabled": false
+  }
+ },
+ {
+  "checkPanel": 5
+ },
+ {
+  "logFocus": "end"
+ }
+]

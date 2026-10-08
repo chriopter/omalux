@@ -1,56 +1,106 @@
 import QtQuick
+import "keyboard.js" as Keyboard
 
-Item {
+// Every key of the editor in one table: KeyboardNavigator hands each key it receives to
+// handle(), the keyboard reference lists the same rows. The first matching row that applies
+// wins, so context rows (crop, fullscreen) come first. Rows without `run` only document
+// behaviour that lives elsewhere (text fields, dialogs, mouse).
+QtObject {
     id: root
-    property bool active: true
-    property bool filtersActive: true
+    property var navigator: null       // KeyboardNavigator
+    property bool cropping: false
+    property bool fullscreen: false
+    property int panelCount: 5
     signal panelRequested(int index)
     signal panelStepRequested(int direction)
-    signal controlStepRequested(int direction)
-    signal valueStepRequested(int steps)
-    signal resetRequested()
     signal controlRequested(string id)
     signal grainDetailsRequested()
     signal zoomRequested(real factor)
     signal fitRequested()
     signal fullscreenRequested()
+    signal fullscreenExitRequested()
+    signal cropApplyRequested()
+    signal cropCancelRequested()
     signal openRequested()
     signal saveRequested()
     signal helpRequested()
+
+    readonly property var sections: ["Sidebar", "Selected item", "Panes", "Direct", "Photograph", "Crop", "File", "Text fields and dialogs"]
     readonly property var bindings: [
-        { keys: ["1"], label: "Filters", run: () => panelRequested(0) },
-        { keys: ["2"], label: "Styles", run: () => panelRequested(1) },
-        { keys: ["3"], label: "Crop & Rotate", run: () => panelRequested(2) },
-        { keys: ["4"], label: "History", run: () => panelRequested(3) },
-        { keys: ["5"], label: "Metadata", run: () => panelRequested(4) },
-        { keys: ["Tab", "]"], label: "Next panel", run: () => panelStepRequested(1) },
-        { keys: ["Shift+Tab", "["], label: "Previous panel", run: () => panelStepRequested(-1) },
-        { keys: ["Up", "K"], label: "Previous parameter", filters: true, run: () => controlStepRequested(-1) },
-        { keys: ["Down", "J"], label: "Next parameter", filters: true, run: () => controlStepRequested(1) },
-        { keys: ["Left", "H"], label: "Decrease value", filters: true, run: () => valueStepRequested(-1) },
-        { keys: ["Right", "L"], label: "Increase value", filters: true, run: () => valueStepRequested(1) },
-        { keys: ["Shift+Left", "Shift+H"], label: "Decrease fast", filters: true, run: () => valueStepRequested(-10) },
-        { keys: ["Shift+Right", "Shift+L"], label: "Increase fast", filters: true, run: () => valueStepRequested(10) },
-        { keys: ["R"], label: "Reset selected parameter", filters: true, run: () => resetRequested() },
-        { keys: ["A"], label: "Grain details", filters: true, run: () => grainDetailsRequested() },
-        { keys: ["G"], label: "Grain strength", run: () => controlRequested("grain") },
-        { keys: ["S"], label: "Grain coarseness", run: () => controlRequested("grain_size") },
-        { keys: ["M"], label: "Grain mid-tones bias", run: () => controlRequested("grain_midtones") },
-        { keys: ["+", "=", "Ctrl++", "Ctrl+="], label: "Zoom in", run: () => zoomRequested(1.25) },
-        { keys: ["-", "Ctrl+-"], label: "Zoom out", run: () => zoomRequested(.8) },
-        { keys: ["0", "Ctrl+0"], label: "Fit photograph", run: () => fitRequested() },
-        { keys: ["F"], label: "Photo fullscreen", run: () => fullscreenRequested() },
-        { keys: ["O", "Ctrl+O"], label: "Open photograph", run: () => openRequested() },
-        { keys: ["Ctrl+S"], label: "Save / export", run: () => saveRequested() },
-        { keys: ["?", "F1"], label: "Keyboard reference", run: () => helpRequested() }
+        // Context first: while cropping, Enter and Escape belong to the crop frame.
+        { section: "Crop", scope: "crop", keys: ["Return", "Enter"], label: "Apply crop", run: () => cropApplyRequested() },
+        { section: "Crop", scope: "crop", keys: ["Escape"], label: "Cancel crop (restores the previous crop)", run: () => cropCancelRequested() },
+        { section: "Photograph", scope: "fullscreen", keys: ["F", "Escape"], label: "Leave photograph fullscreen", run: () => fullscreenExitRequested() },
+
+        { section: "Sidebar", keys: ["Up", "K"], label: "Previous item (crosses modules; collapsed parameters are skipped)", run: () => navigator.move(-1) },
+        { section: "Sidebar", keys: ["Down", "J"], label: "Next item", run: () => navigator.move(1) },
+        { section: "Sidebar", keys: ["PgUp"], label: "Previous module / group", run: () => navigator.moveGroup(-1) },
+        { section: "Sidebar", keys: ["PgDown"], label: "Next module / group", run: () => navigator.moveGroup(1) },
+        { section: "Sidebar", keys: ["Home"], label: "First item", run: () => navigator.moveEdge(false) },
+        { section: "Sidebar", keys: ["End"], label: "Last item", run: () => navigator.moveEdge(true) },
+        { section: "Sidebar", keys: ["/", "Ctrl+F"], label: "Search modules and controls (the field under the tabs)", run: () => navigator.focusSearch() },
+
+        { section: "Selected item", keys: ["Left", "H"], label: "Decrease · previous option · collapse", run: () => navigator.adjust(-1) },
+        { section: "Selected item", keys: ["Right", "L"], label: "Increase · next option · expand", run: () => navigator.adjust(1) },
+        { section: "Selected item", keys: ["Shift+Left", "Shift+H"], label: "Decrease by 10 steps", run: () => navigator.adjust(-10) },
+        { section: "Selected item", keys: ["Shift+Right", "Shift+L"], label: "Increase by 10 steps", run: () => navigator.adjust(10) },
+        { section: "Selected item", keys: ["Ctrl+Left", "Alt+Left"], label: "Decrease by a tenth step", run: () => navigator.adjust(-0.1) },
+        { section: "Selected item", keys: ["Ctrl+Right", "Alt+Right"], label: "Increase by a tenth step", run: () => navigator.adjust(0.1) },
+        { section: "Selected item", keys: ["Return", "Enter", "Space"], label: "Activate: expand module, apply style, restore history step, press button, toggle", run: () => navigator.activate() },
+        { section: "Selected item", keys: ["R"], label: "Reset selected parameter to darktable's default", run: () => navigator.reset() },
+        { section: "Selected item", keys: ["Shift+R"], label: "Reset every parameter of the selected module", run: () => navigator.resetGroup() },
+        { section: "Selected item", keys: ["E"], label: "Switch the selected module on/off", run: () => navigator.toggleGroup() },
+
+        { section: "Panes", keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], label: "Pane by its position in the tab strip", run: i => { if (i < panelCount) panelRequested(i) } },
+        { section: "Panes", keys: ["Tab", "]"], label: "Next pane", run: () => panelStepRequested(1) },
+        { section: "Panes", keys: ["Shift+Tab", "["], label: "Previous pane", run: () => panelStepRequested(-1) },
+
+        { section: "Direct", keys: ["G"], label: "Grain strength", run: () => controlRequested("grain") },
+        { section: "Direct", keys: ["S"], label: "Grain coarseness (opens grain details)", run: () => controlRequested("grain_size") },
+        { section: "Direct", keys: ["M"], label: "Grain mid-tones bias (opens grain details)", run: () => controlRequested("grain_midtones") },
+        { section: "Direct", keys: ["A"], label: "Grain details open/closed", run: () => grainDetailsRequested() },
+
+        { section: "Photograph", scope: "view", keys: ["+", "=", "Ctrl++", "Ctrl+="], label: "Zoom in", run: () => zoomRequested(1.25) },
+        { section: "Photograph", scope: "view", keys: ["-", "Ctrl+-"], label: "Zoom out", run: () => zoomRequested(.8) },
+        { section: "Photograph", scope: "view", keys: ["0", "Ctrl+0"], label: "Fit photograph", run: () => fitRequested() },
+        { section: "Photograph", keys: ["F"], label: "Photograph fullscreen", run: () => fullscreenRequested() },
+
+        { section: "File", keys: ["O", "Ctrl+O"], label: "Open photograph", run: () => openRequested() },
+        { section: "File", keys: ["Ctrl+S"], label: "Export photograph", run: () => saveRequested() },
+        { section: "File", scope: "view", keys: ["?", "F1"], label: "This keyboard reference", run: () => helpRequested() },
+
+        { section: "Text fields and dialogs", keys: ["Escape"], label: "Leave a text field (search, style name); keys type text until then. The module search is cleared as well" },
+        { section: "Text fields and dialogs", keys: ["Return", "Down"], label: "Leave a search field and select the item below it" },
+        { section: "Text fields and dialogs", keys: ["Escape"], label: "Close a dialog, menu or value entry; keys return to the sidebar" },
+        { section: "Text fields and dialogs", keys: ["Enter on a curve", "Escape"], label: "Edit the curve's or graph's points with its own arrow keys; Escape gives the keys back" },
+        { section: "Text fields and dialogs", keys: ["Double-click value"], label: "Type a value within darktable's full range" },
+        { section: "Text fields and dialogs", keys: ["Right-click"], label: "Reset menu of a parameter" }
     ]
-    Instantiator {
-        model: root.bindings
-        delegate: Shortcut {
-            required property var modelData
-            sequences: modelData.keys
-            enabled: root.active && (!modelData.filters || root.filtersActive)
-            onActivated: modelData.run()
+
+    function available(binding) {
+        switch (binding.scope) {
+        case "crop": return cropping
+        case "fullscreen": return fullscreen
+        case "view": return true
+        default: return !fullscreen
         }
+    }
+    function handle(event) {
+        for (const binding of bindings) {
+            if (!binding.run || !available(binding)) continue
+            const index = binding.keys.findIndex(key => Keyboard.matches(event, key))
+            if (index < 0) continue
+            binding.run(index)
+            return true
+        }
+        return false
+    }
+    // Keys as shown in the reference and the hint line.
+    function display(key) {
+        return key.replace("PgUp", "Page Up").replace("PgDown", "Page Down").replace("Return", "Enter")
+                  .replace(/Left$/, "←").replace(/Right$/, "→").replace(/^Up$/, "↑").replace(/^Down$/, "↓")
+    }
+    function displayKeys(binding) {
+        return [...new Set(binding.keys.map(display))].join(" / ")
     }
 }

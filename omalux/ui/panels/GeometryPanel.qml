@@ -50,6 +50,11 @@ SidebarScrollView {
                      crop_right: (1-crop.x-crop.width)*100, crop_bottom: (1-crop.y-crop.height)*100, crop_enabled: 1})
         cropping = false
     }
+    function chooseRatio(index) {
+        aspectRatio = [0, imageAspect, 1, 1.5, 4/3, .8, 16/9][index]
+        if (cropping) applyRatio()
+    }
+    function resetCrop() { cropApplied({crop_left:0,crop_top:0,crop_right:0,crop_bottom:0,crop_enabled:0}) }
     function cancel() { if (cropping) { edited("crop_enabled", wasEnabled ? 1 : 0); cropping = false } }
     ColumnLayout {
         width: root.availableWidth - 20
@@ -67,23 +72,37 @@ SidebarScrollView {
             }
         }
         ComboBox {
-        wheelEnabled: false
+            id: ratioChoice
+            objectName: "aspectChoice"
+            wheelEnabled: false
             Layout.fillWidth: true
             model: ["Free", "Original", "1:1", "3:2", "4:3", "4:5", "16:9"]
-            onActivated: {
-                root.aspectRatio = [0, root.imageAspect, 1, 1.5, 4/3, .8, 16/9][currentIndex]
-                if (root.cropping) root.applyRatio()
+            onActivated: root.chooseRatio(currentIndex)
+            NavTarget {
+                id: ratioNav
+                navId: "aspect"; label: "aspect " + ratioChoice.currentText; kind: "choice"
+                activateLabel: ""; resettable: false
+                onAdjust: steps => { ratioChoice.currentIndex = Math.max(0, Math.min(ratioChoice.count - 1, ratioChoice.currentIndex + Math.sign(steps))); root.chooseRatio(ratioChoice.currentIndex) }
             }
+            Rectangle { anchors.fill: parent; visible: ratioNav.current; color: "transparent"; border.color: root.theme.accent }
         }
-        Button { text: "Edit crop"; enabled: root.editable && !root.cropping; onClicked: root.begin() }
+        Button {
+            id: editButton
+            text: "Edit crop"; enabled: root.editable && !root.cropping; onClicked: root.begin()
+            highlighted: editNav.current
+            NavTarget { id: editNav; navId: "edit-crop"; label: "Edit crop"; enabled: editButton.enabled; onActivate: root.begin() }
+        }
         Text { Layout.fillWidth: true; visible: root.cropping; text: "Drag the frame or its handles. Enter applies; Escape cancels."; wrapMode: Text.WordWrap; color: root.theme.muted; font: root.theme.textFont }
         RowLayout {
             Button { text: "Apply [Enter]"; enabled: root.cropping; onClicked: root.apply() }
             Button { text: "Cancel [Esc]"; enabled: root.cropping; onClicked: root.cancel() }
         }
         Button {
+            id: resetButton
             text: "Reset crop"; enabled: root.editable && !root.cropping
-            onClicked: root.cropApplied({crop_left:0,crop_top:0,crop_right:0,crop_bottom:0,crop_enabled:0})
+            onClicked: root.resetCrop()
+            highlighted: resetNav.current
+            NavTarget { id: resetNav; navId: "reset-crop"; label: "Reset crop"; enabled: resetButton.enabled; onActivate: root.resetCrop() }
         }
         Loader {
             Layout.fillWidth: true

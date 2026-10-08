@@ -14,6 +14,19 @@ Item {
     property font labelFont: theme.textFont
     property color labelColor: theme.muted
     signal edited(real value)
+    signal resetRequested()
+    property alias navTarget: navTarget
+    // Keyboard: ←/→, Enter and Space toggle.
+    NavTarget {
+        id: navTarget
+        navId: root.label
+        label: root.label
+        kind: "switch"
+        enabled: root.editable
+        onAdjust: root.edited(root.on ? 0 : 1)
+        onActivate: root.edited(root.on ? 0 : 1)
+        onReset: root.resetRequested()
+    }
 
     readonly property bool on: value > 0.5
     implicitHeight: 26
@@ -26,7 +39,7 @@ Item {
         Text {
             Layout.fillWidth: true
             text: root.label
-            color: root.labelColor
+            color: navTarget.current ? root.theme.accent : root.labelColor
             font: root.labelFont
             elide: Text.ElideRight
         }
@@ -53,6 +66,6 @@ Item {
     MouseArea {
         anchors.fill: parent
         enabled: root.editable
-        onClicked: root.edited(root.on ? 0 : 1)
+        onClicked: { navTarget.claim(); root.edited(root.on ? 0 : 1) }
     }
 }

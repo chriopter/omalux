@@ -94,7 +94,16 @@ Column {
                 padding: 0
                 topPadding: 12; bottomPadding: 2
                 hoverEnabled: true
-                onClicked: root.toggle("openGroups", group.modelData.id, !group.modelData.quiet)
+                onClicked: { groupNav.claim(); root.toggle("openGroups", group.modelData.id, !group.modelData.quiet) }
+                NavTarget {
+                    id: groupNav
+                    navId: "module-group:" + group.modelData.id
+                    label: group.modelData.label
+                    kind: "group"
+                    activateLabel: group.open ? "COLLAPSE" : "EXPAND"
+                    onActivate: root.toggle("openGroups", group.modelData.id, !group.modelData.quiet)
+                    onAdjust: steps => { if ((steps > 0) !== group.open) root.toggle("openGroups", group.modelData.id, !group.modelData.quiet) }
+                }
                 Accessible.name: group.modelData.label
                 Accessible.description: group.open ? "Collapse group" : "Expand group"
                 contentItem: RowLayout {
@@ -102,7 +111,7 @@ Column {
                     Text {
                         Layout.fillWidth: true
                         text: group.modelData.label
-                        color: groupHeading.hovered || groupHeading.visualFocus ? root.theme.accent : root.theme.muted
+                        color: groupHeading.hovered || groupHeading.visualFocus || groupNav.current ? root.theme.accent : root.theme.muted
                         opacity: group.modelData.quiet && !groupHeading.hovered ? .75 : 1
                         font: root.theme.settingsFont
                     }

@@ -41,6 +41,18 @@ FocusScope {
     signal nodesEdited(var nodes)
     signal interactionChanged(bool active)
     signal resetRequested()
+    // Keyboard: the sidebar selection lends its keys to the graph on Enter (arrows edit
+    // points as below); Escape gives them back (see NavTarget.focusItem).
+    property alias navTarget: navTarget
+    NavTarget {
+        id: navTarget
+        navId: "graph"
+        label: root.curveLabel || "curve"
+        kind: "graph"
+        focusItem: root
+        enabled: root.interactive
+        onReset: root.resetRequested()
+    }
 
     property int activeIndex: -1
     property int hoverIndex: -1
@@ -132,7 +144,7 @@ FocusScope {
         height: Math.round(width * root.aspectRatio)
         radius: 4
         color: root.theme.well
-        border.color: root.activeFocus ? root.theme.accent : root.theme.line
+        border.color: root.activeFocus || navTarget.current ? root.theme.accent : root.theme.line
         opacity: root.editable ? 1 : 0.55
         clip: true
 

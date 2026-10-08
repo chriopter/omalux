@@ -12,6 +12,21 @@ Item {
     property var current
     property bool editable: true
     signal chosen(var value)
+    property alias navTarget: navTarget
+    // Keyboard: ←/→ pick the previous/next channel (see NavTarget).
+    NavTarget {
+        id: navTarget
+        navId: "channel"
+        label: "channel " + (root.currentIndex >= 0 ? root.options[root.currentIndex].label : "")
+        kind: "choice"
+        resettable: false
+        activateLabel: ""
+        enabled: root.editable
+        onAdjust: steps => {
+            const next = Math.max(0, Math.min(root.options.length - 1, root.currentIndex + Math.sign(steps)))
+            if (next !== root.currentIndex) root.chosen(root.options[next].value)
+        }
+    }
 
     implicitWidth: row.implicitWidth
     implicitHeight: 22
@@ -63,7 +78,7 @@ Item {
                     radius: 11
                     color: chip.selected || chip.pressed ? root.theme.active : chip.hovered ? root.theme.hover : "transparent"
                     border.width: 1
-                    border.color: root.activeFocus && chip.selected ? root.theme.accent
+                    border.color: (root.activeFocus || navTarget.current) && chip.selected ? root.theme.accent
                                 : chip.selected ? root.theme.line : "transparent"
                 }
             }

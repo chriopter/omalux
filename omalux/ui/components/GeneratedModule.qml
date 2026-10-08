@@ -39,6 +39,23 @@ Column {
         x: -14
         width: parent.width + 14
         implicitHeight: Math.max(30, headerContent.implicitHeight + 10)
+        // Keyboard stop: Enter or ←/→ open and close the details, E switches the module,
+        // Shift+R resets it.
+        NavTarget {
+            id: headerNav
+            navId: "module:" + root.module.operation + "/" + root.instance
+            label: root.title
+            kind: "module"
+            group: root.module.operation + "/" + root.instance
+            enabled: root.editable && !!root.moduleState
+            groupActions: true
+            adjustLabel: rows.hasDetails && root.term === "" ? "COLLAPSE/EXPAND" : ""
+            activateLabel: rows.hasDetails && root.term === "" ? (root.expanded ? "COLLAPSE" : "EXPAND") : ""
+            onActivate: if (rows.hasDetails) root.expansionRequested()
+            onAdjust: steps => { if (rows.hasDetails && (steps > 0) !== root.expanded) root.expansionRequested() }
+            onToggleGroup: root.enableRequested(!root.moduleEnabled)
+            onResetGroup: root.resetRequested()
+        }
         Rectangle {
             z: -1
             width: parent.width
@@ -58,7 +75,7 @@ Column {
                 padding: 0
                 enabled: root.editable && !!root.moduleState
                 hoverEnabled: true
-                onClicked: root.enableRequested(!root.moduleEnabled)
+                onClicked: { headerNav.claim(); root.enableRequested(!root.moduleEnabled) }
                 Accessible.name: "Enable " + root.title
                 Accessible.checkable: true; Accessible.checked: root.moduleEnabled
                 ToolTip.visible: hovered && !!root.module.purpose
@@ -70,7 +87,7 @@ Column {
                     Text {
                         Layout.fillWidth: true
                         text: root.title
-                        color: heading.hovered || heading.activeFocus ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
+                        color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
                         font: root.theme.moduleHeadingFont; wrapMode: Text.WordWrap
                     }
                     Text {
@@ -79,7 +96,7 @@ Column {
                         color: root.theme.muted; font: root.theme.textFont
                     }
                 }
-                background: Rectangle { color: "transparent"; border.color: heading.activeFocus ? root.theme.accent : "transparent" }
+                background: Rectangle { color: "transparent"; border.color: heading.activeFocus || headerNav.current ? root.theme.accent : "transparent" }
             }
         }
         TapHandler {

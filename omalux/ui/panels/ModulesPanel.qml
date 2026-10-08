@@ -97,6 +97,13 @@ SidebarScrollView {
             factor: factor, offset: offset
         }
     }
+    function resetParameter(module, parameter) {
+        if (root.editable && parameter.default !== undefined)
+            root.parameterEdited(module.operation, module.instance, parameter.name, parameter.default)
+    }
+    function resetModule(module) {
+        for (const p of module.parameters) if (root.controllable(p)) root.resetParameter(module, p)
+    }
     function setExpanded(key, value) {
         let next = Object.assign({}, root.expanded); next[key] = value; root.expanded = next
     }
@@ -135,6 +142,7 @@ SidebarScrollView {
             color: root.theme.ink
             font: root.theme.textFont
             onTextChanged: root.search = text
+            NavTarget { navId: "module-filter"; kind: "search"; label: "search"; input: filter; onActivate: filter.forceActiveFocus() }
             background: Rectangle {
                 color: root.theme.surface
                 border.color: filter.activeFocus ? root.theme.accent : root.theme.line
@@ -150,13 +158,29 @@ SidebarScrollView {
                 width: parent.width - 36
                 spacing: 4
                 readonly property bool open: !!root.expanded[modelData.operation + "/" + modelData.instance]
+                readonly property string key: modelData.operation + "/" + modelData.instance
 
                 Item {
                     width: parent.width
                     implicitHeight: 32
+                    NavTarget {
+                        id: moduleNav
+                        navId: "module:" + moduleBlock.key
+                        label: moduleBlock.modelData.label
+                        kind: "module"
+                        group: moduleBlock.key
+                        groupActions: true
+                        activateLabel: moduleBlock.open ? "COLLAPSE" : "EXPAND"
+                        onActivate: root.setExpanded(moduleBlock.key, !moduleBlock.open)
+                        onAdjust: steps => root.setExpanded(moduleBlock.key, steps > 0)
+                        onToggleGroup: if (root.editable) root.parameterEdited(moduleBlock.modelData.operation, moduleBlock.modelData.instance,
+                                                                             "@enabled", moduleBlock.modelData.enabled ? 0 : 1)
+                        onResetGroup: root.resetModule(moduleBlock.modelData)
+                    }
                     Rectangle {
                         anchors.fill: parent
                         color: moduleBlock.open ? root.theme.surface : "transparent"
+                        border.color: moduleNav.current ? root.theme.accent : "transparent"
                         radius: 4
                     }
                     RowLayout {
@@ -198,6 +222,7 @@ SidebarScrollView {
                     }
                     MouseArea {
                         anchors.fill: parent
+                        onPressed: moduleNav.claim()
                         onClicked: root.setExpanded(moduleBlock.modelData.operation + "/" + moduleBlock.modelData.instance,
                                                     !moduleBlock.open)
                     }
@@ -217,6 +242,7 @@ SidebarScrollView {
                                            : modelData.type === "bool" ? switchRow : plainRow
                             property var parameter: modelData
                             property var module: moduleBlock.modelData
+                            property string group: moduleBlock.key
                         }
                     }
                 }
@@ -237,6 +263,9 @@ SidebarScrollView {
             onEdited: value => root.parameterEdited(module.operation, module.instance, parameter.name,
                                                    (value - (control.offset || 0)) / (control.factor || 1))
             onInteractionChanged: active => root.interactionChanged(active)
+            onResetRequested: root.resetParameter(module, parameter)
+            onModuleResetRequested: root.resetModule(module)
+            navTarget.group: group
         }
     }
     Component {
@@ -249,6 +278,9 @@ SidebarScrollView {
             editable: root.editable
             onEdited: value => root.parameterEdited(module.operation, module.instance,
                                                     parameter.name, value)
+            onResetRequested: root.resetParameter(module, parameter)
+            navTarget.group: group
+            navTarget.navId: group + "/" + parameter.name
         }
     }
     Component {
@@ -260,6 +292,9 @@ SidebarScrollView {
             editable: root.editable
             onEdited: value => root.parameterEdited(module.operation, module.instance,
                                                     parameter.name, value)
+            onResetRequested: root.resetParameter(module, parameter)
+            navTarget.group: group
+            navTarget.navId: group + "/" + parameter.name
         }
     }
     Component {

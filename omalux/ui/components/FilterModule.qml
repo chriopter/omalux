@@ -44,12 +44,29 @@ Column {
         return null
     }
     readonly property bool headerVisible: expanded || section.primary.length !== 1
+    function resetModule() { for (const c of section.controls) controlReset(c.id) }
     Item {
         id: moduleHeader
         visible: root.headerVisible
         x: -14
         width: parent.width + 14
         implicitHeight: Math.max(30, headerContent.implicitHeight + 10)
+        // The heading is a keyboard stop of its own: Enter or ←/→ open and close the module.
+        NavTarget {
+            id: headerNav
+            navId: "module:" + root.section.key
+            label: root.section.name
+            kind: "module"
+            group: root.section.key
+            enabled: root.editable
+            groupActions: true
+            adjustLabel: root.hasDetails ? "COLLAPSE/EXPAND" : ""
+            activateLabel: root.hasDetails ? (root.expanded ? "COLLAPSE" : "EXPAND") : ""
+            onActivate: if (root.hasDetails) root.expansionRequested()
+            onAdjust: steps => { if (root.hasDetails && (steps > 0) !== root.expanded) root.expansionRequested() }
+            onToggleGroup: root.controlEdited(root.enableControl, root.moduleEnabled ? 0 : 1)
+            onResetGroup: root.resetModule()
+        }
         // The background spans the module without participating in Column layout.
         Rectangle {
             z: -1
@@ -69,7 +86,7 @@ Column {
                 Layout.fillWidth: true
                 padding: 0
                 enabled: root.editable
-                onClicked: root.controlEdited(root.enableControl, root.moduleEnabled ? 0 : 1)
+                onClicked: { headerNav.claim(); root.controlEdited(root.enableControl, root.moduleEnabled ? 0 : 1) }
                 Accessible.name: "Enable " + root.section.name
                 Accessible.checkable: true; Accessible.checked: root.moduleEnabled
                 contentItem: RowLayout {
@@ -82,11 +99,11 @@ Column {
                     Text {
                         Layout.fillWidth: true
                         text: root.section.name
-                        color: heading.hovered || heading.activeFocus ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
+                        color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
                         font: root.theme.moduleHeadingFont; wrapMode: Text.WordWrap
                     }
                 }
-                background: Rectangle { color: "transparent"; border.color: heading.activeFocus ? root.theme.accent : "transparent" }
+                background: Rectangle { color: "transparent"; border.color: heading.activeFocus || headerNav.current ? root.theme.accent : "transparent" }
             }
         }
         DisclosureButton {
@@ -132,19 +149,27 @@ Column {
             onInteractionChanged: active => root.interactionChanged(active)
             onEdited: value => root.controlEdited(modelData.id, value)
             onResetRequested: root.controlReset(modelData.id)
+            navTarget.group: root.section.key
+            onActivated: if (root.hasDetails) root.expansionRequested()
+            onModuleResetRequested: root.resetModule()
+            onRevealRequested: if (!root.expanded && root.hasDetails) root.expansionRequested()
         }
     }
     Button {
+        id: halationButton
         visible: root.expanded && root.section.name === "diffuse or sharpen"
         text: "Halation recipe (experimental)"
         enabled: root.editable
         onClicked: root.halationRequested()
+        highlighted: halationNav.current
+        NavTarget { id: halationNav; navId: "halation"; label: "halation recipe"; group: root.section.key; enabled: halationButton.enabled; onActivate: root.halationRequested() }
     }
     DenoiseCurve {
         visible: root.expanded && root.section.name === "denoise (profiled)"
         opacity: root.moduleEnabled ? 1 : .45
         x: 12; width: parent.width - 12
         theme: root.theme; values: root.values; editable: root.editable
+        group: root.section.key
         onEdited: (id, value) => root.controlEdited(id, value)
     }
     Item {
@@ -181,6 +206,7 @@ Column {
             expanded: true
             moreOpen: true
             extraMode: true
+            navGroup: root.section.key
             term: root.term
             activeControl: root.activeControl
             onChangesRequested: changes => root.parameterChangesRequested(changes)

@@ -25,6 +25,40 @@ Item {
     signal interactionChanged(bool active)
     signal edited(real value)
     signal resetRequested()
+    // Keyboard (see NavTarget): Enter, Shift+R and a direct shortcut to this hidden row.
+    signal activated()
+    signal moduleResetRequested()
+    signal revealRequested()
+    property alias navTarget: navTarget
+    // Selected by the panel (active control) or by the keyboard.
+    readonly property bool marked: selected || navTarget.current
+    NavTarget {
+        id: navTarget
+        navId: root.control.id
+        label: root.displayLabel || root.control.label
+        kind: "slider"
+        enabled: root.editable
+        active: root.selected
+        activateLabel: root.detailsAvailable ? (root.detailsExpanded ? "COLLAPSE" : "EXPAND") : ""
+        onAdjust: steps => root.step(steps)
+        onReset: root.resetRequested()
+        onActivate: root.detailsAvailable ? root.detailsRequested() : root.activated()
+        onResetGroup: root.moduleResetRequested()
+        onToggleGroup: root.moduleToggleRequested()
+        onSelected: root.selectedRequested()
+        onRevealRequested: root.revealRequested()
+    }
+    // One keyboard step in darktable's step size, within the hard range; whole steps stay
+    // whole for integer parameters.
+    function step(steps) {
+        if (!root.editable) return
+        let delta = steps * root.control.step
+        if (root.control.decimals === 0) delta = Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta)))
+        const low = root.control.minimum !== undefined ? root.control.minimum : -Infinity
+        const high = root.control.maximum !== undefined ? root.control.maximum : Infinity
+        const next = Math.max(low, Math.min(high, root.value + delta))
+        if (next !== root.value) root.edited(next)
+    }
     implicitHeight: compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
     readonly property var colors: {
         switch (control.colors) {
@@ -78,7 +112,7 @@ Item {
                 Layout.fillWidth: true
                 padding: 0
                 enabled: root.editable
-                onClicked: { root.selectedRequested(); if (root.moduleToggleAvailable) root.moduleToggleRequested() }
+                onClicked: { navTarget.claim(); root.selectedRequested(); if (root.moduleToggleAvailable) root.moduleToggleRequested() }
                 Accessible.name: root.moduleName + " · " + root.control.label
                 Accessible.checkable: root.moduleToggleAvailable
                 Accessible.checked: root.moduleEnabled
@@ -102,7 +136,7 @@ Item {
                         Layout.fillWidth: true
                         text: root.displayLabel || (root.compact && root.qualifyLabel && ["strength", "amount", "detail", "brightness"].includes(root.control.label) && root.moduleName !== "contrast brightness saturation"
                               ? root.moduleName + " · " + root.control.label : root.control.label)
-                        color: root.selected || labelButton.hovered ? root.theme.accent : root.theme.ink
+                        color: root.marked || labelButton.hovered ? root.theme.accent : root.theme.ink
                         font: root.theme.settingsFont
                         wrapMode: Text.WordWrap
                         horizontalAlignment: Text.AlignLeft
@@ -117,7 +151,7 @@ Item {
                 horizontalAlignment: Text.AlignRight
                 MouseArea { anchors.fill: parent; onDoubleClicked: { numberInput.text=String(root.value);numberPopup.open();numberInput.forceActiveFocus();numberInput.selectAll() } }
                 text: Number(Math.abs(root.value) < Math.pow(10, -root.control.decimals) / 2 ? 0 : root.value).toFixed(root.control.decimals) + root.control.unit
-                color: root.selected ? root.theme.accent : root.theme.ink
+                color: root.marked ? root.theme.accent : root.theme.ink
                 font: root.theme.settingsFont
             }
         }
@@ -133,7 +167,7 @@ Item {
             from: Math.min(root.control.softMinimum, root.value); to: Math.max(root.darkVignette ? 0 : root.control.softMaximum, root.value)
             stepSize: root.control.step
             value: root.value
-            onPressedChanged: { root.interactionChanged(pressed); if (pressed) root.selectedRequested() }
+            onPressedChanged: { root.interactionChanged(pressed); if (pressed) { navTarget.claim(); root.selectedRequested() } }
             onActiveFocusChanged: if (activeFocus) root.selectedRequested()
             onMoved: root.edited(value)
             Accessible.name: root.control.section + " · " + root.control.label
@@ -164,8 +198,8 @@ Item {
                 width: root.compact ? 11 : 9; height: width
                 radius: root.compact ? width / 2 : 0
                 border.width: root.compact ? 1 : 0
-                border.color: root.selected ? root.theme.accent : root.theme.ink
-                color: root.compact ? root.theme.background : (root.selected ? root.theme.accent : root.theme.ink)
+                border.color: root.marked ? root.theme.accent : root.theme.ink
+                color: root.compact ? root.theme.background : (root.marked ? root.theme.accent : root.theme.ink)
             }
         }
     }

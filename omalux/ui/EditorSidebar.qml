@@ -17,7 +17,6 @@ Rectangle {
     property int filterView: 0
     property alias filterSearch: modulesPanel.search
     property alias moduleSearch: moduleSearch.text
-    readonly property bool textEditing: (selectedPanel === 1 && stylesPanel.textEditing) || moduleSearch.activeFocus
     // Panes in strip order. The indices of the first five panes stay as they were (keyboard
     // 1–5, Main.qml); the module panes added later take 5–8.
     readonly property var panes: [
@@ -93,8 +92,7 @@ Rectangle {
     signal styleDeleteRequested(string id, string name)
     signal controlSelected(string id)
 
-    function navigateControl(direction) { filtersPanel.navigate(direction) }
-    function revealControl(id) { selectedPanel = 0; controlSelected(id); filtersPanel.reveal(id) }
+    function revealControl(id) { selectedPanel = 0; filterView = 0; controlSelected(id); filtersPanel.reveal(id) }
     function toggleGrainDetails() { filtersPanel.toggleGrainDetails() }
     function showStyleDetails(id) {
         selectedPanel = 1;
@@ -183,12 +181,14 @@ Rectangle {
             color: root.theme.ink
             font: root.theme.textFont
             selectByMouse: true
+            // Escape clears the search and gives the keys back; Enter or ↓ keep it and go to the results.
             Keys.onEscapePressed: { text = ""; focus = false }
+            NavTarget { id: searchNav; navId: "search"; kind: "search"; label: "search"; listed: false; input: moduleSearch; onActivate: moduleSearch.forceActiveFocus() }
             Accessible.name: "Search modules and controls"
             background: Rectangle {
                 radius: 5
                 color: root.theme.well
-                border.color: moduleSearch.activeFocus ? root.theme.accent : root.theme.line
+                border.color: moduleSearch.activeFocus || searchNav.current ? root.theme.accent : root.theme.line
                 Canvas {
                     x: 9; y: (parent.height - 12) / 2
                     width: 12; height: 12

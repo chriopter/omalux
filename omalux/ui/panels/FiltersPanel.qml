@@ -81,47 +81,14 @@ SidebarScrollView {
     function setExpanded(property, key, value) {
         let next = Object.assign({}, root[property]); next[key] = value; root[property] = next
     }
+    // Opens the module of a secondary parameter; KeyboardNavigator selects and scrolls to it.
     function reveal(id) {
-        if (sections.some(s => s.primary.includes(id))) {
-            revealTimer.controlId = id; revealTimer.restart(); return
-        }
-        for (let g of groups) for (let s of g.sections) {
-            if (!s.controls.some(c => c.id === id)) continue
-            if (!s.primary.includes(id)) setExpanded("expandedDetails", s.key, true)
-        }
-        revealTimer.controlId = id; revealTimer.restart()
+        for (let s of sections)
+            if (s.controls.some(c => c.id === id) && !s.primary.includes(id))
+                setExpanded("expandedDetails", s.key, true)
     }
     function toggleGrainDetails() {
         setExpanded("expandedDetails", "grain", !expandedDetails["grain"])
-    }
-    function navigate(direction) {
-        let visible = []
-        for (let g of groups) for (let s of g.sections)
-            visible = visible.concat(s.controls.filter(c => expandedDetails[s.key] || s.primary.includes(c.id)))
-        visible = visible.filter((c, i, all) => all.findIndex(other => other.id === c.id) === i)
-        let index = visible.findIndex(c => c.id === activeControl)
-        if (visible.length) {
-            if (index < 0) index = direction > 0 ? -1 : 0
-            const c = visible[(index + direction + visible.length) % visible.length]
-            controlSelected(c.id); reveal(c.id)
-        }
-    }
-    Timer {
-        id: revealTimer
-        property string controlId
-        interval: 50
-        onTriggered: {
-            for (let i = 0; i < groupRows.count; ++i) {
-                const item = groupRows.itemAt(i).findControl(controlId)
-                if (!item) continue
-                const flick = root.contentItem
-                const point = item.mapToItem(flick.contentItem, 0, 0)
-                let next = flick.contentY
-                if (point.y < next) next = point.y
-                else if (point.y + item.height > next + flick.height) next = point.y + item.height - flick.height
-                flick.contentY = Math.max(0, Math.min(next, Math.max(0, flick.contentHeight - flick.height)))
-            }
-        }
     }
     Column {
         width: root.availableWidth
@@ -133,7 +100,6 @@ SidebarScrollView {
             color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
         }
         Repeater {
-            id: groupRows
             model: root.groups
             delegate: Column {
                 id: group
@@ -141,13 +107,6 @@ SidebarScrollView {
                 width: parent.width - 36
                 spacing: 0
                 topPadding: modelData.name === "Single" && root.sections.some(s => s.primary.length > 1) ? 20 : 0
-                function findControl(id) {
-                    for (let i = 0; i < modules.count; ++i) {
-                        const item = modules.itemAt(i).findControl(id)
-                        if (item) return item
-                    }
-                    return null
-                }
                 Text {
                     visible: group.modelData.name === "Advanced" && (root.term === "" || group.modelData.sections.some(s => root.sectionMatches(s)))
                     text: "Advanced"
@@ -157,7 +116,6 @@ SidebarScrollView {
                 Column {
                     width: parent.width; spacing: 8
                     Repeater {
-                        id: modules
                         model: group.modelData.sections
                         delegate: FilterModule {
                             required property var modelData

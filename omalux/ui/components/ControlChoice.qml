@@ -15,6 +15,23 @@ Item {
     property font labelFont: theme.textFont
     property color labelColor: theme.muted
     signal edited(real value)
+    signal resetRequested()
+    property alias navTarget: navTarget
+    // Keyboard: ←/→ choose the previous/next option, Enter the next one (wrapping).
+    NavTarget {
+        id: navTarget
+        navId: root.label
+        label: root.label
+        kind: "choice"
+        enabled: root.editable
+        onAdjust: steps => root.choose(Math.max(0, Math.min(root.options.length - 1, root.current + Math.sign(steps))))
+        onActivate: root.choose((root.current + 1) % root.options.length)
+        onReset: root.resetRequested()
+    }
+    function choose(index) {
+        if (root.editable && index >= 0 && index !== root.current && index < root.options.length)
+            root.edited(root.options[index].value)
+    }
 
     readonly property int current: options.findIndex(option => option.value === Math.round(value))
     readonly property bool inline: options.length > 0 && options.length <= 3
@@ -33,7 +50,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: root.label
-                color: root.labelColor
+                color: navTarget.current ? root.theme.accent : root.labelColor
                 font: root.labelFont
                 elide: Text.ElideRight
             }
@@ -67,7 +84,7 @@ Item {
                     implicitHeight: 20
                     padding: 0
                     enabled: root.editable
-                    onClicked: root.edited(modelData.value)
+                    onClicked: { navTarget.claim(); root.edited(modelData.value) }
                     contentItem: Text {
                         text: option.modelData.label
                         color: root.current === option.index ? root.theme.accent : root.theme.muted
@@ -91,7 +108,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         enabled: root.editable && !root.inline
-        onClicked: menu.popup(root.width - menu.width, root.height)
+        onClicked: { navTarget.claim(); menu.popup(root.width - menu.width, root.height) }
         Menu {
             id: menu
             Repeater {

@@ -49,19 +49,9 @@ The UI follows the original dark Omalux layout, with SVG sidebar tabs, grouped c
 
 The **Styles** tab keeps v0’s groups, search, thumbnails and expandable module details. Applying a style restores the photo’s opening state before applying the look, so earlier session edits do not leak into it. Save the current look with its thumbnail and LUT, export a bundle, or delete an own style. Styles may affect modules without an Omalux control. The **Crop & Rotate** tab provides a draggable crop frame, aspect ratios and rotation; the information tab shows image metadata. Open photographs from the toolbar and export full-resolution JPEG or PNG. The **History** tab displays darktable’s processing stack, newest first, including module enablement and the current step. Click a step (or original) to restore it. Later steps remain selectable until a new edit replaces the future branch using darktable’s history rules.
 
-| Keys | Action |
-| --- | --- |
-| `1` / `2` / `3` / `4` / `5` | Filters / styles / crop / history / metadata |
-| `Tab` / `Shift+Tab`, `]` / `[` | Next / previous panel |
-| `↑` / `↓`, `K` / `J` | Select parameter |
-| `←` / `→`, `H` / `L` | Adjust selected parameter; Shift makes larger steps |
-| `R` | Reset selected parameter to its darktable default |
-| `G` / `S` / `M`, `A` | Grain strength / coarseness / mid-tones bias, grain details |
-| `+` / `−`, `0`, `F` | Zoom, fit, photograph fullscreen |
-| `O` / `Ctrl+O`, `Ctrl+S` | Open photograph, export |
-| `?` / `F1` | Keyboard reference |
+The keyboard bindings are listed in the [main README](../../README.md#keyboard) and, complete, under `?` in the application; [keyboard navigation](reference/controls.md#keyboard-navigation) describes the model and how a new control joins it.
 
-Double-click a slider’s value for numeric entry across its full darktable range. Reset arrows affect a parameter or its group. Keyboard editing pauses in text fields and dialogs. Zoom currently magnifies the interactive preview, not a full-resolution detail render.
+Double-click a slider’s value for numeric entry across its full darktable range. Reset arrows affect a parameter or its group. Zoom currently magnifies the interactive preview, not a full-resolution detail render.
 
 The launcher builds the C/C++ adapter on demand using `cc`, `c++`, `pkg-config` and Qt 6’s `moc` and `qsb` (Qt Shader Tools). It needs Python 3, Git, Qt 6 Quick/Quick Controls, and development headers for GTK 3, JSON-GLib, Little CMS, SQLite, Lua and librsvg. The current Linux build expects Qt tools under `/usr/lib/qt6/` and an installed release build of darktable 5.6.0 or 5.6.1. It does not build the darktable submodule itself.
 
@@ -81,10 +71,10 @@ Split mode runs two independent instances of darktable’s engine with separate 
 - `omalux/native/app/` — C++ Qt facade, render worker, style catalogue, export and comparison bridge.
 - `omalux/native/engine/` — C adapter with an explicit engine context; no Qt dependencies.
 - `omalux/native/dev/` — optional smoke tests, screenshot capture and batch preview drivers.
-- `omalux/ui/Main.qml` — window layout, backend wiring and keyboard shortcuts.
+- `omalux/ui/Main.qml` — window layout, backend wiring and keyboard wiring.
 - `omalux/ui/EditorSidebar.qml` — tabs, panel selection and panel/backend connections.
 - `omalux/ui/panels/` — separate Filters, Styles, Geometry, History and Metadata panes.
-- `omalux/ui/components/` — reusable sliders, style cards, toolbar, image viewport, GPU notice, crop overlay, dialogs, keyboard bindings and status bar; `EditorTheme.qml` holds shared colors and typography.
+- `omalux/ui/components/` — reusable sliders, style cards, toolbar, image viewport, GPU notice, crop overlay, dialogs, keyboard navigation (`KeyboardNavigator`, `NavTarget`, `EditorShortcuts`) and status bar; `EditorTheme.qml` holds shared colors and typography.
 
 Give each new sidebar pane its own file. Panels receive data through properties and emit action signals; shared components do not access the global backend. Engine work stays in the native adapter and its worker thread.
 

@@ -29,6 +29,9 @@ Column {
     signal interactionChanged(bool active)
     signal controlSelected(string id)
     signal moreRequested()
+    // Keyboard group of every row (see NavTarget): Shift+R and E reach the module heading.
+    property string navGroup: module.operation + "/" + instance
+    function navId(r) { return module.operation + "/" + root.instance + "/" + (r.path || r.field) }
 
     readonly property bool moduleEnabled: !!moduleState && moduleState.enabled
     property int tabIndex: 0
@@ -245,6 +248,8 @@ Column {
         currentIndex: root.tabIndex
         editable: true
         onTabSelected: index => root.tabIndex = index
+        navTarget.navId: root.navGroup + "/@tabs"
+        navTarget.group: root.navGroup
     }
     Repeater {
         model: root.items
@@ -277,11 +282,12 @@ Column {
             anchors.left: parent.left
             padding: 0
             hoverEnabled: true
-            onClicked: root.moreRequested()
+            onClicked: { moreNav.claim(); root.moreRequested() }
             Accessible.name: (root.moreOpen ? "Fewer settings for " : "More settings for ") + root.module.name
+            NavTarget { id: moreNav; navId: root.navGroup + "/@more"; label: root.moreOpen ? "less" : "more"; group: root.navGroup; onActivate: root.moreRequested() }
             contentItem: Text {
                 text: root.moreOpen ? "less" : "more"
-                color: moreButton.hovered || moreButton.visualFocus ? root.theme.accent : root.theme.muted
+                color: moreButton.hovered || moreButton.visualFocus || moreNav.current ? root.theme.accent : root.theme.muted
                 font: root.theme.textFont
             }
             background: Item {}
@@ -315,6 +321,7 @@ Column {
             onInteractionChanged: active => root.interactionChanged(active)
             onEdited: v => root.editRaw(r, (v - (r.offset || 0)) / (r.factor || 1))
             onResetRequested: root.edit(r.path, r.default)
+            navTarget.group: root.navGroup
         }
     }
     Component {
@@ -337,6 +344,9 @@ Column {
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
                 onEdited: v => root.edit(it.row.path, v)
+                onResetRequested: root.edit(it.row.path, it.row.default)
+                navTarget.navId: root.navId(it.row)
+                navTarget.group: root.navGroup
             }
         }
     }
@@ -359,6 +369,9 @@ Column {
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
                 onEdited: v => root.edit(it.row.path, v)
+                onResetRequested: root.edit(it.row.path, it.row.default)
+                navTarget.navId: root.navId(it.row)
+                navTarget.group: root.navGroup
             }
         }
     }
@@ -396,6 +409,9 @@ Column {
             value: root.gui[r.path] || 0
             editable: true
             onEdited: v => root.setGui(r.path, v)
+            navTarget.navId: root.navId(r)
+            navTarget.group: root.navGroup
+            navTarget.resettable: false
         }
     }
     Component {
@@ -408,6 +424,9 @@ Column {
             value: root.gui[r.path] || 0
             editable: true
             onEdited: v => root.setGui(r.path, v)
+            navTarget.navId: root.navId(r)
+            navTarget.group: root.navGroup
+            navTarget.resettable: false
         }
     }
     Component {
@@ -462,6 +481,8 @@ Column {
             options: it.channels.map((c, i) => ({ label: c, value: i, color: ({ R: "#e05555", G: "#5ac06a", B: "#5a8ad0" })[c] }))
             current: root.tabValue
             onChosen: v => root.setGui("@tab", v)
+            navTarget.navId: root.navGroup + "/@channel"
+            navTarget.group: root.navGroup
         }
     }
     Component {
@@ -501,6 +522,8 @@ Column {
                 options: curveBox.c.channels.map((ch, i) => ({ label: ch, value: i, color: ({ R: "#e05555", G: "#5ac06a", B: "#5a8ad0" })[ch] }))
                 current: curveBox.channel
                 onChosen: v => root.setGui("@tab", v)
+                navTarget.navId: root.navGroup + "/@curve-channel"
+                navTarget.group: root.navGroup
             }
             CurveEditor {
                 objectName: "curve-" + root.module.operation
@@ -520,6 +543,8 @@ Column {
                 aspectRatio: .8
                 opacity: root.moduleEnabled ? 1 : .7
                 onInteractionChanged: active => root.interactionChanged(active)
+                navTarget.navId: root.navId(curveBox.r)
+                navTarget.group: root.navGroup
                 onNodesEdited: list => {
                     const changes = {}
                     for (let i = 0; i < list.length; ++i) {
@@ -567,6 +592,8 @@ Column {
                 options: barsBox.c.channels.map((ch, i) => ({ label: ch, value: i }))
                 current: barsBox.channel
                 onChosen: v => root.setGui("@tab", v)
+                navTarget.navId: root.navGroup + "/@bars-channel"
+                navTarget.group: root.navGroup
             }
             GraphView {
                 visible: barsBox.known
@@ -581,6 +608,8 @@ Column {
                 opacity: root.moduleEnabled ? 1 : .7
                 onInteractionChanged: active => root.interactionChanged(active)
                 onValueEdited: (i, v) => root.edit(barsBox.yPath + "[" + i + "]", v)
+                navTarget.navId: root.navId(barsBox.r)
+                navTarget.group: root.navGroup
             }
             ModuleNotice {
                 visible: !barsBox.known
@@ -610,6 +639,8 @@ Column {
             opacity: root.moduleEnabled ? 1 : .7
             onInteractionChanged: active => root.interactionChanged(active)
             onValueEdited: (i, v) => root.editRaw(bandRows[i], v)
+            navTarget.navId: root.navId(r)
+            navTarget.group: root.navGroup
             onResetRequested: {
                 const changes = {}
                 for (const x of bandRows) changes[x.path] = x.default
@@ -630,6 +661,8 @@ Column {
             editable: root.editable && known && it.paths.every(p => root.canWrite(p))
             opacity: !known ? .45 : root.moduleEnabled ? 1 : .7
             onInteractionChanged: active => root.interactionChanged(active)
+            navTarget.navId: root.navId(r)
+            navTarget.group: root.navGroup
             onColorEdited: rgb => {
                 const changes = {}
                 for (let i = 0; i < 3; ++i) changes[root.subst(it.paths[i])] = rgb[i]

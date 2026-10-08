@@ -31,6 +31,15 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='omalux-regression-') as folder:
         work = Path(folder)
+        # QML component and keyboard tests first: fast, no engine needed.
+        for test in sorted((ROOT / 'omalux/tests/components').glob('tst_*.qml')):
+            print('Running', test.name, flush=True)
+            env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_CONFIG_HOME=str(work / 'config-qml'))
+            result = subprocess.run(['/usr/lib/qt6/bin/qmltestrunner', '-input', str(test)], cwd=ROOT, env=env,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=240)
+            if result.returncode:
+                raise RuntimeError(result.stdout[-12000:])
+            print(next((line for line in result.stdout.splitlines() if line.startswith('Totals')), ''), flush=True)
         shutil.copytree(ROOT / 'catalog/styles', work / 'styles')
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
@@ -64,6 +73,7 @@ def main():
         (work / 'workflow.json').write_text(json.dumps(workflow))
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
                    ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
+                   ROOT / 'omalux/tests/keyboard.json',
                    work / 'workflow.json']
         mailbox = work / 'mailbox' / 'controls'
         mailbox.parent.mkdir()

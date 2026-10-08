@@ -120,6 +120,8 @@ ColumnLayout {
         flickableDirection: Flickable.VerticalFlick
         ScrollBar.vertical: ScrollBar {}
         SidebarWheelHandler { flickable: list }
+        // Keep every row instantiated so keyboard navigation reaches steps outside the view.
+        cacheBuffer: 100000
         delegate: ItemDelegate {
             id: entry
             objectName: "history-step-" + modelData.step
@@ -127,10 +129,19 @@ ColumnLayout {
             width: list.width
             implicitHeight: row.implicitHeight + 20
             enabled: root.ready && !root.busy
-            onClicked: root.stepRequested(modelData.step)
+            onClicked: { stepNav.claim(); root.stepRequested(modelData.step) }
+            NavTarget {
+                id: stepNav
+                navId: "step-" + entry.modelData.step
+                label: entry.modelData.label
+                kind: "step"
+                active: entry.modelData.current
+                enabled: entry.enabled
+                onActivate: root.stepRequested(entry.modelData.step)
+            }
             background: Rectangle {
                 color: entry.modelData.current ? root.theme.line : entry.hovered ? "#313244" : "transparent"
-                border.color: entry.activeFocus ? root.theme.accent : "transparent"
+                border.color: entry.activeFocus || stepNav.current ? root.theme.accent : "transparent"
             }
             opacity: modelData.active ? 1 : .45
             Accessible.name: modelData.step + ": " + modelData.label + (modelData.enabled ? ", on" : ", off")

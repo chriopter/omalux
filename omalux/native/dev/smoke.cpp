@@ -552,13 +552,38 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
-            } else if (step.contains("key")) {
+            } else if (step.contains("key") || step.contains("type")) {
+                // "key" sends one combination ("Shift+R", "Down"); "type" types characters.
                 auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-                const auto key = QKeySequence(step["key"].toString())[0];
-                QKeyEvent press(QEvent::KeyPress, key.key(), key.keyboardModifiers());
-                QKeyEvent release(QEvent::KeyRelease, key.key(), key.keyboardModifiers());
-                QGuiApplication::sendEvent(window, &press);
-                QGuiApplication::sendEvent(window, &release);
+                QList<QPair<QKeyCombination, QString>> keys;
+                if (step.contains("key")) {
+                    const auto name = step["key"].toString();
+                    keys.append({QKeySequence(name)[0], name.size() == 1 ? name : QString()});
+                } else
+                    for (const auto character : step["type"].toString())
+                        keys.append({QKeySequence(QString(character))[0], QString(character)});
+                for (int repeat = 0; repeat < std::max(1, step["repeat"].toInt(1)); ++repeat)
+                    for (const auto &[key, text] : keys) {
+                        QKeyEvent press(QEvent::KeyPress, key.key(), key.keyboardModifiers(), text);
+                        QKeyEvent release(QEvent::KeyRelease, key.key(), key.keyboardModifiers(), text);
+                        QGuiApplication::sendEvent(window, &press);
+                        QGuiApplication::sendEvent(window, &release);
+                    }
+            } else if (step.contains("checkRoot")) {
+                // Compare properties of the window, e.g. the selected control or key hints.
+                const auto expected = step["checkRoot"].toObject();
+                auto *root = engine.rootObjects().first();
+                for (auto it = expected.begin(); it != expected.end(); ++it)
+                    if (root->property(it.key().toUtf8()).toString() != it.value().toVariant().toString()) {
+                        qCritical() << "Unexpected window property" << it.key() << root->property(it.key().toUtf8());
+                        app.exit(2);
+                        return;
+                    }
+            } else if (step.contains("logFocus")) {
+                auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+                auto *focus = window->activeFocusItem();
+                qInfo() << "Focus" << step["logFocus"].toString() << focus
+                        << (focus ? focus->objectName() : QString());
             } else if (step.contains("checkPanel")) {
                 if (engine.rootObjects().first()->property("selectedPanel").toInt() !=
                     step["checkPanel"].toInt()) {

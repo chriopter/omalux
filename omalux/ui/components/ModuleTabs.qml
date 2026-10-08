@@ -12,6 +12,21 @@ Rectangle {
     property int currentIndex: 0
     property bool editable: true
     signal tabSelected(int index)
+    // Keyboard: ←/→ switch pages from the sidebar selection (see NavTarget).
+    property alias navTarget: navTarget
+    NavTarget {
+        id: navTarget
+        navId: "tabs"
+        label: "page " + (root.tabs[root.currentIndex] || "")
+        kind: "choice"
+        resettable: false
+        activateLabel: ""
+        enabled: root.editable
+        onAdjust: steps => {
+            const next = Math.max(0, Math.min(root.tabs.length - 1, root.currentIndex + Math.sign(steps)))
+            if (next !== root.currentIndex) root.tabSelected(next)
+        }
+    }
 
     implicitWidth: 260
     implicitHeight: 26
@@ -80,7 +95,7 @@ Rectangle {
                     radius: 4
                     color: tab.current || tab.pressed ? root.theme.active : tab.hovered ? root.theme.hover : "transparent"
                     border.width: tab.current || (root.activeFocus && tab.current) ? 1 : 0
-                    border.color: root.activeFocus ? root.theme.accent : root.theme.line
+                    border.color: root.activeFocus || navTarget.current ? root.theme.accent : root.theme.line
                 }
             }
         }

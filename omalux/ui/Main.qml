@@ -30,7 +30,10 @@ ApplicationWindow {
     property alias filterView: sidebar.filterView
     property alias filterSearch: sidebar.filterSearch
     property alias moduleSearch: sidebar.moduleSearch
-    function revealControl(id) { sidebar.revealControl(id) }
+    property alias keyHints: keyboard.hintText
+    // Curated ids open their Filters row; generated ids ("operation/instance/path") are
+    // selected in the visible pane.
+    function revealControl(id) { if (id.indexOf("/") < 0) sidebar.revealControl(id); keyboard.selectId(id) }
     function showStyleDetails(id) {
         sidebar.showStyleDetails(id);
     }
@@ -38,9 +41,18 @@ ApplicationWindow {
     EditorTheme {
         id: editorTheme
     }
+    // Holds keyboard focus; every key goes through it (see KeyboardNavigator).
+    KeyboardNavigator {
+        id: keyboard
+        scope: sidebar
+        pane: sidebar.selectedPanel + "/" + sidebar.filterView
+        shortcuts: shortcuts
+    }
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        // Keys a text field or a clicked control did not use.
+        Keys.onPressed: event => keyboard.handleKey(event)
         EditorToolbar {
             visible: !window.photoFullscreen
             Layout.fillWidth: true
@@ -95,7 +107,7 @@ ApplicationWindow {
             visible: !window.photoFullscreen
             Layout.fillWidth: true
             theme: editorTheme
-            activeControl: { const c=editor.controls.find(c => c.id===window.activeControl); return c ? c.label : "" }
+            hints: keyboard.hintText
             status: editor.status
         }
     }
@@ -111,42 +123,31 @@ ApplicationWindow {
     }
     EditorShortcuts {
         id: shortcuts
-        active: !(window.activeFocusItem && typeof window.activeFocusItem.selectAll === "function") && !dialogs.busy && !sidebar.textEditing && !helpDialog.visible && !window.photoFullscreen
-        filtersActive: sidebar.selectedPanel === 0 || sidebar.selectedPanel === 2
-        onPanelRequested: index => sidebar.selectedPanel = index
+        navigator: keyboard
+        cropping: sidebar.geometry.cropping
+        fullscreen: window.photoFullscreen
+        panelCount: sidebar.paneOrder.length
+        // Number keys and Tab both follow the tab strip as shown.
+        onPanelRequested: position => sidebar.selectedPanel = sidebar.paneOrder[position]
         onPanelStepRequested: direction => { const panels=sidebar.paneOrder; sidebar.selectedPanel=panels[(panels.indexOf(sidebar.selectedPanel)+direction+panels.length)%panels.length] }
-        onControlStepRequested: direction => { if(sidebar.selectedPanel === 0) sidebar.navigateControl(direction) }
-        onValueStepRequested: steps => editor.adjustControl(window.activeControl, steps)
-        onResetRequested: editor.resetControl(window.activeControl)
-        onControlRequested: id => sidebar.revealControl(id)
-        onGrainDetailsRequested: sidebar.toggleGrainDetails()
+        onControlRequested: id => window.revealControl(id)
+        onGrainDetailsRequested: { sidebar.selectedPanel = 0; sidebar.filterView = 0; sidebar.toggleGrainDetails() }
         onZoomRequested: factor => viewport.zoomBy(factor)
         onFitRequested: viewport.fit()
         onFullscreenRequested: { sidebar.geometry.cancel(); window.photoFullscreen = true; window.showFullScreen() }
+        onFullscreenExitRequested: { window.photoFullscreen = false; window.showNormal() }
+        onCropApplyRequested: sidebar.geometry.apply()
+        onCropCancelRequested: sidebar.geometry.cancel()
         onOpenRequested: dialogs.openImage()
         onSaveRequested: dialogs.exportImage()
         onHelpRequested: helpDialog.open()
     }
-    Shortcut { sequences: ["Return", "Enter"]; enabled: sidebar.geometry.cropping && !dialogs.busy; onActivated: sidebar.geometry.apply() }
-    Shortcut { sequence: "Escape"; enabled: sidebar.geometry.cropping && !dialogs.busy; onActivated: sidebar.geometry.cancel() }
-    Shortcut { sequences: ["Escape", "F"]; enabled: window.photoFullscreen; onActivated: { window.photoFullscreen = false; window.showNormal() } }
-    Dialog {
+    KeyboardHelp {
         id: helpDialog
-        title: "Keyboard reference"
+        theme: editorTheme
+        shortcuts: shortcuts
         anchors.centerIn: parent
-        width: Math.min(window.width - 40, 620)
-        height: Math.min(window.height - 40, 650)
-        modal: true
-        standardButtons: Dialog.Close
-        ScrollView {
-            anchors.fill: parent
-            Column {
-                width: parent.width; spacing: 10
-                Repeater {
-                    model: shortcuts.bindings
-                    Text { required property var modelData; text: modelData.keys.join(" / ") + " — " + modelData.label; color: editorTheme.ink; font: editorTheme.textFont }
-                }
-            }
-        }
+        width: Math.min(window.width - 40, 680)
+        height: Math.min(window.height - 40, 720)
     }
 }

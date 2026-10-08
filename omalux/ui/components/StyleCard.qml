@@ -11,7 +11,20 @@ Rectangle {
     required property string applyingStyle
     required property bool expanded
     signal previewRequested(bool active)
-    readonly property bool previewHovered: applyStyleButton.hovered && applyStyleButton.enabled && root.visible
+    // The keyboard selection previews like hovering does.
+    readonly property bool previewHovered: (applyStyleButton.hovered || navTarget.current) && applyStyleButton.enabled && root.visible
+    property alias navTarget: navTarget
+    NavTarget {
+        id: navTarget
+        navId: root.style.id
+        label: root.style.name
+        kind: "style"
+        active: root.appliedStyle === root.style.name
+        adjustLabel: "SETTINGS"
+        activateLabel: applyStyleButton.enabled ? "APPLY STYLE" : ""
+        onActivate: if (applyStyleButton.enabled) { hoverDelay.stop(); root.previewRequested(false); root.applyRequested() }
+        onAdjust: steps => { if ((steps > 0) !== root.expanded) root.detailsToggleRequested() }
+    }
     onPreviewHoveredChanged: {
         if (previewHovered) hoverDelay.restart()
         else { hoverDelay.stop(); root.previewRequested(false) }
@@ -46,13 +59,13 @@ Rectangle {
                 padding: 0
                 enabled: !root.busy && root.photoReady && root.style.error === ""
                 hoverEnabled: true
-                onClicked: { hoverDelay.stop(); root.previewRequested(false); root.applyRequested() }
+                onClicked: { navTarget.claim(); hoverDelay.stop(); root.previewRequested(false); root.applyRequested() }
                 Accessible.name: "Apply " + root.style.name
                 ToolTip.visible: hovered && root.style.error !== ""
                 ToolTip.text: root.style.error
                 background: Rectangle {
                     color: parent.hovered || parent.down ? "#313244" : "transparent"
-                    border.color: parent.activeFocus ? root.theme.accent : "transparent"
+                    border.color: parent.activeFocus || navTarget.current ? root.theme.accent : "transparent"
                     radius: 3
                 }
                 contentItem: RowLayout {

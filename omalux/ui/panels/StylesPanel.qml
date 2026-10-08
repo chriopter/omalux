@@ -14,7 +14,6 @@ SidebarScrollView {
     required property string appliedStyle
     required property string applyingStyle
     required property string errorMessage
-    readonly property bool textEditing: styleSearch.activeFocus
     signal previewRequested(string id, bool active)
     onVisibleChanged: if (!visible) previewRequested("", false)
     signal saveRequested()
@@ -48,6 +47,7 @@ SidebarScrollView {
     }
     function groupName(id) { return id.replace(/\//g, " · ").replace(/-/g, " ") }
     function groupOpen(id) { return id === "" || styleQuery.trim() !== "" || expandedStyleGroup === id }
+    function toggleGroup(id) { expandedStyleGroup = expandedStyleGroup === id ? "" : id }
     function toggleStyleDetails(id) {
         let next = Object.assign({}, expandedStyleDetails)
         next[id] = !next[id]
@@ -113,14 +113,21 @@ SidebarScrollView {
                         width: parent.width
                         padding: 0
                         hoverEnabled: true
-                        onClicked: root.cameraOpen = !root.cameraOpen
+                        onClicked: { cameraNav.claim(); root.cameraOpen = !root.cameraOpen }
                         Accessible.name: "Camera presets"
+                        NavTarget {
+                            id: cameraNav
+                            navId: "camera"; label: "camera presets"; kind: "group"
+                            activateLabel: root.cameraOpen ? "COLLAPSE" : "EXPAND"
+                            onActivate: root.cameraOpen = !root.cameraOpen
+                            onAdjust: steps => root.cameraOpen = steps > 0
+                        }
                         Accessible.description: root.cameraOpen ? "Collapse" : "Expand"
                         contentItem: RowLayout {
                             spacing: 6
                             Text {
                                 text: "camera"
-                                color: cameraHeading.hovered ? root.theme.accent : root.theme.ink
+                                color: cameraHeading.hovered || cameraNav.current ? root.theme.accent : root.theme.ink
                                 font: root.theme.moduleHeadingFont
                             }
                             Text {
@@ -171,14 +178,21 @@ SidebarScrollView {
                     }
                 }
             }
-            Button { text: "Save current look…"; enabled: root.photoReady && !root.busy; onClicked: root.saveRequested() }
+            Button {
+                id: saveButton
+                text: "Save current look…"; enabled: root.photoReady && !root.busy; onClicked: root.saveRequested()
+                highlighted: saveNav.current
+                NavTarget { id: saveNav; navId: "save"; label: "save current look"; enabled: saveButton.enabled; onActivate: root.saveRequested() }
+            }
             TextField {
                 id: styleSearch
+                objectName: "styleSearch"
                 width: parent.width; height: 32
                 placeholderText: "Search styles"; color: root.theme.ink
                 placeholderTextColor: root.theme.muted; font: root.theme.textFont
                 onTextChanged: root.styleQuery = text
-                background: Rectangle { color: "#181825"; border.color: parent.activeFocus ? root.theme.accent : root.theme.line; radius: 3 }
+                NavTarget { id: searchNav; navId: "style-search"; kind: "search"; label: "search styles"; input: styleSearch; onActivate: styleSearch.forceActiveFocus() }
+                background: Rectangle { color: "#181825"; border.color: parent.activeFocus || searchNav.current ? root.theme.accent : root.theme.line; radius: 3 }
                 Accessible.name: "Search styles"
             }
             Text {
@@ -193,13 +207,24 @@ SidebarScrollView {
                     required property var modelData
                     width: parent.width; spacing: 2
                     Button {
+                        id: groupButton
                         objectName: "style-group-" + groupSection.modelData.id
                         width: parent.width; height: 36; padding: 0
                         visible: groupSection.modelData.id !== ""
-                        onClicked: root.expandedStyleGroup = root.expandedStyleGroup === groupSection.modelData.id ? "" : groupSection.modelData.id
+                        onClicked: { groupNav.claim(); root.toggleGroup(groupSection.modelData.id) }
+                        NavTarget {
+                            id: groupNav
+                            navId: "group:" + groupSection.modelData.id
+                            label: groupSection.modelData.name
+                            kind: "group"
+                            group: groupSection.modelData.id
+                            activateLabel: root.groupOpen(groupSection.modelData.id) ? "COLLAPSE" : "EXPAND"
+                            onActivate: root.toggleGroup(groupSection.modelData.id)
+                            onAdjust: steps => { if ((steps > 0) !== root.groupOpen(groupSection.modelData.id)) root.toggleGroup(groupSection.modelData.id) }
+                        }
                         Accessible.name: groupSection.modelData.name
                         Accessible.description: root.groupOpen(groupSection.modelData.id) ? "Collapse group" : "Expand group"
-                        background: Rectangle { color: parent.hovered ? "#313244" : "transparent"; border.color: parent.activeFocus ? root.theme.accent : "transparent"; radius: 3 }
+                        background: Rectangle { color: parent.hovered ? "#313244" : "transparent"; border.color: parent.activeFocus || groupNav.current ? root.theme.accent : "transparent"; radius: 3 }
                         contentItem: RowLayout {
                             spacing: 12
                             Text { Layout.preferredWidth: 14; text: root.groupOpen(groupSection.modelData.id) ? "▾" : "▸"; color: root.theme.muted; font: root.theme.textFont }
@@ -223,6 +248,7 @@ SidebarScrollView {
                             onPreviewRequested: active => root.previewRequested(modelData.id, active)
                             onApplyRequested: root.applyRequested(modelData.id)
                             onDetailsToggleRequested: root.toggleStyleDetails(modelData.id)
+                            navTarget.group: groupSection.modelData.id
                         }
                     }
                 }

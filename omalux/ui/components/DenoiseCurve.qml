@@ -9,25 +9,37 @@ ColumnLayout {
     required property bool editable
     signal edited(string id, real value)
     property int channel: 4
-    width: parent.width
-    spacing: 8
+    property string group: ""     // keyboard group (the module)
+    // ←/→ on a selected combo box chooses the previous/next entry.
+    function step(box, field, steps) {
+        const next = Math.max(0, Math.min(box.count - 1, box.currentIndex + Math.sign(steps)))
+        if (root.editable && next !== box.currentIndex) root.edited(field, next)
+    }
     Text { text: "mode"; font: root.theme.settingsFont; color: root.theme.muted }
     ComboBox {
         wheelEnabled: false
         Layout.fillWidth: true
         model: ["non-local means", "wavelets", "compute variance", "non-local means auto", "wavelets auto"]
+        id: modeBox
         currentIndex: root.values.denoise_mode
         enabled: root.editable
         onActivated: root.edited("denoise_mode",currentIndex)
+        NavTarget { id: modeNav; navId: "denoise_mode"; label: "mode"; kind: "choice"; group: root.group; enabled: root.editable; resettable: false
+                    onAdjust: steps => root.step(modeBox, "denoise_mode", steps) }
+        Rectangle { anchors.fill: parent; visible: modeNav.current; color: "transparent"; border.color: root.theme.accent }
     }
     Text { text: "color mode"; font: root.theme.settingsFont; color: root.theme.muted }
     ComboBox {
         wheelEnabled: false
         Layout.fillWidth: true
         model: ["RGB", "Y0U0V0"]
+        id: colorModeBox
         currentIndex: root.values.denoise_color_mode
         enabled: root.editable
         onActivated: root.edited("denoise_color_mode",currentIndex)
+        NavTarget { id: colorModeNav; navId: "denoise_color_mode"; label: "color mode"; kind: "choice"; group: root.group; enabled: root.editable; resettable: false
+                    onAdjust: steps => root.step(colorModeBox, "denoise_color_mode", steps) }
+        Rectangle { anchors.fill: parent; visible: colorModeNav.current; color: "transparent"; border.color: root.theme.accent }
     }
     Text {
         Layout.fillWidth: true
