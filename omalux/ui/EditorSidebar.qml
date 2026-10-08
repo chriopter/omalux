@@ -15,25 +15,36 @@ Rectangle {
     readonly property alias moduleStates: moduleCatalog.states
     property alias tools: moduleTools
     // A module picker belongs to the pane it was started in.
-    onSelectedPanelChanged: { moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
+    onSelectedPanelChanged: { const g = currentGroup; if (lastPaneInGroup[g] !== selectedPanel) { let next = Object.assign({}, lastPaneInGroup); next[g] = selectedPanel; lastPaneInGroup = next } moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
     // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
     property int filterView: 0
     property alias filterSearch: modulesPanel.search
     property alias moduleSearch: moduleSearch.text
-    // Panes in strip order. The indices of the first five panes stay as they were (keyboard
-    // 1–5, Main.qml); the module panes added later take 5–8.
+    // Panes in strip order, grouped into three areas: editing the photograph, applying a look,
+    // and reading about it. The pane indices stay as they were (Main.qml, GeometryPanel); the
+    // keys 1–9 follow this order (edit panes 1–6, Styles 7, History 8, Info 9).
     readonly property var panes: [
-        { index: 0, icon: "edit.svg", name: "Filters", label: "Filters" },
-        { index: 1, icon: "styles.svg", name: "Styles", label: "Styles" },
-        { index: 5, icon: "tone.svg", name: "Tone · base and tone modules", label: "Tone", tab: "tone" },
-        { index: 6, icon: "color.svg", name: "Color modules", label: "Color", tab: "color" },
-        { index: 7, icon: "detail.svg", name: "Detail & correction · technical", label: "Detail", tab: "detail" },
-        { index: 8, icon: "effects.svg", name: "Effects", label: "Effects", tab: "effects" },
-        { index: 2, icon: "crop.svg", name: "Crop & Rotate", label: "Crop" },
-        { index: 3, icon: "history.svg", name: "History", label: "History" },
-        { index: 4, icon: "info.svg", name: "Info", label: "Info" }
+        { index: 0, icon: "edit.svg", name: "Filters", label: "Filters", group: "edit" },
+        { index: 5, icon: "tone.svg", name: "Tone · base and tone modules", label: "Tone", tab: "tone", group: "edit" },
+        { index: 6, icon: "color.svg", name: "Color modules", label: "Color", tab: "color", group: "edit" },
+        { index: 7, icon: "detail.svg", name: "Detail & correction · technical", label: "Detail", tab: "detail", group: "edit" },
+        { index: 8, icon: "effects.svg", name: "Effects", label: "Effects", tab: "effects", group: "edit" },
+        { index: 2, icon: "crop.svg", name: "Crop & Rotate", label: "Crop", group: "edit" },
+        { index: 1, icon: "styles.svg", name: "Styles", label: "Styles", group: "styles" },
+        { index: 3, icon: "history.svg", name: "History", label: "History", group: "details" },
+        { index: 4, icon: "info.svg", name: "Info", label: "Info", group: "details" }
     ]
+    readonly property var paneGroups: [
+        { id: "edit", icon: "edit.svg", label: "Edit", name: "Edit the photograph" },
+        { id: "styles", icon: "styles.svg", label: "Styles", name: "Apply a look" },
+        { id: "details", icon: "info.svg", label: "Details", name: "History and image information" }
+    ]
+    readonly property string currentGroup: (panes.find(p => p.index === selectedPanel) || panes[0]).group
+    readonly property var groupPanes: panes.filter(p => p.group === currentGroup)
+    // The pane each area returns to when it is chosen again.
+    property var lastPaneInGroup: ({ edit: 0, styles: 1, details: 3 })
+    function selectGroup(id) { selectedPanel = lastPaneInGroup[id] }
     readonly property var paneOrder: panes.map(p => p.index)
     readonly property bool searchable: [3, 4].indexOf(selectedPanel) < 0
     readonly property string term: moduleSearch.text.trim().toLowerCase()
@@ -143,10 +154,73 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 12
         spacing: 14
+        // Area switch: editing, styles, details. The panes of the chosen area sit below it.
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: areaRow.implicitHeight + 6
+            radius: 7
+            color: root.theme.well
+            border.color: root.theme.line
+            border.width: 1
+            RowLayout {
+                id: areaRow
+                anchors.fill: parent
+                anchors.margins: 3
+                spacing: 3
+                Repeater {
+                    model: root.paneGroups
+                    Button {
+                        id: area
+                        required property var modelData
+                        objectName: "sidebar-area-" + modelData.id
+                        readonly property bool current: root.currentGroup === modelData.id
+                        readonly property bool hasMatches: root.term !== "" && root.panes.some(p => p.group === modelData.id && root.matchesIn(p.index) > 0)
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        implicitHeight: 32
+                        padding: 0; leftPadding: 8; rightPadding: 8
+                        hoverEnabled: true
+                        onClicked: root.selectGroup(modelData.id)
+                        Accessible.name: modelData.name
+                        Accessible.role: Accessible.PageTab
+                        Accessible.selected: current
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: modelData.name
+                        background: Rectangle {
+                            radius: 5
+                            color: area.current ? root.theme.active : area.pressed ? root.theme.active : area.hovered ? root.theme.hover : "transparent"
+                            border.width: area.visualFocus || area.current ? 1 : 0
+                            border.color: area.visualFocus ? root.theme.accent : root.theme.line
+                        }
+                        display: AbstractButton.TextBesideIcon
+                        text: modelData.label
+                        font.family: root.theme.textFont.family
+                        font.pixelSize: root.theme.textFont.pixelSize
+                        font.weight: Font.Medium
+                        spacing: 6
+                        icon.source: root.iconsRoot + modelData.icon
+                        icon.width: 16; icon.height: 16
+                        icon.color: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
+                        palette.buttonText: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
+                        Rectangle {
+                            visible: area.hasMatches && !area.current
+                            width: 4; height: 4; radius: 2
+                            color: root.theme.accent
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom; anchors.bottomMargin: 3
+                        }
+                    }
+                }
+            }
+        }
         // Pane tabs: a recessed strip with the active pane raised inside it.
         Rectangle {
             Layout.fillWidth: true
-            // A 3 × 3 grid, each tab an icon with its name beside it, so no pane has to be guessed.
+            Layout.topMargin: -8
+            // The panes of the current area, each an icon with its name beside it; hidden for an
+            // area with a single pane (Styles).
+            visible: root.groupPanes.length > 1
             implicitHeight: tabGrid.implicitHeight + 6
             radius: 7
             color: root.theme.well
@@ -159,7 +233,7 @@ Rectangle {
                 columns: 3
                 rowSpacing: 3; columnSpacing: 3
                 Repeater {
-                    model: root.panes
+                    model: root.groupPanes
                     Button {
                         id: tab
                         required property var modelData

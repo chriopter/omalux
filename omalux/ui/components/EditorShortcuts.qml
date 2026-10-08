@@ -55,7 +55,7 @@ QtObject {
         { section: "Selected item", keys: ["Shift+R"], label: "Reset every parameter of the selected module", run: () => navigator.resetGroup() },
         { section: "Selected item", keys: ["E"], label: "Switch the selected module on/off", run: () => navigator.toggleGroup() },
 
-        { section: "Panes", keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], label: "Pane by its position in the tab strip", run: i => { if (i < panelCount) panelRequested(i) } },
+        { section: "Panes", keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], label: "Pane in reading order: Edit panes, Styles, History, Info", run: i => { if (i < panelCount) panelRequested(i) } },
         { section: "Panes", keys: ["Tab", "]"], label: "Next pane", run: () => panelStepRequested(1) },
         { section: "Panes", keys: ["Shift+Tab", "["], label: "Previous pane", run: () => panelStepRequested(-1) },
 

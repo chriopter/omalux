@@ -277,16 +277,16 @@ Item {
         }
 
         function test_08_panes() {
-            press(Qt.Key_2)
+            press(Qt.Key_7)
             compare(sidebar.selectedPanel, 1)
             press(Qt.Key_Tab)
-            compare(sidebar.selectedPanel, 5, "Tab follows the strip: Tone after Styles")
+            compare(sidebar.selectedPanel, 3, "Tab follows the strip: History after Styles")
             press(Qt.Key_Backtab, Qt.ShiftModifier)
             compare(sidebar.selectedPanel, 1)
-            press(Qt.Key_3)
+            press(Qt.Key_2)
             compare(sidebar.selectedPanel, 5, "numbers follow the strip as well")
-            press(Qt.Key_7)
-            compare(sidebar.selectedPanel, 2, "7: Crop & Rotate")
+            press(Qt.Key_6)
+            compare(sidebar.selectedPanel, 2, "6: Crop & Rotate")
             press(Qt.Key_9)
             compare(sidebar.selectedPanel, 4, "9: Info")
             press(Qt.Key_BracketLeft)
@@ -304,7 +304,7 @@ Item {
         }
 
         function test_09_text_fields_swallow_keys() {
-            press(Qt.Key_2)
+            press(Qt.Key_7)
             keyboard.selectId("style-search")
             press(Qt.Key_Return)
             const field = keyboard.Window.window.activeFocusItem
@@ -328,7 +328,7 @@ Item {
         }
 
         function test_10_styles() {
-            press(Qt.Key_2)
+            press(Qt.Key_7)
             press(Qt.Key_Home)
             compare(selected(), "camera", "the camera block leads the pane")
             press(Qt.Key_Return)
@@ -380,7 +380,7 @@ Item {
         }
 
         function test_12_geometry_and_crop() {
-            press(Qt.Key_7)
+            press(Qt.Key_6)
             compare(order().slice(0, 4), ["rotation", "aspect", "edit-crop", "reset-crop"])
             press(Qt.Key_Down)
             compare(selected(), "rotation")
@@ -467,17 +467,17 @@ Item {
             press(Qt.Key_F1)
             tryVerify(() => help.opened)
             verify(!keyboard.activeFocus, "the dialog owns the keys")
-            press(Qt.Key_2)
+            press(Qt.Key_7)
             compare(sidebar.selectedPanel, 0, "keys do not leak past a dialog")
             press(Qt.Key_Escape)
             tryVerify(() => !help.visible)
             tryVerify(() => keyboard.activeFocus, 500, "focus returns after the dialog closes")
-            press(Qt.Key_2)
+            press(Qt.Key_7)
             compare(sidebar.selectedPanel, 1)
         }
 
         function test_17_combo_box_click() {
-            press(Qt.Key_7)
+            press(Qt.Key_6)
             const combo = find(sidebar, "aspectChoice")
             mouseClick(combo, combo.width / 2, combo.height / 2)
             tryVerify(() => combo.popup.opened, 500, "the list opens on click")
@@ -501,7 +501,7 @@ Item {
         }
 
         function test_18_generated_tab() {
-            press(Qt.Key_3)
+            press(Qt.Key_2)
             compare(sidebar.selectedPanel, 5, "3: Tone")
             compare(order().slice(0, 4), ["module-group:tone", "module:sigmoid/0", "sigmoid/0/middle_grey_contrast", "module:rgbcurve/0"],
                     "group heading, module heading, primary row, next module")
