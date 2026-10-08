@@ -111,7 +111,8 @@ ApplicationWindow {
                 crop: sidebar.geometry.crop
                 aspectRatio: sidebar.geometry.aspectRatio
                 onCropEdited: rect => sidebar.geometry.crop = rect
-                picker: sidebar.tools.active ? { kind: sidebar.tools.active.kind, box: sidebar.tools.activeBox() } : null
+                picker: sidebar.tools.active ? { kind: sidebar.tools.active.kind, box: sidebar.tools.activeBox(),
+                                                 chart: sidebar.tools.chartLayout, safety: (sidebar.tools.active.gui || {})["@safety"] } : null
                 onPickerEdited: (box, modifiers) => sidebar.tools.setBox(box, modifiers)
                 canvasTool: window.canvasTool
                 canvasOverlay: editor.canvasOverlay

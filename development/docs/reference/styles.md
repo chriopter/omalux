@@ -162,7 +162,7 @@ This differs from `development/style_preview`, which deliberately regenerates ca
 
 A card's menu exports the bundle under its catalogue-relative path in the chosen folder. Configure that folder as standalone darktable's LUT root. Export preserves the bundle contents; it does not discover undeclared or cross-bundle dependencies. Deletion requires confirmation and is available only for `my-styles/` entries, never for built-ins.
 
-The snapshot writer currently rejects drawn/raster masks, additional module instances, and enabled watermark/overlay/raster-file modules. It does not serialize custom module order. Keep complex imported styles in their original explicit bundles until those cases have portable serialization.
+The snapshot writer (`style_snapshot.c`) keeps every instance of a module with its `multi_priority` and name, so applying the style merges them as darktable's `dt_history_merge_module_into_history` does (`omalux/tests/blending.json`). It rejects drawn and raster masks ("masks or external assets") and enabled watermark/overlay/raster-file modules. Drawn masks stay rejected by decision: a darktable style carries no mask forms (`data.style_items` holds only module and blend parameters, `mask_manager` items are skipped, common/styles.c:1138; the forms live in the image's history), so a style with a drawn mask would apply a module whose mask points at nothing; carrying them would need an XMP-based bundle format, which own styles do not use. It does not serialize custom module order. Keep complex imported styles in their original explicit bundles until those cases have portable serialization.
 
 ## Website catalogue export
 

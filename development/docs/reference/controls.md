@@ -259,8 +259,9 @@ the latest state. The curated controls keep their GTK action path. A snapshot ho
 instance of the operation with its `multi_priority` and name, and the blend parameters
 including a raster mask taken from another module, so blend edits and edits of further
 instances are mirrored; darktable matches the instances by name, then unused, default and
-priority (`dt_history_merge_module_into_history`). Deleting or moving an instance is not
-mirrored (a style never removes or reorders modules). darktable styles cannot carry drawn forms: a module
+priority (`dt_history_merge_module_into_history`). Deleting or moving an instance (a style
+never removes or reorders modules) is mirrored as an XMP sidecar of the whole history (area E,
+`EngineWorker` → `ComparisonBridge::instances`). darktable styles cannot carry drawn forms: a module
 that uses a mask group (retouch, spot removal, a drawn blend mask), and a history step while
 shapes exist, reach the comparison as an XMP sidecar of the whole history instead
 (`omalux-sidecar-<revision>.xmp`, a `sidecar <epoch> <name>` mailbox line), which `comparison.lua`
@@ -481,20 +482,39 @@ release select darktable's positive/negative "create curve" and the output slide
 | orientation | rotate 90° CCW/CW, flip horizontally/vertically, with the crop following (flip.c:524–590, crop.c:1235) |
 | lens correction | find camera, find lens: lensfun's matches for the EXIF names as a menu (lens.cc:3857, 4184; list `find_camera`/`find_lens` of `requestChoices`) |
 | every blending module | show color and set range of the parametric mask (blend_gui.c:1050–1910) |
+| colorize | hue picker: the picked colour's HSL hue, lightness and saturation kept (colorize.c:236, `tools_effects.c`) |
+| split-toning | shadows and highlights hue pickers (splittoning.c:354) |
+| graduated density | hue picker (graduatednd.c:453) |
+| monochrome | filter colour picker: a, b and size of the filter (monochrome.c:441) |
+| framing, watermark, invert (deprecated) | border/frame line colour, text colour, film colour pickers (borders.c:722, watermark.c:1114, invert.c:178) |
+| relight (deprecated) | center picker; the picked band is drawn on the center slider (relight.c:224) |
+| color equalizer | hue picker (JzCzhz, denoised; band on the hue strip) and white level picker (colorequal.c:2541) |
+| color look up table | patch picker: the nearest source patch of the picked colour (colorchecker.c:1091) |
+| retouch | fill colour picker on the module output (retouch.c:1589) |
+| tone equalizer | the magic wands of mask exposure compensation and mask contrast compensation, the mask histogram behind them (toneequal.c:1784, 1850; `compute_luminance_mask` (865) and the log histogram (1396) ported in `tools_toneequal.c`) |
+| color mapping | acquire as source / as target: darktable's histogram capture, inversion and k-means clustering on the module input; the source clusters stay in the session for the next image, as darktable's static flowback does (colormapping.c:175–775) |
+| color harmonizer | set from vectorscope; the vectorscope of the preview with darktable's harmony guide (type, rotation, width; stored per image like `color_harmony_guide`) (colorharmonizer.c:1380, libs/scopes vectorscope) |
+| rotate and perspective | fit rotation, vertical, horizontal or both (menu: rotation only, lens shift, + shear), the auto toggle; darktable's LSD line detection and simplex fit run on the module input or on the drawn lines and rectangle (ashift.c:2830–3530, extracted unchanged by `development/tools/darktable/extract_ashift_fit.py` into `ashift_fit_port.inc`); a failed fit reports darktable's message (error 7) |
+| raster file | vectorize: the raster file's mask as drawn path shapes (rasterfile.c:160, `ras2forms` threshold 0.6) |
+| color calibration | calibrate with a color checker: recompute puts the chart on the photo and measures it, validate, accept (writes the custom illuminant x, y, its temperature and the R, G, B rows); chart, optimize for and patch scale; the quality report under the buttons (channelmixerrgb.c:1216–1980, extracted unchanged by `development/tools/darktable/extract_checker.py` into `checker_port.inc`; `checker.c`) |
+| lens correction | use latest algorithm (sets `md_version` 1 like lens.cc:2463) |
 
-GUI-only state darktable keeps in its widgets or configuration (exposure's and color
-calibration's target and mode, the colour balance patches) lives in the rows' GUI state for the
-session; it is sent with each request and the tool returns what it measured. It is not stored
-across restarts as darktable's `darkroom/modules/*` keys are.
+GUI-only state darktable keeps in its configuration (exposure's and color calibration's target and
+mode, the colour checker chart, optimisation and patch scale, the harmony guide, color mapping's
+cluster count) is stored under darktable's own `dt_conf` key names in the QtCore `Settings`
+category `darktable-conf` (`ModuleTools.qml` `confValue`/`storeConf`), sent with each request and
+restored at the next start. Rows without a key stay in the session (the colour balance patches).
 
-Still a notice: ashift's structure fitting buttons (vertical/horizontal/both and the auto toggle
-need darktable's line detection and optimiser), color mapping's acquire as source/target
-(k-means clustering and the cross-image hand-over through darktable's GUI), color harmonizer's
-set from vectorscope (darktable's scopes panel), color calibration's colour checker buttons,
-rasterfile's vectorize (drawn masks), and the pickers of colorize, split-toning, graduated
-density, monochrome, borders, watermark, invert, relight, color equalizer, colour checker and
-retouch. The tone equalizer's auto-adjust buttons for its mask need the module's guided-filter
-mask and are not ported.
+The colour checker (`ChartOverlay`): **recompute** shows the chart over the photo with its four
+corners at darktable's start position and the patch squares at the chosen patch scale through
+the perspective the corners span; dragging a corner or the chart measures again on release.
+The corners go back through the modules after color calibration with darktable's distortion
+transforms, so the chart stays on its patches through crop and lens correction. Changing the
+chart, optimisation or patch scale only redraws, as in darktable; recompute measures again.
+
+Still a notice: color transfer and equalizer (deprecated, no controls), and ashift's structure
+enhancement variants (Ctrl/Shift on the auto toggle: darktable's edge, detail and both
+enhancements are always "none" here).
 
 ## Components
 
@@ -590,8 +610,21 @@ marks the picked mean and min…max band on both channel sliders with darktable'
 **set range** sets the four markers of the input slider from the picked area (Ctrl+drag: the
 output slider, while it is shown) with darktable's 1 % feather, switches the channel on and sets
 its polarity so the picked values are included (`blend_color_picker_apply`, blend_gui.c:1757).
-Not built yet: darktable's display mask / temporarily switch off mask buttons and the
-alternative (log, magnifier) marker scales.
+**Display mask** and **temporarily switch off blend mask** (area E, `blend_display.c`): darktable
+shows the mask only while the module has focus (`dt_iop_has_focus` needs its GUI). Headless the
+engine keeps the module's raster mask for one render (`store_all_raster_masks`), takes it back
+through the later distortions pixel by pixel and composes it as gamma's `_mask_display` does
+(yellow over a grey image, `develop_mask_mix`); switching the mask off swaps the piece's blend
+data to "uniformly" for the render only. Both are shown in the viewport until another module is
+selected or the photo changes; neither is part of the history. Each parametric range has
+darktable's alternative marker scales (`_blendop_blendif_scale`): the `A` key or a click on the
+channel heading switches between linear, log and magnifier (`BlendifRange.altScale`).
+
+The **mask manager** (`mask_manager.c`, `MaskManagerView` under the drawn mask row) lists the
+module's mask group as darktable's mask manager does (top shape last): per shape its combine
+mode (union, intersection, difference, exclusion; `DT_MASKS_STATE_*`), inversion, opacity, move
+up/down, rename, remove from group, delete, duplicate, use the same shapes as another module,
+and the list of existing shapes to add; cleanup removes unused forms (masks.c `dt_masks_*`).
 
 Edits use the generic path `blend.<name>` in `setParameters`, so a module edit and a blend
 edit can share one history item and the parameter queue merges them like any other drag:
@@ -699,13 +732,35 @@ render that changed it (`canvasReady`), `Editor.setCanvasModule`, `editCanvas` a
 `omalux/tests/canvas-engine.json` (every gesture against the engine, history jumps comparing
 pixels, the sidecar) and `omalux/tests/canvas.json` (real pointer events on the photo).
 
-Not built: darktable's path and brush node editing (moving single corners or control
-points, adding or deleting nodes on a path), feather handles per path node, gradient
-curvature by drag (the wheel changes it), shape groups with several operations
-(union/intersection/difference set in the mask manager), the mask manager itself, colour
-checker calibration on the image, retouch's wavelet scales bar and preview levels, ashift's
-automatic cropping (darktable computes it in its GUI; a straightened photo keeps black
-corners until crop is set) and the fit buttons that use the drawn structure. The overlay of
-a path border and a brush stroke follows darktable's geometry (border × shorter input side
-along the Bézier normal) but not its exact border construction.
+**Nodes of paths and brush strokes** (area E, `shape_nodes.inc` in `shapes.c`; darktable's
+`path.c` button_pressed 2155–2350 and mouse_moved 2554–2665, `brush.c` 1579–1760 and
+2173–2250). A selected path or brush shows its nodes. Drag a node (its handles move with it;
+the clone source follows the first node of a path) or a segment (both nodes); click a node for
+its Bézier handles (path) or feather handle (brush) and drag those: plain keeps the handles'
+angle and length ratio, Shift moves one handle, Ctrl mirrors it, Ctrl+Shift keeps only the
+angle (darktable's `DT_MASKS_BEZIER_*` through libdarktable's `_update_bezier_ctrl_points`).
+Ctrl+click on a node switches sharp and smooth corners, Ctrl+click on a segment adds a smooth
+node with the neighbours' border (and a brush's hardness and density) interpolated,
+right-click on a node deletes it (a path of three nodes or a brush of two goes as a whole),
+right-click on a handle makes the node smooth again. The handle helpers are copied unchanged
+from darktable by `development/tools/darktable/extract_mask_nodes.py` into
+`shape_nodes_port.inc`. A node drag sends one gesture on release.
+
+**Automatic crop** (area E): after straightening and whenever rotate and perspective's rotation,
+lens shift, shear, focal length, crop factor, ortho correction, aspect adjust or crop mode
+change, the engine runs darktable's `do_crop` on the full pipe's module input
+(`om_ashift_autocrop`, `module_gui_changed.c`), as ashift's `gui_changed` does.
+
+**Retouch wavelet bar** (`WaveletBar`): darktable's wavelet decompose bar with the number of
+scales, the current scale, merge from scale and cut/paste of a scale's shapes. Darktable's
+"preview single scale" and the preview levels are display modes of the focused module's
+output; they are shown as a notice.
+
+Not built: feather handles per path node (darktable's `point_border_dragging`; the wheel
+with Shift sets the feather), gradient curvature by drag (the wheel changes it), and the
+mask display toggles inside modules (tone equalizer's exposure mask, filmic rgb's highlight
+reconstruction mask, color zones' display mask, color balance rgb's checkerboard settings);
+the blend section's display mask covers the blended result. The overlay of a path border and
+a brush stroke follows darktable's geometry (border × shorter input side along the Bézier
+normal) but not its exact border construction.
 

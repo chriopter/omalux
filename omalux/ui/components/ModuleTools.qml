@@ -118,7 +118,19 @@ QtObject {
             "@use_mixing": { local: true, conf: "darkroom/modules/channelmixerrgb/use_mixing" },
             "@lightness_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/lightness" },
             "@hue_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/hue" },
-            "@chroma_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/chroma" }
+            "@chroma_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/chroma" },
+            // area E: "calibrate with a color checker" (channelmixerrgb.c:4669-4740, checker.c);
+            // "recompute" puts the chart on the photo and measures it, validate and accept use it.
+            "@checker": { local: true, conf: "darkroom/modules/channelmixerrgb/colorchecker" },
+            "@optimize": { local: true, conf: "darkroom/modules/channelmixerrgb/optimization" },
+            "@safety": { local: true, conf: "darkroom/modules/channelmixerrgb/safety" },
+            "@recompute": { tool: "checker", kind: "chart", gui: ["@checker", "@optimize", "@safety"], extra: { action: "profile" },
+                            keepActive: true,
+                            hint: "recompute the profile: move the chart's corners on the photo onto the color checker,\nthe module measures its patches" },
+            "@validate": { tool: "checker", kind: "button", chartBox: true, gui: ["@checker", "@optimize", "@safety"], extra: { action: "validate" },
+                           hint: "check the output delta E" },
+            "@accept": { tool: "checker", kind: "button", chartBox: true, gui: ["@checker", "@optimize", "@safety"], extra: { action: "accept" },
+                         hint: "accept the computed profile and set it in the module" }
         },
         // lens.cc:4386/4398: the cameras and lenses lensfun finds for the EXIF names, as a menu
         // (engine list "find_camera"/"find_lens" of catalogModel.requestChoices).
@@ -263,6 +275,14 @@ QtObject {
         send("gamma", 0, "harmony_guide", null, { type: type, rotation: rotation, width: width })
     }
     function requestVectorscope() { send("gamma", 0, "vectorscope", null, null) }
+    // color calibration's colour checker layout (checker.c checker_layout) for ChartOverlay
+    property var chartLayout: null
+    function chartSettings(gui) {
+        if (!active || active.tool !== "checker") return
+        const chartChanged = (active.gui || {})["@checker"] !== gui["@checker"]
+        active = Object.assign({}, active, { gui: Object.assign({}, active.gui, gui) })
+        if (chartChanged) send(active.operation, active.instance, "checker_layout", null, gui)
+    }
     // The blend section's display mask / switch off mask of one module at a time (blend_display.c).
     property var blendDisplay: null    // { operation, instance, mask, suppress }
     function blendDisplayOf(operation, instance) {
@@ -290,7 +310,11 @@ QtObject {
     function isActive(operation, instance, tool) {
         return !!active && active.operation === operation && active.instance === instance && active.tool === tool
     }
-    function defaultBox(kind) { return kind === "area" ? [0.02, 0.02, 0.98, 0.98] : [0.5, 0.5, 0.5, 0.5] }
+    // area E: a colour checker's four corners start 10 px inside the view (_init_bounding_box)
+    function defaultBox(kind) {
+        if (kind === "chart") return [0.01, 0.01, 0.99, 0.01, 0.99, 0.99, 0.01, 0.99]
+        return kind === "area" ? [0.02, 0.02, 0.98, 0.98] : [0.5, 0.5, 0.5, 0.5]
+    }
     function activeBox() {
         if (!active) return null
         return boxes[key(active.operation, active.instance, active.tool)] || defaultBox(active.kind)
@@ -310,18 +334,25 @@ QtObject {
     }
     function send(operation, instance, tool, box, gui) {
         const request = { tool: tool }
-        if (box) request.box = box
+        // area E: a chart's eight corner coordinates travel as "corners" (checker.c)
+        if (box && box.length === 8) gui = Object.assign({}, gui || {}, { corners: box })
+        else if (box) request.box = box
         if (gui && Object.keys(gui).length) request.gui = gui
         runRequested(operation, instance, request)
     }
     // A picker button: switch it on (and apply it with its last box) or off. A button runs once;
     // `extraGui` carries a menu choice.
     function toggle(operation, instance, spec, gui, extraGui) {
-        const g = Object.assign({}, gui || {}, extraGui || {})
-        if (spec.kind === "button") { send(operation, instance, spec.tool, null, g); return }
+        const g = Object.assign({}, gui || {}, spec.extra || {}, extraGui || {})
+        if (spec.kind === "button") {
+            // area E: validate / accept use the corners of the chart shown on the photo
+            send(operation, instance, spec.tool, spec.chartBox ? (boxes[key(operation, instance, spec.tool)] || defaultBox("chart")) : null, g)
+            return
+        }
         if (isActive(operation, instance, spec.tool)) { cancel(); return }
         active = { operation: operation, instance: instance, tool: spec.tool, kind: spec.kind, gui: g,
                    oneShot: !!spec.oneShot, keepActive: !!spec.keepActive }
+        if (spec.kind === "chart") send(operation, instance, "checker_layout", null, g)
         send(operation, instance, spec.tool, activeBox(), g)
     }
     function cancel() { active = null }
@@ -368,6 +399,7 @@ QtObject {
             return
         }
         if (tool === "harmony_guide") return
+        if (tool === "checker_layout") { if (result.chart) chartLayout = result.chart; return }
         const next = Object.assign({}, results)
         next[key(operation, instance, tool)] = result
         results = next

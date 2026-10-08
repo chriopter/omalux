@@ -71,9 +71,19 @@ Rectangle {
             crop: root.crop; aspectRatio: root.aspectRatio
             onCropChangedByUser: rect => root.cropEdited(rect)
         }
+        // area E: color calibration's colour checker (kind "chart": four corners, ChartOverlay)
+        ChartOverlay {
+            objectName: "chart-overlay"
+            x: photo.x; y: photo.y; width: photo.width; height: photo.height
+            visible: !!root.picker && root.picker.kind === "chart" && !root.cropping
+            box: root.picker && root.picker.kind === "chart" ? root.picker.box : [0.01, 0.01, 0.99, 0.01, 0.99, 0.99, 0.01, 0.99]
+            chart: root.picker ? root.picker.chart || null : null
+            safety: root.picker && root.picker.safety !== undefined ? root.picker.safety : 0.5
+            onBoxEdited: box => root.pickerEdited(box, 0)
+        }
         PickerOverlay {
             x: photo.x; y: photo.y; width: photo.width; height: photo.height
-            visible: !!root.picker && !root.cropping
+            visible: !!root.picker && root.picker.kind !== "chart" && !root.cropping
             kind: root.picker ? root.picker.kind : "area"
             box: root.picker ? root.picker.box : [0.02, 0.02, 0.98, 0.98]
             onBoxEdited: (box, modifiers) => root.pickerEdited(box, modifiers)

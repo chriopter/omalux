@@ -205,17 +205,6 @@
   }
  },
  "notices": {
-  "channelmixerrgb": {
-   "label": "calibrating with a color checker on the image — not available yet",
-   "replaces": [
-    "@checker",
-    "@optimize",
-    "@safety",
-    "@validate",
-    "@recompute",
-    "@accept"
-   ]
-  },
   "colortransfer": {
    "label": "no controls — this module can only be switched off",
    "replaces": []

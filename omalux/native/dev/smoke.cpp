@@ -541,6 +541,10 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
+                // area E: "consume": the next check of this tool waits for a new result (a tool
+                // run from a clicked button rather than a moduleTool step).
+                if (call["consume"].toBool())
+                    toolResults->remove(key);
             } else if (step.contains("setParameters")) {
                 const auto call = step["setParameters"].toObject();
                 editor.setParameters(call["operation"].toString(), call["instance"].toInt(),

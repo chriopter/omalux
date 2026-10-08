@@ -87,6 +87,7 @@ extern const OmToolSpec om_tools_vectorscope[];  // area E: RYB vectorscope and 
 extern const OmToolSpec om_tools_blend_display[]; // area E: display mask / switch off mask (blend_display.c)
 extern const OmToolSpec om_tools_masks[];         // area E: mask manager, rasterfile vectorize (mask_manager.c)
 extern const OmToolSpec om_tools_ashift[];        // area E: rotate and perspective fit (ashift_fit.c)
+extern const OmToolSpec om_tools_checker[];       // area E: color checker calibration (checker.c)
 
 // Number from the request's "gui" member, or fallback.
 double om_tool_gui(const OmToolContext *ctx, const char *name, double fallback);

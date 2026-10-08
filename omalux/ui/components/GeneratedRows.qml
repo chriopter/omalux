@@ -72,6 +72,15 @@ Column {
                    + " °  c: " + Number(g.input_chroma).toFixed(1)
         return "L : " + Number(g.input_lightness).toFixed(1) + " %"
     }
+    // area E: a multi-line report of the row's tools (the colour checker's quality report).
+    function toolDetails(specs) {
+        if (!root.tools) return ""
+        for (const s of specs) {
+            const r = root.tools.results[root.tools.key(module.operation, root.instance, s.tool)]
+            if (s.tool === "checker" && r && r.report) return r.report.replace(/ *\t/g, "  ")
+        }
+        return ""
+    }
     // A "find" button's list (lens find camera / find lens) while its menu is wanted.
     property string findList: ""
     // A picker writes GUI-only values back (exposure "measure" fills the target lightness).
@@ -343,6 +352,10 @@ Column {
     // in "measure" mode the target is just recorded).
     function guiEdited() {
         if (!root.tools || !root.tools.active || root.tools.active.operation !== module.operation) return
+        // area E: chart, optimisation and patch scale only redraw the chart on the photo
+        // (channelmixerrgb.c _checker_changed_callback 2850, _safety_changed_callback 2875);
+        // the profile is computed again with "recompute".
+        if (root.tools.active.tool === "checker") { root.tools.chartSettings(toolGui({ gui: ["@checker", "@optimize", "@safety"] })); return }
         if (root.gui["@area_mode"] === 1 || root.gui["@spot_mode"] === 1) return
         const spec = { gui: Object.keys(root.tools.active.gui || {}) }
         root.tools.updateGui(module.operation, root.instance, toolGui(spec))
@@ -1076,6 +1089,7 @@ Column {
             navGroup: root.navGroup
             // A value darktable shows beside the picker, e.g. exposure's input lightness.
             report: root.toolReport(it.specs)
+            details: root.toolDetails(it.specs)
             opacity: root.moduleEnabled ? 1 : .7
             onTriggered: (index, choice) => root.runTool(it.specs[index], choice)
             // The answer of a find button opens as a menu, as darktable pops one up.

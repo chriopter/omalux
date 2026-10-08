@@ -390,7 +390,46 @@ source. Findings verified against 5.6.1:
   `plugins/darkroom/spots|masks/...`, liquify's `dt_conf_get_sanitize_float`, which moves an
   unset value a quarter of the way to its default), and resizing stores them back as darktable
   does.
-- **Not ported.** ashift's automatic cropping (`cl/cr/ct/cb` are computed in GUI code, so a
-  rotated photo keeps black corners), its structure detection and fitting (the drawn structure
-  is stored for them), single path/brush node editing and the mask manager.
+- **Ported since (area E).** Single path/brush node editing (`shape_nodes.inc`; darktable's
+  static handle helpers copied by `extract_mask_nodes.py`, `_update_bezier_ctrl_points` is
+  exported by libdarktable), the mask manager (`mask_manager.c`) and ashift's automatic
+  cropping and fitting (below). Still missing: per-node feather handles of a path, gradient
+  curvature by drag.
+
+## Remaining GUI-bound tools (area E, 2026-10-08)
+
+- **Extracted code instead of rewrites.** Where darktable's maths is static and reads its GUI
+  struct, a generator copies the functions unchanged and the engine passes a stand-in struct
+  with the members they use: `extract_ashift_fit.py` (ashift's LSD detection, `nmsimplex`
+  fit, `_do_fit`, `do_crop`; GUI locks, combobox writes and redraws removed) →
+  `ashift_fit_port.inc`/`ashift_fit_types.inc` used by `ashift_fit.c` (`OmAshiftGui`);
+  `extract_checker.py` (channelmixerrgb's `_extract_patches`, `_extract_color_checker`,
+  `_validate_color_checker`, `_check_if_close_to_daylight`) → `checker_port.inc` used by
+  `checker.c` (`OmCheckerGui`). Re-run them after a submodule update.
+- **Module GUI hooks.** darktable recomputes some parameters in `gui_changed` and
+  `reload_defaults` (ashift's autocrop, color mapping's cluster reset, lut3d's .gmz LUT name
+  list). `module_gui_changed.c` runs those after a generic edit (`module_catalog.c` passes the
+  parameters before the edit) and after a module reset or opening a photo
+  (`om_module_defaults_loaded`).
+- **Mask display.** `dt_iop_has_focus` needs `gui_attached`, so the blend section's display
+  mask cannot use `request_mask_display`. `blend_display.c` sets `store_all_raster_masks` for
+  one render, reads the module's raster mask from `piece->raster_masks`
+  (`BLEND_RASTER_ID`), back-transforms each preview pixel through the later distortions and
+  composes like gamma's `_mask_display` (gamma.c:247). "Switch off mask" swaps
+  `piece->blendop_data` after `dt_dev_pixelpipe_change` (sync reads history, not
+  `module->blend_params`) and invalidates the cache.
+- **dt_conf.** GUI-only values darktable keeps in `darkroom/modules/*` keys are stored by QML
+  in QtCore `Settings` (category `darktable-conf`) under the same names and sent with each
+  tool request; the engine falls back to `dt_conf_get_*` of the headless library.
+- **Vectorscope.** The scopes library is GUI code; `tools_vectorscope.c` computes darktable's
+  RYB vectorscope (log scale, 2 × 2 averaging) of the preview and renders it to a PNG with
+  cairo, plus the harmony guide stored on the image (`img->color_harmony_guide`).
+- **.gmz LUTs.** lut3d reads compressed LUTs through libgmic (`lut3d_gmz.cpp`); like
+  darktable, saving gmic's cache fails in this libgmic build and is ignored. Every gmic call in
+  tests passes an explicit output file and runs without a display.
+- **Worker ordering.** A tool request runs only after the edits queued before it
+  (`EngineWorker` `editsBeforeAction`); before, an action could overtake a queued edit, which
+  made `module-values.json` fail now and then.
+- **Error 7** of a module tool: darktable refused with a message (ashift fit without
+  structure, colour checker accept without a profile); the result carries `message`.
 

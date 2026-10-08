@@ -8919,12 +8919,143 @@
        "action": "gray/normalize channels"
       },
       {
-       "field": "@notice",
-       "path": null,
-       "label": "calibrating with a color checker on the image — not available yet",
+       "field": "@checker",
+       "path": "@checker",
+       "label": "chart",
        "tab": null,
-       "section": null,
-       "widget": "notice",
+       "section": "calibrate",
+       "widget": "combobox",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": 0,
+       "values": [
+        {
+         "value": 0,
+         "label": "Xrite ColorChecker 24 pre-2014"
+        },
+        {
+         "value": 1,
+         "label": "Xrite/Calibrite ColorChecker 24 post-2014"
+        },
+        {
+         "value": 2,
+         "label": "Datacolor SpyderCheckr 24 pre-2018"
+        },
+        {
+         "value": 3,
+         "label": "Datacolor SpyderCheckr 24 post-2018"
+        },
+        {
+         "value": 4,
+         "label": "Datacolor SpyderCheckr 48 pre-2018"
+        },
+        {
+         "value": 5,
+         "label": "Datacolor SpyderCheckr 48 post-2018"
+        },
+        {
+         "value": 6,
+         "label": "Datacolor SpyderCheckr Photo"
+        }
+       ],
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "calibrate/chart"
+      },
+      {
+       "field": "@optimize",
+       "path": "@optimize",
+       "label": "optimize for",
+       "tab": null,
+       "section": "calibrate",
+       "widget": "combobox",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": 0,
+       "values": [
+        {
+         "value": 0,
+         "label": "none"
+        },
+        {
+         "value": 1,
+         "label": "neutral colors"
+        },
+        {
+         "value": 2,
+         "label": "saturated colors"
+        },
+        {
+         "value": 3,
+         "label": "skin and soil colors"
+        },
+        {
+         "value": 4,
+         "label": "foliage colors"
+        },
+        {
+         "value": 5,
+         "label": "sky and water colors"
+        },
+        {
+         "value": 6,
+         "label": "average delta E"
+        },
+        {
+         "value": 7,
+         "label": "maximum delta E"
+        }
+       ],
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "calibrate/optimize for"
+      },
+      {
+       "field": "@safety",
+       "path": "@safety",
+       "label": "patch scale",
+       "tab": null,
+       "section": "calibrate",
+       "widget": "slider",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 3,
+       "min": 0,
+       "max": 1,
+       "soft_min": 0,
+       "soft_max": 1,
+       "default": 0.5,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "calibrate/patch scale"
+      },
+      {
+       "field": "@validate",
+       "path": null,
+       "label": "validate",
+       "tab": null,
+       "section": "calibrate",
+       "widget": "button",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -8936,10 +9067,56 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "advanced",
        "colors": "",
        "custom": null,
-       "action": null
+       "action": "calibrate/validate"
+      },
+      {
+       "field": "@recompute",
+       "path": null,
+       "label": "recompute",
+       "tab": null,
+       "section": "calibrate",
+       "widget": "button",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "calibrate/recompute"
+      },
+      {
+       "field": "@accept",
+       "path": null,
+       "label": "accept",
+       "tab": null,
+       "section": "calibrate",
+       "widget": "button",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "calibrate/accept"
       }
      ],
      "notes": "adaptation: darktable's default is '1 CAT16 (DT_ADAPTATION_CAT16); 4 none (bypass) if another instance already does the CAT or image is monochrome (channelmixerrgb.c:3886-3891)'. illuminant: darktable's default is '2 D (daylight); per image: 10 as shot in camera / 0 pipeline when CAT not applicable (reload_defaults channelmixerrgb.c:3862)'. illuminant: shown when 'as shot in camera' only for raws with matrix support (not machine-readable). temperature: darktable's default is '5003, recomputed from as-shot WB when close to daylight (channelmixerrgb.c:3900)'. hue: darktable's default is 'hue of default x,y (0.333,0.333) - set in reload_defaults'. chroma: darktable's default is 'chroma of default x,y'. darktable shows some rows only on a tab, in a collapsible section or with a preference; that layout state is not part of visible_when."

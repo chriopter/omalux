@@ -504,6 +504,9 @@ static void write_poly(JsonBuilder *builder, const char *member, OmPoly *poly) {
     *poly = (OmPoly){0};
 }
 
+// area E: single nodes of paths and brush strokes (shape_nodes.inc)
+#include "shape_nodes.inc"
+
 static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_t *module,
                           const dt_masks_point_group_t *member, JsonBuilder *builder) {
     dt_masks_form_t *form = dt_masks_get_from_id(&engine->dev, member->formid);
@@ -552,6 +555,7 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
         }
     } else if (form->type & (DT_MASKS_PATH | DT_MASKS_BRUSH)) {
         spline_outline(space, form, &line, &border);
+        shape_nodes_overlay(space, form, builder);
         // The geometric centre of the corners, where a drag of the whole shape is anchored.
         float sx = 0, sy = 0;
         int n = 0;
@@ -1371,7 +1375,15 @@ int om_shapes_edit(OmEngine *engine, const OmSpace *space, dt_iop_module_t *modu
         return 5;
     float from[2], to[2];
     gboolean changed = FALSE;
-    if (!strcmp(action, "remove")) {
+    const int node = shape_nodes_edit(space, form, action, gesture);   // area E
+    if (node == 2) {
+        remove_form(engine, module, id);
+        changed = TRUE;
+    } else if (node >= 0) {
+        if (node > 2)
+            return node;
+        changed = node == 1;
+    } else if (!strcmp(action, "remove")) {
         remove_form(engine, module, id);
         changed = TRUE;
     } else if (!strcmp(action, "move")) {

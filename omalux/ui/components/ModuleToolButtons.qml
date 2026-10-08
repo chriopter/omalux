@@ -17,14 +17,29 @@ Item {
     property string navGroup: ""
     // A short value darktable shows next to the picker (e.g. the picked input lightness).
     property string report: ""
+    // area E: a longer report under the buttons (color calibration's profile quality report,
+    // channelmixerrgb.c:1903-1935), one line per line of darktable's label.
+    property string details: ""
     signal triggered(int index, int choice)
 
-    implicitHeight: Math.max(28, layout.implicitHeight + 4)
+    readonly property real rowHeight: Math.max(28, layout.implicitHeight + 4)
+    implicitHeight: rowHeight + (details !== "" ? detailsText.implicitHeight + 6 : 0)
+    Text {
+        id: detailsText
+        objectName: "module-tool-details-" + root.navPrefix
+        visible: root.details !== ""
+        y: root.rowHeight + 2
+        width: root.width - 28
+        text: root.details
+        color: root.theme.muted
+        font: root.theme.textFont
+        wrapMode: Text.WordWrap
+    }
     RowLayout {
         id: layout
         x: 0
         width: root.width - 28
-        anchors.verticalCenter: parent.verticalCenter
+        y: (root.rowHeight - implicitHeight) / 2
         spacing: 6
         Repeater {
             model: root.entries

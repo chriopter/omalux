@@ -195,7 +195,8 @@ SmokeResult canvasSmokeStep(const QJsonObject &step, Editor &editor, QQmlApplica
             qCritical() << "Canvas overlay not shown";
             return SmokeResult::Fail;
         }
-        const auto points = call["points"].toArray();
+        // area E: a point may be a remembered one ("$name")
+        const auto points = QJsonValue::fromVariant(substitute(call["points"].toVariant())).toArray();
         const auto at = [item](const QJsonValue &p) {
             return item->mapToScene(QPointF(p.toArray().at(0).toDouble() * item->width(),
                                             p.toArray().at(1).toDouble() * item->height()));
