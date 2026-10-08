@@ -47,6 +47,8 @@ Column {
         return out
     }
     function runTool(spec, choice) {
+        // area E: a button that writes fixed values (lens "use latest algorithm", lens.cc:2463)
+        if (spec.set) { root.changesRequested(Object.assign({}, spec.set)); return }
         if (spec.choices) { root.findList = spec.choices; root.catalogModel.requestChoices(module.operation, root.instance, spec.choices, ""); return }
         const extra = spec.menu && choice >= 0 ? spec.menu[choice].gui : null
         root.tools.toggle(module.operation, root.instance, spec, toolGui(spec), extra)
@@ -165,10 +167,11 @@ Column {
                          ? { kind: "localSlider", control: sliderControl(lr, id(lr)) } : { kind: "local" }))
                 if (!ts.tool) continue
             }
-            if (ts && (ts.tool || ts.choices)) {
+            if (ts && (ts.tool || ts.choices || ts.set)) {
                 const spec = Object.assign({ label: r.label }, ts)
                 const prev = out.length ? out[out.length - 1] : null
                 const item = Object.assign(base(r), { kind: "tools", specs: [spec] })
+                if (ts.when) item.cond = { all: [r.visible_when, ts.when].filter(x => x) }
                 if (item.tier === "primary") item.tier = "detail"
                 if (prev && prev.kind === "tools" && prev.tier === item.tier && prev.tab === item.tab && prev.section === item.section
                         && JSON.stringify(prev.cond) === JSON.stringify(item.cond) && prev.specs.length < 4) {
@@ -186,6 +189,12 @@ Column {
                 it = Object.assign(base(r), { kind: "textEdit" })
             else if (r.widget === "slider" && derivedPath)
                 it = Object.assign(base(r), { kind: "slider", derived: true, control: sliderControl(r, id(r)) })
+            // area E: zone system's bar edits both its rows (the number of zones by the wheel).
+            else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "size") continue
+            else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "zone")
+                it = Object.assign(base(r), { kind: "zonebar", tier: r.tier === "primary" ? "detail" : r.tier })
+            else if (r.widget === "drawn" && r.field === "grid" && ["monochrome", "colorcorrection"].indexOf(module.operation) >= 0)
+                it = Object.assign(base(r), { kind: "colorgrid", tier: r.tier === "primary" ? "detail" : r.tier })   // area E
             else if (r.widget === "combobox" && derivedPath && r.values) // area E: a list position (clipping @aspect, @flip)
                 it = Object.assign(base(r), { kind: "choice", derived: true })
             else if (r.widget === "color" && derivedPath)
@@ -391,7 +400,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
-                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -700,6 +709,12 @@ Column {
                 nodes: curveBox.nodes
                 interpolation: curveBox.interpolation
                 splineVersion: ["tonecurve", "basecurve"].indexOf(root.module.operation) >= 0 ? 1 : 2
+                // area E: "scale for graph" (basecurve.c:2124, tonecurve.c:1325, to_log): both axes
+                // logarithmic; tone curve only for its L curve.
+                readonly property real logBase: root.module.operation === "basecurve"
+                    || (root.module.operation === "tonecurve" && curveBox.channel === 0) ? (root.gui["@scale_for_graph"] || 0) : 0
+                xLog: logBase
+                yLog: logBase
                 periodic: !!curveBox.c.periodic
                 background: root.module.operation === "colorzones"
                             ? (Math.round(root.valueOrDefault({ path: "channel", default: 2 })) === 2 ? "gradient-hue" : "gradient-luma") : "none"
@@ -1161,6 +1176,51 @@ Column {
             Timer { id: scopeRefresh; interval: 600; onTriggered: if (root.tools) root.tools.requestVectorscope() }
             Connections { target: root.catalogModel; function onStatesChanged() { scopeRefresh.restart() } }
             Component.onCompleted: { scopeRefresh.restart(); push() }
+        }
+    }
+    // area E: zone system's zone bar (ZoneBar).
+    Component {
+        id: zoneBarRow
+        Column {
+            width: root.width - 28
+            spacing: 2
+            Text { text: "zones: " + Math.round(Number(root.raw("size")) || 10) + "  (scroll to change)"; color: root.theme.muted; font: root.theme.textFont }
+            ZoneBar {
+                objectName: "zonebar-" + root.module.operation
+                width: parent.width
+                theme: root.theme
+                size: Math.round(Number(root.raw("size")) || 10)
+                zones: { const z = root.raw("zone"); return Array.isArray(z) ? z.map(Number) : [] }
+                editable: root.editable && root.canWrite("size") && root.canWrite("zone[0]")
+                opacity: root.moduleEnabled ? 1 : .7
+                onInteractionChanged: active => root.interactionChanged(active)
+                onEdited: changes => root.changesRequested(changes)
+                navTarget.navId: root.navGroup + "/@zones"
+                navTarget.group: root.navGroup
+            }
+        }
+    }
+    // area E: the a/b panels of monochrome and color correction (ColorGrid).
+    Component {
+        id: colorGridRow
+        ColorGrid {
+            readonly property var names: root.module.operation === "monochrome" ? ["a", "b", "size"] : ["loa", "lob", "hia", "hib", "saturation"]
+            objectName: "colorgrid-" + root.module.operation
+            width: Math.min(root.width - 28, 260)
+            theme: root.theme
+            mode: root.module.operation === "monochrome" ? "monochrome" : "correction"
+            values: { const out = {}; for (const n of names) out[n] = root.raw(n); return out }
+            editable: root.editable && names.every(n => root.canWrite(n))
+            opacity: root.moduleEnabled ? 1 : .7
+            onInteractionChanged: active => root.interactionChanged(active)
+            onEdited: changes => root.changesRequested(changes)
+            onResetRequested: list => {
+                const ch = {}
+                for (const n of list) { const d = root.module.rows.find(x => x.field === n); ch[n] = d && d.default !== null ? d.default : (n === "size" ? 2 : n === "saturation" ? 1 : 0) }
+                root.changesRequested(ch)
+            }
+            navTarget.navId: root.navGroup + "/@grid"
+            navTarget.group: root.navGroup
         }
     }
     // area E: color mapping's source and target clusters (colormapping.c:1000-1001).

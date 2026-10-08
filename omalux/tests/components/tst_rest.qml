@@ -85,6 +85,35 @@ Item {
         onCustomRotated: t => turned = turned.concat([t])
     }
     PickerBand { id: band; y: 1200; width: 200; height: 6; theme: th }
+    ColorGrid {
+        id: mono
+        x: 0; y: 1300; width: 210
+        theme: th
+        mode: "monochrome"
+        values: ({ a: 0, b: 0, size: 2 })
+        property var got: []
+        property var resets: []
+        onEdited: c => got = got.concat([c])
+        onResetRequested: n => resets = resets.concat([n])
+    }
+    ColorGrid {
+        id: corr
+        x: 220; y: 1300; width: 170
+        theme: th
+        mode: "correction"
+        values: ({ loa: -10, lob: -10, hia: 10, hib: 10, saturation: 1 })
+        property var got: []
+        onEdited: c => got = got.concat([c])
+    }
+    ZoneBar {
+        id: zones
+        y: 1520; width: 300
+        theme: th
+        size: 6
+        zones: [-1, -1, 0.5, -1, -1, -1, -1]
+        property var got: []
+        onEdited: c => got = got.concat([c])
+    }
     BlendifRange {
         id: range
         y: 1240; width: 260
@@ -178,6 +207,50 @@ Item {
             fuzzyCompare(scope.sectors[1].len, .5, 1e-6)
             scope.guide = { type: 0, rotation: 0, width: 0 }
             compare(scope.sectors.length, 0)
+        }
+        function test_color_grids() {
+            // monochrome: a click sets a, b at the pointer (centre = 0, 0; y up)
+            mouseClick(mono, mono.width / 2, mono.height / 2)
+            fuzzyCompare(mono.got[0].a, 0, 2); fuzzyCompare(mono.got[0].b, 0, 2)
+            mouseClick(mono, mono.width - 5, 5)                       // top right: +a, +b
+            verify(mono.got[1].a > 120 && mono.got[1].b > 120)
+            mouseWheel(mono, 50, 50, 0, -120)                         // scroll down: size + 0.1
+            fuzzyCompare(mono.got[mono.got.length - 1].size, 2.1, 1e-6)
+            mouseDoubleClickSequence(mono, 50, 50)
+            compare(mono.resets[0], ["a", "b", "size"])
+            // correction: hover selects the nearer point within 5, a drag moves it
+            const x = corr.inset + corr.toPos(10) * (corr.width - 2 * corr.inset)
+            const y = corr.inset + (corr.height - 2 * corr.inset) - corr.toPos(10) * (corr.height - 2 * corr.inset)
+            mouseMove(corr, x, y)
+            compare(corr.selected, 2)
+            mousePress(corr, x, y); mouseMove(corr, x - 20, y); mouseRelease(corr, x - 20, y)
+            verify(corr.got.length > 0 && corr.got[corr.got.length - 1].hia < 10)
+            corr.forceActiveFocus(); keyClick(Qt.Key_Up)
+            fuzzyCompare(corr.got[corr.got.length - 1].hib, 10.5, 1e-6)
+            mouseWheel(corr, 30, 30, 0, 120)                          // scroll up: saturation + 0.1
+            fuzzyCompare(corr.got[corr.got.length - 1].saturation, 1.1, 1e-6)
+        }
+        function test_zone_bar() {
+            // zone 2 is set at 0.5; zones 1, 3, 4 follow linearly (zonemap)
+            fuzzyCompare(zones.zonemap[1], 0.25, 1e-6)
+            fuzzyCompare(zones.zonemap[3], 0.5 + 0.5 / 3, 1e-6)
+            const w = zones.width - 2 * zones.inset
+            mousePress(zones, zones.inset + 0.25 * w, 40)              // boundary 1: sets its point
+            compare(zones.got[0]["zone[1]"], 0.25)
+            mouseMove(zones, zones.inset + 0.3 * w, 40)
+            fuzzyCompare(zones.got[1]["zone[1]"], 0.3, 0.01)
+            mouseRelease(zones, zones.inset + 0.3 * w, 40)
+            mouseClick(zones, zones.inset + 0.5 * w, 40, Qt.RightButton)
+            compare(zones.got[zones.got.length - 1]["zone[2]"], -1)    // right-click clears
+            mouseWheel(zones, 50, 30, 0, 120)
+            compare(zones.got[zones.got.length - 1].size, 7)
+            compare(zones.got[zones.got.length - 1]["zone[6]"], -1)
+        }
+        function test_lens_and_scale_rows() {
+            const s = tools.rowTool("lens", "@use_latest_algorithm")
+            compare(s.set.md_version, 1)
+            compare(s.when.field, "md_version")
+            verify(tools.rowTool("tonecurve", "@scale_for_graph").local)
         }
         function test_blend_display() {
             tools.setBlendDisplay("exposure", 0, true, false)

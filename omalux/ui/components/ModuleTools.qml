@@ -96,7 +96,8 @@ QtObject {
         },
         tonecurve: {
             "@pick_color": { tool: "pick_color", kind: "pointarea", marker: true,
-                             hint: "pick GUI color from image\nctrl+click or right-click to select an area" }
+                             hint: "pick GUI color from image\nctrl+click or right-click to select an area" },
+            "@scale_for_graph": { local: true }   // area E: CurveEditor xLog/yLog
         },
         rgbcurve: {
             "@show_color": { tool: "show_color", kind: "pointarea", marker: true, keepActive: true,
@@ -123,7 +124,11 @@ QtObject {
         // (engine list "find_camera"/"find_lens" of catalogModel.requestChoices).
         lens: {
             "@find_camera": { choices: "find_camera", kind: "button", icon: "▾" },
-            "@find_lens": { choices: "find_lens", kind: "button", icon: "▾" }
+            "@find_lens": { choices: "find_lens", kind: "button", icon: "▾" },
+            // area E: lens.cc:4485 / _use_latest_md_algo_callback 2463, offered while an edit
+            // uses the first embedded-metadata algorithm (gui_changed 4300).
+            "@use_latest_algorithm": { set: { md_version: 1, scale_md_v1: 0 }, kind: "button",
+                                       when: { field: "md_version", in: [0] } }
         },
         colorharmonizer: {
             "@auto_detect": { tool: "auto_detect", kind: "button", icon: "camera",
@@ -135,6 +140,8 @@ QtObject {
                                        hint: "import the harmony rule and anchor hue currently displayed in the vectorscope." }
         },
         // ---- area E (tools_effects.c) ----
+        // GUI-only "scale for graph" of the curve (CurveEditor xLog/yLog), 0 = linear.
+        basecurve: { "@scale_for_graph": { local: true } },
         // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.
         colorchecker: {
             "@patch": { local: true, tool: "patch", kind: "pointarea", label: "patch", hint: "pick the patch nearest to the picked color" }
@@ -249,7 +256,7 @@ QtObject {
     function implemented(operation, spec) { return !!spec && !!spec.tool && !!supported[operation + "/" + spec.tool] }
     function rowTool(operation, field) {
         const s = (rowTools[operation] || {})[field]
-        return s && (s.local && !s.tool || s.choices || implemented(operation, s)) ? s : null
+        return s && (s.local && !s.tool || s.choices || s.set || implemented(operation, s)) ? s : null
     }
     function sliderTool(operation, field) {
         const s = (sliderTools[operation] || {})[field]

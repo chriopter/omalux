@@ -24,6 +24,13 @@
   {"refresh": true},
   {"clickItem": "module-tool-toneequal/0/exposure_boost/@picker-0"},
   {"toolResult": {"operation": "toneequal", "tool": "exposure_boost", "changed": ["toneequal"]}},
+  {"property": "moduleSearch", "value": "monochrome"},
+  {"refresh": true},
+  {"visibleItem": "colorgrid-monochrome", "visible": true},
+  {"dragItem": "colorgrid-monochrome", "from": [0.5, 0.5], "to": [0.51, 0.5]},
+  {"refresh": true},
+  {"checkParameter": {"operation": "monochrome", "path": "a", "minimum": -3, "maximum": 3, "enabled": true}},
+  {"capture": "{WORK}/monochrome.png"},
   {"property": "moduleSearch", "value": ""},
   {"refresh": true}
 ]
