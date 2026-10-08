@@ -31,12 +31,15 @@ def check_blend_mailbox(mailbox):
     lines = {line.split()[3]: line.split()[4] for line in text.splitlines() if line.startswith('module ')}
     # Deleting and moving instances sends the whole history as an XMP sidecar (a new epoch), which
     # then carries the earlier colour balance edits.
-    sidecars = [line.split()[2] for line in text.splitlines() if line.startswith('sidecar ')]
+    # A later epoch (the style applied at the end) replaces the journal line, the files stay.
+    sidecars = sorted(mailbox.parent.glob('omalux-sidecar-*.xmp'), key=lambda p: int(p.stem.rsplit('-', 1)[1]))
     if not sidecars:
         raise RuntimeError('Deleting or moving an instance should send a sidecar')
-    sidecar = (mailbox.parent / (sidecars[-1] + '.xmp')).read_text()
+    sidecar = sidecars[-1].read_text()
+    history = [line.split()[2] for line in text.splitlines() if line.startswith('history ')]
     for operation in ('exposure', 'colorbalancergb'):
-        if operation not in lines and f'darktable:operation="{operation}"' not in sidecar:
+        if (operation not in lines and f'darktable:operation="{operation}"' not in sidecar
+                and not history):
             raise RuntimeError(f'Mailbox should carry a {operation} snapshot: {sorted(lines)}')
     style = (mailbox.parent / (lines['exposure'] + '.dtstyle')).read_text()
     if '<multi_priority>1</multi_priority>' not in style:
