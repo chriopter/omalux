@@ -62,10 +62,14 @@ Item {
     implicitHeight: compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
     readonly property var colors: {
         switch (control.colors) {
-        case "light": return [theme.ink, theme.ink]
+        // Dark to light: exposure, brightness, shadows and highlights, tone zones.
+        case "light": return [theme.line, "#a6adc8", "#ffffff"]
         case "saturation": return ["#8a8a92", "#e05555"]
         case "temperature": return ["#5a8ad0", "#e0954a"]
         case "tint": return ["#d05ad0", "#5ac06a"]
+        // Color contrast along one opponent axis (Lab a or b): from flat to both colours.
+        case "green-magenta": return ["#7a7a84", "#5ac06a", "#d05ad0"]
+        case "blue-yellow": return ["#7a7a84", "#5a8ad0", "#d8c050"]
         case "hue": return ["#d05a5a", "#d0b05a", "#5ac06a", "#4fc3c3", "#5a6fd0", "#c05ad0", "#d05a5a"]
         default: return [theme.ink, theme.ink]
         }
