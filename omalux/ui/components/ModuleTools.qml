@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 
 // darktable's colour pickers and module buttons (native: engine/module_tools.h), as data and
 // state for the generated rows and the photo viewport. Non-visual; the sidebar composition
@@ -35,7 +36,7 @@ QtObject {
         },
         exposure: {
             "@area_mode": { local: true },
-            "@lightness": { local: true, tool: "spot", kind: "area", gui: ["@area_mode", "@lightness"],
+            "@lightness": { local: true, conf: "darkroom/modules/exposure/lightness", tool: "spot", kind: "area", gui: ["@area_mode", "@lightness"],
                             label: "exposure", report: "exposure",
                             hint: "set the exposure adjustment using the selected area" }
         },
@@ -113,10 +114,10 @@ QtObject {
             "@picker": { tool: "picker", kind: "area", gui: ["@spot_mode", "@use_mixing", "@lightness_spot", "@hue_spot", "@chroma_spot"],
                          report: "lch", hint: "set white balance to detected from area" },
             "@spot_mode": { local: true },
-            "@use_mixing": { local: true },
-            "@lightness_spot": { local: true },
-            "@hue_spot": { local: true },
-            "@chroma_spot": { local: true }
+            "@use_mixing": { local: true, conf: "darkroom/modules/channelmixerrgb/use_mixing" },
+            "@lightness_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/lightness" },
+            "@hue_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/hue" },
+            "@chroma_spot": { local: true, conf: "darkroom/modules/channelmixerrgb/chroma" }
         },
         // lens.cc:4386/4398: the cameras and lenses lensfun finds for the EXIF names, as a menu
         // (engine list "find_camera"/"find_lens" of catalogModel.requestChoices).
@@ -126,7 +127,12 @@ QtObject {
         },
         colorharmonizer: {
             "@auto_detect": { tool: "auto_detect", kind: "button", icon: "camera",
-                              hint: "analyze the image's hue distribution and automatically suggest the harmony rule\nand anchor hue that best match its existing color palette." }
+                              hint: "analyze the image's hue distribution and automatically suggest the harmony rule\nand anchor hue that best match its existing color palette." },
+            // area E: the RYB vectorscope (VectorscopeView, tools_vectorscope.c) above darktable's
+            // sync row (colorharmonizer.c:1513-1540).
+            "@sync_to_vectorscope": { local: true, before: "vectorscope", conf: "plugins/darkroom/colorharmonizer/sync_to_vectorscope" },
+            "@set_from_vectorscope": { tool: "set_from_vectorscope", kind: "button", icon: "↻", disabledBy: "@sync_to_vectorscope",
+                                       hint: "import the harmony rule and anchor hue currently displayed in the vectorscope." }
         },
         // ---- area E (tools_effects.c) ----
         // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.
@@ -209,6 +215,25 @@ QtObject {
     property var results: ({})         // "operation/instance/tool" → last result
     property var histogramData: ({})   // "operation/instance" → { channels, max }
     property string message: ""
+    // ---- area E ----
+    // GUI-only values darktable keeps in its configuration (dt_conf keys such as
+    // darkroom/modules/exposure/lightness) persist here under the same key names.
+    property Settings confStore: Settings { category: "darktable-conf" }
+    function confValue(key, fallback) {
+        if (!key) return fallback
+        const v = confStore.value(key, undefined)
+        return v === undefined || v === null || v === "" ? fallback : Number(v)
+    }
+    function storeConf(key, value) { if (key) confStore.setValue(key, value) }
+    function confOf(operation, field) { const s = (rowTools[operation] || {})[field]; return s && s.conf ? s.conf : "" }
+    // The vectorscope's harmony guide and plot (tools_vectorscope.c), from the latest result.
+    property var harmonyGuide: ({ type: 0, rotation: 0, width: 0 })
+    property var vectorscope: null
+    function setHarmonyGuide(type, rotation, width) {
+        harmonyGuide = { type: type, rotation: rotation, width: width }
+        send("gamma", 0, "harmony_guide", null, { type: type, rotation: rotation, width: width })
+    }
+    function requestVectorscope() { send("gamma", 0, "vectorscope", null, null) }
     signal runRequested(string operation, int instance, var request)
 
     function key(operation, instance, tool) { return operation + "/" + instance + "/" + tool }
@@ -299,6 +324,12 @@ QtObject {
             }
             return
         }
+        if (result.guide) harmonyGuide = result.guide
+        if (tool === "vectorscope") {
+            if (result.vectorscope) vectorscope = result.vectorscope
+            return
+        }
+        if (tool === "harmony_guide") return
         const next = Object.assign({}, results)
         next[key(operation, instance, tool)] = result
         results = next

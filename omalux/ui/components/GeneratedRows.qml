@@ -54,7 +54,8 @@ Column {
     function toolEntries(specs) {
         const t = root.tools
         return specs.map(s => ({ label: s.label, kind: s.kind, icon: s.icon || "", hint: s.hint || "", menu: s.menu || null,
-                                 active: !!t && !!t.active && t.isActive(module.operation, root.instance, s.tool) }))
+                                 active: !!t && !!t.active && t.isActive(module.operation, root.instance, s.tool),
+                                 enabled: !s.disabledBy || !root.gui[s.disabledBy] }))
     }
     // What darktable prints beside a picker: exposure's input lightness (exposure.c:887),
     // color calibration's input LCh (channelmixerrgb.c:4189).
@@ -83,7 +84,10 @@ Column {
                 if (!k.startsWith(prefix) || root.seenResults[k] === results[k]) continue
                 const next = Object.assign({}, root.seenResults); next[k] = results[k]; root.seenResults = next
                 const out = results[k].gui || {}
-                for (const name in out) if (name.startsWith("@")) { g = g || Object.assign({}, root.gui); g[name] = out[name] }
+                for (const name in out) if (name.startsWith("@")) {
+                    g = g || Object.assign({}, root.gui); g[name] = out[name]
+                    root.tools.storeConf(root.tools.confOf(root.module.operation, name), out[name])
+                }
             }
             if (g) root.gui = g
         }
@@ -153,13 +157,14 @@ Column {
             let it
             // Module tools: GUI-only rows they read, and the pickers and buttons themselves.
             const ts = root.toolOf(r)
+            // area E: a display darktable draws above the row (color mapping clusters, vectorscope).
+            if (ts && ts.before) out.push(Object.assign(base(r), { kind: ts.before, tier: r.tier === "primary" ? "detail" : r.tier }))
             if (ts && ts.local) {
                 const lr = Object.assign({}, r, { path: r.field })
                 out.push(Object.assign(base(lr), r.widget === "slider"
                          ? { kind: "localSlider", control: sliderControl(lr, id(lr)) } : { kind: "local" }))
                 if (!ts.tool) continue
             }
-            if (ts && ts.before) out.push(Object.assign(base(r), { kind: ts.before, tier: r.tier === "primary" ? "detail" : r.tier }))
             if (ts && (ts.tool || ts.choices)) {
                 const spec = Object.assign({ label: r.label }, ts)
                 const prev = out.length ? out[out.length - 1] : null
@@ -261,6 +266,8 @@ Column {
         for (const r of module.rows) {
             const ts = root.toolOf(r)
             if (ts && ts.local) g[r.field] = r.default !== null && r.default !== undefined ? Number(r.default) || 0 : 0
+            // area E: darktable's dt_conf value of this GUI-only row, as stored last time.
+            if (ts && ts.conf) g[r.field] = root.tools.confValue(ts.conf, g[r.field])
         }
         gui = g
     }
@@ -311,6 +318,7 @@ Column {
     }
     function setGui(name, value) {
         const g = Object.assign({}, root.gui); g[name] = value; root.gui = g
+        if (root.tools) root.tools.storeConf(root.tools.confOf(module.operation, name), value)
     }
     // A GUI-only value a module tool reads changed: an active picker of this module applies again,
     // in "correction" mode only (exposure.c and channelmixerrgb.c _spot_settings_changed_callback;
@@ -381,7 +389,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
-                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -1107,6 +1115,50 @@ Column {
             Timer { id: refresh; interval: 400; onTriggered: if (root.tools) root.tools.requestHistogram(root.module.operation, root.instance) }
             Connections { target: root.catalogModel; function onStatesChanged() { refresh.restart() } }
             Component.onCompleted: refresh.restart()
+        }
+    }
+    // area E: color harmonizer's vectorscope with darktable's two-way sync
+    // (colorharmonizer.c _push_to_vectorscope 814, _on_vectorscope_harmony_changed 879).
+    Component {
+        id: vectorscopeRow
+        VectorscopeView {
+            id: scope
+            objectName: "vectorscope-" + root.module.operation
+            readonly property bool sync: !!root.gui["@sync_to_vectorscope"]
+            readonly property int rule: Math.round(Number(root.raw("rule")) || 0)
+            readonly property int nodes: Math.max(2, Math.min(4, Math.round(Number(root.raw("num_custom_nodes")) || 2)))
+            readonly property var customHues: { const out = []; for (let i = 0; i < nodes; ++i) out.push(Number(root.raw("@custom_hue[" + i + "]")) || 0); return out }
+            // What the module would push: its rule and anchor, or a custom guide.
+            readonly property var wanted: rule === 9 ? { type: 0, rotation: -1 }
+                                                     : { type: rule + 1, rotation: Math.round(Number(root.raw("@anchor_hue")) || 0) % 360 }
+            width: root.width - 28
+            theme: root.theme
+            editable: root.editable
+            png: root.tools && root.tools.vectorscope ? root.tools.vectorscope.png || "" : ""
+            guide: root.tools.harmonyGuide
+            customAngles: sync && rule === 9 && root.moduleEnabled ? customHues.map(h => h / 360) : []
+            function push() {
+                const g = root.tools.harmonyGuide
+                if (!sync || !root.moduleEnabled) return
+                if (g.type !== wanted.type || (wanted.type > 0 && g.rotation !== wanted.rotation))
+                    root.tools.setHarmonyGuide(wanted.type, wanted.rotation < 0 ? g.rotation : wanted.rotation, g.width)
+            }
+            onWantedChanged: push()
+            onSyncChanged: push()
+            onGuideEdited: (type, rotation, w) => {
+                root.tools.setHarmonyGuide(type, rotation, w)
+                if (sync && root.moduleEnabled && type > 0)
+                    root.changesRequested({ "rule": type - 1, "@anchor_hue": rotation })
+            }
+            onCustomRotated: turns => {
+                if (!sync || !root.moduleEnabled) return
+                const ch = {}
+                for (let i = 0; i < customHues.length; ++i) ch["@custom_hue[" + i + "]"] = ((customHues[i] + turns * 360) % 360 + 360) % 360
+                root.changesRequested(ch)
+            }
+            Timer { id: scopeRefresh; interval: 600; onTriggered: if (root.tools) root.tools.requestVectorscope() }
+            Connections { target: root.catalogModel; function onStatesChanged() { scopeRefresh.restart() } }
+            Component.onCompleted: { scopeRefresh.restart(); push() }
         }
     }
     // area E: color mapping's source and target clusters (colormapping.c:1000-1001).

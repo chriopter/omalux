@@ -191,10 +191,6 @@
    "@checker_color_1": "settings of the mask preview overlay",
    "@checker_color_2": "settings of the mask preview overlay"
   },
-  "colorharmonizer": {
-   "@sync_to_vectorscope": "Omalux has no vectorscope",
-   "@set_from_vectorscope": "Omalux has no vectorscope"
-  },
   "lut3d": {
    "filepath:file_combobox_no_label": "merged into the single file row"
   },

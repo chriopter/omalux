@@ -10294,6 +10294,52 @@
        "action": null
       },
       {
+       "field": "@sync_to_vectorscope",
+       "path": "@sync_to_vectorscope",
+       "label": "vectorscope two-way sync",
+       "tab": null,
+       "section": null,
+       "widget": "toggle",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": 1,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "vectorscope two-way sync"
+      },
+      {
+       "field": "@set_from_vectorscope",
+       "path": null,
+       "label": "",
+       "tab": null,
+       "section": null,
+       "widget": "button",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": null,
+       "action": "(refresh icon, no label)"
+      },
+      {
        "field": "pull_strength",
        "path": "pull_strength",
        "label": "pull strength",
@@ -10478,7 +10524,7 @@
        "action": "hue 4"
       }
      ],
-     "notes": "unlabelled in darktable: camera icon, no label. unlabelled in darktable: unlabelled hue slider. unlabelled in darktable: refresh icon, no label. anchor hue: darktable's default is '0.1 stored (UCS hue 0..1); shown converted via _ryb_to_ucs_fast (colorharmonizer.c:855)'. hue 1: shown when node 1 exists for the rule (not machine-readable). hue 2: shown when node 2 exists for the rule (not machine-readable). hue 3: shown when node 3 exists for the rule (not machine-readable). hue 4: shown when node 4 exists for the rule (not machine-readable). darktable shows some rows only on a tab, in a collapsible section or with a preference; that layout state is not part of visible_when."
+     "notes": "unlabelled in darktable: camera icon, no label. unlabelled in darktable: unlabelled hue slider. unlabelled in darktable: refresh icon, no label. anchor hue: darktable's default is '0.1 stored (UCS hue 0..1); shown converted via _ryb_to_ucs_fast (colorharmonizer.c:855)'. vectorscope two-way sync: darktable's default is 'preference plugins/darkroom/colorharmonizer/sync_to_vectorscope (TRUE)'. hue 1: shown when node 1 exists for the rule (not machine-readable). hue 2: shown when node 2 exists for the rule (not machine-readable). hue 3: shown when node 3 exists for the rule (not machine-readable). hue 4: shown when node 4 exists for the rule (not machine-readable). darktable shows some rows only on a tab, in a collapsible section or with a preference; that layout state is not part of visible_when."
     },
     {
      "operation": "primaries",

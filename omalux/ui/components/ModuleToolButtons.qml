@@ -42,7 +42,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 implicitHeight: 26
-                enabled: root.editable
+                enabled: root.editable && modelData.enabled !== false
                 hoverEnabled: true
                 onClicked: { nav.claim(); run() }
                 Accessible.name: (modelData.label || modelData.hint || "") + (picker ? " picker" : "")
