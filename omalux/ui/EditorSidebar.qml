@@ -113,7 +113,7 @@ Rectangle {
         // Pane tabs: a recessed strip with the active pane raised inside it.
         Rectangle {
             Layout.fillWidth: true
-            // Two rows, each tab an icon with its name, so no pane has to be guessed.
+            // A 3 × 3 grid, each tab an icon with its name beside it, so no pane has to be guessed.
             implicitHeight: tabGrid.implicitHeight + 6
             radius: 7
             color: root.theme.well
@@ -123,7 +123,7 @@ Rectangle {
                 id: tabGrid
                 anchors.fill: parent
                 anchors.margins: 3
-                columns: 5
+                columns: 3
                 rowSpacing: 3; columnSpacing: 3
                 Repeater {
                     model: root.panes
@@ -136,8 +136,8 @@ Rectangle {
                         readonly property bool hasMatches: root.term !== "" && root.matchesIn(paneIndex) > 0
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
-                        implicitHeight: 42
-                        padding: 0; topPadding: 5; bottomPadding: 4
+                        implicitHeight: 30
+                        padding: 0; leftPadding: 8; rightPadding: 8
                         hoverEnabled: true
                         onClicked: root.selectedPanel = paneIndex
                         Accessible.name: modelData.name
@@ -154,11 +154,11 @@ Rectangle {
                             border.width: tab.visualFocus || tab.current ? 1 : 0
                             border.color: tab.visualFocus ? root.theme.accent : root.theme.line
                         }
-                        display: AbstractButton.TextUnderIcon
+                        display: AbstractButton.TextBesideIcon
                         text: modelData.label
                         font.family: root.theme.textFont.family
                         font.pixelSize: root.theme.textFont.pixelSize - 1
-                        spacing: 3
+                        spacing: 6
                         icon.source: root.iconsRoot + modelData.icon
                         icon.width: 16; icon.height: 16
                         icon.color: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
