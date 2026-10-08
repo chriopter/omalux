@@ -20,15 +20,15 @@ Rectangle {
     // Panes in strip order. The indices of the first five panes stay as they were (keyboard
     // 1–5, Main.qml); the module panes added later take 5–8.
     readonly property var panes: [
-        { index: 0, icon: "edit.svg", name: "Filters" },
-        { index: 1, icon: "styles.svg", name: "Styles" },
-        { index: 5, icon: "tone.svg", name: "Tone · base and tone modules", tab: "tone" },
-        { index: 6, icon: "color.svg", name: "Color modules", tab: "color" },
-        { index: 7, icon: "detail.svg", name: "Detail & correction · technical", tab: "detail" },
-        { index: 8, icon: "effects.svg", name: "Effects", tab: "effects" },
-        { index: 2, icon: "crop.svg", name: "Crop & Rotate" },
-        { index: 3, icon: "history.svg", name: "History" },
-        { index: 4, icon: "info.svg", name: "Info" }
+        { index: 0, icon: "edit.svg", name: "Filters", label: "Filters" },
+        { index: 1, icon: "styles.svg", name: "Styles", label: "Styles" },
+        { index: 5, icon: "tone.svg", name: "Tone · base and tone modules", label: "Tone", tab: "tone" },
+        { index: 6, icon: "color.svg", name: "Color modules", label: "Color", tab: "color" },
+        { index: 7, icon: "detail.svg", name: "Detail & correction · technical", label: "Detail", tab: "detail" },
+        { index: 8, icon: "effects.svg", name: "Effects", label: "Effects", tab: "effects" },
+        { index: 2, icon: "crop.svg", name: "Crop & Rotate", label: "Crop" },
+        { index: 3, icon: "history.svg", name: "History", label: "History" },
+        { index: 4, icon: "info.svg", name: "Info", label: "Info" }
     ]
     readonly property var paneOrder: panes.map(p => p.index)
     readonly property bool searchable: [3, 4].indexOf(selectedPanel) < 0
@@ -113,15 +113,18 @@ Rectangle {
         // Pane tabs: a recessed strip with the active pane raised inside it.
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 34
+            // Two rows, each tab an icon with its name, so no pane has to be guessed.
+            implicitHeight: tabGrid.implicitHeight + 6
             radius: 7
             color: root.theme.well
             border.color: root.theme.line
             border.width: 1
-            RowLayout {
+            GridLayout {
+                id: tabGrid
                 anchors.fill: parent
                 anchors.margins: 3
-                spacing: 3
+                columns: 5
+                rowSpacing: 3; columnSpacing: 3
                 Repeater {
                     model: root.panes
                     Button {
@@ -132,8 +135,9 @@ Rectangle {
                         readonly property bool current: root.selectedPanel === paneIndex
                         readonly property bool hasMatches: root.term !== "" && root.matchesIn(paneIndex) > 0
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        padding: 0
+                        Layout.preferredWidth: 1
+                        implicitHeight: 42
+                        padding: 0; topPadding: 5; bottomPadding: 4
                         hoverEnabled: true
                         onClicked: root.selectedPanel = paneIndex
                         Accessible.name: modelData.name
@@ -150,10 +154,15 @@ Rectangle {
                             border.width: tab.visualFocus || tab.current ? 1 : 0
                             border.color: tab.visualFocus ? root.theme.accent : root.theme.line
                         }
-                        display: AbstractButton.IconOnly
+                        display: AbstractButton.TextUnderIcon
+                        text: modelData.label
+                        font.family: root.theme.textFont.family
+                        font.pixelSize: root.theme.textFont.pixelSize - 1
+                        spacing: 3
                         icon.source: root.iconsRoot + modelData.icon
                         icon.width: 16; icon.height: 16
                         icon.color: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
+                        palette.buttonText: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
                         // While searching, a dot marks the panes with matches.
                         Rectangle {
                             visible: tab.hasMatches && !tab.current
