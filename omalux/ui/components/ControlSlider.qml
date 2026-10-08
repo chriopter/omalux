@@ -70,33 +70,42 @@ Item {
         default: return [theme.ink, theme.ink]
         }
     }
-    Popup {
+    // Typing a value (double-click on it) and the right-click menu are built when first used.
+    OnDemand {
         id: numberPopup
-        x: root.width-width; y: 0
-        TextField {
-            id: numberInput
-            width: 110
-            inputMethodHints: Qt.ImhFormattedNumbersOnly
-            onAccepted: { const next=Number(text); if(Number.isFinite(next))root.edited(next);numberPopup.close() }
-            Accessible.name: root.control.label + " value"
+        parent: root
+        Popup {
+            id: popup
+            x: root.width-width; y: 0
+            function edit() { numberInput.text=String(root.value);open();numberInput.forceActiveFocus();numberInput.selectAll() }
+            TextField {
+                id: numberInput
+                width: 110
+                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                onAccepted: { const next=Number(text); if(Number.isFinite(next))root.edited(next);popup.close() }
+                Accessible.name: root.control.label + " value"
+            }
         }
     }
     TapHandler {
         acceptedButtons: Qt.RightButton
-        onTapped: (eventPoint, button) => actionMenu.popup(eventPoint.position.x, eventPoint.position.y)
+        onTapped: (eventPoint, button) => actionMenu.get().popup(eventPoint.position.x, eventPoint.position.y)
     }
-    Menu {
+    OnDemand {
         id: actionMenu
-        MenuItem {
-            text: "Reset " + root.control.label
-            enabled: root.editable
-            onTriggered: root.resetRequested()
-        }
-        MenuItem {
-            visible: root.moduleToggleAvailable
-            text: (root.moduleEnabled ? "Disable " : "Enable ") + root.moduleName
-            enabled: root.editable
-            onTriggered: root.moduleToggleRequested()
+        parent: root
+        Menu {
+            MenuItem {
+                text: "Reset " + root.control.label
+                enabled: root.editable
+                onTriggered: root.resetRequested()
+            }
+            MenuItem {
+                visible: root.moduleToggleAvailable
+                text: (root.moduleEnabled ? "Disable " : "Enable ") + root.moduleName
+                enabled: root.editable
+                onTriggered: root.moduleToggleRequested()
+            }
         }
     }
     ColumnLayout {
@@ -149,7 +158,7 @@ Item {
                 // Compact rows keep one value column; long values may widen it.
                 Layout.preferredWidth: root.compact ? Math.max(64, implicitWidth) : implicitWidth
                 horizontalAlignment: Text.AlignRight
-                MouseArea { anchors.fill: parent; onDoubleClicked: { numberInput.text=String(root.value);numberPopup.open();numberInput.forceActiveFocus();numberInput.selectAll() } }
+                MouseArea { anchors.fill: parent; onDoubleClicked: numberPopup.get().edit() }
                 text: Number(Math.abs(root.value) < Math.pow(10, -root.control.decimals) / 2 ? 0 : root.value).toFixed(root.control.decimals) + root.control.unit
                 color: root.marked ? root.theme.accent : root.theme.ink
                 font: root.theme.settingsFont

@@ -108,15 +108,19 @@ Item {
     MouseArea {
         anchors.fill: parent
         enabled: root.editable && !root.inline
-        onClicked: { navTarget.claim(); menu.popup(root.width - menu.width, root.height) }
-        Menu {
+        onClicked: { navTarget.claim(); const m = menu.get(); m.popup(root.width - m.width, root.height) }
+        // Built on first use, not with every choice row.
+        OnDemand {
             id: menu
-            Repeater {
-                model: root.options
-                MenuItem {
-                    required property var modelData
-                    text: modelData.label
-                    onTriggered: root.edited(modelData.value)
+            parent: root
+            Menu {
+                Repeater {
+                    model: root.options
+                    MenuItem {
+                        required property var modelData
+                        text: modelData.label
+                        onTriggered: root.edited(modelData.value)
+                    }
                 }
             }
         }

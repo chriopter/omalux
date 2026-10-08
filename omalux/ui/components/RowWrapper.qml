@@ -20,14 +20,18 @@ Item {
     }
     TapHandler {
         acceptedButtons: Qt.RightButton
-        onTapped: (eventPoint, button) => menu.popup(eventPoint.position.x, eventPoint.position.y)
+        onTapped: (eventPoint, button) => menu.get().popup(eventPoint.position.x, eventPoint.position.y)
     }
-    Menu {
+    // Built on first use, not with every row.
+    OnDemand {
         id: menu
-        MenuItem {
-            text: "Reset " + root.label
-            enabled: root.resetEnabled
-            onTriggered: root.resetRequested()
+        parent: root
+        Menu {
+            MenuItem {
+                text: "Reset " + root.label
+                enabled: root.resetEnabled
+                onTriggered: root.resetRequested()
+            }
         }
     }
 }

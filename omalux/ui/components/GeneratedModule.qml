@@ -119,30 +119,34 @@ Column {
         }
         TapHandler {
             acceptedButtons: Qt.RightButton
-            onTapped: (eventPoint, button) => menu.popup(eventPoint.position.x, eventPoint.position.y)
+            onTapped: (eventPoint, button) => menu.get().popup(eventPoint.position.x, eventPoint.position.y)
         }
-        Menu {
+        // Built on first use, not with every module.
+        OnDemand {
             id: menu
-            MenuItem {
-                text: (root.moduleEnabled ? "Disable " : "Enable ") + root.title
-                enabled: root.editable && !!root.moduleState
-                onTriggered: root.enableRequested(!root.moduleEnabled)
-            }
-            MenuItem {
-                text: "Reset " + root.title
-                enabled: root.editable && !!root.moduleState
-                onTriggered: root.resetRequested()
-            }
-            MenuSeparator {}
-            MenuItem {
-                text: "new instance"
-                enabled: root.editable && !!root.moduleState && root.moduleState.canNew
-                onTriggered: root.requestInstance("new", "")
-            }
-            MenuItem {
-                text: "duplicate instance"
-                enabled: root.editable && !!root.moduleState && root.moduleState.canNew
-                onTriggered: root.requestInstance("duplicate", "")
+            parent: moduleHeader
+            Menu {
+                MenuItem {
+                    text: (root.moduleEnabled ? "Disable " : "Enable ") + root.title
+                    enabled: root.editable && !!root.moduleState
+                    onTriggered: root.enableRequested(!root.moduleEnabled)
+                }
+                MenuItem {
+                    text: "Reset " + root.title
+                    enabled: root.editable && !!root.moduleState
+                    onTriggered: root.resetRequested()
+                }
+                MenuSeparator {}
+                MenuItem {
+                    text: "new instance"
+                    enabled: root.editable && !!root.moduleState && root.moduleState.canNew
+                    onTriggered: root.requestInstance("new", "")
+                }
+                MenuItem {
+                    text: "duplicate instance"
+                    enabled: root.editable && !!root.moduleState && root.moduleState.canNew
+                    onTriggered: root.requestInstance("duplicate", "")
+                }
             }
         }
         DisclosureButton {
