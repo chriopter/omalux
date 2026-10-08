@@ -140,6 +140,10 @@ QtObject {
                                        hint: "import the harmony rule and anchor hue currently displayed in the vectorscope." }
         },
         // ---- area E (tools_effects.c) ----
+        // rasterfile.c:764: the raster mask traced into path shapes (mask_manager.c), which the
+        // blend section's "add existing shape" then offers.
+        rasterfile: { "@vectorize": { tool: "vectorize", kind: "button", report: "message",
+                                      hint: "vectorize the current bitmap and create corresponding\nshapes in the mask manager" } },
         // GUI-only "scale for graph" of the curve (CurveEditor xLog/yLog), 0 = linear.
         basecurve: { "@scale_for_graph": { local: true } },
         // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.

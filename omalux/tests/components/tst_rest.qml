@@ -123,6 +123,18 @@ Item {
         property var got: []
         onEdited: c => got = got.concat([c])
     }
+    MaskManagerView {
+        id: masks
+        y: 1700; width: 340
+        theme: th
+        navGroup: "exposure/0"
+        report: ({ group: [{ id: 12, name: "path #2", type: "path", state: 3 | 32, opacity: .5, first: false },
+                         { id: 11, name: "circle #1", type: "circle", state: 3, opacity: 1, first: true }],
+                 available: [{ id: 13, name: "brush #1", type: "brush", used: false }],
+                 modules: [{ operation: "colorbalancergb", instance: 0, label: "color balance rgb" }] })
+        property var asked: []
+        onRequested: (a, args) => asked = asked.concat([[a, args]])
+    }
     BlendifRange {
         id: range
         y: 1240; width: 260
@@ -272,6 +284,21 @@ Item {
             wavelets.paste()
             compare(wavelets.got[4], { "rt_forms[0].scale": 3, "rt_forms[1].scale": 3 })
             compare(wavelets.copiedScale, -1)
+        }
+        function test_mask_manager() {
+            compare(masks.modeOf(3 | 32).label, "difference")
+            compare(masks.modeOf(3), null)
+            // a wheel over a shape's opacity changes it in 5 % steps
+            const texts = []
+            const collect = it => { if (it.text !== undefined && typeof it.text === "string") texts.push(it); for (const c of (it.children || [])) collect(c) }
+            collect(masks)
+            const opacity = texts.find(t => t.text === "50 %")
+            verify(opacity)
+            verify(texts.some(t => t.text === "−"))                       // difference sign before path #2
+            const add = findChildByPrefix(masks, "mask-add-existing-exposure/0")
+            verify(add.enabled)
+            masks.requested("cleanup", {})
+            compare(masks.asked[masks.asked.length - 1][0], "cleanup")
         }
         function test_lens_and_scale_rows() {
             const s = tools.rowTool("lens", "@use_latest_algorithm")

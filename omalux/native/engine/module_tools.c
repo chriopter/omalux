@@ -26,7 +26,8 @@ typedef struct {
 static const OmToolSpec *const tables[] = {om_tools_tone, om_tools_color, om_tools_geometry, om_tools_basicadj,
                                             om_tools_curves, om_tools_harmonizer, om_tools_blend,
                                             om_tools_effects, om_tools_toneequal, om_tools_colormapping,
-                                            om_tools_vectorscope, om_tools_blend_display};
+                                            om_tools_vectorscope, om_tools_blend_display,
+                                            om_tools_masks};
 
 static const OmToolSpec *find_spec(const char *operation, const char *tool) {
     for (size_t t = 0; t < G_N_ELEMENTS(tables); ++t)
@@ -438,6 +439,15 @@ int om_engine_module_tool(OmEngine *engine, const char *operation, int instance,
                 *t->module->blend_params = t->blend;
         }
         g_free(t->params);
+    }
+    // area E: a tool that changed drawn shapes (mask_manager.c) recorded them in history itself;
+    // the module is reported so its catalog entry and split mode follow.
+    if (!error && json_object_get_boolean_member_with_default(ctx.extra, "forms_changed", FALSE)) {
+        gboolean listed = FALSE;
+        for (guint i = 0; i < json_array_get_length(changed); ++i)
+            listed = listed || !strcmp(json_array_get_string_element(changed, i), module->op);
+        if (!listed)
+            json_array_add_string_element(changed, module->op);
     }
     if (json_array_get_length(changed)) {
         engine->dev.full.pipe->changed |= DT_DEV_PIPE_SYNCH;

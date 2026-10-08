@@ -312,6 +312,24 @@ Column {
             }
         }
     }
+    // area E: darktable's mask manager for this module's shapes (MaskManagerView, mask_manager.c).
+    MaskManagerView {
+        id: maskManager
+        objectName: "mask-manager-" + root.navGroup
+        visible: root.drawn && !!root.tools && root.tools.supported["*/masks"] === true
+        width: root.width - 28
+        theme: root.theme
+        editable: root.editable
+        navGroup: root.navGroup
+        readonly property string key: root.moduleState ? root.tools.key(root.moduleState.operation, root.moduleState.instance, "masks") : ""
+        report: root.tools && key && root.tools.results[key] ? root.tools.results[key].masks || null : null
+        readonly property int shapes: root.blend ? root.blend.drawn_shapes : 0
+        function refresh() { if (visible && root.moduleState) root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null, { action: "list" }) }
+        onShapesChanged: refresh()
+        onVisibleChanged: refresh()
+        onRequested: (action, args) => root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null,
+                                                       Object.assign({ action: action }, args))
+    }
     ModuleNotice {
         visible: root.drawn && !!root.blend && !root.blend.drawn_available
         width: root.width - 28

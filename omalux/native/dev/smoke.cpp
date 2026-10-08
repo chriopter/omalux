@@ -493,6 +493,21 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     request["gui"] = call["gui"].toVariant();
                 toolResults->remove(call["operation"].toString() + "/" + call["tool"].toString());
                 editor.runModuleTool(call["operation"].toString(), call["instance"].toInt(), request);
+            } else if (step.contains("masksAddFirst")) {
+                // area E: add the first shape the mask manager offers (the last "masks" result).
+                const auto call = step["masksAddFirst"].toObject();
+                const auto key = call["operation"].toString() + "/masks";
+                const auto available = (*toolResults)[key].toMap()["masks"].toMap()["available"].toList();
+                if (available.isEmpty()) {
+                    qCritical() << "No shape to add" << key;
+                    app.exit(2);
+                    return;
+                }
+                QVariantMap gui{{"action", "add"}, {"id", available.first().toMap()["id"]}};
+                toolResults->remove(key);
+                editor.runModuleTool(call["operation"].toString(), call["instance"].toInt(),
+                                     QVariantMap{{"tool", "masks"}, {"gui", gui}});
+                *waiting = true;
             } else if (step.contains("toolResult")) {
                 // Wait for a tool result; check its status, changed modules and reported values.
                 const auto call = step["toolResult"].toObject();

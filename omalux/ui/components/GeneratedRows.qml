@@ -64,6 +64,7 @@ Column {
     function toolReport(specs) {
         const s = specs.find(x => x.report)
         const r = s && root.tools ? root.tools.results[root.tools.key(module.operation, root.instance, s.tool)] : null
+        if (s && s.report === "message") return r && r.message ? r.message.replace(/\n/g, " ") : ""   // area E
         const g = r && r.gui ? r.gui : null
         if (!g || g.input_lightness === undefined) return ""
         if (s.report === "lch")
