@@ -63,12 +63,20 @@ WorkTicket EngineWorker::interactive(bool active) {
     }
     return ticket;
 }
-WorkTicket EngineWorker::parameter(const QString &operation, int instance, const QString &field,
-                                   double value) {
-    // One field of one module, addressed by name; the worker owns the engine.
-    return action({ActionKind::SetParameter,
-                   QStringList{operation, QString::number(instance), field, QString::number(value, 'g', 9)}
-                       .join('\x1f')});
+WorkTicket EngineWorker::moduleEdit(ModuleEdit edit) {
+    std::lock_guard lock(mutex);
+    auto *last = pendingEdits.empty() ? nullptr : &pendingEdits.back();
+    if (last && edit.kind == ActionKind::SetParameters && last->kind == ActionKind::SetParameters &&
+        last->operation == edit.operation && last->instance == edit.instance) {
+        for (auto it = edit.values.cbegin(); it != edit.values.cend(); ++it)
+            last->values.insert(it.key(), it.value());
+    } else
+        pendingEdits.push_back(std::move(edit));
+    // A revision, not a new epoch: frames rendered meanwhile stay presentable during a drag.
+    ++ticket.revision;
+    pending = true;
+    wake.notify_one();
+    return ticket;
 }
 WorkTicket EngineWorker::action(EditorAction action) {
     std::lock_guard lock(mutex);
@@ -99,6 +107,8 @@ bool EngineWorker::take(Request &request) {
         request.draft = dragging;
         request.action = std::move(pendingAction);
         pendingAction = {};
+        request.edits.swap(pendingEdits);
+        pendingEdits.clear();
         pending = false;
     } else {
         request.hoverId = hoverId;
@@ -106,12 +116,6 @@ bool EngineWorker::take(Request &request) {
         hoverPending = false;
     }
     return true;
-}
-static QString takeModuleCatalog(OmEngine *engine) {
-    char *text = om_engine_modules(engine);
-    const QString result = QString::fromUtf8(text ? text : "[]");
-    om_engine_free_json(text);
-    return result;
 }
 void EngineWorker::run() {
     std::vector<char *> argv;
@@ -134,10 +138,12 @@ void EngineWorker::run() {
         std::lock_guard lock(mutex);
         requested = initial;
     }
-    emit initialized(initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
-                     catalog.reload(engine.get()),
-                     takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
-                     takeModuleCatalog(engine.get()));
+    emit initialized(
+        initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
+        catalog.reload(engine.get()),
+        takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
+        (moduleCatalog.reload(engine.get()), moduleCatalog.json()));
+    moduleCatalog.takeChanged();
     ControlRevisions processed{};
     for (;;) {
         Request request;
@@ -177,11 +183,56 @@ void EngineWorker::replaceControls(OmEngine *engine, Request &request, ControlRe
     request.revisions.fill(0);
     processed.fill(0);
     {
+        // Slider values queued after this request was taken stay pending; they are newer.
         std::lock_guard lock(mutex);
-        requested = request.values;
-        revisions.fill(0);
+        for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
+            if (revisions[i] <= request.ticket.revision) {
+                requested[i] = request.values[i];
+                revisions[i] = 0;
+            }
     }
     emit controlsReady(request.values, request.ticket.revision);
+}
+void EngineWorker::refreshModule(OmEngine *engine, const QString &operation, int instance) {
+    const QString entry = moduleCatalog.update(engine, operation, instance);
+    if (!entry.isEmpty())
+        emit moduleReady(operation, instance, entry);
+}
+QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, ControlRevisions &processed,
+                                       QStringList &recipes) {
+    if (request.edits.empty())
+        return {};
+    QString error;
+    QList<QPair<QString, int>> edited;
+    for (const auto &edit : request.edits) {
+        const auto operation = edit.operation.toUtf8();
+        int result = 0;
+        if (edit.kind == ActionKind::ResetModule)
+            result = om_engine_reset_module(engine, operation.constData(), edit.instance);
+        else {
+            const auto values =
+                QJsonDocument(QJsonObject::fromVariantMap(edit.values)).toJson(QJsonDocument::Compact);
+            result =
+                om_engine_set_parameters(engine, operation.constData(), edit.instance, values.constData());
+        }
+        if (result) {
+            if (error.isEmpty())
+                error = QString("Could not %1 %2 (%3)")
+                            .arg(edit.kind == ActionKind::ResetModule ? "reset" : "edit", edit.operation)
+                            .arg(result);
+            continue;
+        }
+        if (!edited.contains({edit.operation, edit.instance}))
+            edited.append({edit.operation, edit.instance});
+        if (!recipes.contains(edit.operation))
+            recipes.append(edit.operation);
+    }
+    replaceControls(engine, request, processed);
+    for (const auto &[operation, instance] : edited)
+        refreshModule(engine, operation, instance);
+    if (!error.isEmpty())
+        qWarning().noquote() << error;
+    return error;
 }
 void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions &processed) {
     auto &values = request.values;
@@ -200,24 +251,24 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     }
     emit controlsReady(values, revision);
     processed = request.revisions;
-    if (action.kind == ActionKind::SetParameter) {
-        const auto parts = action.value.split('\x1f');
-        const auto operation = parts.value(0).toUtf8(), field = parts.value(2).toUtf8();
-        const auto message = QString("Could not set %1.%2").arg(parts.value(0), parts.value(2)).toUtf8();
-        requireEngine(om_engine_set_parameter(engine, operation.constData(), parts.value(1).toInt(),
-                                              field.constData(), parts.value(3).toDouble()),
-                      message.constData());
-        replaceControls(engine, request, processed);
-    }
+    QStringList recipes;
+    const QString editError = applyModuleEdits(engine, request, processed, recipes);
     if (action.kind == ActionKind::Halation) {
         requireEngine(om_engine_halation(engine), "Could not configure diffuse or sharpen");
         replaceControls(engine, request, processed);
+        refreshModule(engine, "diffuse", 0);
     }
-    QStringList recipes;
+    // Curated sliders edit instance 0 of their module; keep its catalog entry current too.
+    QStringList curated;
+    for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
+        if (dirty[i] && !curated.contains(om_controls[i].module))
+            curated.append(om_controls[i].module);
+    for (const auto &operation : curated)
+        refreshModule(engine, operation, 0);
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
         if (dirty[i] && !strcmp(om_controls[i].action, "@recipe") && !recipes.contains(om_controls[i].module))
             recipes.append(om_controls[i].module);
-    if (action.kind == ActionKind::Halation)
+    if (action.kind == ActionKind::Halation && !recipes.contains("diffuse"))
         recipes.append("diffuse");
     bridge.modules(engine, recipes, revision);
     if (action.kind == ActionKind::ApplyStyle) {
@@ -236,6 +287,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
             emit styleReady({});
         }
         replaceControls(engine, request, processed);
+        moduleCatalog.reload(engine);
         if (!bridge.history(engine, revision))
             throw std::runtime_error(
                 "State restored, but comparison snapshot is unsupported or could not be written");
@@ -247,9 +299,10 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
         source = action.value;
         bridge.reset();
         replaceControls(engine, request, processed);
-        emit metadataReady(source, takeJson(om_engine_metadata(engine)).object().toVariantMap(),
-                           takeJson(om_engine_camera_defaults(engine)).object().toVariantMap()["entries"].toList());
-        emit modulesReady(takeModuleCatalog(engine));
+        emit metadataReady(
+            source, takeJson(om_engine_metadata(engine)).object().toVariantMap(),
+            takeJson(om_engine_camera_defaults(engine)).object().toVariantMap()["entries"].toList());
+        moduleCatalog.reload(engine);
         emit styleReady({});
         break;
     case ActionKind::ExportImage:
@@ -268,7 +321,9 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     default:
         break;
     }
-    emit modulesReady(takeModuleCatalog(engine));
+    // The whole catalog is announced once a gesture ends; during it only single modules are.
+    if (!request.draft && moduleCatalog.takeChanged())
+        emit modulesReady(moduleCatalog.json());
     bridge.publish(source, revision, values, request.revisions);
     emit historyReady(takeJson(om_engine_history(engine)).array().toVariantList());
     QElapsedTimer timer;
@@ -293,6 +348,8 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
                         .arg(request.draft ? "Preview" : "Ready")
                         .arg(result.gpuWarning.isEmpty() ? "OpenCL auto" : "CPU")
                         .arg(timer.elapsed());
+    if (!editError.isEmpty())
+        result.status = editError;
     if (action.kind == ActionKind::ExportImage)
         result.status = "Saved " + action.value;
     if (action.kind == ActionKind::SaveStyle)

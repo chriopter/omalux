@@ -28,10 +28,19 @@ void ComparisonBridge::modules(OmEngine *engine, const QStringList &modules, qui
     for (const auto &module : modules) {
         const QString name = "omalux-sync-" + module + "-" + QString::number(revision);
         if (writeSnapshot(name, om_engine_module_snapshot(engine, name.toUtf8().constData(),
-                                                          module.toUtf8().constData())))
-            journal += "module " + QByteArray::number(epoch) + " " + QByteArray::number(revision) + " " +
-                       module.toUtf8() + " " + name.toUtf8() + "\n";
-        else
+                                                          module.toUtf8().constData()))) {
+            // A newer snapshot of a module supersedes the older ones of the same epoch, so a
+            // drag does not make the comparison replay every intermediate state.
+            const QByteArray prefix = "module " + QByteArray::number(epoch) + " ";
+            QByteArray kept;
+            for (const auto &line : journal.split('\n')) {
+                const auto fields = line.split(' ');
+                if (!line.isEmpty() && !(line.startsWith(prefix) && fields.value(3) == module.toUtf8()))
+                    kept += line + "\n";
+            }
+            journal = kept + prefix + QByteArray::number(revision) + " " + module.toUtf8() + " " +
+                      name.toUtf8() + "\n";
+        } else
             qWarning() << "Could not synchronize module" << module;
     }
 }

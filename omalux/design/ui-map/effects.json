@@ -1,0 +1,3633 @@
+{
+ "family": "effects",
+ "darktable": "5.6.1",
+ "modules": [
+  {
+   "operation": "bloom",
+   "name": "bloom",
+   "aliases": "",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Makes bright areas glow softly into their surroundings for a dreamy look.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "strength",
+     "label": "strength",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 25,
+     "values": null,
+     "visible_when": null,
+     "action": "strength",
+     "tier": "primary",
+     "source": "src/iop/bloom.c:390 (params :48)"
+    },
+    {
+     "field": "size",
+     "label": "size",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 20,
+     "values": null,
+     "visible_when": null,
+     "action": "size",
+     "tier": "detail",
+     "source": "src/iop/bloom.c:382 (params :46)"
+    },
+    {
+     "field": "threshold",
+     "label": "threshold",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 90,
+     "values": null,
+     "visible_when": null,
+     "action": "threshold",
+     "tier": "detail",
+     "source": "src/iop/bloom.c:386 (params :47)"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "Plain slider mapping, already in controls.h. GUI order is size, threshold, strength (bloom.c:382-392). '%' format with hard max 100 > 10 keeps factor 1 (bauhaus.c:3327). Digits 2 come from dt_bauhaus_slider_from_params (imageop_gui.c:104-105). Supports blending (flags :90)."
+  },
+  {
+   "operation": "grain",
+   "name": "grain",
+   "aliases": "",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Adds film-like grain texture to the photo.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "strength",
+     "label": "strength",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 25,
+     "values": null,
+     "visible_when": null,
+     "action": "strength",
+     "tier": "primary",
+     "source": "src/iop/grain.c:545 (params :69)"
+    },
+    {
+     "field": "scale",
+     "label": "coarseness",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": " ISO",
+     "factor": 213.2,
+     "offset": 0,
+     "digits": 0,
+     "min": 0.093809,
+     "max": 30.018762,
+     "soft_min": 0.093809,
+     "soft_max": 30.018762,
+     "default": 7.50469,
+     "values": null,
+     "visible_when": null,
+     "action": "coarseness",
+     "tier": "detail",
+     "source": "src/iop/grain.c:539-542 (params :65-68, GRAIN_SCALE_FACTOR :44)"
+    },
+    {
+     "field": "midtones_bias",
+     "label": "mid-tones bias",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "mid-tones bias",
+     "tier": "detail",
+     "source": "src/iop/grain.c:549 (params :70)"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "coarseness is stored as ISO/213.2: raw min/max/default 0.0938/30.0188/7.5047 display as 20/6400/1600 ISO (factor 213.2, grain.c:44,540). controls.h already uses scale 1/213.2. The params field 'channel' (grain.c:64, default lightness) has no GUI widget. GUI order: coarseness, strength, mid-tones bias."
+  },
+  {
+   "operation": "vignette",
+   "name": "vignetting",
+   "aliases": "",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Darkens (or lightens) and desaturates the edges of the frame to draw the eye to the center.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "scale",
+     "label": "fall-off start",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 200,
+     "soft_min": 0,
+     "soft_max": 200,
+     "default": 80,
+     "values": null,
+     "visible_when": null,
+     "action": "fall-off start",
+     "tier": "detail",
+     "source": "src/iop/vignette.c:1043,1062 (params :63)"
+    },
+    {
+     "field": "falloff_scale",
+     "label": "fall-off radius",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 200,
+     "soft_min": 0,
+     "soft_max": 200,
+     "default": 50,
+     "values": null,
+     "visible_when": null,
+     "action": "fall-off radius",
+     "tier": "detail",
+     "source": "src/iop/vignette.c:1044,1063 (params :64)"
+    },
+    {
+     "field": "brightness",
+     "label": "brightness",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": -0.5,
+     "values": null,
+     "visible_when": null,
+     "action": "brightness",
+     "tier": "primary",
+     "source": "src/iop/vignette.c:1045,1057 (params :65)"
+    },
+    {
+     "field": "saturation",
+     "label": "saturation",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": -0.5,
+     "values": null,
+     "visible_when": null,
+     "action": "saturation",
+     "tier": "detail",
+     "source": "src/iop/vignette.c:1046,1058 (params :66)"
+    },
+    {
+     "field": "center.x",
+     "label": "horizontal center",
+     "tab": null,
+     "section": "position / form",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "horizontal center",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1050,1059 (params :57,67)"
+    },
+    {
+     "field": "center.y",
+     "label": "vertical center",
+     "tab": null,
+     "section": "position / form",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "vertical center",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1051,1060 (params :58,67)"
+    },
+    {
+     "field": "shape",
+     "label": "shape",
+     "tab": null,
+     "section": "position / form",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 5,
+     "soft_min": 0,
+     "soft_max": 5,
+     "default": 1,
+     "values": null,
+     "visible_when": null,
+     "action": "shape",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1052 (params :70)"
+    },
+    {
+     "field": "autoratio",
+     "label": "automatic ratio",
+     "tab": null,
+     "section": "position / form",
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": null,
+     "action": "automatic ratio",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1053 (params :68)"
+    },
+    {
+     "field": "whratio",
+     "label": "width/height ratio",
+     "tab": null,
+     "section": "position / form",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": 0,
+     "max": 2,
+     "soft_min": 0,
+     "soft_max": 2,
+     "default": 1,
+     "values": null,
+     "visible_when": "autoratio == false (widget made insensitive, not hidden; vignette.c:973)",
+     "action": "width/height ratio",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1054,1061 (params :69)"
+    },
+    {
+     "field": "dithering",
+     "label": "dithering",
+     "tab": null,
+     "section": "position / form",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "off"
+      },
+      {
+       "value": 1,
+       "label": "8-bit output"
+      },
+      {
+       "value": 2,
+       "label": "16-bit output"
+      }
+     ],
+     "visible_when": null,
+     "action": "dithering",
+     "tier": "advanced",
+     "source": "src/iop/vignette.c:1055 (params :71, enum :42-47)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "on-canvas drawing",
+     "fields": [
+      "center.x",
+      "center.y",
+      "scale",
+      "falloff_scale",
+      "whratio"
+     ],
+     "what": "drag the vignette center, the inner and the feather ellipse directly on the image",
+     "source": "src/iop/vignette.c:381 gui_post_expose, :469 mouse_moved, :1085-1097 mouse actions"
+    }
+   ],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "Plain sliders cover everything; the on-canvas ellipse is a convenience. Field 'unbound' (params :72, default TRUE) has no widget. '%' on scale/falloff keeps factor 1 because max 200 > 10. Preset 'lomo' exists (vignette.c:996-1012). controls.h already maps brightness, scale, falloff_scale."
+  },
+  {
+   "operation": "soften",
+   "name": "soften",
+   "aliases": "",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Blends a blurred, brightened copy over the photo for a soft, glowing (Orton) look.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "size",
+     "label": "size",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 50,
+     "values": null,
+     "visible_when": null,
+     "action": "size",
+     "tier": "detail",
+     "source": "src/iop/soften.c:372 (params :46)"
+    },
+    {
+     "field": "saturation",
+     "label": "saturation",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "saturation",
+     "tier": "detail",
+     "source": "src/iop/soften.c:376 (params :47)"
+    },
+    {
+     "field": "brightness",
+     "label": "brightness",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": " EV",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": -2,
+     "max": 2,
+     "soft_min": -2,
+     "soft_max": 2,
+     "default": 0.33,
+     "values": null,
+     "visible_when": null,
+     "action": "brightness",
+     "tier": "detail",
+     "source": "src/iop/soften.c:380 (params :48)"
+    },
+    {
+     "field": "amount",
+     "label": "mix",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 50,
+     "values": null,
+     "visible_when": null,
+     "action": "mix",
+     "tier": "primary",
+     "source": "src/iop/soften.c:384 (params :49)"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "Plain slider mapping. 'amount' is labelled 'mix' via $DESCRIPTION (soften.c:49), so its action path is 'mix'."
+  },
+  {
+   "operation": "borders",
+   "name": "framing",
+   "aliases": "borders|enlarge canvas|expand canvas",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Adds a solid border (and optional thin frame line) around the photo, optionally to a target aspect ratio.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "basis",
+     "label": "basis",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "auto"
+      },
+      {
+       "value": 1,
+       "label": "width"
+      },
+      {
+       "value": 2,
+       "label": "height"
+      },
+      {
+       "value": 3,
+       "label": "shorter"
+      },
+      {
+       "value": 4,
+       "label": "longer"
+      }
+     ],
+     "visible_when": null,
+     "action": "basis",
+     "tier": "detail",
+     "source": "src/iop/borders.c:921 (params :106-107, enum :57-64)"
+    },
+    {
+     "field": "size",
+     "label": "border size",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 0.5,
+     "soft_min": 0,
+     "soft_max": 0.5,
+     "default": 0.1,
+     "values": null,
+     "visible_when": null,
+     "action": "border size",
+     "tier": "primary",
+     "source": "src/iop/borders.c:925-927 (params :89-90)"
+    },
+    {
+     "field": "aspect",
+     "label": "aspect",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": -1.0,
+     "values": [
+      {
+       "value": 0.0,
+       "label": "image"
+      },
+      {
+       "value": 3.0,
+       "label": "3:1"
+      },
+      {
+       "value": 2.878788,
+       "label": "95:33"
+      },
+      {
+       "value": 2.39,
+       "label": "CinemaScope 2.39:1"
+      },
+      {
+       "value": 2.0,
+       "label": "2:1"
+      },
+      {
+       "value": 1.777778,
+       "label": "16:9"
+      },
+      {
+       "value": 1.666667,
+       "label": "5:3"
+      },
+      {
+       "value": 1.647059,
+       "label": "US Legal 8.5x14"
+      },
+      {
+       "value": 1.618034,
+       "label": "golden cut"
+      },
+      {
+       "value": 1.6,
+       "label": "16:10"
+      },
+      {
+       "value": 1.5,
+       "label": "3:2 (4x6, 10x15cm)"
+      },
+      {
+       "value": 1.414286,
+       "label": "A4"
+      },
+      {
+       "value": 1.414214,
+       "label": "DIN"
+      },
+      {
+       "value": 1.4,
+       "label": "7:5"
+      },
+      {
+       "value": 1.333333,
+       "label": "4:3"
+      },
+      {
+       "value": 1.294118,
+       "label": "US Letter 8.5x11"
+      },
+      {
+       "value": 1.272727,
+       "label": "14:11"
+      },
+      {
+       "value": 1.25,
+       "label": "5:4 (8x10)"
+      },
+      {
+       "value": 1.0,
+       "label": "square"
+      },
+      {
+       "value": -1.0,
+       "label": "constant border"
+      },
+      {
+       "value": null,
+       "label": "custom..."
+      }
+     ],
+     "visible_when": null,
+     "action": "aspect",
+     "tier": "detail",
+     "source": "src/iop/borders.c:931-956 (_aspect_ratios :66-70, callback _aspect_changed)"
+    },
+    {
+     "field": "aspect",
+     "label": "aspect ratio",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 1,
+     "max": 3,
+     "soft_min": 1,
+     "soft_max": 3,
+     "default": -1.0,
+     "values": null,
+     "visible_when": "always shown; combobox shows 'custom...' when the value matches no preset (borders.c:818-850)",
+     "action": "aspect ratio",
+     "tier": "advanced",
+     "source": "src/iop/borders.c:958 (params :83-84)"
+    },
+    {
+     "field": "aspect_orient",
+     "label": "orientation",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "auto"
+      },
+      {
+       "value": 1,
+       "label": "portrait"
+      },
+      {
+       "value": 2,
+       "label": "landscape"
+      }
+     ],
+     "visible_when": null,
+     "action": "orientation",
+     "tier": "detail",
+     "source": "src/iop/borders.c:962 (params :87-88, enum :50-55)"
+    },
+    {
+     "field": "pos_h",
+     "label": "horizontal position",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0.5,
+     "values": [
+      {
+       "value": 0.5,
+       "label": "center"
+      },
+      {
+       "value": 0.333333,
+       "label": "1/3"
+      },
+      {
+       "value": 0.375,
+       "label": "3/8"
+      },
+      {
+       "value": 0.625,
+       "label": "5/8"
+      },
+      {
+       "value": 0.666667,
+       "label": "2/3"
+      },
+      {
+       "value": null,
+       "label": "custom..."
+      }
+     ],
+     "visible_when": null,
+     "action": "horizontal position",
+     "tier": "advanced",
+     "source": "src/iop/borders.c:966-972 (_pos_h_ratios :71)"
+    },
+    {
+     "field": "pos_h",
+     "label": "horizontal offset",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": 0.5,
+     "values": null,
+     "visible_when": null,
+     "action": "horizontal offset",
+     "tier": "advanced",
+     "source": "src/iop/borders.c:974 (params :91-92)"
+    },
+    {
+     "field": "pos_v",
+     "label": "vertical position",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0.5,
+     "values": [
+      {
+       "value": 0.5,
+       "label": "center"
+      },
+      {
+       "value": 0.333333,
+       "label": "1/3"
+      },
+      {
+       "value": 0.375,
+       "label": "3/8"
+      },
+      {
+       "value": 0.625,
+       "label": "5/8"
+      },
+      {
+       "value": 0.666667,
+       "label": "2/3"
+      },
+      {
+       "value": null,
+       "label": "custom..."
+      }
+     ],
+     "visible_when": null,
+     "action": "vertical position",
+     "tier": "advanced",
+     "source": "src/iop/borders.c:977-983 (_pos_v_ratios :72)"
+    },
+    {
+     "field": "pos_v",
+     "label": "vertical offset",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": 0.5,
+     "values": null,
+     "visible_when": null,
+     "action": "vertical offset",
+     "tier": "advanced",
+     "source": "src/iop/borders.c:985 (params :95-96)"
+    },
+    {
+     "field": "frame_size",
+     "label": "frame line size",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "frame line size",
+     "tier": "detail",
+     "source": "src/iop/borders.c:988-990 (params :99-100)"
+    },
+    {
+     "field": "frame_offset",
+     "label": "frame line offset",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": 0.5,
+     "values": null,
+     "visible_when": null,
+     "action": "frame line offset",
+     "tier": "detail",
+     "source": "src/iop/borders.c:994-996 (params :101-102)"
+    },
+    {
+     "field": "color",
+     "label": "border color",
+     "tab": null,
+     "section": null,
+     "widget": "color",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "values": null,
+     "visible_when": null,
+     "action": "pickers/border color",
+     "tier": "detail",
+     "source": "src/iop/borders.c:1010-1021 (params :82)"
+    },
+    {
+     "field": "frame_color",
+     "label": "frame line color",
+     "tab": null,
+     "section": null,
+     "widget": "color",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "values": null,
+     "visible_when": null,
+     "action": "pickers/frame line color",
+     "tier": "detail",
+     "source": "src/iop/borders.c:1023-1034 (params :103)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "color picker",
+     "fields": [
+      "color"
+     ],
+     "what": "RGB color button plus point picker to take the border color from the image",
+     "source": "src/iop/borders.c:1010-1021, color_picker_apply :719"
+    },
+    {
+     "kind": "color picker",
+     "fields": [
+      "frame_color"
+     ],
+     "what": "RGB color button plus point picker to take the frame line color from the image",
+     "source": "src/iop/borders.c:1023-1034"
+    }
+   ],
+   "image_actions": [
+    "picker (border color)",
+    "picker (frame line color)"
+   ],
+   "recommended_omalux_group": "Effects",
+   "notes": "name() is 'framing' (borders.c:304-307). Sliders 'border size', 'frame line size', 'frame line offset' call set_digits(4) then set_format('%'); because hard max <= 10 bauhaus sets factor 100 and digits 4-2 = 2 (bauhaus.c:3327-3331), so display = raw*100. Each of aspect, pos_h, pos_v has a preset combobox AND a slider writing the same field; the combobox entries are GUI-only presets, not a params enum. Default aspect is -1 (constant border) which lies outside the slider's 1..3 range. Field max_border_size (:104) has no widget. Colors are display RGB 0..1 with no alpha. No blending support (flags :334-337); changes canvas size (IOP_FLAGS_EXPAND_ROI_IN), so it should stay late in the pipe and single-instance in practice."
+  },
+  {
+   "operation": "watermark",
+   "name": "watermark",
+   "aliases": "",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Stamps an SVG/PNG logo or text signature onto the photo.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "filename",
+     "label": "marker",
+     "tab": null,
+     "section": null,
+     "widget": "file",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": "darktable.svg",
+     "values": null,
+     "visible_when": null,
+     "action": null,
+     "tier": "primary",
+     "source": "src/iop/watermark.c:1407-1418 (params :105, default 'darktable.svg' :1387)"
+    },
+    {
+     "field": "text",
+     "label": "text",
+     "tab": null,
+     "section": null,
+     "widget": "text",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": "",
+     "values": null,
+     "visible_when": null,
+     "action": "text",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1421-1431 (params :107)"
+    },
+    {
+     "field": "font",
+     "label": "font",
+     "tab": null,
+     "section": null,
+     "widget": "text",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": "DejaVu Sans 10",
+     "values": null,
+     "visible_when": null,
+     "action": "font",
+     "tier": "advanced",
+     "source": "src/iop/watermark.c:1435-1446 (params :111, default 'DejaVu Sans 10' :1388)"
+    },
+    {
+     "field": "color",
+     "label": "color",
+     "tab": null,
+     "section": null,
+     "widget": "color",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "values": null,
+     "visible_when": null,
+     "action": "pick color",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1449-1466 (params :109)"
+    },
+    {
+     "field": "opacity",
+     "label": "opacity",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "opacity",
+     "tier": "primary",
+     "source": "src/iop/watermark.c:1473-1474 (params :91)"
+    },
+    {
+     "field": "rotate",
+     "label": "rotation",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "°",
+     "factor": -1,
+     "offset": 0,
+     "digits": 2,
+     "min": -180,
+     "max": 180,
+     "soft_min": -180,
+     "soft_max": 180,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "rotation",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1479-1481 (params :101)"
+    },
+    {
+     "field": "scale",
+     "label": "scale",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 1,
+     "max": 500,
+     "soft_min": 1,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "scale",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1484-1486 (params :93)"
+    },
+    {
+     "field": "scale_base",
+     "label": "scale on",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "image"
+      },
+      {
+       "value": 1,
+       "label": "larger border"
+      },
+      {
+       "value": 2,
+       "label": "smaller border"
+      },
+      {
+       "value": 3,
+       "label": "height"
+      },
+      {
+       "value": 4,
+       "label": "advanced options"
+      }
+     ],
+     "visible_when": null,
+     "action": "scale on",
+     "tier": "advanced",
+     "source": "src/iop/watermark.c:1489 (params :102, enum :59-66)"
+    },
+    {
+     "field": "scale_img",
+     "label": "scale marker to",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 3,
+     "values": [
+      {
+       "value": 1,
+       "label": "image width"
+      },
+      {
+       "value": 2,
+       "label": "image height"
+      },
+      {
+       "value": 3,
+       "label": "larger image border"
+      },
+      {
+       "value": 4,
+       "label": "smaller image border"
+      }
+     ],
+     "visible_when": "scale_base == 4 (advanced options) (watermark.c:1347-1355, 1368-1376)",
+     "action": "scale marker to",
+     "tier": "advanced",
+     "source": "src/iop/watermark.c:1500 (params :103, enum :68-74)"
+    },
+    {
+     "field": "scale_svg",
+     "label": "scale marker reference",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "marker width"
+      },
+      {
+       "value": 1,
+       "label": "marker height"
+      }
+     ],
+     "visible_when": "scale_base == 4 (advanced options) (watermark.c:1347-1355, 1368-1376)",
+     "action": "scale marker reference",
+     "tier": "advanced",
+     "source": "src/iop/watermark.c:1506 (params :104, enum :76-80)"
+    },
+    {
+     "field": "alignment",
+     "label": "alignment",
+     "tab": null,
+     "section": "placement",
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 4,
+     "values": [
+      {
+       "value": 0,
+       "label": "top left"
+      },
+      {
+       "value": 1,
+       "label": "top"
+      },
+      {
+       "value": 2,
+       "label": "top right"
+      },
+      {
+       "value": 3,
+       "label": "left"
+      },
+      {
+       "value": 4,
+       "label": "center"
+      },
+      {
+       "value": 5,
+       "label": "right"
+      },
+      {
+       "value": 6,
+       "label": "bottom left"
+      },
+      {
+       "value": 7,
+       "label": "bottom"
+      },
+      {
+       "value": 8,
+       "label": "bottom right"
+      }
+     ],
+     "visible_when": null,
+     "action": null,
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1510-1524 (params :99)"
+    },
+    {
+     "field": "xoffset",
+     "label": "x offset",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "x offset",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1528-1529 (params :95)"
+    },
+    {
+     "field": "yoffset",
+     "label": "y offset",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "y offset",
+     "tier": "detail",
+     "source": "src/iop/watermark.c:1530-1531 (params :97)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "file chooser",
+     "fields": [
+      "filename"
+     ],
+     "what": "combobox listing SVG/PNG files found in <datadir>/watermarks and <configdir>/watermarks, plus a refresh button",
+     "source": "src/iop/watermark.c:1407-1418, _refresh_watermarks :1184"
+    },
+    {
+     "kind": "text entry",
+     "fields": [
+      "text"
+     ],
+     "what": "free text with $(VARIABLE) completion, inserted as $(WATERMARK_TEXT) into the SVG",
+     "source": "src/iop/watermark.c:1421-1431"
+    },
+    {
+     "kind": "font chooser",
+     "fields": [
+      "font"
+     ],
+     "what": "GTK font button; sets $(WATERMARK_FONT_*) tags",
+     "source": "src/iop/watermark.c:1435-1446"
+    },
+    {
+     "kind": "color picker",
+     "fields": [
+      "color"
+     ],
+     "what": "RGB color button plus point picker; sets $(WATERMARK_COLOR)",
+     "source": "src/iop/watermark.c:1449-1466"
+    },
+    {
+     "kind": "3x3 alignment grid",
+     "fields": [
+      "alignment"
+     ],
+     "what": "nine toggle buttons choosing the anchor corner/edge/center",
+     "source": "src/iop/watermark.c:1510-1524"
+    }
+   ],
+   "image_actions": [
+    "picker (watermark color)"
+   ],
+   "recommended_omalux_group": "Effects",
+   "notes": "alignment index is row-major 0..8 over the 3x3 grid (gui: col i%3, row i/3, watermark.c:1520); labels in 'values' are descriptive, darktable shows icons only. The alignment buttons and the marker combobox define no module actions. text/color/font widgets are also persisted to darktablerc and the GUI initialises them from there (watermark.c:1428,1436,1450-1452), not from params defaults. rotation shows with factor -1 (displayed = -raw). Opacity '%' keeps factor 1 (max 100 > 10). Needs file-system access to the watermark directories; a text/font/color UI is required for useful use."
+  },
+  {
+   "operation": "overlay",
+   "name": "composite",
+   "aliases": "layer|stack|overlay",
+   "darktable_group": "effect|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Places another (processed) photo from the library on top of this one, e.g. for a logo or double exposure.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "imgid",
+     "label": "image id",
+     "tab": null,
+     "section": null,
+     "widget": "drawn",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": null,
+     "action": null,
+     "tier": "primary",
+     "source": "src/iop/overlay.c:1088-1106 (params :85-86)"
+    },
+    {
+     "field": "opacity",
+     "label": "opacity",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "opacity",
+     "tier": "primary",
+     "source": "src/iop/overlay.c:1113-1114 (params :73)"
+    },
+    {
+     "field": "rotate",
+     "label": "rotation",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "°",
+     "factor": -1,
+     "offset": 0,
+     "digits": 2,
+     "min": -180,
+     "max": 180,
+     "soft_min": -180,
+     "soft_max": 180,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "rotation",
+     "tier": "detail",
+     "source": "src/iop/overlay.c:1119-1121 (params :83)"
+    },
+    {
+     "field": "scale",
+     "label": "scale",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 1,
+     "max": 500,
+     "soft_min": 1,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": null,
+     "action": "scale",
+     "tier": "detail",
+     "source": "src/iop/overlay.c:1124-1126 (params :75)"
+    },
+    {
+     "field": "scale_base",
+     "label": "scale on",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "image"
+      },
+      {
+       "value": 1,
+       "label": "larger border"
+      },
+      {
+       "value": 2,
+       "label": "smaller border"
+      },
+      {
+       "value": 3,
+       "label": "height"
+      },
+      {
+       "value": 4,
+       "label": "advanced options"
+      }
+     ],
+     "visible_when": null,
+     "action": "scale on",
+     "tier": "advanced",
+     "source": "src/iop/overlay.c:1129 (params :82, enum :43-50)"
+    },
+    {
+     "field": "scale_img",
+     "label": "scale marker to",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 3,
+     "values": [
+      {
+       "value": 1,
+       "label": "image width"
+      },
+      {
+       "value": 2,
+       "label": "image height"
+      },
+      {
+       "value": 3,
+       "label": "larger image border"
+      },
+      {
+       "value": 4,
+       "label": "smaller image border"
+      }
+     ],
+     "visible_when": "scale_base == 4 (advanced options) (overlay.c:876-884, 920-928)",
+     "action": "scale marker to",
+     "tier": "advanced",
+     "source": "src/iop/overlay.c:1140 (params :83, enum :54-60)"
+    },
+    {
+     "field": "scale_svg",
+     "label": "scale marker reference",
+     "tab": null,
+     "section": "placement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "marker width"
+      },
+      {
+       "value": 1,
+       "label": "marker height"
+      }
+     ],
+     "visible_when": "scale_base == 4 (advanced options) (overlay.c:876-884, 920-928)",
+     "action": "scale marker reference",
+     "tier": "advanced",
+     "source": "src/iop/overlay.c:1146 (params :84, enum :62-66)"
+    },
+    {
+     "field": "alignment",
+     "label": "alignment",
+     "tab": null,
+     "section": "placement",
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 4,
+     "values": [
+      {
+       "value": 0,
+       "label": "top left"
+      },
+      {
+       "value": 1,
+       "label": "top"
+      },
+      {
+       "value": 2,
+       "label": "top right"
+      },
+      {
+       "value": 3,
+       "label": "left"
+      },
+      {
+       "value": 4,
+       "label": "center"
+      },
+      {
+       "value": 5,
+       "label": "right"
+      },
+      {
+       "value": 6,
+       "label": "bottom left"
+      },
+      {
+       "value": 7,
+       "label": "bottom"
+      },
+      {
+       "value": 8,
+       "label": "bottom right"
+      }
+     ],
+     "visible_when": null,
+     "action": null,
+     "tier": "detail",
+     "source": "src/iop/overlay.c:1150-1165 (params :79)"
+    },
+    {
+     "field": "xoffset",
+     "label": "x offset",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "x offset",
+     "tier": "detail",
+     "source": "src/iop/overlay.c:1169-1170 (params :77)"
+    },
+    {
+     "field": "yoffset",
+     "label": "y offset",
+     "tab": null,
+     "section": "placement",
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": "y offset",
+     "tier": "detail",
+     "source": "src/iop/overlay.c:1171-1172 (params :78)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "image drop target",
+     "fields": [
+      "imgid",
+      "filename"
+     ],
+     "what": "150x150 thumbnail area; the user drags an image from the filmstrip/lighttable onto it to choose the overlay",
+     "source": "src/iop/overlay.c:1088-1106, _drag_and_drop_received :989"
+    },
+    {
+     "kind": "3x3 alignment grid",
+     "fields": [
+      "alignment"
+     ],
+     "what": "nine toggle buttons choosing the anchor",
+     "source": "src/iop/overlay.c:1150-1165"
+    }
+   ],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "name() is 'composite' (overlay.c:145-148). The overlay source is another library image (imgid) rendered through its own history; Omalux would need an image picker from the library and must handle the referenced image being missing. Field labels for scale_* reuse the watermark wording ('marker'). Supports blending; description advises moving it after output color profile if banding appears (overlay.c:153-155)."
+  },
+  {
+   "operation": "rasterfile",
+   "name": "external raster masks",
+   "aliases": "raster|mask",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Loads a mask image (PFM/PNG) made elsewhere so other modules can use it as a raster mask.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "file",
+     "label": "file",
+     "tab": null,
+     "section": null,
+     "widget": "file",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": "",
+     "values": null,
+     "visible_when": null,
+     "action": null,
+     "tier": "primary",
+     "source": "src/iop/rasterfile.c:745-762 (params :74-75)"
+    },
+    {
+     "field": "mode",
+     "label": "mode",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 7,
+     "values": [
+      {
+       "value": 7,
+       "label": "all RGB channels"
+      },
+      {
+       "value": 1,
+       "label": "only red"
+      },
+      {
+       "value": 2,
+       "label": "only green"
+      },
+      {
+       "value": 4,
+       "label": "only blue"
+      },
+      {
+       "value": 3,
+       "label": "red and green"
+      },
+      {
+       "value": 5,
+       "label": "red and blue"
+      },
+      {
+       "value": 6,
+       "label": "green and blue"
+      }
+     ],
+     "visible_when": null,
+     "action": "mode",
+     "tier": "detail",
+     "source": "src/iop/rasterfile.c:740 (params :73, enum :58-67)"
+    },
+    {
+     "field": null,
+     "label": "vectorize",
+     "tab": null,
+     "section": null,
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": null,
+     "action": null,
+     "tier": "advanced",
+     "source": "src/iop/rasterfile.c:764-771"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "file chooser",
+     "fields": [
+      "path",
+      "file"
+     ],
+     "what": "folder button plus combobox of PFM/PNG files; path must be configured in preferences/processing first",
+     "source": "src/iop/rasterfile.c:745-762"
+    },
+    {
+     "kind": "button",
+     "fields": [],
+     "what": "'vectorize' converts the loaded bitmap into path shapes in the mask manager",
+     "source": "src/iop/rasterfile.c:764-771"
+    }
+   ],
+   "image_actions": [],
+   "recommended_omalux_group": "Effects",
+   "notes": "Not an image effect by itself: it publishes a raster mask (IOP_FLAGS_WRITE_RASTER, rasterfile.c:117-120) that other modules pick in their blend section ('raster mask'). Belongs with a future blend/mask UI rather than a slider panel. Combobox values follow enum declaration order, not numeric order. No blending support itself."
+  },
+  {
+   "operation": "dither",
+   "name": "dither or posterize",
+   "aliases": "dithering|posterization|reduce bit depth",
+   "darktable_group": "correct|technical",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Adds fine noise to prevent banding in smooth gradients, or deliberately reduces the number of tones (posterize).",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "random.damping",
+     "label": "damping",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": " dB",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -200,
+     "max": 0,
+     "soft_min": -200,
+     "soft_max": 0,
+     "default": -100,
+     "values": null,
+     "visible_when": "dither_type == 0 (random) (dither.c:679-688, 730)",
+     "action": "damping",
+     "tier": "detail",
+     "source": "src/iop/dither.c:737-740 (params :77)"
+    },
+    {
+     "field": "dither_type",
+     "label": "method",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 5,
+     "values": [
+      {
+       "value": 0,
+       "label": "random"
+      },
+      {
+       "value": 1,
+       "label": "Floyd-Steinberg 1-bit B&W"
+      },
+      {
+       "value": 6,
+       "label": "Floyd-Steinberg 1-bit RGB"
+      },
+      {
+       "value": 7,
+       "label": "Floyd-Steinberg 2-bit gray"
+      },
+      {
+       "value": 8,
+       "label": "Floyd-Steinberg 2-bit RGB"
+      },
+      {
+       "value": 2,
+       "label": "Floyd-Steinberg 4-bit gray"
+      },
+      {
+       "value": 9,
+       "label": "Floyd-Steinberg 4-bit RGB"
+      },
+      {
+       "value": 10,
+       "label": "Floyd-Steinberg 6-bit gray"
+      },
+      {
+       "value": 3,
+       "label": "Floyd-Steinberg 8-bit RGB"
+      },
+      {
+       "value": 4,
+       "label": "Floyd-Steinberg 16-bit RGB"
+      },
+      {
+       "value": 5,
+       "label": "Floyd-Steinberg auto"
+      },
+      {
+       "value": 257,
+       "label": "posterize 2 levels per channel"
+      },
+      {
+       "value": 258,
+       "label": "posterize 3 levels per channel"
+      },
+      {
+       "value": 259,
+       "label": "posterize 4 levels per channel"
+      },
+      {
+       "value": 260,
+       "label": "posterize 5 levels per channel"
+      },
+      {
+       "value": 261,
+       "label": "posterize 6 levels per channel"
+      },
+      {
+       "value": 262,
+       "label": "posterize 7 levels per channel"
+      },
+      {
+       "value": 263,
+       "label": "posterize 8 levels per channel"
+      }
+     ],
+     "visible_when": null,
+     "action": "method",
+     "tier": "primary",
+     "source": "src/iop/dither.c:742 (params :71, enum :45-65)"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": "Output",
+   "notes": "GUI order puts the damping slider above the method combobox (dither.c:737-742). Combobox order is enum declaration order, values are not contiguous (posterize = 0x101..0x107). Fields palette, random.radius, random.range are reserved and have no GUI. Default 'Floyd-Steinberg auto' matches the export bit depth."
+  },
+  {
+   "operation": "retouch",
+   "name": "retouch",
+   "aliases": "split-frequency|healing|cloning|stamp|blur|fill|wavelets|spot removal",
+   "darktable_group": "correct|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Removes dust, blemishes and distractions by cloning, healing, blurring or filling painted areas, optionally per detail scale.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": "algorithm",
+     "label": "algorithms",
+     "tab": null,
+     "section": null,
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 2,
+     "values": [
+      {
+       "value": 3,
+       "label": "activate blur tool"
+      },
+      {
+       "value": 4,
+       "label": "activate fill tool"
+      },
+      {
+       "value": 1,
+       "label": "activate cloning tool"
+      },
+      {
+       "value": 2,
+       "label": "activate healing tool"
+      }
+     ],
+     "visible_when": null,
+     "action": "tools/activate healing tool",
+     "tier": "primary",
+     "source": "src/iop/retouch.c:2460-2482 (params :90)"
+    },
+    {
+     "field": null,
+     "label": "shapes",
+     "tab": null,
+     "section": "retouch tools",
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": [
+      {
+       "value": null,
+       "label": "add brush"
+      },
+      {
+       "value": null,
+       "label": "add path"
+      },
+      {
+       "value": null,
+       "label": "add ellipse"
+      },
+      {
+       "value": null,
+       "label": "add circle"
+      }
+     ],
+     "visible_when": null,
+     "action": "shapes/add brush",
+     "tier": "primary",
+     "source": "src/iop/retouch.c:2432-2459"
+    },
+    {
+     "field": "num_scales / merge_from_scale / curr_scale",
+     "label": "wavelet decompose",
+     "tab": null,
+     "section": "wavelet decompose",
+     "widget": "graph",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": null,
+     "visible_when": null,
+     "action": null,
+     "tier": "advanced",
+     "source": "src/iop/retouch.c:2518-2541 (params :91-93)"
+    },
+    {
+     "field": "fill_mode",
+     "label": "fill mode",
+     "tab": null,
+     "section": "shapes",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "erase"
+      },
+      {
+       "value": 1,
+       "label": "color"
+      }
+     ],
+     "visible_when": "selected tool/shape algorithm == fill (retouch.c:464-470)",
+     "action": "fill mode",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2627 (params :97)"
+    },
+    {
+     "field": "fill_color",
+     "label": "fill color",
+     "tab": null,
+     "section": "shapes",
+     "widget": "color",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "values": null,
+     "visible_when": "algorithm == fill && fill_mode == color (retouch.c:467-470)",
+     "action": "pick fill color",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2632-2655 (params :98)"
+    },
+    {
+     "field": "fill_brightness",
+     "label": "brightness",
+     "tab": null,
+     "section": "shapes",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 2,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": "algorithm == fill (retouch.c:464-466)",
+     "action": "brightness",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2657-2662 (params :99)"
+    },
+    {
+     "field": "blur_type",
+     "label": "blur type",
+     "tab": null,
+     "section": "shapes",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "gaussian"
+      },
+      {
+       "value": 1,
+       "label": "bilateral"
+      }
+     ],
+     "visible_when": "algorithm == blur (retouch.c:460-462)",
+     "action": "blur type",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2667 (params :95)"
+    },
+    {
+     "field": "blur_radius",
+     "label": "blur radius",
+     "tab": null,
+     "section": "shapes",
+     "widget": "slider",
+     "unit": " px",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0.1,
+     "max": 200,
+     "soft_min": 0.1,
+     "soft_max": 200,
+     "default": 10,
+     "values": null,
+     "visible_when": "algorithm == blur (retouch.c:460-462)",
+     "action": "blur radius",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2670-2672 (params :96)"
+    },
+    {
+     "field": null,
+     "label": "mask opacity",
+     "tab": null,
+     "section": "shapes",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 1,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": 1,
+     "values": null,
+     "visible_when": "a shape is selected (retouch.c:486-489); value lives in the mask form, not in params",
+     "action": "mask opacity",
+     "tier": "detail",
+     "source": "src/iop/retouch.c:2675-2681"
+    },
+    {
+     "field": "preview_levels",
+     "label": "adjust preview levels",
+     "tab": null,
+     "section": "preview single scale",
+     "widget": "graph",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": "display wavelet scale is on (retouch.c:479-482)",
+     "action": null,
+     "tier": "advanced",
+     "source": "src/iop/retouch.c:2584-2612 (params :94)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "on-canvas drawing",
+     "fields": [
+      "rt_forms"
+     ],
+     "what": "paint brush strokes / place circles, ellipses, paths on the image; for clone/heal also position the source",
+     "source": "src/iop/retouch.c:2432-2459"
+    },
+    {
+     "kind": "mask",
+     "fields": [
+      "rt_forms[].formid"
+     ],
+     "what": "up to 300 shapes, each with its own algorithm, scale, blur/fill settings and opacity",
+     "source": "src/iop/retouch.c params :89 (RETOUCH_NO_FORMS :42)"
+    },
+    {
+     "kind": "wavelet scale bar",
+     "fields": [
+      "num_scales",
+      "merge_from_scale",
+      "curr_scale"
+     ],
+     "what": "drawing-area bar: top cursor = merge-from scale, bottom cursor = number of scales, click selects current scale",
+     "source": "src/iop/retouch.c:2518-2541"
+    },
+    {
+     "kind": "toggle buttons",
+     "fields": [],
+     "what": "display masks, temporarily switch off shapes, cut/paste shapes between scales, display wavelet scale, auto levels",
+     "source": "src/iop/retouch.c:2550-2610"
+    },
+    {
+     "kind": "gradient slider",
+     "fields": [
+      "preview_levels"
+     ],
+     "what": "3-marker levels for previewing a single wavelet scale",
+     "source": "src/iop/retouch.c:2584-2604"
+    }
+   ],
+   "image_actions": [
+    "picker (fill color)",
+    "auto levels (preview single scale)"
+   ],
+   "recommended_omalux_group": "Correction",
+   "notes": "Fundamentally an on-canvas painting module: without shape drawing nothing happens. The slider/combobox values edit the currently selected shape (or the defaults for new shapes); per-shape data lives in rt_forms[] and the mask manager. fill_brightness: set_digits(4) then '%' with max 1 -> factor 100, digits 2. mask opacity: range 0..1 digits 3 then '%' -> factor 100, digits 1. max_heal_iter (params :100) has no GUI. IOP_FLAGS_NO_MASKS: its blend section has no drawn/parametric/raster mask (flags :218-221)."
+  },
+  {
+   "operation": "spots",
+   "name": "spot removal",
+   "aliases": "",
+   "darktable_group": "correct|effects",
+   "deprecated": true,
+   "hidden": false,
+   "purpose": "Old tool for cloning out sensor dust spots; replaced by retouch.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": null,
+     "label": "show and edit shapes",
+     "tab": null,
+     "section": null,
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": null,
+     "action": "show and edit shapes",
+     "tier": "advanced",
+     "source": "src/iop/spots.c:872-874"
+    },
+    {
+     "field": null,
+     "label": "shapes",
+     "tab": null,
+     "section": null,
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": [
+      {
+       "value": null,
+       "label": "add path"
+      },
+      {
+       "value": null,
+       "label": "add ellipse"
+      },
+      {
+       "value": null,
+       "label": "add circle"
+      }
+     ],
+     "visible_when": null,
+     "action": "shapes/add path",
+     "tier": "primary",
+     "source": "src/iop/spots.c:876-889"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "on-canvas drawing",
+     "fields": [
+      "clone_id",
+      "clone_algo"
+     ],
+     "what": "place up to 64 clone shapes and their sources on the image",
+     "source": "src/iop/spots.c:861-890 (params :35-38)"
+    }
+   ],
+   "image_actions": [],
+   "recommended_omalux_group": "Correction",
+   "notes": "IOP_FLAGS_DEPRECATED (spots.c:77-80); deprecated_msg: 'please use the retouch module instead' (:57-60). Only keep for showing/removing it in legacy histories; do not offer for new edits."
+  },
+  {
+   "operation": "liquify",
+   "name": "liquify",
+   "aliases": "",
+   "darktable_group": "correct|effects",
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Pushes, grows or shrinks parts of the image by dragging warp points, lines and curves.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": null,
+     "label": "edit, add and delete nodes",
+     "tab": null,
+     "section": null,
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": null,
+     "action": "edit, add and delete nodes",
+     "tier": "detail",
+     "source": "src/iop/liquify.c:3626-3629"
+    },
+    {
+     "field": null,
+     "label": "shapes",
+     "tab": null,
+     "section": null,
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": [
+      {
+       "value": null,
+       "label": "draw curves"
+      },
+      {
+       "value": null,
+       "label": "draw lines"
+      },
+      {
+       "value": null,
+       "label": "draw points"
+      }
+     ],
+     "visible_when": null,
+     "action": "shapes/draw points",
+     "tier": "primary",
+     "source": "src/iop/liquify.c:3631-3647"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "on-canvas drawing",
+     "fields": [
+      "nodes"
+     ],
+     "what": "place warps; drag radius, strength vector and center/feather hardness handles; ctrl+click toggles linear/grow/shrink and node types",
+     "source": "src/iop/liquify.c:3653-3675 (params :253-256, MAX_NODES 100 :46)"
+    }
+   ],
+   "image_actions": [],
+   "recommended_omalux_group": "Geometry",
+   "notes": "Has no sliders at all: radius, strength, hardness and warp type (linear / radial grow / radial shrink) are edited only on canvas. Requires a dedicated canvas tool in Omalux; no plain slider mapping possible."
+  },
+  {
+   "operation": "finalscale",
+   "name": "scale into final size",
+   "aliases": "",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Internal step that resizes the image to the output size.",
+   "tabs": [],
+   "controls": [],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "IOP_FLAGS_HIDDEN | ONE_INSTANCE | NO_HISTORY_STACK (finalscale.c:40-45); params only 'dummy' (:28-31); no gui_init. Hidden pipeline-internal module: never show."
+  },
+  {
+   "operation": "gamma",
+   "name": "display encoding",
+   "aliases": "",
+   "darktable_group": "color|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Internal last step that converts the image to 8-bit display output and paints mask overlays.",
+   "tabs": [],
+   "controls": [],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "IOP_FLAGS_HIDDEN | ONE_INSTANCE | FENCE (gamma.c:49-52); params gamma/linear unused by GUI; no gui_init. Hidden pipeline-internal module: never show."
+  },
+  {
+   "operation": "overexposed",
+   "name": "overexposed",
+   "aliases": "",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Darkroom clipping warning that marks crushed shadows and blown highlights on the preview.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": null,
+     "label": "clipping preview mode",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "full gamut"
+      },
+      {
+       "value": 1,
+       "label": "any RGB channel"
+      },
+      {
+       "value": 2,
+       "label": "luminance only"
+      },
+      {
+       "value": 3,
+       "label": "saturation only"
+      }
+     ],
+     "visible_when": null,
+     "action": "overexposed/clipping preview mode",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3092-3102"
+    },
+    {
+     "field": null,
+     "label": "color scheme",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 1,
+     "values": [
+      {
+       "value": 0,
+       "label": "black & white"
+      },
+      {
+       "value": 1,
+       "label": "red & blue"
+      },
+      {
+       "value": 2,
+       "label": "purple & green"
+      }
+     ],
+     "visible_when": null,
+     "action": "overexposed/color scheme",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3105-3113 (conf default data/darktableconfig.xml.in:2609-2611)"
+    },
+    {
+     "field": null,
+     "label": "lower threshold",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": " EV",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": -32,
+     "max": -4,
+     "soft_min": -32,
+     "soft_max": -4,
+     "default": -12.69,
+     "values": null,
+     "visible_when": null,
+     "action": "overexposed/lower threshold",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3116-3133 (conf default :2616-2618)"
+    },
+    {
+     "field": null,
+     "label": "upper threshold",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 2,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 99.99,
+     "values": null,
+     "visible_when": null,
+     "action": "overexposed/upper threshold",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3135-3143 (conf default :2623-2625)"
+    },
+    {
+     "field": null,
+     "label": "toggle",
+     "tab": null,
+     "section": null,
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": null,
+     "action": "overexposed/toggle",
+     "tier": "primary",
+     "source": "src/views/darkroom.c:3063-3080"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "IOP_FLAGS_HIDDEN | ONE_INSTANCE | NO_HISTORY_STACK (overexposed.c:76-79); no params (DT_MODULE(3), :30). Not a module panel: controlled from the darkroom toolbar button (shortcut o) and its right-click popover, settings stored in darktablerc darkroom/ui/overexposed/* and read in develop.c:146-149. Actions are view actions under the darkroom ('overexposed/...'), not module-relative. Omalux could expose it as a viewer clipping toggle, not as an edit control."
+  },
+  {
+   "operation": "rawoverexposed",
+   "name": "raw overexposed",
+   "aliases": "",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Darkroom warning that marks pixels clipped already in the raw sensor data.",
+   "tabs": [],
+   "controls": [
+    {
+     "field": null,
+     "label": "mode",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "mark with CFA color"
+      },
+      {
+       "value": 1,
+       "label": "mark with solid color"
+      },
+      {
+       "value": 2,
+       "label": "false color"
+      }
+     ],
+     "visible_when": null,
+     "action": "raw overexposed/mode",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3025-3031 (conf default data/darktableconfig.xml.in:2588-2590)"
+    },
+    {
+     "field": null,
+     "label": "color scheme",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "red"
+      },
+      {
+       "value": 1,
+       "label": "green"
+      },
+      {
+       "value": 2,
+       "label": "blue"
+      },
+      {
+       "value": 3,
+       "label": "black"
+      }
+     ],
+     "visible_when": "used only when mode == mark with solid color (tooltip, darkroom.c:3037)",
+     "action": "raw overexposed/color scheme",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3034-3043 (conf default :2595-2597)"
+    },
+    {
+     "field": null,
+     "label": "clipping threshold",
+     "tab": null,
+     "section": null,
+     "widget": "slider",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": 0,
+     "max": 2,
+     "soft_min": 0,
+     "soft_max": 2,
+     "default": 1.0,
+     "values": null,
+     "visible_when": null,
+     "action": "raw overexposed/clipping threshold",
+     "tier": "detail",
+     "source": "src/views/darkroom.c:3047-3057 (conf default :2602-2604)"
+    },
+    {
+     "field": null,
+     "label": "toggle",
+     "tab": null,
+     "section": null,
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": null,
+     "action": "raw overexposed/toggle",
+     "tier": "primary",
+     "source": "src/views/darkroom.c:3001-3013"
+    }
+   ],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "IOP_FLAGS_HIDDEN | ONE_INSTANCE | NO_HISTORY_STACK (rawoverexposed.c:73-76); no params (DT_MODULE(1)). Driven from the darkroom toolbar (shift+o) and its popover; settings in darktablerc darkroom/ui/rawoverexposed/* (develop.c:138-142). A viewer overlay, not an edit."
+  },
+  {
+   "operation": "mask_manager",
+   "name": "mask manager",
+   "aliases": "",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Internal holder for drawn mask shapes shared by all modules.",
+   "tabs": [],
+   "controls": [],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "IOP_FLAGS_HIDDEN | ONE_INSTANCE | UNSAFE_COPY (mask_manager.c:50-53); params only 'dummy'; process() copies input to output. The user-facing mask manager is a lib panel (src/libs/masks.c), outside this inventory. Never show as a module."
+  },
+  {
+   "operation": "useless",
+   "name": "silly example",
+   "aliases": "",
+   "darktable_group": "basic|technical",
+   "deprecated": false,
+   "hidden": true,
+   "purpose": "Developer template module, not part of the build.",
+   "tabs": [],
+   "controls": [],
+   "custom_widgets": [],
+   "image_actions": [],
+   "recommended_omalux_group": null,
+   "notes": "Not compiled: 'add_iop(useless \"useless.c\")' is commented out in src/iop/CMakeLists.txt:64. Template only (sliders 'size', 'factor', 'extra', combobox 'parameter choices', toggle 'checkbox option', useless.c:610-680). Ignore."
+  },
+  {
+   "operation": "@blending",
+   "name": "blending (per-module blend section)",
+   "aliases": "",
+   "darktable_group": null,
+   "deprecated": false,
+   "hidden": false,
+   "purpose": "Controls how strongly and where a module's result is applied: opacity, blend mode, and masks (drawn shapes, color/tone ranges, or masks from other modules).",
+   "tabs": [
+    "parametric mask channel tabs (depend on blend colorspace): Lab: L, a, b, C, h; RGB (display): g, R, G, B, H, S, L; RGB (scene): g, R, G, B, Jz, Cz, hz"
+   ],
+   "controls": [
+    {
+     "field": "mask_mode",
+     "label": "blend mask mode",
+     "tab": null,
+     "section": null,
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "off"
+      },
+      {
+       "value": 1,
+       "label": "uniformly"
+      },
+      {
+       "value": 3,
+       "label": "drawn mask"
+      },
+      {
+       "value": 5,
+       "label": "parametric mask"
+      },
+      {
+       "value": 7,
+       "label": "drawn & parametric mask"
+      },
+      {
+       "value": 9,
+       "label": "raster mask"
+      }
+     ],
+     "visible_when": "drawn & raster need !IOP_FLAGS_NO_MASKS; parametric needs blend colorspace Lab or RGB (blend_gui.c:3413-3414); whole row hidden if module hides enable button (:3329)",
+     "action": "masks/<label>",
+     "tier": "primary",
+     "source": "src/develop/blend_gui.c:3428-3486 (blend.h:93-101, names blend_gui.c:152-164)"
+    },
+    {
+     "field": "blend_mode",
+     "label": "mode",
+     "tab": null,
+     "section": "blend mask",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 24,
+     "values": [
+      {
+       "value": 24,
+       "label": "normal"
+      },
+      {
+       "value": 5,
+       "label": "average"
+      },
+      {
+       "value": 23,
+       "label": "difference"
+      },
+      {
+       "value": 25,
+       "label": "normal bounded"
+      },
+      {
+       "value": 2,
+       "label": "lighten"
+      },
+      {
+       "value": 3,
+       "label": "darken"
+      },
+      {
+       "value": 9,
+       "label": "screen"
+      },
+      {
+       "value": 4,
+       "label": "multiply"
+      },
+      {
+       "value": 38,
+       "label": "divide"
+      },
+      {
+       "value": 6,
+       "label": "addition"
+      },
+      {
+       "value": 7,
+       "label": "subtract"
+      },
+      {
+       "value": 40,
+       "label": "geometric mean"
+      },
+      {
+       "value": 41,
+       "label": "harmonic mean"
+      },
+      {
+       "value": 10,
+       "label": "overlay"
+      },
+      {
+       "value": 11,
+       "label": "softlight"
+      },
+      {
+       "value": 12,
+       "label": "hardlight"
+      },
+      {
+       "value": 13,
+       "label": "vividlight"
+      },
+      {
+       "value": 14,
+       "label": "linearlight"
+      },
+      {
+       "value": 15,
+       "label": "pinlight"
+      },
+      {
+       "value": 16,
+       "label": "lightness"
+      },
+      {
+       "value": 17,
+       "label": "chromaticity"
+      },
+      {
+       "value": 26,
+       "label": "Lab lightness"
+      },
+      {
+       "value": 31,
+       "label": "Lab a-channel"
+      },
+      {
+       "value": 32,
+       "label": "Lab b-channel"
+      },
+      {
+       "value": 27,
+       "label": "Lab color"
+      },
+      {
+       "value": 33,
+       "label": "RGB red channel"
+      },
+      {
+       "value": 34,
+       "label": "RGB green channel"
+      },
+      {
+       "value": 35,
+       "label": "RGB blue channel"
+      },
+      {
+       "value": 28,
+       "label": "HSV value"
+      },
+      {
+       "value": 29,
+       "label": "HSV color"
+      },
+      {
+       "value": 18,
+       "label": "hue"
+      },
+      {
+       "value": 19,
+       "label": "color"
+      },
+      {
+       "value": 22,
+       "label": "coloradjustment"
+      },
+      {
+       "value": 8,
+       "label": "difference (deprecated)"
+      },
+      {
+       "value": 37,
+       "label": "subtract inverse (deprecated)"
+      },
+      {
+       "value": 39,
+       "label": "divide inverse (deprecated)"
+      },
+      {
+       "value": 30,
+       "label": "Lab L-channel (deprecated)"
+      }
+     ],
+     "visible_when": "mask_mode != off (blend_box, :3247)",
+     "action": "blend/mode",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:3530-3541 (names :46-131, enum blend.h:44-91)"
+    },
+    {
+     "field": "blend_mode & DEVELOP_BLEND_REVERSE",
+     "label": "toggle blend order",
+     "tab": null,
+     "section": "blend mask",
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": "mask_mode != off",
+     "action": "tools/toggle blend order",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:3543-3553 (blend.h:89)"
+    },
+    {
+     "field": "blend_parameter",
+     "label": "fulcrum",
+     "tab": null,
+     "section": "blend mask",
+     "widget": "slider",
+     "unit": " EV",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": -18,
+     "max": 18,
+     "soft_min": -3,
+     "soft_max": 3,
+     "default": 0,
+     "values": null,
+     "visible_when": "blend colorspace == RGB (scene) and mode in {multiply, divide, addition, subtract, RGB red/green/blue channel, subtract/divide inverse} (:349-371, :3217)",
+     "action": "blend/fulcrum",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:3555-3564"
+    },
+    {
+     "field": "opacity",
+     "label": "opacity",
+     "tab": null,
+     "section": "blend mask",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 1,
+     "offset": 0,
+     "digits": 0,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 100,
+     "values": null,
+     "visible_when": "mask_mode != off",
+     "action": "blend/opacity",
+     "tier": "primary",
+     "source": "src/develop/blend_gui.c:3566-3572"
+    },
+    {
+     "field": "mask_id",
+     "label": "drawn mask",
+     "tab": null,
+     "section": "drawn mask",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": null,
+     "visible_when": "mask_mode has drawn (bit 2) (:3291-3303)",
+     "action": "blend/drawn mask",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2765-2772"
+    },
+    {
+     "field": "mask_combine & DEVELOP_COMBINE_INV (drawn polarity)",
+     "label": "toggle polarity of drawn mask",
+     "tab": null,
+     "section": "drawn mask",
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": "mask_mode has drawn",
+     "action": "tools/toggle polarity of drawn mask",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2776-2783"
+    },
+    {
+     "field": null,
+     "label": "drawn mask shapes",
+     "tab": null,
+     "section": "drawn mask",
+     "widget": "button",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": [
+      {
+       "value": null,
+       "label": "show and edit mask elements"
+      },
+      {
+       "value": null,
+       "label": "add AI object (only with HAVE_AI)"
+      },
+      {
+       "value": null,
+       "label": "add gradient"
+      },
+      {
+       "value": null,
+       "label": "add path"
+      },
+      {
+       "value": null,
+       "label": "add ellipse"
+      },
+      {
+       "value": null,
+       "label": "add circle"
+      },
+      {
+       "value": null,
+       "label": "add brush"
+      }
+     ],
+     "visible_when": "mask_mode has drawn",
+     "action": "shapes/<label>",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2786-2845"
+    },
+    {
+     "field": "raster_mask_source / raster_mask_instance / raster_mask_id",
+     "label": "raster mask",
+     "tab": null,
+     "section": "raster mask",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": null,
+     "values": null,
+     "visible_when": "mask_mode has raster (bit 8) (:3305)",
+     "action": null,
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2990-2995"
+    },
+    {
+     "field": "raster_mask_invert",
+     "label": "toggle polarity of raster mask",
+     "tab": null,
+     "section": "raster mask",
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": "mask_mode has raster",
+     "action": "tools/toggle polarity of raster mask",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2983-2988"
+    },
+    {
+     "field": "blendif_parameters[4*ch+0..3] (output channel ch)",
+     "label": "output",
+     "tab": "channel tab",
+     "section": "parametric mask",
+     "widget": "graph",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "values": null,
+     "visible_when": "mask_mode has parametric; output row only when 'show output channels' is on or already used (:2499)",
+     "action": null,
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2610-2662 (defaults blend.c:58-61 = 0,0,1,1)"
+    },
+    {
+     "field": "blendif_parameters[4*ch+0..3] (input channel ch)",
+     "label": "input",
+     "tab": "channel tab",
+     "section": "parametric mask",
+     "widget": "graph",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": 0,
+     "max": 1,
+     "soft_min": 0,
+     "soft_max": 1,
+     "default": [
+      0,
+      0,
+      1,
+      1
+     ],
+     "values": null,
+     "visible_when": "mask_mode has parametric",
+     "action": null,
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:2610-2662"
+    },
+    {
+     "field": "blendif bit (ch+16)",
+     "label": "toggle polarity",
+     "tab": "channel tab",
+     "section": "parametric mask",
+     "widget": "toggle",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": false,
+     "values": null,
+     "visible_when": "mask_mode has parametric",
+     "action": null,
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:2615-2620, callback :897-916"
+    },
+    {
+     "field": "blendif_boost_factors[ch]",
+     "label": "boost factor",
+     "tab": "channel tab",
+     "section": "parametric mask",
+     "widget": "slider",
+     "unit": " EV",
+     "factor": 1,
+     "offset": 0,
+     "digits": 3,
+     "min": 0,
+     "max": 18,
+     "soft_min": 0,
+     "soft_max": 3,
+     "default": 0,
+     "values": null,
+     "visible_when": "mask_mode has parametric; sensitive only on channels with boost_factor_enabled (:1239-1247)",
+     "action": "blend/boost factor",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:2670-2679 (offset :1305)"
+    },
+    {
+     "field": "mask_combine & (DEVELOP_COMBINE_INV|DEVELOP_COMBINE_INCL)",
+     "label": "combine masks",
+     "tab": null,
+     "section": "parametric mask",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 0,
+     "values": [
+      {
+       "value": 0,
+       "label": "exclusive"
+      },
+      {
+       "value": 2,
+       "label": "inclusive"
+      },
+      {
+       "value": 1,
+       "label": "exclusive & inverted"
+      },
+      {
+       "value": 3,
+       "label": "inclusive & inverted"
+      }
+     ],
+     "visible_when": "mask_mode has parametric (:3255)",
+     "action": "blend/combine masks",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:3574-3581 (names :167-172)"
+    },
+    {
+     "field": "details",
+     "label": "details threshold",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 0,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": "mask_mode has drawn or parametric (or raster) AND image is raw (dt_image_is_rawprepare_supported, :3250)",
+     "action": "blend/details threshold",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:3584-3593 (callback :1322-1336)"
+    },
+    {
+     "field": "feathering_guide",
+     "label": "feathering guide",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": 5,
+     "values": [
+      {
+       "value": 2,
+       "label": "output before blur"
+      },
+      {
+       "value": 1,
+       "label": "input before blur"
+      },
+      {
+       "value": 6,
+       "label": "output after blur"
+      },
+      {
+       "value": 5,
+       "label": "input after blur"
+      }
+     ],
+     "visible_when": "refine box shown: mask_mode has drawn/parametric/raster (:3252-3285)",
+     "action": "blend/feathering guide",
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:3595-3601 (names :174-179, enum blend.h:116-122)"
+    },
+    {
+     "field": "feathering_radius",
+     "label": "feathering radius",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "slider",
+     "unit": " px",
+     "factor": 1,
+     "offset": 0,
+     "digits": 1,
+     "min": 0,
+     "max": 250,
+     "soft_min": 0,
+     "soft_max": 250,
+     "default": 0,
+     "values": null,
+     "visible_when": "refine box shown",
+     "action": "blend/feathering radius",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:3603-3611"
+    },
+    {
+     "field": "blur_radius",
+     "label": "blurring radius",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "slider",
+     "unit": " px",
+     "factor": 1,
+     "offset": 0,
+     "digits": 1,
+     "min": 0,
+     "max": 100,
+     "soft_min": 0,
+     "soft_max": 100,
+     "default": 0,
+     "values": null,
+     "visible_when": "refine box shown",
+     "action": "blend/blurring radius",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:3613-3620"
+    },
+    {
+     "field": "brightness",
+     "label": "mask opacity",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 0,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": "refine box shown",
+     "action": "blend/mask opacity",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:3622-3629"
+    },
+    {
+     "field": "contrast",
+     "label": "mask contrast",
+     "tab": null,
+     "section": "mask refinement",
+     "widget": "slider",
+     "unit": "%",
+     "factor": 100,
+     "offset": 0,
+     "digits": 0,
+     "min": -1,
+     "max": 1,
+     "soft_min": -1,
+     "soft_max": 1,
+     "default": 0,
+     "values": null,
+     "visible_when": "refine box shown",
+     "action": "blend/mask contrast",
+     "tier": "detail",
+     "source": "src/develop/blend_gui.c:3631-3638"
+    },
+    {
+     "field": "blend_cst",
+     "label": "blend colorspace (blending options menu)",
+     "tab": null,
+     "section": null,
+     "widget": "combobox",
+     "unit": "",
+     "factor": 1,
+     "offset": 0,
+     "digits": null,
+     "min": null,
+     "max": null,
+     "soft_min": null,
+     "soft_max": null,
+     "default": "module default (Lab / RGB display / RGB scene / RAW)",
+     "values": [
+      {
+       "value": 0,
+       "label": "default"
+      },
+      {
+       "value": 1,
+       "label": "RAW"
+      },
+      {
+       "value": 2,
+       "label": "Lab"
+      },
+      {
+       "value": 3,
+       "label": "RGB (display)"
+      },
+      {
+       "value": 4,
+       "label": "RGB (scene)"
+      }
+     ],
+     "visible_when": "menu behind the presets icon in the mask-mode row; only when parametric masks are supported (:3488-3497)",
+     "action": null,
+     "tier": "advanced",
+     "source": "src/develop/blend_gui.c:2028-2090 (names :139-150)"
+    }
+   ],
+   "custom_widgets": [
+    {
+     "kind": "mode buttons",
+     "fields": [
+      "mask_mode"
+     ],
+     "what": "row of icon toggles: off, uniformly, drawn, parametric, drawn & parametric, raster; plus a 'blending options' menu",
+     "source": "src/develop/blend_gui.c:3428-3497"
+    },
+    {
+     "kind": "on-canvas drawing",
+     "fields": [
+      "mask_id"
+     ],
+     "what": "create/edit drawn shapes (brush, circle, ellipse, path, gradient, AI object) on the image; shapes live in the mask manager",
+     "source": "src/develop/blend_gui.c:2760-2850"
+    },
+    {
+     "kind": "dual gradient range sliders",
+     "fields": [
+      "blendif_parameters"
+     ],
+     "what": "per channel, input and output 4-marker range sliders (off/on/on/off) defining a parametric mask, with polarity toggles",
+     "source": "src/develop/blend_gui.c:2610-2662"
+    },
+    {
+     "kind": "color picker",
+     "fields": [
+      "blendif_parameters"
+     ],
+     "what": "'show color' picker shows picked values on the sliders; 'set range' picker sets the range from an image area (ctrl = output)",
+     "source": "src/develop/blend_gui.c:2578-2598"
+    },
+    {
+     "kind": "module selector",
+     "fields": [
+      "raster_mask_source",
+      "raster_mask_instance",
+      "raster_mask_id"
+     ],
+     "what": "combobox populated with masks published by earlier modules (incl. external raster masks)",
+     "source": "src/develop/blend_gui.c:2990-2995"
+    },
+    {
+     "kind": "mask display",
+     "fields": [],
+     "what": "'display mask and/or color channel' and 'temporarily switch off blend mask' toggles (GUI state, not params)",
+     "source": "src/develop/blend_gui.c:3508-3528"
+    }
+   ],
+   "image_actions": [
+    "picker (show color)",
+    "picker (set range)"
+   ],
+   "recommended_omalux_group": null,
+   "notes": "Shown under every module with IOP_FLAGS_SUPPORTS_BLENDING (imageop.h:90). IOP_FLAGS_NO_MASKS (imageop.h:98, e.g. retouch, spots) leaves only off/uniformly. Parametric masks need blend colorspace Lab or RGB (blend_gui.c:3413). Params struct dt_develop_blend_params_t in blend.h:180-222; defaults in blend.c:41-66 (mask_mode off, blend_mode normal = 0x18, opacity 100, combine exclusive, feathering guide input after blur, all refinement 0, blendif ranges 0,0,1,1). blend_cst default comes from the module's blend_colorspace (blend.c:68-92), RGB scene vs display follows the workflow preference; for RGB scene, Jz/Cz boost factors default to -6.64385619 and the GUI adds that offset so it displays 0 (blend.c:94-113). Action paths are blend-relative as darktable defines them: sliders/comboboxes use section 'blend' (e.g. 'blend/opacity'), mode buttons 'blend`masks' -> 'blend/masks/<label>', tool toggles 'blend`tools', shapes 'blend`shapes', pickers 'blend`pickers'; in this file 'action' is written relative to the blend section where marked. Opacity: range 0..100 already in percent, factor 1, digits 0. details/mask opacity/mask contrast: range -1..1 shown as -100..100 % (factor 100, digits 0 after '%' adjustment, bauhaus.c:3327-3331). Note the label 'mask opacity' is the 'brightness' field. Parametric slider display scales per channel are in Lab_channels/rgb_channels/rgbj_channels (blend_gui.c:2340-2463), e.g. L 0..100, a/b -128..128, hue 0..360. A minimal Omalux 'blend' section could cover: mask_mode off/uniformly, blend mode, opacity, and the refinement sliders; drawn/parametric/raster masks need canvas drawing, range sliders and a module selector."
+  }
+ ]
+}

@@ -13,7 +13,6 @@ differ or where darktable draws the widget itself and says nothing.
 """
 import argparse
 import json
-import math
 from pathlib import Path
 import re
 
@@ -44,21 +43,26 @@ def parse(text):
 
 
 def disagreements(row, display):
-    """Where our row says something other than darktable does."""
+    """Where our row says something other than darktable does.
+
+    darktable shows native × factor + offset; our row shows (native − offset) / scale. The
+    display data holds darktable's effective factor and digits, after Bauhaus' percent
+    rule, so once both conversions agree the digits compare directly."""
     entry = display.get(f"{row['module']}/{row['parameter']}")
     if entry is None:
         return ['darktable draws this widget itself']
     found = []
-    scale = row.get('scale', 1) or 1
-    # Our digits are counted on the displayed value, so a power-of-ten scale shifts them.
-    # Any other factor (ISO coarseness, say) is not comparable and the digits are ours.
-    shift = round(math.log10(1 / abs(scale)))
-    if abs(abs(scale) - 10.0 ** -shift) > 1e-9:
-        return []
+    scale, offset = row.get('scale', 1) or 1, row.get('offset', 0)
+    factor, shown_offset = entry.get('factor', 1.0), entry.get('offset', 0.0)
+    if abs(scale * factor - 1) > 1e-6:
+        found.append(f'scale {scale} against darktable factor {factor}')
+    elif abs(offset + shown_offset * scale) > 1e-6:
+        found.append(f'offset {offset} against {-shown_offset * scale:g} '
+                     f'(darktable adds {shown_offset:g} on screen)')
     if 'format' in entry and entry['format'].strip() != row.get('unit', '').strip():
         found.append(f"unit {row.get('unit','')!r} against {entry['format']!r}")
-    if 'digits' in entry and entry['digits'] - shift != row.get('decimals'):
-        found.append(f"digits {row.get('decimals')} against {entry['digits'] - shift}")
+    if not found and 'digits' in entry and entry['digits'] != row.get('decimals'):
+        found.append(f"digits {row.get('decimals')} against {entry['digits']}")
     if 'soft_minimum' in entry and 'soft_minimum' not in row:
         found.append('no soft range where darktable suggests one')
     return found

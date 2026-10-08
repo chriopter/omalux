@@ -1,18 +1,113 @@
 {
+ "agx/curve_contrast_around_pivot": {
+  "digits": 2,
+  "soft_maximum": 5.0,
+  "soft_minimum": 0.10000000149011612
+ },
+ "agx/curve_gamma": {
+  "digits": 1,
+  "factor": 57.29577951308232,
+  "format": "\u00b0",
+  "soft_maximum": 5.0,
+  "soft_minimum": 1.0
+ },
+ "agx/curve_linear_ratio_above_pivot": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/curve_linear_ratio_below_pivot": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/curve_pivot_x": {
+  "digits": 2,
+  "format": " EV"
+ },
+ "agx/curve_pivot_y_linear_output": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/curve_shoulder_power": {
+  "digits": 2,
+  "soft_maximum": 5.0,
+  "soft_minimum": 1.0
+ },
+ "agx/curve_target_display_black_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 0.025,
+  "soft_minimum": 0.0
+ },
+ "agx/curve_target_display_white_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 1.0,
+  "soft_minimum": 0.5
+ },
+ "agx/curve_toe_power": {
+  "digits": 2,
+  "soft_maximum": 5.0,
+  "soft_minimum": 1.0
+ },
  "agx/dynamic_range_scaling": {
   "digits": 2,
   "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5
  },
- "agx/master_unrotation_ratio": {
+ "agx/look_brightness": {
+  "digits": 2,
+  "soft_maximum": 2.0,
+  "soft_minimum": 0.0
+ },
+ "agx/look_lift": {
+  "digits": 2,
+  "soft_maximum": 0.5,
+  "soft_minimum": -0.5
+ },
+ "agx/look_original_hue_mix_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/look_saturation": {
   "digits": 2,
   "factor": 100.0,
   "format": "%",
-  "soft_maximum": 5.0,
-  "soft_minimum": 1.0
+  "soft_maximum": 2.0,
+  "soft_minimum": 0.0
+ },
+ "agx/look_slope": {
+  "digits": 2,
+  "soft_maximum": 2.0,
+  "soft_minimum": 0.0
+ },
+ "agx/master_outset_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/master_unrotation_ratio": {
+  "digits": 2,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "agx/range_black_relative_ev": {
+  "digits": 2
+ },
+ "agx/range_white_relative_ev": {
+  "digits": 2
+ },
+ "ashift/aspect": {
+  "digits": 2
  },
  "ashift/crop_factor": {
+  "digits": 2,
   "soft_maximum": 2.0,
   "soft_minimum": 1.0
  },
@@ -23,17 +118,33 @@
   "soft_minimum": 10.0
  },
  "ashift/lensshift_h": {
-  "digits": 3
+  "digits": 3,
+  "soft_maximum": 1.0,
+  "soft_minimum": -1.0
  },
  "ashift/lensshift_v": {
-  "digits": 3
+  "digits": 3,
+  "soft_maximum": 1.0,
+  "soft_minimum": -1.0
  },
  "ashift/orthocorr": {
+  "digits": 2,
   "format": "%"
  },
  "ashift/rotation": {
+  "digits": 2,
   "factor": -1.0,
-  "format": "\u00b0"
+  "format": "\u00b0",
+  "soft_maximum": 10.0,
+  "soft_minimum": -10.0
+ },
+ "ashift/shear": {
+  "digits": 3,
+  "soft_maximum": 0.2,
+  "soft_minimum": -0.2
+ },
+ "atrous/mix": {
+  "digits": 2
  },
  "basecurve/exposure_bias": {
   "digits": 3
@@ -47,6 +158,7 @@
   "soft_minimum": -0.1
  },
  "basicadj/brightness": {
+  "digits": 2,
   "soft_maximum": 1.0,
   "soft_minimum": -1.0
  },
@@ -54,21 +166,33 @@
   "digits": 3
  },
  "basicadj/contrast": {
+  "digits": 2,
   "soft_maximum": 1.0,
   "soft_minimum": -1.0
  },
  "basicadj/exposure": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 4.0,
   "soft_minimum": -4.0
  },
  "basicadj/hlcompr": {
+  "digits": 2,
   "soft_maximum": 100.0
  },
  "basicadj/middle_grey": {
+  "digits": 2,
   "format": "%"
  },
+ "basicadj/saturation": {
+  "digits": 2
+ },
+ "basicadj/vibrance": {
+  "digits": 2
+ },
  "bilat/detail": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%",
   "offset": 100.0
  },
@@ -76,51 +200,136 @@
   "digits": 3
  },
  "bilat/sigma_r": {
+  "alternatives": [
+   {
+    "digits": 0,
+    "factor": 100.0,
+    "format": "%",
+    "hard_maximum": 2.0,
+    "hard_minimum": 0.0
+   }
+  ],
   "digits": 0,
-  "format": "%"
+  "hard_maximum": 100.0,
+  "hard_minimum": 1.0
  },
  "bilat/sigma_s": {
+  "alternatives": [
+   {
+    "digits": 0,
+    "factor": 100.0,
+    "format": "%",
+    "hard_maximum": 2.0,
+    "hard_minimum": 0.0
+   }
+  ],
   "digits": 0,
-  "format": "%"
+  "hard_maximum": 100.0,
+  "hard_minimum": 3.0
+ },
+ "bilateral/blue": {
+  "digits": 4,
+  "soft_maximum": 0.1
+ },
+ "bilateral/green": {
+  "digits": 4,
+  "soft_maximum": 0.1
+ },
+ "bilateral/radius": {
+  "digits": 2,
+  "soft_maximum": 30.0,
+  "soft_minimum": 1.0
+ },
+ "bilateral/red": {
+  "digits": 4,
+  "soft_maximum": 0.1
  },
  "bloom/size": {
+  "digits": 2,
   "format": "%"
  },
  "bloom/strength": {
+  "digits": 2,
   "format": "%"
  },
  "bloom/threshold": {
+  "digits": 2,
   "format": "%"
  },
  "blurs/angle": {
+  "digits": 2,
   "factor": -57.29577951308232,
   "format": "\u00b0"
  },
+ "blurs/blades": {
+  "digits": 0
+ },
+ "blurs/concavity": {
+  "digits": 2
+ },
+ "blurs/curvature": {
+  "digits": 2
+ },
+ "blurs/linearity": {
+  "digits": 2
+ },
+ "blurs/offset": {
+  "digits": 2
+ },
  "blurs/radius": {
+  "digits": 0,
   "format": " px",
   "soft_maximum": 64.0
  },
  "blurs/rotation": {
+  "digits": 2,
   "factor": 57.29577951308232,
   "format": "\u00b0"
  },
+ "borders/aspect": {
+  "digits": 2
+ },
  "borders/frame_offset": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "borders/frame_size": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
+ "borders/pos_h": {
+  "digits": 2
+ },
+ "borders/pos_v": {
+  "digits": 2
+ },
  "borders/size": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "cacorrectrgb/radius": {
-  "soft_maximum": 20.0,
-  "soft_minimum": 1.0
+  "digits": 2
+ },
+ "cacorrectrgb/strength": {
+  "digits": 2
+ },
+ "censorize/noise": {
+  "digits": 2
+ },
+ "censorize/pixelate": {
+  "digits": 2
+ },
+ "censorize/radius_1": {
+  "digits": 2
+ },
+ "censorize/radius_2": {
+  "digits": 2
  },
  "channelmixerrgb/gamut": {
+  "digits": 2,
   "soft_maximum": 4.0
  },
  "channelmixerrgb/temperature": {
@@ -130,31 +339,43 @@
   "soft_minimum": 3000.0
  },
  "clipping/angle": {
+  "digits": 2,
   "factor": -1.0,
   "format": "\u00b0"
  },
  "clipping/ch": {
-  "digits": 4,
+  "digits": 2,
   "factor": -100.0,
   "format": "%",
   "offset": 100.0
  },
  "clipping/cw": {
-  "digits": 4,
+  "digits": 2,
   "factor": -100.0,
   "format": "%",
   "offset": 100.0
  },
  "clipping/cx": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "clipping/cy": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
+ "colisa/brightness": {
+  "digits": 2
+ },
+ "colisa/contrast": {
+  "digits": 2
+ },
+ "colisa/saturation": {
+  "digits": 2
+ },
  "colorbalance/contrast": {
-  "digits": 4,
+  "digits": 2,
   "factor": -100.0,
   "format": "%",
   "offset": 100.0,
@@ -162,167 +383,235 @@
   "soft_minimum": 0.5
  },
  "colorbalance/grey": {
+  "digits": 2,
   "format": "%"
  },
  "colorbalance/saturation": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 1.5,
   "soft_minimum": 0.5
  },
  "colorbalance/saturation_out": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 1.5,
   "soft_minimum": 0.5
  },
  "colorbalancergb/brilliance_global": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/brilliance_highlights": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/brilliance_midtones": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/brilliance_shadows": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/chroma_global": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": -0.5
  },
  "colorbalancergb/chroma_highlights": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/chroma_midtones": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/chroma_shadows": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/contrast": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": -0.5
  },
  "colorbalancergb/global_C": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.01,
   "soft_minimum": 0.0
  },
  "colorbalancergb/global_H": {
+  "digits": 2,
   "format": "\u00b0"
  },
  "colorbalancergb/global_Y": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.05,
   "soft_minimum": -0.05
  },
  "colorbalancergb/grey_fulcrum": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": 0.1
  },
  "colorbalancergb/highlights_C": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.2,
   "soft_minimum": 0.0
  },
  "colorbalancergb/highlights_H": {
+  "digits": 2,
   "format": "\u00b0"
  },
  "colorbalancergb/highlights_Y": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": -0.5
  },
  "colorbalancergb/highlights_weight": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/hue_angle": {
+  "digits": 2,
   "format": "\u00b0"
  },
  "colorbalancergb/mask_grey_fulcrum": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/midtones_C": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.1,
   "soft_minimum": 0.0
  },
  "colorbalancergb/midtones_H": {
+  "digits": 2,
   "format": "\u00b0"
  },
  "colorbalancergb/midtones_Y": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.25,
   "soft_minimum": -0.25
  },
  "colorbalancergb/saturation_global": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/saturation_highlights": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/saturation_midtones": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/saturation_shadows": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/shadows_C": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": 0.0
  },
  "colorbalancergb/shadows_H": {
+  "digits": 2,
   "format": "\u00b0"
  },
  "colorbalancergb/shadows_Y": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 1.0,
   "soft_minimum": -1.0
  },
  "colorbalancergb/shadows_weight": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "colorbalancergb/vibrance": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.5,
   "soft_minimum": -0.5
  },
  "colorbalancergb/white_fulcrum": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 2.0,
   "soft_minimum": -2.0
+ },
+ "colorcontrast/a_steepness": {
+  "digits": 2
+ },
+ "colorcontrast/b_steepness": {
+  "digits": 2
+ },
+ "colorcorrection/saturation": {
+  "digits": 2
+ },
+ "colorequal/bright_blue": {
+  "digits": 2
+ },
+ "colorequal/bright_cyan": {
+  "digits": 2
+ },
+ "colorequal/bright_green": {
+  "digits": 2
+ },
+ "colorequal/bright_lavender": {
+  "digits": 2
+ },
+ "colorequal/bright_magenta": {
+  "digits": 2
+ },
+ "colorequal/bright_orange": {
+  "digits": 2
+ },
+ "colorequal/bright_red": {
+  "digits": 2
+ },
+ "colorequal/bright_yellow": {
+  "digits": 2
  },
  "colorequal/chroma_size": {
   "digits": 1
@@ -330,18 +619,71 @@
  "colorequal/contrast": {
   "digits": 3
  },
+ "colorequal/hue_blue": {
+  "digits": 2
+ },
+ "colorequal/hue_cyan": {
+  "digits": 2
+ },
+ "colorequal/hue_green": {
+  "digits": 2
+ },
+ "colorequal/hue_lavender": {
+  "digits": 2
+ },
+ "colorequal/hue_magenta": {
+  "digits": 2
+ },
+ "colorequal/hue_orange": {
+  "digits": 2
+ },
+ "colorequal/hue_red": {
+  "digits": 2
+ },
  "colorequal/hue_shift": {
   "digits": 0,
   "format": "\u00b0"
  },
+ "colorequal/hue_yellow": {
+  "digits": 2
+ },
  "colorequal/param_size": {
   "digits": 1
  },
+ "colorequal/sat_blue": {
+  "digits": 2
+ },
+ "colorequal/sat_cyan": {
+  "digits": 2
+ },
+ "colorequal/sat_green": {
+  "digits": 2
+ },
+ "colorequal/sat_lavender": {
+  "digits": 2
+ },
+ "colorequal/sat_magenta": {
+  "digits": 2
+ },
+ "colorequal/sat_orange": {
+  "digits": 2
+ },
+ "colorequal/sat_red": {
+  "digits": 2
+ },
+ "colorequal/sat_yellow": {
+  "digits": 2
+ },
+ "colorequal/smoothing_hue": {
+  "digits": 2
+ },
  "colorequal/threshold": {
-  "digits": 3,
+  "digits": 1,
+  "factor": 100.0,
   "format": "%"
  },
  "colorequal/white_level": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 2.0,
   "soft_minimum": -2.0
@@ -352,6 +694,9 @@
  "colorharmonizer/num_custom_nodes": {
   "digits": 0
  },
+ "colorharmonizer/pull_strength": {
+  "digits": 2
+ },
  "colorharmonizer/pull_width": {
   "digits": 2
  },
@@ -359,59 +704,95 @@
   "digits": 2
  },
  "colorize/hue": {
+  "digits": 2,
   "factor": 360.0,
   "format": "\u00b0"
  },
  "colorize/lightness": {
+  "digits": 2,
   "format": "%"
  },
  "colorize/saturation": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "colorize/source_lightness_mix": {
+  "digits": 2,
   "format": "%"
  },
  "colormapping/dominance": {
+  "digits": 2,
   "format": "%"
  },
  "colormapping/equalization": {
+  "digits": 2,
   "format": "%"
  },
- "colorreconstruction/hue": {
+ "colormapping/n": {
+  "digits": 0
+ },
+ "colorreconstruct/hue": {
+  "digits": 2,
   "factor": 360.0,
   "format": "\u00b0"
  },
+ "colorreconstruct/range": {
+  "digits": 2
+ },
+ "colorreconstruct/spatial": {
+  "digits": 2
+ },
+ "colorreconstruct/threshold": {
+  "digits": 2
+ },
  "colorzones/strength": {
+  "digits": 2,
   "format": "%"
  },
  "crop/ch": {
-  "digits": 4,
+  "digits": 2,
   "factor": -100.0,
   "format": "%",
   "offset": 100.0
  },
  "crop/cw": {
-  "digits": 4,
+  "digits": 2,
   "factor": -100.0,
   "format": "%",
   "offset": 100.0
  },
  "crop/cx": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "crop/cy": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
+ },
+ "defringe/radius": {
+  "digits": 2
+ },
+ "defringe/thresh": {
+  "digits": 2
  },
  "demosaic/cs_boost": {
   "digits": 2
  },
  "demosaic/cs_center": {
   "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
+ "demosaic/cs_iter": {
+  "digits": 0
+ },
  "demosaic/cs_radius": {
+  "digits": 2
+ },
+ "demosaic/cs_thrs": {
   "digits": 2
  },
  "demosaic/dual_thrs": {
@@ -421,16 +802,19 @@
   "digits": 3
  },
  "denoiseprofile/bias": {
+  "digits": 2,
   "soft_maximum": 10.0,
   "soft_minimum": -10.0
  },
  "denoiseprofile/central_pixel_weight": {
+  "digits": 2,
   "soft_maximum": 1.0
  },
  "denoiseprofile/nbhood": {
   "digits": 0
  },
  "denoiseprofile/overshooting": {
+  "digits": 2,
   "soft_maximum": 4.0
  },
  "denoiseprofile/radius": {
@@ -439,81 +823,109 @@
   "soft_minimum": 0.0
  },
  "denoiseprofile/scattering": {
+  "digits": 2,
   "soft_maximum": 1.0
+ },
+ "denoiseprofile/shadows": {
+  "digits": 2
  },
  "denoiseprofile/strength": {
   "digits": 3,
   "soft_maximum": 4.0
  },
  "diffuse/anisotropy_first": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/anisotropy_fourth": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/anisotropy_second": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/anisotropy_third": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/first": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/fourth": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/iterations": {
+  "digits": 0,
   "soft_maximum": 128.0,
   "soft_minimum": 1.0
  },
  "diffuse/radius": {
+  "digits": 0,
   "format": " px",
   "soft_maximum": 512.0,
   "soft_minimum": 1.0
  },
  "diffuse/radius_center": {
+  "digits": 0,
   "format": " px",
   "soft_maximum": 512.0,
   "soft_minimum": 0.0
  },
+ "diffuse/regularization": {
+  "digits": 2
+ },
  "diffuse/second": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/sharpness": {
-  "digits": 3,
+  "digits": 1,
+  "factor": 100.0,
   "format": "%",
   "soft_maximum": 0.25,
   "soft_minimum": -0.25
  },
  "diffuse/third": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
  },
  "diffuse/threshold": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
+ },
+ "diffuse/variance_threshold": {
+  "digits": 2
  },
  "dither/random.damping": {
   "digits": 3,
   "format": " dB"
  },
  "enlargecanvas/percent_bottom": {
+  "digits": 2,
   "format": "%"
  },
  "enlargecanvas/percent_left": {
+  "digits": 2,
   "format": "%"
  },
  "enlargecanvas/percent_right": {
+  "digits": 2,
   "format": "%"
  },
  "enlargecanvas/percent_top": {
+  "digits": 2,
   "format": "%"
  },
  "exposure/black": {
@@ -522,9 +934,11 @@
   "soft_minimum": -0.1
  },
  "exposure/deflicker_percentile": {
+  "digits": 2,
   "format": "%"
  },
  "exposure/deflicker_target_level": {
+  "digits": 2,
   "format": " EV"
  },
  "exposure/exposure": {
@@ -534,9 +948,11 @@
   "soft_minimum": -3.0
  },
  "filmicrgb/balance": {
+  "digits": 2,
   "format": "%"
  },
  "filmicrgb/black_point_source": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": -3.0,
   "soft_minimum": -14.0
@@ -551,6 +967,7 @@
   "soft_minimum": 0.5
  },
  "filmicrgb/grey_point_source": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 36.0,
   "soft_minimum": 0.1
@@ -559,36 +976,54 @@
   "digits": 4,
   "format": "%"
  },
+ "filmicrgb/high_quality_reconstruction": {
+  "digits": 0
+ },
  "filmicrgb/latitude": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 90.0,
   "soft_minimum": 0.1
  },
+ "filmicrgb/noise_level": {
+  "digits": 2
+ },
+ "filmicrgb/output_power": {
+  "digits": 2
+ },
  "filmicrgb/reconstruct_bloom_vs_details": {
+  "digits": 2,
   "format": "%"
  },
  "filmicrgb/reconstruct_feather": {
+  "digits": 2,
   "format": " EV"
  },
  "filmicrgb/reconstruct_grey_vs_color": {
+  "digits": 2,
   "format": "%"
  },
  "filmicrgb/reconstruct_structure_vs_texture": {
+  "digits": 2,
   "format": "%"
  },
  "filmicrgb/reconstruct_threshold": {
+  "digits": 2,
   "format": " EV"
  },
  "filmicrgb/saturation": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 50.0,
   "soft_minimum": -50.0
  },
  "filmicrgb/security_factor": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 50.0
  },
  "filmicrgb/white_point_source": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 8.0,
   "soft_minimum": 2.0
@@ -601,38 +1036,57 @@
  "globaltonemap/detail": {
   "digits": 3
  },
+ "globaltonemap/drago.bias": {
+  "digits": 3
+ },
+ "globaltonemap/drago.max_light": {
+  "digits": 2
+ },
  "graduatednd/density": {
+  "digits": 2,
   "format": " EV"
  },
  "graduatednd/hardness": {
+  "digits": 2,
   "format": "%"
  },
  "graduatednd/hue": {
+  "digits": 2,
   "factor": 360.0,
   "format": "\u00b0"
  },
  "graduatednd/rotation": {
+  "digits": 2,
   "factor": -1.0,
   "format": "\u00b0"
  },
  "graduatednd/saturation": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "grain/midtones_bias": {
+  "digits": 2,
   "format": "%"
  },
  "grain/scale": {
   "digits": 0,
+  "factor": 213.2,
   "format": " ISO"
  },
  "grain/strength": {
+  "digits": 2,
   "format": "%"
  },
  "hazeremoval/distance": {
   "digits": 3
  },
+ "hazeremoval/strength": {
+  "digits": 2
+ },
  "highlights/candidating": {
   "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "highlights/clip": {
@@ -641,17 +1095,28 @@
  "highlights/combine": {
   "digits": 0
  },
+ "highlights/iterations": {
+  "digits": 0
+ },
+ "highlights/noise_level": {
+  "digits": 3
+ },
  "highlights/solid_color": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "highlights/strength": {
   "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "highpass/contrast": {
+  "digits": 2,
   "format": "%"
  },
  "highpass/sharpness": {
+  "digits": 2,
   "format": "%"
  },
  "hotpixels/strength": {
@@ -660,57 +1125,145 @@
  "hotpixels/threshold": {
   "digits": 4
  },
+ "lens/cor_ca_b_ft": {
+  "digits": 3
+ },
+ "lens/cor_ca_r_ft": {
+  "digits": 3
+ },
+ "lens/cor_dist_ft": {
+  "digits": 3
+ },
+ "lens/cor_vig_ft": {
+  "digits": 3
+ },
+ "lens/scale": {
+  "digits": 3
+ },
+ "lens/scale_md": {
+  "digits": 4
+ },
+ "lens/tca_b": {
+  "digits": 5
+ },
+ "lens/tca_r": {
+  "digits": 5
+ },
+ "lens/v_radius": {
+  "digits": 1,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "lens/v_steepness": {
+  "digits": 1,
+  "factor": 100.0,
+  "format": "%"
+ },
+ "lens/v_strength": {
+  "digits": 1,
+  "factor": 100.0,
+  "format": "%"
+ },
  "levels/black": {
+  "digits": 2,
   "format": "%"
  },
  "levels/gray": {
+  "digits": 2,
   "format": "%"
  },
  "levels/white": {
+  "digits": 2,
   "format": "%"
  },
  "lowlight/blueness": {
+  "digits": 2,
   "format": "%"
  },
+ "lowpass/brightness": {
+  "digits": 2
+ },
+ "lowpass/contrast": {
+  "digits": 2
+ },
+ "lowpass/radius": {
+  "digits": 2
+ },
+ "lowpass/saturation": {
+  "digits": 2
+ },
+ "monochrome/highlights": {
+  "digits": 2
+ },
  "negadoctor/D_max": {
+  "digits": 2,
   "format": " dB"
  },
  "negadoctor/Dmin[0]": {
-  "digits": 4,
+  "digits": 2,
   "factor": 100.0,
   "format": "%"
  },
  "negadoctor/Dmin[1]": {
-  "digits": 4,
+  "digits": 2,
   "factor": 100.0,
   "format": "%"
  },
  "negadoctor/Dmin[2]": {
-  "digits": 4,
+  "digits": 2,
   "factor": 100.0,
   "format": "%"
  },
  "negadoctor/black": {
-  "digits": 4,
+  "digits": 2,
   "factor": 100.0,
   "format": "%"
  },
  "negadoctor/exposure": {
+  "digits": 2,
   "format": " EV",
+  "hard_maximum": 1.0,
+  "hard_minimum": -1.0,
   "soft_minimum": -1.0
  },
+ "negadoctor/gamma": {
+  "digits": 2
+ },
  "negadoctor/offset": {
+  "digits": 2,
   "format": " dB"
  },
  "negadoctor/soft_clip": {
-  "digits": 4,
+  "digits": 2,
   "factor": 100.0,
   "format": "%"
  },
+ "negadoctor/wb_high[0]": {
+  "digits": 2
+ },
+ "negadoctor/wb_high[1]": {
+  "digits": 2
+ },
+ "negadoctor/wb_high[2]": {
+  "digits": 2
+ },
+ "negadoctor/wb_low[0]": {
+  "digits": 2
+ },
+ "negadoctor/wb_low[1]": {
+  "digits": 2
+ },
+ "negadoctor/wb_low[2]": {
+  "digits": 2
+ },
  "nlmeans/chroma": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "nlmeans/luma": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "nlmeans/radius": {
@@ -723,13 +1276,16 @@
   "soft_maximum": 100.0
  },
  "overlay/opacity": {
+  "digits": 2,
   "format": "%"
  },
  "overlay/rotate": {
+  "digits": 2,
   "factor": -1.0,
   "format": "\u00b0"
  },
  "overlay/scale": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 100.0
  },
@@ -752,6 +1308,7 @@
   "soft_minimum": 0.0
  },
  "profile_gamma/dynamic_range": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 16.0,
   "soft_minimum": 0.5
@@ -760,15 +1317,18 @@
   "digits": 4
  },
  "profile_gamma/grey_point": {
+  "digits": 2,
   "format": "%"
  },
  "profile_gamma/linear": {
   "digits": 4
  },
  "profile_gamma/security_factor": {
+  "digits": 2,
   "format": "%"
  },
  "profile_gamma/shadows_range": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 0.0
  },
@@ -777,38 +1337,67 @@
   "soft_maximum": 0.1
  },
  "rawprepare/bottom": {
+  "digits": 0,
   "soft_maximum": 256.0
  },
  "rawprepare/left": {
+  "digits": 0,
   "soft_maximum": 256.0
  },
  "rawprepare/raw_white_point": {
+  "digits": 0,
   "soft_maximum": 16384.0
  },
  "rawprepare/right": {
+  "digits": 0,
   "soft_maximum": 256.0
  },
  "rawprepare/top": {
+  "digits": 0,
   "soft_maximum": 256.0
  },
  "relight/ev": {
+  "digits": 2,
   "format": " EV"
  },
+ "relight/width": {
+  "digits": 2
+ },
  "retouch/blur_radius": {
+  "digits": 2,
   "format": " px"
  },
  "retouch/fill_brightness": {
-  "digits": 4,
+  "digits": 2,
+  "factor": 100.0,
   "format": "%"
+ },
+ "scalepixels/pixel_aspect_ratio": {
+  "digits": 2
  },
  "shadhi/compress": {
+  "digits": 2,
   "format": "%"
+ },
+ "shadhi/highlights": {
+  "digits": 2
  },
  "shadhi/highlights_ccorrect": {
+  "digits": 2,
   "format": "%"
  },
+ "shadhi/radius": {
+  "digits": 2
+ },
+ "shadhi/shadows": {
+  "digits": 2
+ },
  "shadhi/shadows_ccorrect": {
+  "digits": 2,
   "format": "%"
+ },
+ "shadhi/whitepoint": {
+  "digits": 2
  },
  "sharpen/amount": {
   "digits": 3
@@ -820,26 +1409,53 @@
  "sharpen/threshold": {
   "digits": 3
  },
- "sigmoid/display_white_target": {
+ "sigmoid/contrast_skewness": {
+  "digits": 1,
+  "factor": 57.29577951308232,
+  "format": "\u00b0",
+  "soft_maximum": 0.5,
+  "soft_minimum": 0.0
+ },
+ "sigmoid/display_black_target": {
   "digits": 4,
-  "factor": 100.0,
+  "format": "%",
+  "soft_maximum": 1.0,
+  "soft_minimum": 0.0
+ },
+ "sigmoid/display_white_target": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 100.0,
   "soft_minimum": 50.0
  },
  "sigmoid/hue_preservation": {
+  "digits": 2,
+  "format": "%"
+ },
+ "sigmoid/middle_grey_contrast": {
+  "digits": 3,
+  "soft_maximum": 3.0,
+  "soft_minimum": 0.7
+ },
+ "sigmoid/purity": {
+  "digits": 0,
+  "factor": 100.0,
   "format": "%"
  },
  "soften/amount": {
+  "digits": 2,
   "format": "%"
  },
  "soften/brightness": {
+  "digits": 2,
   "format": " EV"
  },
  "soften/saturation": {
+  "digits": 2,
   "format": "%"
  },
  "soften/size": {
+  "digits": 2,
   "format": "%"
  },
  "splittoning/balance": {
@@ -848,15 +1464,24 @@
   "offset": 100.0
  },
  "splittoning/compress": {
+  "digits": 2,
   "format": "%"
  },
  "splittoning/highlight_hue": {
+  "digits": 2,
   "factor": 360.0,
   "format": "\u00b0"
  },
+ "splittoning/highlight_saturation": {
+  "digits": 2
+ },
  "splittoning/shadow_hue": {
+  "digits": 2,
   "factor": 360.0,
   "format": "\u00b0"
+ },
+ "splittoning/shadow_saturation": {
+  "digits": 2
  },
  "temperature/blue": {
   "digits": 3
@@ -871,69 +1496,88 @@
   "digits": 3
  },
  "toneequal/blacks": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/blending": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 45.0,
   "soft_minimum": 1.0
  },
  "toneequal/contrast_boost": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 2.0,
   "soft_minimum": -2.0
  },
  "toneequal/deep_blacks": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/exposure_boost": {
+  "digits": 2,
   "format": " EV",
   "soft_maximum": 4.0,
   "soft_minimum": -4.0
  },
  "toneequal/feathering": {
+  "digits": 2,
   "soft_maximum": 50.0,
   "soft_minimum": 0.1
  },
  "toneequal/highlights": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/iterations": {
+  "digits": 0,
   "soft_maximum": 5.0
  },
  "toneequal/midtones": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/noise": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/quantization": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/shadows": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/speculars": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/ultra_deep_blacks": {
+  "digits": 2,
   "format": " EV"
  },
  "toneequal/whites": {
+  "digits": 2,
   "format": " EV"
  },
- "useless/factor": {
+ "tonemap/Fsize": {
   "digits": 2,
-  "factor": -100.0,
-  "format": "%",
-  "offset": 100.0,
-  "soft_maximum": 1.5,
-  "soft_minimum": 0.5
+  "format": "%"
+ },
+ "tonemap/contrast": {
+  "digits": 2
+ },
+ "velvia/bias": {
+  "digits": 2
  },
  "velvia/strength": {
+  "digits": 2,
   "format": "%"
  },
  "vibrance/amount": {
+  "digits": 2,
   "format": "%"
  },
  "vignette/brightness": {
@@ -946,25 +1590,33 @@
   "digits": 3
  },
  "vignette/falloff_scale": {
+  "digits": 2,
   "format": "%"
  },
  "vignette/saturation": {
   "digits": 3
  },
  "vignette/scale": {
+  "digits": 2,
   "format": "%"
+ },
+ "vignette/shape": {
+  "digits": 2
  },
  "vignette/whratio": {
   "digits": 3
  },
  "watermark/opacity": {
+  "digits": 2,
   "format": "%"
  },
  "watermark/rotate": {
+  "digits": 2,
   "factor": -1.0,
   "format": "\u00b0"
  },
  "watermark/scale": {
+  "digits": 2,
   "format": "%",
   "soft_maximum": 100.0
  },

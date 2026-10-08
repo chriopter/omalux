@@ -57,6 +57,6 @@ for source in omalux/native/main.cpp omalux/native/app/*.cpp omalux/native/dev/*
   objects+=("$object")
 done
 c++ -pthread "${objects[@]}" "$library" \
-  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2) -fopenmp \
+  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2 sqlite3) -fopenmp \
   -Wl,-rpath,"$(dirname "$library")" -o omalux/build/omalux
 printf '%s\n' "$library" > omalux/build/library-path

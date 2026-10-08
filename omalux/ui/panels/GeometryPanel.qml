@@ -11,6 +11,17 @@ SidebarScrollView {
     required property var values
     required property bool editable
     required property real imageAspect
+    // darktable modules that belong to this pane (generated layout).
+    property var catalogModel: null
+    property var states: ({})
+    property var overrides: ({})
+    property string term: ""
+    property string activeControl: ""
+    signal changesRequested(string operation, int instance, var changes)
+    signal enableRequested(string operation, int instance, bool enabled)
+    signal moduleResetRequested(string operation, int instance, var module)
+    signal moduleInteractionChanged(bool active)
+    signal controlSelected(string id)
     property bool cropping: false
     property bool wasEnabled: false
     property var crop: ({x: 0, y: 0, width: 1, height: 1})
@@ -73,6 +84,29 @@ SidebarScrollView {
         Button {
             text: "Reset crop"; enabled: root.editable && !root.cropping
             onClicked: root.cropApplied({crop_left:0,crop_top:0,crop_right:0,crop_bottom:0,crop_enabled:0})
+        }
+        Loader {
+            Layout.fillWidth: true
+            Layout.leftMargin: 14
+            Layout.rightMargin: 4
+            active: !!root.catalogModel
+            sourceComponent: ModuleList {
+                theme: root.theme
+                groups: root.catalogModel.groupsForTab("geometry")
+                catalogModel: root.catalogModel
+                states: root.states
+                overrides: root.overrides
+                editable: root.editable && !root.cropping
+                term: root.term
+                activeControl: root.activeControl
+                settingsKey: "geometry"
+                caption: "MODULES"
+                onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
+                onEnableRequested: (operation, instance, enabled) => root.enableRequested(operation, instance, enabled)
+                onResetRequested: (operation, instance, module) => root.moduleResetRequested(operation, instance, module)
+                onInteractionChanged: active => root.moduleInteractionChanged(active)
+                onControlSelected: id => root.controlSelected(id)
+            }
         }
     }
 }

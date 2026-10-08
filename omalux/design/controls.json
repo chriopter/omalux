@@ -29,8 +29,7 @@
    "section": "contrast brightness saturation",
    "order": 1,
    "detail": false,
-   "colors": "light",
-   "adapter": true
+   "colors": "light"
   },
   {
    "id": "contrast",
@@ -40,8 +39,7 @@
    "group": "Basics",
    "section": "contrast brightness saturation",
    "order": 2,
-   "detail": false,
-   "adapter": true
+   "detail": false
   },
   {
    "id": "detail",
@@ -62,8 +60,7 @@
    "section": "shadows and highlights",
    "order": 4,
    "detail": false,
-   "colors": "light",
-   "adapter": true
+   "colors": "light"
   },
   {
    "id": "highlights",
@@ -74,8 +71,7 @@
    "section": "shadows and highlights",
    "order": 5,
    "detail": false,
-   "colors": "light",
-   "adapter": true
+   "colors": "light"
   },
   {
    "id": "whitepoint",
@@ -86,8 +82,7 @@
    "section": "shadows and highlights",
    "order": 6,
    "detail": false,
-   "colors": "light",
-   "adapter": true
+   "colors": "light"
   },
   {
    "id": "black",
@@ -109,8 +104,7 @@
    "section": "contrast brightness saturation",
    "order": 8,
    "detail": false,
-   "colors": "saturation",
-   "adapter": true
+   "colors": "saturation"
   },
   {
    "id": "vibrance",

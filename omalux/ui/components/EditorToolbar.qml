@@ -13,12 +13,12 @@ Rectangle {
     signal fitRequested()
     signal zoomRequested(real factor)
     implicitHeight: 48
-    color: "#1e1e2e"
+    color: root.theme.background
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 18
         anchors.rightMargin: 18
-        spacing: 12
+        spacing: 8
         Image {
             id: logo
             source: root.logoSource
@@ -29,12 +29,31 @@ Rectangle {
         Item {
             Layout.fillWidth: true
         }
-        Button { text: "[O] OPEN"; onClicked: root.openRequested() }
-        Button { text: "[Ctrl+S] EXPORT"; onClicked: root.saveRequested() }
-        ToolButton { text: "−"; onClicked: root.zoomRequested(.8); Accessible.name: "Zoom out" }
-        Text { text: root.zoom === 1 ? "FIT" : root.zoom.toFixed(1) + "× FIT"; color: root.theme.ink; font: root.theme.textFont }
-        ToolButton { text: "+"; onClicked: root.zoomRequested(1.25); Accessible.name: "Zoom in" }
-        Button { text: "[0] FIT"; onClicked: root.fitRequested() }
+        ToolbarButton { theme: root.theme; hint: "[O]"; text: "OPEN"; onClicked: root.openRequested() }
+        ToolbarButton { theme: root.theme; hint: "[Ctrl+S]"; text: "EXPORT"; onClicked: root.saveRequested() }
+        Item { implicitWidth: 6 }
+        // Zoom: step out, the current level (click or [0] fits the photograph), step in.
+        Rectangle {
+            implicitWidth: zoomRow.implicitWidth
+            implicitHeight: 30
+            radius: 5
+            color: "transparent"
+            border.color: root.theme.line
+            Row {
+                id: zoomRow
+                ToolbarButton { theme: root.theme; grouped: true; text: "−"; onClicked: root.zoomRequested(.8); Accessible.name: "Zoom out" }
+                ToolbarButton {
+                    objectName: "toolbar-fit"
+                    theme: root.theme; grouped: true
+                    width: 96
+                    hint: "[0]"
+                    text: Math.abs(root.zoom - 1) < .001 ? "FIT" : root.zoom.toFixed(1) + "×"
+                    onClicked: root.fitRequested()
+                    Accessible.name: "Fit photograph"
+                }
+                ToolbarButton { theme: root.theme; grouped: true; text: "+"; onClicked: root.zoomRequested(1.25); Accessible.name: "Zoom in" }
+            }
+        }
         Item {
             Layout.fillWidth: true
         }

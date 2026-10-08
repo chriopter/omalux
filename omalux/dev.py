@@ -60,6 +60,9 @@ def main():
         ui_env = os.environ.copy()
         ui_env['OMALUX_STYLE_ASSET_ERRORS'] = json.dumps(asset_errors)
         ui_env.pop('OMALUX_COMPARISON_MAILBOX', None)
+        # Tests may record what split mode would send, without a comparison window.
+        if not args.split and os.environ.get('OMALUX_RECORD_MAILBOX'):
+            ui_env['OMALUX_COMPARISON_MAILBOX'] = os.environ['OMALUX_RECORD_MAILBOX']
         try:
             if args.split:
                 other = session / 'comparison'

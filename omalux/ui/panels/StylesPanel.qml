@@ -21,6 +21,23 @@ SidebarScrollView {
     signal exportRequested(string id)
     signal deleteRequested(string id, string name)
     signal applyRequested(string id)
+    // darktable modules that belong to this pane (generated layout).
+    property var catalogModel: null
+    property var states: ({})
+    property var overrides: ({})
+    property string term: ""
+    property string activeControl: ""
+    signal changesRequested(string operation, int instance, var changes)
+    signal enableRequested(string operation, int instance, bool enabled)
+    signal moduleResetRequested(string operation, int instance, var module)
+    signal moduleInteractionChanged(bool active)
+    signal controlSelected(string id)
+    // What darktable set up for this camera (backend.cameraDefaults); this pane shows the
+    // Omalux camera presets among it, read-only.
+    property var cameraDefaults: []
+    property string camera: ""
+    property bool cameraOpen: false
+    readonly property var cameraPresets: (cameraDefaults || []).filter(e => e.group === "Camera presets")
     property string styleQuery: ""
     property string expandedStyleGroup: "monochrome"
     property var expandedStyleDetails: ({})
@@ -77,6 +94,83 @@ SidebarScrollView {
                 Text { text: "STYLES"; color: root.theme.ink; font.bold: true; font.letterSpacing: 2; Layout.fillWidth: true }
                 Text { text: root.styles.length; color: root.theme.muted; font: root.theme.textFont }
             }
+            // Camera presets darktable applied automatically, before any style.
+            Rectangle {
+                objectName: "camera-presets"
+                width: parent.width
+                height: cameraBlock.implicitHeight + 14
+                radius: 4
+                color: root.theme.surface
+                visible: root.photoReady
+                Column {
+                    id: cameraBlock
+                    x: 10; y: 7
+                    width: parent.width - 20
+                    spacing: 5
+                    ToolButton {
+                        id: cameraHeading
+                        objectName: "camera-presets-toggle"
+                        width: parent.width
+                        padding: 0
+                        hoverEnabled: true
+                        onClicked: root.cameraOpen = !root.cameraOpen
+                        Accessible.name: "Camera presets"
+                        Accessible.description: root.cameraOpen ? "Collapse" : "Expand"
+                        contentItem: RowLayout {
+                            spacing: 6
+                            Text {
+                                text: "camera"
+                                color: cameraHeading.hovered ? root.theme.accent : root.theme.ink
+                                font: root.theme.moduleHeadingFont
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.camera || "not identified"
+                                color: root.theme.muted; font: root.theme.textFont
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: { const n = root.cameraPresets.filter(e => e.enabled).length; return n + (n === 1 ? " preset" : " presets") }
+                                color: root.theme.muted; font: root.theme.textFont
+                            }
+                            DisclosureButton {
+                                theme: root.theme
+                                expanded: root.cameraOpen
+                                onClicked: root.cameraOpen = !root.cameraOpen
+                                Accessible.name: (root.cameraOpen ? "Hide" : "Show") + " camera presets"
+                            }
+                        }
+                        background: Item {}
+                    }
+                    Text {
+                        visible: root.cameraOpen && root.cameraPresets.length === 0
+                        width: parent.width
+                        text: "No Omalux camera preset matches this camera."
+                        color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
+                    }
+                    Repeater {
+                        model: root.cameraOpen ? root.cameraPresets : []
+                        RowLayout {
+                            required property var modelData
+                            width: cameraBlock.width
+                            spacing: 8
+                            opacity: modelData.enabled ? 1 : .55
+                            Rectangle {
+                                width: 5; height: 5; radius: 2.5
+                                color: modelData.enabled ? root.theme.accent : root.theme.muted
+                            }
+                            Text { text: modelData.label; color: root.theme.ink; font: root.theme.textFont }
+                            Text {
+                                Layout.fillWidth: true
+                                horizontalAlignment: Text.AlignRight
+                                text: modelData.enabled ? modelData.value : modelData.value + " · not applied"
+                                color: modelData.enabled ? root.theme.ink : root.theme.muted
+                                font: root.theme.textFont; elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+            }
             Button { text: "Save current look…"; enabled: root.photoReady && !root.busy; onClicked: root.saveRequested() }
             TextField {
                 id: styleSearch
@@ -109,7 +203,7 @@ SidebarScrollView {
                         contentItem: RowLayout {
                             spacing: 12
                             Text { Layout.preferredWidth: 14; text: root.groupOpen(groupSection.modelData.id) ? "▾" : "▸"; color: root.theme.muted; font: root.theme.textFont }
-                            Text { Layout.fillWidth: true; text: groupSection.modelData.name.toUpperCase(); color: root.theme.ink; font.family: root.theme.textFont.family; font.pixelSize: 11; font.bold: true }
+                            Text { Layout.fillWidth: true; text: groupSection.modelData.name.toUpperCase(); color: root.theme.ink; font.family: root.theme.textFont.family; font.pixelSize: root.theme.textFont.pixelSize; font.bold: true }
                             Text { text: groupSection.modelData.styles.length; color: root.theme.muted; font: root.theme.textFont }
                         }
                     }
@@ -131,6 +225,28 @@ SidebarScrollView {
                             onDetailsToggleRequested: root.toggleStyleDetails(modelData.id)
                         }
                     }
+                }
+            }
+            Loader {
+                active: !!root.catalogModel
+                x: 8
+                width: parent.width - 8
+                sourceComponent: ModuleList {
+                    theme: root.theme
+                    groups: root.catalogModel.groupsForTab("styles")
+                    catalogModel: root.catalogModel
+                    states: root.states
+                    overrides: root.overrides
+                    editable: !root.busy && root.photoReady
+                    term: root.term
+                    activeControl: root.activeControl
+                    settingsKey: "styles"
+                    caption: "LOOK MODULES"
+                    onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
+                    onEnableRequested: (operation, instance, enabled) => root.enableRequested(operation, instance, enabled)
+                    onResetRequested: (operation, instance, module) => root.moduleResetRequested(operation, instance, module)
+                    onInteractionChanged: active => root.moduleInteractionChanged(active)
+                    onControlSelected: id => root.controlSelected(id)
                 }
             }
             Text { width: parent.width; visible: root.errorMessage !== ""; text: root.errorMessage; color: "#f9d58b"; font: root.theme.textFont; wrapMode: Text.WordWrap }

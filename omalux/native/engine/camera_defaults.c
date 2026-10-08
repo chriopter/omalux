@@ -5,6 +5,9 @@
 #include "common/colorspaces.h"
 #include "common/image.h"
 #include "common/presets.h"
+#include "gui/presets.h"
+#include "common/database.h"
+#include "common/debug.h"
 #include "white_balance.h"
 
 static dt_iop_module_t *module_of(OmEngine *engine, const char *op) {
@@ -35,6 +38,52 @@ static dt_iop_module_t *active_tone_mapper(OmEngine *engine, const char **name) 
         }
     }
     return NULL;
+}
+
+// Omalux camera presets (catalog/camera/*.dtpreset) that match this image the way darktable's
+// auto-apply does (camera, lens, ISO, exposure, aperture, focal length and the raw/LDR/HDR,
+// matrix and monochrome format flags, as in develop.c _dev_auto_apply_presets). "enabled" is whether that module is on in the loaded pipeline.
+static void add_camera_presets(OmEngine *engine, JsonArray *rows) {
+    const dt_image_t *image = &engine->dev.image_storage;
+    int iformat = dt_image_is_raw(image) ? FOR_RAW : FOR_LDR;
+    if (dt_image_is_matrix_correction_supported(image))
+        iformat |= FOR_MATRIX;
+    if (dt_image_is_hdr(image))
+        iformat |= FOR_HDR;
+    const int excluded = dt_image_monochrome_flags(image) ? FOR_NOT_MONO : FOR_NOT_COLOR;
+    sqlite3_stmt *stmt;
+    DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                                "SELECT operation, description FROM data.presets"
+                                " WHERE autoapply=1 AND name LIKE 'Omalux %'"
+                                "   AND ((?1 LIKE model AND ?2 LIKE maker) OR (?3 LIKE model AND ?4 LIKE maker))"
+                                "   AND ?5 LIKE lens AND ?6 BETWEEN iso_min AND iso_max"
+                                "   AND ?7 BETWEEN exposure_min AND exposure_max"
+                                "   AND ?8 BETWEEN aperture_min AND aperture_max"
+                                "   AND ?9 BETWEEN focal_length_min AND focal_length_max"
+                                "   AND (format = 0 OR (format&?10 != 0 AND ~format&?11 != 0))"
+                                " ORDER BY LENGTH(maker), LENGTH(model), operation",
+                                -1, &stmt, NULL);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, image->exif_model, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, image->exif_maker, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 3, image->camera_alias, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, image->camera_maker, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 5, image->exif_lens, -1, SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 6, fmaxf(0.0f, fminf(FLT_MAX, image->exif_iso)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(1000000, image->exif_exposure)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 8, fmaxf(0.0f, fminf(1000000, image->exif_aperture)));
+    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 9, fmaxf(0.0f, fminf(1000000, image->exif_focal_length)));
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 10, iformat);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 11, excluded);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *op = (const char *)sqlite3_column_text(stmt, 0);
+        const char *description = (const char *)sqlite3_column_text(stmt, 1);
+        dt_iop_module_t *module = op ? module_of(engine, op) : NULL;
+        // "Fujifilm X-T10: input profile" → "input profile"; the camera is shown once above.
+        const char *colon = description ? strstr(description, ": ") : NULL;
+        add_entry(rows, "Camera presets", op ? op : "", module ? module->name() : (op ? op : ""),
+                  colon ? colon + 2 : (description ? description : ""), module && module->enabled, module != NULL);
+    }
+    sqlite3_finalize(stmt);
 }
 
 char *om_engine_camera_defaults(OmEngine *engine) {
@@ -120,6 +169,8 @@ char *om_engine_camera_defaults(OmEngine *engine) {
     if (sharpen)
         add_entry(rows, "Base tone", "sharpen", "sharpening",
                   sharpen->enabled ? "on" : "not applied", sharpen->enabled, TRUE);
+
+    add_camera_presets(engine, rows);
 
     json_object_set_array_member(root, "entries", rows);
     JsonNode *node = json_node_new(JSON_NODE_OBJECT);

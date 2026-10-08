@@ -11,6 +11,20 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def check_mailbox(mailbox, operations):
+    """Generic module edits reach split mode as one current single-module style each."""
+    lines = [line.split() for line in mailbox.read_text().splitlines() if line.startswith('module ')]
+    seen = [line[3] for line in lines]
+    for operation in operations:
+        if seen.count(operation) != 1:
+            raise RuntimeError(f'Mailbox should carry one {operation} snapshot: {seen}')
+    for line in lines:
+        style = (mailbox.parent / (line[4] + '.dtstyle')).read_text()
+        if f'<operation>{line[3]}</operation>' not in style:
+            raise RuntimeError(f'Snapshot {line[4]} does not contain {line[3]}')
+    print('Mailbox carries single-module snapshots for', ', '.join(sorted(operations)), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--split', action='store_true', help='also verify the GTK comparison path')
@@ -49,10 +63,16 @@ def main():
         ]
         (work / 'workflow.json').write_text(json.dumps(workflow))
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
-                   ROOT / 'omalux/tests/style-hover.json', work / 'workflow.json']
+                   ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
+                   work / 'workflow.json']
+        mailbox = work / 'mailbox' / 'controls'
+        mailbox.parent.mkdir()
         for script in scripts:
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
+            env.pop('OMALUX_RECORD_MAILBOX', None)
+            if script.stem == 'module-parameters' and not args.split:
+                env['OMALUX_RECORD_MAILBOX'] = str(mailbox)
             command = ROOT / ('development/start_split' if args.split else 'development/start')
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
@@ -63,8 +83,10 @@ def main():
             if result.returncode or 'Smoke complete' not in text:
                 raise RuntimeError(text[-12000:])
             for line in text.splitlines():
-                if 'Drag draft frames' in line or 'Smoke complete' in line:
+                if 'Drag draft frames' in line or 'Smoke complete' in line or line.startswith('Parameter '):
                     print(line, flush=True)
+        if not args.split:
+            check_mailbox(mailbox, {'exposure', 'tonecurve', 'rgbcurve'})
         for name, size in [('full.png', '1536x1024'), ('square.jpg', '1024x1024')]:
             actual = subprocess.check_output(['magick', 'identify', '-format', '%wx%h',
                                               str(work / name)], text=True)

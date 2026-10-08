@@ -29,6 +29,7 @@ ApplicationWindow {
     property alias selectedPanel: sidebar.selectedPanel
     property alias filterView: sidebar.filterView
     property alias filterSearch: sidebar.filterSearch
+    property alias moduleSearch: sidebar.moduleSearch
     function revealControl(id) { sidebar.revealControl(id) }
     function showStyleDetails(id) {
         sidebar.showStyleDetails(id);
@@ -113,7 +114,7 @@ ApplicationWindow {
         active: !(window.activeFocusItem && typeof window.activeFocusItem.selectAll === "function") && !dialogs.busy && !sidebar.textEditing && !helpDialog.visible && !window.photoFullscreen
         filtersActive: sidebar.selectedPanel === 0 || sidebar.selectedPanel === 2
         onPanelRequested: index => sidebar.selectedPanel = index
-        onPanelStepRequested: direction => { const panels=[0,1,2,3,4]; sidebar.selectedPanel=panels[(panels.indexOf(sidebar.selectedPanel)+direction+panels.length)%panels.length] }
+        onPanelStepRequested: direction => { const panels=sidebar.paneOrder; sidebar.selectedPanel=panels[(panels.indexOf(sidebar.selectedPanel)+direction+panels.length)%panels.length] }
         onControlStepRequested: direction => { if(sidebar.selectedPanel === 0) sidebar.navigateControl(direction) }
         onValueStepRequested: steps => editor.adjustControl(window.activeControl, steps)
         onResetRequested: editor.resetControl(window.activeControl)

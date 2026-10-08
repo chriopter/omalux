@@ -112,8 +112,8 @@ Item {
             }
             Text {
                 id: valueLabel
-                Layout.minimumWidth: root.compact ? 90 : implicitWidth
-                Layout.maximumWidth: root.compact ? 90 : implicitWidth
+                // Compact rows keep one value column; long values may widen it.
+                Layout.preferredWidth: root.compact ? Math.max(64, implicitWidth) : implicitWidth
                 horizontalAlignment: Text.AlignRight
                 MouseArea { anchors.fill: parent; onDoubleClicked: { numberInput.text=String(root.value);numberPopup.open();numberInput.forceActiveFocus();numberInput.selectAll() } }
                 text: Number(Math.abs(root.value) < Math.pow(10, -root.control.decimals) / 2 ? 0 : root.value).toFixed(root.control.decimals) + root.control.unit
@@ -137,9 +137,15 @@ Item {
             onActiveFocusChanged: if (activeFocus) root.selectedRequested()
             onMoved: root.edited(value)
             Accessible.name: root.control.section + " · " + root.control.label
+            // Track and knob share one centre line: both are placed with the same integer
+            // rounding, the track 3 px and the knob an odd size, so their centres coincide
+            // on whole or half pixels alike at every scale.
+            readonly property int trackHeight: 3
+            readonly property int trackY: slider.topPadding + Math.floor((slider.availableHeight - trackHeight) / 2)
+            readonly property real centerY: trackY + trackHeight / 2
             background: Rectangle {
-                x: slider.leftPadding; y: slider.topPadding + slider.availableHeight / 2
-                width: slider.availableWidth; height: 3
+                x: slider.leftPadding; y: slider.trackY
+                width: slider.availableWidth; height: slider.trackHeight
                 gradient: Gradient {
                     id: trackGradient
                     orientation: Gradient.Horizontal
@@ -153,9 +159,9 @@ Item {
                 }
             }
             handle: Rectangle {
-                x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
-                y: slider.topPadding + slider.availableHeight / 2 - height / 2
-                width: root.compact ? 10 : 8; height: width
+                x: slider.leftPadding + Math.round(slider.visualPosition * (slider.availableWidth - width))
+                y: slider.centerY - height / 2
+                width: root.compact ? 11 : 9; height: width
                 radius: root.compact ? width / 2 : 0
                 border.width: root.compact ? 1 : 0
                 border.color: root.selected ? root.theme.accent : root.theme.ink
@@ -163,32 +169,15 @@ Item {
             }
         }
     }
-    ToolButton {
-        id: detailsButton
+    DisclosureButton {
         objectName: "control-details-" + root.control.id
         visible: root.detailsAvailable
         anchors.right: parent.right
-        y: 1
-        width: 24; height: 22; padding: 0
+        y: titleRow.y + (titleRow.height - height) / 2
+        theme: root.theme
+        expanded: root.detailsExpanded
         onClicked: root.detailsRequested()
         Accessible.name: (root.detailsExpanded ? "Hide details for " : "Details for ") + root.control.label
-        contentItem: Item {
-            Canvas {
-                anchors.centerIn: parent
-                width: 10; height: 10
-                rotation: root.detailsExpanded ? 90 : 0
-                onPaint: {
-                    const c = getContext("2d")
-                    c.clearRect(0,0,width,height)
-                    c.strokeStyle = root.theme.muted; c.lineWidth = 1.4
-                    c.beginPath(); c.moveTo(3,1); c.lineTo(7,5); c.lineTo(3,9); c.stroke()
-                }
-            }
-        }
-        background: Rectangle {
-            color: "transparent"
-            border.color: detailsButton.activeFocus ? root.theme.accent : "transparent"
-        }
     }
 
 }

@@ -10,6 +10,9 @@ Item {
     required property string label
     required property real value
     required property bool editable
+    // Inside a module among sliders the label takes the slider label's font and colour.
+    property font labelFont: theme.textFont
+    property color labelColor: theme.muted
     signal edited(real value)
 
     readonly property bool on: value > 0.5
@@ -23,8 +26,8 @@ Item {
         Text {
             Layout.fillWidth: true
             text: root.label
-            color: root.theme.muted
-            font: root.theme.textFont
+            color: root.labelColor
+            font: root.labelFont
             elide: Text.ElideRight
         }
         Rectangle {

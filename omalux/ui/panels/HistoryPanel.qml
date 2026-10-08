@@ -31,7 +31,7 @@ ColumnLayout {
         Rectangle {
             width: parent.width
             height: cameraColumn.implicitHeight + 20
-            color: Qt.lighter(root.theme.background, 1.16)
+            color: root.theme.surface
             radius: 4
             Column {
                 id: cameraColumn

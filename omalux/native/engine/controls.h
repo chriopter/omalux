@@ -15,7 +15,7 @@ static const OmControl om_controls[] = {
   {"exposure", "exposure", "exposure", "exposure", -18, 18, 0.01, 0, 1, 0, " EV", 3, "Basics", "exposure", "exposure", "light", 0, -3, 4},
   {"brightness", "brightness", "colisa", "brightness", -1, 1, 0.01, 0, 1, 0, "", 2, "Basics", "contrast brightness saturation", "brightness", "light", 0},
   {"contrast", "contrast", "colisa", "contrast", -1, 1, 0.01, 0, 1, 0, "", 2, "Basics", "contrast brightness saturation", "contrast", "", 0},
-  {"detail", "detail", "bilat", "detail", -100, 400, 1, 25, 0.01, 0, "%", 0, "Basics", "local contrast", "detail", "", 0},
+  {"detail", "detail", "bilat", "detail", 0, 500, 1, 125, 0.01, -1, "%", 0, "Basics", "local contrast", "detail", "", 0},
   {"shadows", "shadows", "shadhi", "shadows", -100, 100, 0.1, 50, 1, 0, "", 2, "Basics", "shadows and highlights", "shadows", "light", 0},
   {"highlights", "highlights", "shadhi", "highlights", -100, 100, 0.1, -50, 1, 0, "", 2, "Basics", "shadows and highlights", "highlights", "light", 0},
   {"whitepoint", "white point adjustment", "shadhi", "whitepoint", -10, 10, 0.1, 0, 1, 0, "", 2, "Basics", "shadows and highlights", "white point adjustment", "light", 0},

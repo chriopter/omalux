@@ -20,6 +20,45 @@
 #include <QQuickItem>
 #include <QKeySequence>
 // Optional deterministic integration driver; inactive during normal use.
+// Reads a value from the module catalog by operation, instance and parameter path: the row
+// whose path is a prefix, then the remaining indices and members inside its "value".
+static bool catalogValue(const QString &catalog, const QString &operation, int instance, const QString &path,
+                         QJsonValue *value, bool *enabled) {
+    for (const auto &entry : QJsonDocument::fromJson(catalog.toUtf8()).array()) {
+        const auto module = entry.toObject();
+        if (module["operation"].toString() != operation || module["instance"].toInt() != instance)
+            continue;
+        *enabled = module["enabled"].toBool();
+        if (path == "@enabled") {
+            *value = *enabled ? 1 : 0;
+            return true;
+        }
+        for (const auto &row : module["parameters"].toArray()) {
+            const auto rowPath = row.toObject()["path"].toString();
+            if (path != rowPath && !path.startsWith(rowPath + "[") && !path.startsWith(rowPath + "."))
+                continue;
+            QJsonValue current = row.toObject()["value"];
+            QString rest = path.mid(rowPath.size());
+            while (!rest.isEmpty()) {
+                if (rest.startsWith('[')) {
+                    const int end = rest.indexOf(']');
+                    current = current.toArray().at(rest.mid(1, end - 1).toInt());
+                    rest = rest.mid(end + 1);
+                } else if (rest.startsWith('.')) {
+                    int end = 1;
+                    while (end < rest.size() && rest[end] != '.' && rest[end] != '[')
+                        ++end;
+                    current = current.toObject()[rest.mid(1, end - 1)];
+                    rest = rest.mid(end);
+                } else
+                    return false;
+            }
+            *value = current;
+            return true;
+        }
+    }
+    return false;
+}
 void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApplicationEngine &engine) {
     const auto path = qEnvironmentVariable("OMALUX_SMOKE_SCRIPT");
     if (path.isEmpty())
@@ -35,6 +74,15 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     auto waiting = std::make_shared<bool>(false);
     auto dragging = std::make_shared<bool>(false);
     auto historyMarks = std::make_shared<QVariantMap>();
+    auto retries = std::make_shared<int>(0);
+    auto updatedModules = std::make_shared<QStringList>();
+    QObject::connect(&editor, &Editor::moduleUpdated, &app,
+                     [updatedModules](QString operation, int instance, QString json) {
+                         const auto module = QJsonDocument::fromJson(json.toUtf8()).object();
+                         if (module["operation"].toString() == operation &&
+                             module["instance"].toInt() == instance)
+                             updatedModules->append(operation);
+                     });
     QObject::connect(&editor, &Editor::changed, &app, [&, historyMarks] {
         if (editor.preview().startsWith("image://hover/")) {
             const auto image = static_cast<Frames *>(engine.imageProvider("hover"))->image();
@@ -45,7 +93,7 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     timer->setInterval(150);
     QObject::connect(
         timer, &QTimer::timeout, &app,
-        [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging] {
+        [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging, retries, updatedModules] {
             if (*dragging)
                 return;
             if (!editor.styleError().isEmpty()) {
@@ -337,11 +385,97 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 engine.rootObjects().first()->setProperty("selectedPanel", step["panel"].toInt());
             else if (step.contains("filterView"))
                 engine.rootObjects().first()->setProperty("filterView", step["filterView"].toInt());
-            else if (step.contains("setParameter")) {
+            else if (step.contains("setParameters")) {
+                const auto call = step["setParameters"].toObject();
+                editor.setParameters(call["operation"].toString(), call["instance"].toInt(),
+                                     call["values"].toObject().toVariantMap());
+            } else if (step.contains("resetModule")) {
+                const auto call = step["resetModule"].toObject();
+                editor.resetModule(call["operation"].toString(), call["instance"].toInt());
+            } else if (step.contains("parameterDrag")) {
+                // Many edits of one path in quick succession, as a slider drag sends them.
+                const auto call = step["parameterDrag"].toObject();
+                *dragging = true;
+                editor.setInteractive(true);
+                auto *drag = new QTimer(&app);
+                drag->setInterval(16);
+                auto count = std::make_shared<int>(0);
+                QObject::connect(
+                    drag, &QTimer::timeout, &app, [&, drag, call, count, dragging, waiting, previous] {
+                        const int samples = call["samples"].toInt(60);
+                        const double fraction = double(++*count) / samples;
+                        editor.setParameter(call["operation"].toString(), call["instance"].toInt(),
+                                            call["path"].toString(),
+                                            call["from"].toDouble() +
+                                                fraction * (call["to"].toDouble() - call["from"].toDouble()));
+                        if (*count < samples)
+                            return;
+                        *previous = editor.preview();
+                        editor.setInteractive(false);
+                        *waiting = true;
+                        *dragging = false;
+                        drag->stop();
+                        drag->deleteLater();
+                    });
+                drag->start();
+            } else if (step.contains("checkParameter")) {
+                // The worker applies edits asynchronously: poll the catalog for a while.
+                const auto call = step["checkParameter"].toObject();
+                QJsonValue value;
+                bool enabled = false;
+                const bool found =
+                    catalogValue(editor.moduleCatalog(), call["operation"].toString(),
+                                 call["instance"].toInt(), call["path"].toString(), &value, &enabled);
+                const bool matches =
+                    found && value.isDouble() &&
+                    std::abs(value.toDouble() - call["value"].toDouble()) <=
+                        call["tolerance"].toDouble(1e-4) &&
+                    (!call.contains("enabled") || enabled == call["enabled"].toBool()) &&
+                    (!call["updated"].toBool() || updatedModules->contains(call["operation"].toString()));
+                if (!matches) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "Unexpected parameter" << call << found << value << enabled
+                                << *updatedModules;
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
+                qInfo() << "Parameter" << call["operation"].toString() << call["path"].toString()
+                        << value.toDouble();
+            } else if (step.contains("statusContains")) {
+                if (!editor.status().contains(step["statusContains"].toString())) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "Unexpected status" << editor.status();
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
+            } else if (step.contains("historyCount")) {
+                const auto call = step["historyCount"].toObject();
+                int count = 0;
+                for (const auto &row : editor.history())
+                    if (row.toMap()["operation"].toString() == call["operation"].toString() &&
+                        row.toMap()["active"].toBool())
+                        ++count;
+                if (count != call["count"].toInt()) {
+                    qCritical() << "Unexpected history count" << call << count;
+                    app.exit(2);
+                    return;
+                }
+            } else if (step.contains("setParameter")) {
                 const auto call = step["setParameter"].toObject();
                 editor.setParameter(call["operation"].toString(), call["instance"].toInt(),
                                     call["field"].toString(), call["value"].toDouble());
             }
+            else if (step.contains("property"))
+                engine.rootObjects().first()->setProperty(step["property"].toString().toUtf8().constData(),
+                                                          step["value"].toVariant());
             else if (step.contains("filterSearch"))
                 engine.rootObjects().first()->setProperty("filterSearch", step["filterSearch"].toString());
             else if (step.contains("rememberControls")) {

@@ -77,20 +77,24 @@ SidebarScrollView {
     function control(module, parameter) {
         const shown = root.displayData[module.operation + "/" + parameter.field] || {}
         const factor = shown.factor || 1
+        const offset = shown.offset || 0
         const span = (parameter.maximum - parameter.minimum) * Math.abs(factor)
         const decimals = shown.digits !== undefined ? shown.digits
                        : parameter.type === "int" ? 0 : span > 200 ? 1 : span > 20 ? 2 : 3
-        const low = Math.min(parameter.minimum * factor, parameter.maximum * factor)
-        const high = Math.max(parameter.minimum * factor, parameter.maximum * factor)
+        const softLow = shown.soft_minimum !== undefined ? shown.soft_minimum : parameter.minimum
+        const softHigh = shown.soft_maximum !== undefined ? shown.soft_maximum : parameter.maximum
+        // Displayed = raw × factor + offset, as darktable's sliders show it.
+        const low = Math.min(parameter.minimum * factor, parameter.maximum * factor) + offset
+        const high = Math.max(parameter.minimum * factor, parameter.maximum * factor) + offset
         return {
             id: module.operation + "/" + module.instance + "/" + parameter.name,
             label: parameter.label || parameter.field,
             unit: shown.format || "", colors: "", decimals: decimals,
             step: parameter.type === "int" ? 1 : span / 1000,
             minimum: low, maximum: high,
-            softMinimum: shown.soft_minimum !== undefined ? shown.soft_minimum * factor : low,
-            softMaximum: shown.soft_maximum !== undefined ? shown.soft_maximum * factor : high,
-            factor: factor
+            softMinimum: Math.min(softLow * factor, softHigh * factor) + offset,
+            softMaximum: Math.max(softLow * factor, softHigh * factor) + offset,
+            factor: factor, offset: offset
         }
     }
     function setExpanded(key, value) {
@@ -132,7 +136,7 @@ SidebarScrollView {
             font: root.theme.textFont
             onTextChanged: root.search = text
             background: Rectangle {
-                color: Qt.lighter(root.theme.background, 1.16)
+                color: root.theme.surface
                 border.color: filter.activeFocus ? root.theme.accent : root.theme.line
                 radius: 4
             }
@@ -152,7 +156,7 @@ SidebarScrollView {
                     implicitHeight: 32
                     Rectangle {
                         anchors.fill: parent
-                        color: moduleBlock.open ? Qt.lighter(root.theme.background, 1.16) : "transparent"
+                        color: moduleBlock.open ? root.theme.surface : "transparent"
                         radius: 4
                     }
                     RowLayout {
@@ -225,13 +229,13 @@ SidebarScrollView {
         ControlSlider {
             theme: root.theme
             control: root.control(module, parameter)
-            value: parameter.value * (root.control(module, parameter).factor || 1)
+            value: parameter.value * (control.factor || 1) + (control.offset || 0)
             editable: root.editable
             compact: true
             moduleToggleAvailable: false
             qualifyLabel: false
             onEdited: value => root.parameterEdited(module.operation, module.instance, parameter.name,
-                                                   value / (root.control(module, parameter).factor || 1))
+                                                   (value - (control.offset || 0)) / (control.factor || 1))
             onInteractionChanged: active => root.interactionChanged(active)
         }
     }

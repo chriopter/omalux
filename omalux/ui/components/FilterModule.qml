@@ -10,6 +10,17 @@ Column {
     required property bool editable
     required property string activeControl
     required property bool expanded
+    // Parameters of the same darktable module that the registry does not cover, from the
+    // generated layout; shown under a quiet "more" inside the expanded block.
+    property var extraModule: null
+    property var moduleState: undefined
+    property var catalogModel: null
+    property var overrides: ({})
+    property bool moreOpen: false
+    property string term: ""
+    signal moreRequested()
+    signal parameterChangesRequested(var changes)
+    readonly property bool hasExtra: !!extraModule && !!catalogModel && extraModule.rows.length > 0 && !section.shortcut
     signal interactionChanged(bool active)
     signal expansionRequested()
     signal controlSelected(string id)
@@ -18,8 +29,9 @@ Column {
     signal halationRequested()
     readonly property string enableControl: section.controls[0].module + "_enabled"
     readonly property bool moduleEnabled: values[enableControl] > .5
-    readonly property bool hasDetails: section.controls.some(c => !section.primary.includes(c.id))
-                                       || section.name === "denoise (profiled)" || section.name === "diffuse or sharpen"
+    // Shortcut rows open their parent module block, so they disclose like any other row.
+    readonly property bool hasDetails: !!section.shortcut || section.controls.some(c => !section.primary.includes(c.id))
+                                       || section.name === "denoise (profiled)" || section.name === "diffuse or sharpen" || hasExtra
     spacing: 4
     topPadding: headerVisible && section.primary.length !== 1 ? 12 : 0
     bottomPadding: headerVisible ? 8 : 0
@@ -43,7 +55,7 @@ Column {
             z: -1
             width: parent.width
             height: root.height - moduleHeader.y
-            color: Qt.lighter(root.theme.background, 1.16)
+            color: root.theme.surface
         }
         RowLayout {
             id: headerContent
@@ -77,17 +89,15 @@ Column {
                 background: Rectangle { color: "transparent"; border.color: heading.activeFocus ? root.theme.accent : "transparent" }
             }
         }
-        ToolButton {
+        DisclosureButton {
             objectName: "module-details-" + root.section.module
             visible: root.hasDetails
             anchors.right: parent.right
-            y: 1
-            width: 24; height: 22; padding: 0
-            text: root.expanded ? "⌄" : "›"
+            anchors.verticalCenter: headerContent.verticalCenter
+            theme: root.theme
+            expanded: root.expanded
             onClicked: root.expansionRequested()
-            Accessible.name: "Details for " + root.section.name
-            background: Rectangle { color: "transparent" }
-
+            Accessible.name: (root.expanded ? "Hide details for " : "Details for ") + root.section.name
         }
     }
     Repeater {
@@ -136,5 +146,46 @@ Column {
         x: 12; width: parent.width - 12
         theme: root.theme; values: root.values; editable: root.editable
         onEdited: (id, value) => root.controlEdited(id, value)
+    }
+    Item {
+        visible: root.expanded && root.hasExtra && root.term === ""
+        width: parent.width - 28
+        implicitHeight: 22
+        ToolButton {
+            id: moreButton
+            objectName: "module-more-" + root.section.module
+            padding: 0
+            hoverEnabled: true
+            onClicked: root.moreRequested()
+            Accessible.name: (root.moreOpen ? "Fewer settings for " : "More settings for ") + root.section.name
+            contentItem: Text {
+                text: root.moreOpen ? "less" : "more"
+                color: moreButton.hovered || moreButton.visualFocus ? root.theme.accent : root.theme.muted
+                font: root.theme.textFont
+            }
+            background: Item {}
+        }
+    }
+    Loader {
+        width: parent.width
+        active: root.hasExtra && root.expanded && (root.moreOpen || root.term !== "")
+        visible: active
+        sourceComponent: GeneratedRows {
+            theme: root.theme
+            module: root.extraModule
+            moduleState: root.moduleState
+            catalogModel: root.catalogModel
+            overrides: root.overrides
+            overridePrefix: root.extraModule.operation + "/0/"
+            editable: root.editable && !!root.moduleState
+            expanded: true
+            moreOpen: true
+            extraMode: true
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: changes => root.parameterChangesRequested(changes)
+            onInteractionChanged: active => root.interactionChanged(active)
+            onControlSelected: id => root.controlSelected(id)
+        }
     }
 }

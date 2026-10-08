@@ -14,6 +14,14 @@ SidebarScrollView {
     required property string activeControl
     property bool restoringPreferences: true
     property var expandedDetails: ({})
+    // Generated layout and catalog state, for the parameters a curated module has beyond the
+    // registry (shown under "more" in its expanded block).
+    property var catalogModel: null
+    property var states: ({})
+    property var overrides: ({})
+    // Sidebar search: only matching modules stay, and they open.
+    property string term: ""
+    signal parameterChangesRequested(string operation, int instance, var changes)
     signal interactionChanged(bool active)
     signal halationRequested()
     signal controlSelected(string id)
@@ -58,6 +66,18 @@ SidebarScrollView {
         { name: "Advanced", sections: sections.filter(s => !s.primary.length) }
     ]
 
+    function sectionMatches(s) {
+        if (!term) return true
+        if (s.name.toLowerCase().indexOf(term) >= 0 || s.module.toLowerCase().indexOf(term) >= 0) return true
+        if (s.controls.some(c => c.label.toLowerCase().indexOf(term) >= 0 || (c.id === "vibrance" && "vibrance".indexOf(term) >= 0))) return true
+        const extra = catalogModel ? catalogModel.modulesByOperation[s.module] : null
+        return !!extra && extra.rows.some(r => (r.label || "").toLowerCase().indexOf(term) >= 0)
+    }
+    readonly property int matchCount: {
+        let n = 0
+        for (const s of sections) if (!s.shortcut && sectionMatches(s)) ++n
+        return n
+    }
     function setExpanded(property, key, value) {
         let next = Object.assign({}, root[property]); next[key] = value; root[property] = next
     }
@@ -106,6 +126,12 @@ SidebarScrollView {
     Column {
         width: root.availableWidth
         padding: 18; spacing: 8
+        Text {
+            visible: root.term !== "" && root.matchCount === 0
+            width: parent.width - 36
+            text: "No curated control matches “" + root.term + "”; the other panes are searched too."
+            color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
+        }
         Repeater {
             id: groupRows
             model: root.groups
@@ -123,7 +149,7 @@ SidebarScrollView {
                     return null
                 }
                 Text {
-                    visible: group.modelData.name === "Advanced"
+                    visible: group.modelData.name === "Advanced" && (root.term === "" || group.modelData.sections.some(s => root.sectionMatches(s)))
                     text: "Advanced"
                     color: root.theme.muted; font: root.theme.settingsFont
                     topPadding: 12; bottomPadding: 4
@@ -138,8 +164,21 @@ SidebarScrollView {
                             width: parent.width
                             theme: root.theme; section: modelData; values: root.values
                             editable: root.editable; activeControl: root.activeControl
-                            expanded: !!root.expandedDetails[modelData.key]
-                            onExpansionRequested: root.setExpanded("expandedDetails", modelData.key, !root.expandedDetails[modelData.key])
+                            // A shortcut row opens its module's block and stands in for it
+                            // only while that block is closed.
+                            readonly property string detailsKey: modelData.shortcut ? modelData.module : modelData.key
+                            visible: root.term !== "" ? !modelData.shortcut && root.sectionMatches(modelData)
+                                                      : !(modelData.shortcut && root.expandedDetails[detailsKey])
+                            expanded: !modelData.shortcut && (root.term !== "" || !!root.expandedDetails[detailsKey])
+                            extraModule: root.catalogModel ? root.catalogModel.modulesByOperation[modelData.module] || null : null
+                            moduleState: root.states[modelData.module + "/0"]
+                            catalogModel: root.catalogModel
+                            overrides: root.overrides
+                            term: root.term
+                            moreOpen: !!root.expandedDetails[detailsKey + "-more"]
+                            onMoreRequested: root.setExpanded("expandedDetails", detailsKey + "-more", !root.expandedDetails[detailsKey + "-more"])
+                            onParameterChangesRequested: changes => root.parameterChangesRequested(modelData.module, 0, changes)
+                            onExpansionRequested: root.setExpanded("expandedDetails", detailsKey, !root.expandedDetails[detailsKey])
                             onControlSelected: id => root.controlSelected(id)
                             onInteractionChanged: active => root.interactionChanged(active)
                             onControlEdited: (id, value) => root.controlEdited(id, value)

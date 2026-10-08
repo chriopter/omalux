@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "panels"
+import "components"
 
 Rectangle {
     id: root
@@ -15,7 +16,78 @@ Rectangle {
     // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
     property int filterView: 0
     property alias filterSearch: modulesPanel.search
-    readonly property bool textEditing: selectedPanel === 1 && stylesPanel.textEditing
+    property alias moduleSearch: moduleSearch.text
+    readonly property bool textEditing: (selectedPanel === 1 && stylesPanel.textEditing) || moduleSearch.activeFocus
+    // Panes in strip order. The indices of the first five panes stay as they were (keyboard
+    // 1–5, Main.qml); the module panes added later take 5–8.
+    readonly property var panes: [
+        { index: 0, icon: "edit.svg", name: "Filters" },
+        { index: 1, icon: "styles.svg", name: "Styles" },
+        { index: 5, icon: "tone.svg", name: "Tone · base and tone modules", tab: "tone" },
+        { index: 6, icon: "color.svg", name: "Color modules", tab: "color" },
+        { index: 7, icon: "detail.svg", name: "Detail & correction · technical", tab: "detail" },
+        { index: 8, icon: "effects.svg", name: "Effects", tab: "effects" },
+        { index: 2, icon: "crop.svg", name: "Crop & Rotate" },
+        { index: 3, icon: "history.svg", name: "History" },
+        { index: 4, icon: "info.svg", name: "Info" }
+    ]
+    readonly property var paneOrder: panes.map(p => p.index)
+    readonly property bool searchable: [3, 4].indexOf(selectedPanel) < 0
+    readonly property string term: moduleSearch.text.trim().toLowerCase()
+    function matchesIn(index) {
+        if (!term) return 0
+        switch (index) {
+        case 0: return filtersPanel.matchCount
+        case 1: return moduleCatalog.matchCount("styles", term)
+        case 2: return moduleCatalog.matchCount("geometry", term)
+        case 5: return moduleCatalog.matchCount("tone", term)
+        case 6: return moduleCatalog.matchCount("color", term)
+        case 7: return moduleCatalog.matchCount("detail", term)
+        case 8: return moduleCatalog.matchCount("effects", term)
+        default: return 0
+        }
+    }
+    // Searching jumps to the first pane with a match when the current one has none.
+    Timer {
+        id: searchJump
+        interval: 60
+        onTriggered: {
+            if (!root.term || root.matchesIn(root.selectedPanel) > 0) return
+            for (const index of root.paneOrder) if (root.matchesIn(index) > 0) { root.selectedPanel = index; return }
+        }
+    }
+    onTermChanged: searchJump.restart()
+
+    ModuleCatalog {
+        id: moduleCatalog
+        catalog: root.backend.moduleCatalog
+        layoutText: root.backend.layoutData || "{}"
+        onStatesChanged: parameterQueue.acknowledge()
+    }
+    ParameterQueue {
+        id: parameterQueue
+        backend: root.backend
+    }
+    Connections {
+        target: root.backend
+        ignoreUnknownSignals: true
+        function onModuleUpdated(operation, instance, moduleJson) { moduleCatalog.updateModule(operation, instance, moduleJson) }
+    }
+    // The engine switches a module on when one of its parameters is edited, as darktable does.
+    function changeParameters(operation, instance, changes) {
+        parameterQueue.send(operation, instance, changes)
+    }
+    function enableModule(operation, instance, enabled) {
+        parameterQueue.send(operation, instance, { "@enabled": enabled ? 1 : 0 })
+    }
+    function resetModule(operation, instance, module) {
+        if (typeof root.backend.resetModule === "function") { root.backend.resetModule(operation, instance); return }
+        const changes = {}
+        for (const r of module.rows)
+            if (moduleCatalog.writable(r.path) && r.default !== null && typeof r.default !== "object" && typeof r.default !== "string")
+                changes[r.path] = Number(r.default)
+        if (Object.keys(changes).length) parameterQueue.send(operation, instance, changes)
+    }
     signal styleSaveRequested()
     signal styleExportRequested(string id)
     signal styleDeleteRequested(string id, string name)
@@ -40,69 +112,107 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 12
         spacing: 14
-        RowLayout {
+        // Pane tabs: a recessed strip with the active pane raised inside it.
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 0
-            Repeater {
-                model: [
-                    {
-                        icon: "edit.svg",
-                        name: "Filters"
-                    },
-                    {
-                        icon: "styles.svg",
-                        name: "Styles"
-                    },
-                    {
-                        icon: "crop.svg",
-                        name: "Crop & Rotate"
-                    },
-                    {
-                        icon: "history.svg",
-                        name: "History"
-                    },
-                    {
-                        icon: "info.svg",
-                        name: "Info"
-                    }
-                ]
-                Button {
-                    id: tab
-                    required property var modelData
-                    required property int index
-                    objectName: "sidebar-tab-" + index
-                    Layout.fillWidth: true
-                    implicitHeight: 26
-                    padding: 0
-                    onClicked: root.selectedPanel = index
-                    Accessible.name: modelData.name
-                    Accessible.role: Accessible.PageTab
-                    Accessible.selected: root.selectedPanel === index
-                    ToolTip.visible: hovered
-                    ToolTip.text: modelData.name
-                    background: Rectangle {
-                        color: root.selectedPanel === tab.index ? root.theme.line : "transparent"
-                        border.color: tab.activeFocus ? root.theme.accent : root.theme.line
+            implicitHeight: 34
+            radius: 7
+            color: root.theme.well
+            border.color: root.theme.line
+            border.width: 1
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 3
+                spacing: 3
+                Repeater {
+                    model: root.panes
+                    Button {
+                        id: tab
+                        required property var modelData
+                        readonly property int paneIndex: modelData.index
+                        objectName: "sidebar-tab-" + paneIndex
+                        readonly property bool current: root.selectedPanel === paneIndex
+                        readonly property bool hasMatches: root.term !== "" && root.matchesIn(paneIndex) > 0
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        padding: 0
+                        hoverEnabled: true
+                        onClicked: root.selectedPanel = paneIndex
+                        Accessible.name: modelData.name
+                        Accessible.role: Accessible.PageTab
+                        Accessible.selected: current
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: modelData.name
+                        background: Rectangle {
+                            radius: 5
+                            color: tab.current ? root.theme.active
+                                 : tab.pressed ? root.theme.active
+                                 : tab.hovered ? root.theme.hover : "transparent"
+                            border.width: tab.visualFocus || tab.current ? 1 : 0
+                            border.color: tab.visualFocus ? root.theme.accent : root.theme.line
+                        }
+                        display: AbstractButton.IconOnly
+                        icon.source: root.iconsRoot + modelData.icon
+                        icon.width: 16; icon.height: 16
+                        icon.color: current ? root.theme.accent : hovered ? root.theme.ink : root.theme.muted
+                        // While searching, a dot marks the panes with matches.
                         Rectangle {
-                            visible: root.selectedPanel === tab.index
-                            anchors.bottom: parent.bottom
-                            width: parent.width
-                            height: 2
+                            visible: tab.hasMatches && !tab.current
+                            width: 4; height: 4; radius: 2
                             color: root.theme.accent
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom; anchors.bottomMargin: 3
                         }
                     }
-                    display: AbstractButton.IconOnly
-                    icon.source: root.iconsRoot + modelData.icon
-                    icon.width: 16; icon.height: 16
-                    icon.color: root.selectedPanel === index ? root.theme.accent : root.theme.muted
-
                 }
             }
         }
-        Rectangle {
+        // One search over every module pane; Escape clears it.
+        TextField {
+            id: moduleSearch
+            objectName: "module-search"
             Layout.fillWidth: true
-            height: 1
-            color: root.theme.line
+            Layout.leftMargin: 4; Layout.rightMargin: 4
+            Layout.topMargin: -6
+            implicitHeight: 28
+            visible: root.searchable
+            leftPadding: 28
+            placeholderText: "Search modules and controls"
+            placeholderTextColor: root.theme.muted
+            color: root.theme.ink
+            font: root.theme.textFont
+            selectByMouse: true
+            Keys.onEscapePressed: { text = ""; focus = false }
+            Accessible.name: "Search modules and controls"
+            background: Rectangle {
+                radius: 5
+                color: root.theme.well
+                border.color: moduleSearch.activeFocus ? root.theme.accent : root.theme.line
+                Canvas {
+                    x: 9; y: (parent.height - 12) / 2
+                    width: 12; height: 12
+                    property color stroke: moduleSearch.activeFocus ? root.theme.accent : root.theme.muted
+                    onStrokeChanged: requestPaint()
+                    onPaint: {
+                        const c = getContext("2d")
+                        c.clearRect(0, 0, width, height)
+                        c.strokeStyle = stroke; c.lineWidth = 1.3
+                        c.beginPath(); c.arc(5, 5, 3.8, 0, Math.PI * 2); c.stroke()
+                        c.beginPath(); c.moveTo(8, 8); c.lineTo(11, 11); c.stroke()
+                    }
+                }
+            }
+            ToolButton {
+                visible: moduleSearch.text !== ""
+                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                width: 26; height: 26; padding: 0
+                onClicked: moduleSearch.text = ""
+                Accessible.name: "Clear search"
+                contentItem: Text { text: "×"; color: parent.hovered ? root.theme.accent : root.theme.muted; font: root.theme.settingsFont
+                                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Item {}
+            }
         }
         // While building the interface, switch between the designed controls and the
         // parameters that still wait for one.
@@ -133,7 +243,7 @@ Rectangle {
                     }
                     background: Rectangle {
                         color: root.filterView === viewButton.index
-                               ? Qt.lighter(root.theme.background, 1.16) : "transparent"
+                               ? root.theme.surface : "transparent"
                         border.color: root.filterView === viewButton.index ? root.theme.line : "transparent"
                         radius: 4
                     }
@@ -155,6 +265,32 @@ Rectangle {
             editable: !root.backend.styleBusy && root.backend.preview !== ""
             onControlSelected: id => root.controlSelected(id)
             onControlEdited: (id, value) => root.backend.setControl(id, value)
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            term: root.term
+            onParameterChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+        }
+        Repeater {
+            model: [
+                { index: 5, component: tonePane },
+                { index: 6, component: colorPane },
+                { index: 7, component: detailPane },
+                { index: 8, component: effectsPane }
+            ]
+            // Built on first visit, then kept so scroll position and expansion survive.
+            Loader {
+                required property var modelData
+                property bool visited: false
+                readonly property bool current: root.selectedPanel === modelData.index
+                onCurrentChanged: if (current) visited = true
+                Component.onCompleted: if (current) visited = true
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: current
+                active: visited
+                sourceComponent: modelData.component
+            }
         }
         StylesPanel {
             id: stylesPanel
@@ -174,6 +310,18 @@ Rectangle {
             applyingStyle: root.backend.applyingStyle
             errorMessage: root.backend.styleError
             onApplyRequested: id => root.backend.applyStyle(id)
+            cameraDefaults: root.backend.cameraDefaults
+            camera: { const c = String(root.backend.metadata.camera || "").replace(/\(null\)/g, "").trim(); return c }
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onModuleResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onModuleInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
         }
         ModulesPanel {
             id: modulesPanel
@@ -197,6 +345,16 @@ Rectangle {
             editable: !root.backend.styleBusy && root.backend.preview !== ""
             onEdited: (id, value) => root.backend.setControl(id, value)
             onCropApplied: values => root.backend.setControls(values)
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onModuleResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onModuleInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
         }
         HistoryPanel {
             visible: root.selectedPanel === 3
@@ -213,6 +371,74 @@ Rectangle {
             visible: root.selectedPanel === 4
             Layout.fillWidth: true; Layout.fillHeight: true
             theme: root.theme; metadata: root.backend.metadata
+        }
+    }
+    Component {
+        id: tonePane
+        TonePanel {
+            theme: root.theme
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
+        }
+    }
+    Component {
+        id: colorPane
+        ColorPanel {
+            theme: root.theme
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
+        }
+    }
+    Component {
+        id: detailPane
+        DetailPanel {
+            theme: root.theme
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
+        }
+    }
+    Component {
+        id: effectsPane
+        EffectsPanel {
+            theme: root.theme
+            catalogModel: moduleCatalog
+            states: moduleCatalog.states
+            overrides: parameterQueue.overrides
+            editable: !root.backend.styleBusy && root.backend.preview !== ""
+            term: root.term
+            activeControl: root.activeControl
+            onChangesRequested: (operation, instance, changes) => root.changeParameters(operation, instance, changes)
+            onEnableRequested: (operation, instance, enabled) => root.enableModule(operation, instance, enabled)
+            onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
+            onInteractionChanged: active => root.backend.setInteractive(active)
+            onControlSelected: id => root.controlSelected(id)
         }
     }
 }

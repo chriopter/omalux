@@ -1,0 +1,903 @@
+{
+ "darktable": "5.6.1",
+ "name": "blending (per-module blend section)",
+ "rows": [
+  {
+   "field": "mask_mode",
+   "path": "mask_mode",
+   "label": "blend mask mode",
+   "tab": null,
+   "section": null,
+   "widget": "combobox",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": [
+    {
+     "value": 0,
+     "label": "off"
+    },
+    {
+     "value": 1,
+     "label": "uniformly"
+    },
+    {
+     "value": 3,
+     "label": "drawn mask"
+    },
+    {
+     "value": 5,
+     "label": "parametric mask"
+    },
+    {
+     "value": 7,
+     "label": "drawn & parametric mask"
+    },
+    {
+     "value": 9,
+     "label": "raster mask"
+    }
+   ],
+   "visible_when": null,
+   "tier": "primary",
+   "colors": "",
+   "custom": null,
+   "action": "masks/<label>"
+  },
+  {
+   "field": "blend_mode",
+   "path": "blend_mode",
+   "label": "mode",
+   "tab": null,
+   "section": "blend mask",
+   "widget": "combobox",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 24,
+   "values": [
+    {
+     "value": 24,
+     "label": "normal"
+    },
+    {
+     "value": 5,
+     "label": "average"
+    },
+    {
+     "value": 23,
+     "label": "difference"
+    },
+    {
+     "value": 25,
+     "label": "normal bounded"
+    },
+    {
+     "value": 2,
+     "label": "lighten"
+    },
+    {
+     "value": 3,
+     "label": "darken"
+    },
+    {
+     "value": 9,
+     "label": "screen"
+    },
+    {
+     "value": 4,
+     "label": "multiply"
+    },
+    {
+     "value": 38,
+     "label": "divide"
+    },
+    {
+     "value": 6,
+     "label": "addition"
+    },
+    {
+     "value": 7,
+     "label": "subtract"
+    },
+    {
+     "value": 40,
+     "label": "geometric mean"
+    },
+    {
+     "value": 41,
+     "label": "harmonic mean"
+    },
+    {
+     "value": 10,
+     "label": "overlay"
+    },
+    {
+     "value": 11,
+     "label": "softlight"
+    },
+    {
+     "value": 12,
+     "label": "hardlight"
+    },
+    {
+     "value": 13,
+     "label": "vividlight"
+    },
+    {
+     "value": 14,
+     "label": "linearlight"
+    },
+    {
+     "value": 15,
+     "label": "pinlight"
+    },
+    {
+     "value": 16,
+     "label": "lightness"
+    },
+    {
+     "value": 17,
+     "label": "chromaticity"
+    },
+    {
+     "value": 26,
+     "label": "Lab lightness"
+    },
+    {
+     "value": 31,
+     "label": "Lab a-channel"
+    },
+    {
+     "value": 32,
+     "label": "Lab b-channel"
+    },
+    {
+     "value": 27,
+     "label": "Lab color"
+    },
+    {
+     "value": 33,
+     "label": "RGB red channel"
+    },
+    {
+     "value": 34,
+     "label": "RGB green channel"
+    },
+    {
+     "value": 35,
+     "label": "RGB blue channel"
+    },
+    {
+     "value": 28,
+     "label": "HSV value"
+    },
+    {
+     "value": 29,
+     "label": "HSV color"
+    },
+    {
+     "value": 18,
+     "label": "hue"
+    },
+    {
+     "value": 19,
+     "label": "color"
+    },
+    {
+     "value": 22,
+     "label": "coloradjustment"
+    },
+    {
+     "value": 8,
+     "label": "difference (deprecated)"
+    },
+    {
+     "value": 37,
+     "label": "subtract inverse (deprecated)"
+    },
+    {
+     "value": 39,
+     "label": "divide inverse (deprecated)"
+    },
+    {
+     "value": 30,
+     "label": "Lab L-channel (deprecated)"
+    }
+   ],
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     1,
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "blend/mode"
+  },
+  {
+   "field": "blend_reverse",
+   "path": "@blend_mode.reverse",
+   "label": "toggle blend order",
+   "tab": null,
+   "section": "blend mask",
+   "widget": "toggle",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     1,
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "tools/toggle blend order"
+  },
+  {
+   "field": "blend_parameter",
+   "path": "blend_parameter",
+   "label": "fulcrum",
+   "tab": null,
+   "section": "blend mask",
+   "widget": "slider",
+   "unit": " EV",
+   "factor": 1,
+   "offset": 0,
+   "digits": 3,
+   "min": -18,
+   "max": 18,
+   "soft_min": -3,
+   "soft_max": 3,
+   "default": 0,
+   "values": null,
+   "visible_when": null,
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "blend/fulcrum"
+  },
+  {
+   "field": "opacity",
+   "path": "opacity",
+   "label": "opacity",
+   "tab": null,
+   "section": "blend mask",
+   "widget": "slider",
+   "unit": "%",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": 0,
+   "max": 100,
+   "soft_min": 0,
+   "soft_max": 100,
+   "default": 100,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     1,
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "primary",
+   "colors": "",
+   "custom": null,
+   "action": "blend/opacity"
+  },
+  {
+   "field": "mask_id",
+   "path": "mask_id",
+   "label": "drawn mask",
+   "tab": null,
+   "section": "drawn mask",
+   "widget": "text",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     7
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": {
+    "kind": "text",
+    "fields": [
+     "mask_id"
+    ],
+    "dynamic": true
+   },
+   "action": "blend/drawn mask"
+  },
+  {
+   "field": "drawn_polarity",
+   "path": "@mask_combine.drawn_inv",
+   "label": "toggle polarity of drawn mask",
+   "tab": null,
+   "section": "drawn mask",
+   "widget": "toggle",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     7
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "tools/toggle polarity of drawn mask"
+  },
+  {
+   "field": "@notice",
+   "path": null,
+   "label": "drawn mask shapes are drawn on the image — not available yet",
+   "tab": null,
+   "section": null,
+   "widget": "notice",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": null,
+   "values": null,
+   "visible_when": null,
+   "tier": "primary",
+   "colors": "",
+   "custom": null,
+   "action": null
+  },
+  {
+   "field": "raster_mask",
+   "path": null,
+   "label": "raster mask",
+   "tab": null,
+   "section": "raster mask",
+   "widget": "text",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": null,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": {
+    "kind": "text",
+    "fields": [
+     "raster_mask_source",
+     "raster_mask_instance",
+     "raster_mask_id"
+    ],
+    "dynamic": true
+   },
+   "action": null
+  },
+  {
+   "field": "raster_mask_invert",
+   "path": "raster_mask_invert",
+   "label": "toggle polarity of raster mask",
+   "tab": null,
+   "section": "raster mask",
+   "widget": "toggle",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "tools/toggle polarity of raster mask"
+  },
+  {
+   "field": "blendif_output",
+   "path": "blendif_parameters",
+   "label": "output",
+   "tab": "channel tab",
+   "section": "parametric mask",
+   "widget": "graph",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": 0,
+   "max": 1,
+   "soft_min": null,
+   "soft_max": null,
+   "default": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     5,
+     7
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": {
+    "kind": "graph",
+    "fields": [
+     "blendif_parameters"
+    ]
+   },
+   "action": null
+  },
+  {
+   "field": "blendif_input",
+   "path": "blendif_parameters",
+   "label": "input",
+   "tab": "channel tab",
+   "section": "parametric mask",
+   "widget": "graph",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": 0,
+   "max": 1,
+   "soft_min": null,
+   "soft_max": null,
+   "default": [
+    0,
+    0,
+    1,
+    1
+   ],
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     5,
+     7
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": {
+    "kind": "graph",
+    "fields": [
+     "blendif_parameters"
+    ]
+   },
+   "action": null
+  },
+  {
+   "field": "blendif_polarity",
+   "path": "@blendif.polarity",
+   "label": "toggle polarity",
+   "tab": "channel tab",
+   "section": "parametric mask",
+   "widget": "toggle",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     5,
+     7
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": null
+  },
+  {
+   "field": "boost_factor",
+   "path": "blendif_boost_factors[@tab]",
+   "label": "boost factor",
+   "tab": "channel tab",
+   "section": "parametric mask",
+   "widget": "slider",
+   "unit": " EV",
+   "factor": 1,
+   "offset": 0,
+   "digits": 3,
+   "min": 0,
+   "max": 18,
+   "soft_min": 0,
+   "soft_max": 3,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     5,
+     7
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "blend/boost factor"
+  },
+  {
+   "field": "mask_combine",
+   "path": "@mask_combine",
+   "label": "combine masks",
+   "tab": null,
+   "section": "parametric mask",
+   "widget": "combobox",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": [
+    {
+     "value": 0,
+     "label": "exclusive"
+    },
+    {
+     "value": 2,
+     "label": "inclusive"
+    },
+    {
+     "value": 1,
+     "label": "exclusive & inverted"
+    },
+    {
+     "value": 3,
+     "label": "inclusive & inverted"
+    }
+   ],
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     5,
+     7
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "blend/combine masks"
+  },
+  {
+   "field": "details",
+   "path": "details",
+   "label": "details threshold",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "slider",
+   "unit": "%",
+   "factor": 100,
+   "offset": 0,
+   "digits": 0,
+   "min": -1,
+   "max": 1,
+   "soft_min": -1,
+   "soft_max": 1,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "blend/details threshold"
+  },
+  {
+   "field": "feathering_guide",
+   "path": "feathering_guide",
+   "label": "feathering guide",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "combobox",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 5,
+   "values": [
+    {
+     "value": 2,
+     "label": "output before blur"
+    },
+    {
+     "value": 1,
+     "label": "input before blur"
+    },
+    {
+     "value": 6,
+     "label": "output after blur"
+    },
+    {
+     "value": 5,
+     "label": "input after blur"
+    }
+   ],
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": "blend/feathering guide"
+  },
+  {
+   "field": "feathering_radius",
+   "path": "feathering_radius",
+   "label": "feathering radius",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "slider",
+   "unit": " px",
+   "factor": 1,
+   "offset": 0,
+   "digits": 1,
+   "min": 0,
+   "max": 250,
+   "soft_min": 0,
+   "soft_max": 250,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "blend/feathering radius"
+  },
+  {
+   "field": "blur_radius",
+   "path": "blur_radius",
+   "label": "blurring radius",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "slider",
+   "unit": " px",
+   "factor": 1,
+   "offset": 0,
+   "digits": 1,
+   "min": 0,
+   "max": 100,
+   "soft_min": 0,
+   "soft_max": 100,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "blend/blurring radius"
+  },
+  {
+   "field": "brightness",
+   "path": "brightness",
+   "label": "mask opacity",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "slider",
+   "unit": "%",
+   "factor": 100,
+   "offset": 0,
+   "digits": 0,
+   "min": -1,
+   "max": 1,
+   "soft_min": -1,
+   "soft_max": 1,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "blend/mask opacity"
+  },
+  {
+   "field": "contrast",
+   "path": "contrast",
+   "label": "mask contrast",
+   "tab": null,
+   "section": "mask refinement",
+   "widget": "slider",
+   "unit": "%",
+   "factor": 100,
+   "offset": 0,
+   "digits": 0,
+   "min": -1,
+   "max": 1,
+   "soft_min": -1,
+   "soft_max": 1,
+   "default": 0,
+   "values": null,
+   "visible_when": {
+    "field": "mask_mode",
+    "in": [
+     3,
+     5,
+     7,
+     9
+    ]
+   },
+   "tier": "detail",
+   "colors": "",
+   "custom": null,
+   "action": "blend/mask contrast"
+  },
+  {
+   "field": "blend_cst",
+   "path": "blend_cst",
+   "label": "blend colorspace (blending options menu)",
+   "tab": null,
+   "section": null,
+   "widget": "combobox",
+   "unit": "",
+   "factor": 1,
+   "offset": 0,
+   "digits": 0,
+   "min": null,
+   "max": null,
+   "soft_min": null,
+   "soft_max": null,
+   "default": 0,
+   "values": [
+    {
+     "value": 0,
+     "label": "default"
+    },
+    {
+     "value": 1,
+     "label": "RAW"
+    },
+    {
+     "value": 2,
+     "label": "Lab"
+    },
+    {
+     "value": 3,
+     "label": "RGB (display)"
+    },
+    {
+     "value": 4,
+     "label": "RGB (scene)"
+    }
+   ],
+   "visible_when": null,
+   "tier": "advanced",
+   "colors": "",
+   "custom": null,
+   "action": null
+  }
+ ],
+ "notes": "blend mask mode: shown when drawn & raster need !IOP_FLAGS_NO_MASKS; parametric needs blend colorspace Lab or RGB; whole row hidden if module hides enable button (not machine-readable). fulcrum: shown when blend colorspace == RGB (scene); mode in {multiply, divide, addition, subtract, RGB red/green/blue channel, subtract/divide inverse} (not machine-readable). output: shown when output row only when 'show output channels' is on or already used (not machine-readable). details threshold: shown when image is raw (dt_image_is_rawprepare_supported, :3250) (not machine-readable). blend colorspace (blending options menu): default 0 (0 = the module's default colorspace). blend colorspace (blending options menu): shown when only when parametric masks are supported (not machine-readable)."
+}

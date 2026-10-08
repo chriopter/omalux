@@ -1,0 +1,350 @@
+{
+ "about": "Our own choices for the generated Filters layout. Facts about darktable (labels, units, ranges, defaults, widgets, tabs) come from omalux/design/ui-map/*.json; build_layout.py combines both into omalux/design/layout.json. Rows are referenced by their layout.json field id.",
+ "groups": [
+  {
+   "id": "base",
+   "label": "base",
+   "note": "darktable's 'base' group (modules: all preset), minus the raw-only modules that go to technical",
+   "modules": [
+    "exposure",
+    "temperature",
+    "colisa",
+    "shadhi",
+    "toneequal",
+    "basecurve",
+    "colorreconstruct",
+    "negadoctor"
+   ]
+  },
+  {
+   "id": "tone",
+   "label": "tone",
+   "modules": [
+    "sigmoid",
+    "filmicrgb",
+    "agx",
+    "bilat",
+    "rgbcurve",
+    "tonecurve",
+    "rgblevels"
+   ]
+  },
+  {
+   "id": "color",
+   "label": "color",
+   "modules": [
+    "colorbalancergb",
+    "channelmixerrgb",
+    "colorequal",
+    "colorzones",
+    "colorharmonizer",
+    "primaries",
+    "velvia",
+    "colorcontrast",
+    "colorbalance",
+    "monochrome",
+    "colorcorrection",
+    "lut3d",
+    "colorchecker",
+    "profile_gamma"
+   ]
+  },
+  {
+   "id": "correct",
+   "label": "correct",
+   "note": "crop, ashift and flip live in the Geometry pane; only their missing rows are listed",
+   "modules": [
+    "crop",
+    "ashift",
+    "flip",
+    "lens",
+    "denoiseprofile",
+    "sharpen",
+    "hazeremoval",
+    "cacorrectrgb",
+    "defringe",
+    "nlmeans",
+    "atrous",
+    "bilateral",
+    "retouch",
+    "liquify",
+    "dither",
+    "rasterfile"
+   ]
+  },
+  {
+   "id": "effect",
+   "label": "effect",
+   "modules": [
+    "grain",
+    "vignette",
+    "bloom",
+    "diffuse",
+    "soften",
+    "graduatednd",
+    "splittoning",
+    "colorize",
+    "lowlight",
+    "blurs",
+    "highpass",
+    "lowpass",
+    "colormapping",
+    "borders",
+    "enlargecanvas",
+    "watermark",
+    "overlay",
+    "censorize"
+   ]
+  },
+  {
+   "id": "technical",
+   "label": "technical",
+   "note": "raw-only and pipeline modules a hobby photographer rarely touches",
+   "modules": [
+    "highlights",
+    "demosaic",
+    "rawprepare",
+    "hotpixels",
+    "rawdenoise",
+    "cacorrect",
+    "colorin",
+    "colorout",
+    "scalepixels"
+   ]
+  },
+  {
+   "id": "deprecated",
+   "label": "deprecated",
+   "note": "darktable's own group name; shown only when the image history uses them",
+   "modules": [
+    "basicadj",
+    "levels",
+    "filmic",
+    "globaltonemap",
+    "tonemap",
+    "relight",
+    "zonesystem",
+    "invert",
+    "channelmixer",
+    "vibrance",
+    "colortransfer",
+    "clipping",
+    "spots",
+    "equalizer",
+    "clahe"
+   ]
+  }
+ ],
+ "hidden": {
+  "finalscale": "pipeline-internal (IOP_FLAGS_HIDDEN)",
+  "gamma": "pipeline-internal (IOP_FLAGS_HIDDEN)",
+  "mask_manager": "pipeline-internal (IOP_FLAGS_HIDDEN)",
+  "useless": "darktable template, not compiled",
+  "rotatepixels": "set automatically for some Fuji sensors (IOP_FLAGS_HIDDEN)",
+  "overexposed": "viewer overlay driven from the darkroom toolbar, not an edit",
+  "rawoverexposed": "viewer overlay driven from the darkroom toolbar, not an edit"
+ },
+ "curated": {
+  "filters": [
+   "exposure",
+   "colisa",
+   "shadhi",
+   "temperature",
+   "colorbalancergb",
+   "sharpen",
+   "grain",
+   "bloom",
+   "vignette",
+   "bilat",
+   "denoiseprofile",
+   "diffuse",
+   "lut3d"
+  ],
+  "geometry": [
+   "crop",
+   "ashift",
+   "flip"
+  ],
+  "note": "Rows already registered in omalux/native/engine/controls.h are dropped from these modules; the remaining parameters are listed so the expanded curated block can append them."
+ },
+ "omit_rows": {
+  "crop": {
+   "aspect": "the Geometry pane has its own aspect chooser"
+  },
+  "temperature": {
+   "preset:as_shot": "button bar duplicates the 'settings' combobox and is off by default in darktable",
+   "preset:user_modified": "button bar duplicates the 'settings' combobox",
+   "preset:camera_reference": "button bar duplicates the 'settings' combobox",
+   "preset:as_shot_to_reference": "button bar duplicates the 'settings' combobox"
+  },
+  "filmicrgb": {
+   "@display_highlight_reconstruction_mask": "mask preview overlay not available in Omalux"
+  },
+  "toneequal": {
+   "@display_exposure_mask": "mask preview overlay not available in Omalux"
+  },
+  "colorzones": {
+   "@display_mask": "mask preview overlay not available in Omalux"
+  },
+  "colorbalancergb": {
+   "@checker_size": "settings of the mask preview overlay, which Omalux does not have",
+   "@checker_color_1": "settings of the mask preview overlay",
+   "@checker_color_2": "settings of the mask preview overlay"
+  },
+  "colorharmonizer": {
+   "@sync_to_vectorscope": "Omalux has no vectorscope",
+   "@set_from_vectorscope": "Omalux has no vectorscope"
+  },
+  "lut3d": {
+   "filepath:file_combobox_no_label": "merged into the single file row"
+  },
+  "rawprepare": {
+   "left": "darktable hides raw crop unless plugins/darkroom/rawprepare/allow_editing_crop is set",
+   "top": "hidden in darktable by default",
+   "right": "hidden in darktable by default",
+   "bottom": "hidden in darktable by default"
+  }
+ },
+ "notices": {
+  "retouch": {
+   "label": "retouch shapes are drawn on the image — not available yet",
+   "replaces": [
+    "algorithm",
+    "@shapes",
+    "wavelet_decompose",
+    "preview_levels"
+   ]
+  },
+  "spots": {
+   "label": "spots are drawn on the image — not available yet",
+   "replaces": [
+    "@show_and_edit_shapes",
+    "@shapes"
+   ]
+  },
+  "liquify": {
+   "label": "warps are drawn on the image — not available yet",
+   "replaces": [
+    "@edit_add_and_delete_nodes",
+    "@shapes"
+   ]
+  },
+  "graduatednd": {
+   "label": "dragging the gradient line on the image — not available yet",
+   "replaces": [
+    "offset"
+   ]
+  },
+  "ashift": {
+   "label": "drawing structure lines on the image — not available yet",
+   "replaces": [
+    "@rectangle",
+    "@lines"
+   ]
+  },
+  "channelmixerrgb": {
+   "label": "calibrating with a color checker on the image — not available yet",
+   "replaces": [
+    "@checker",
+    "@optimize",
+    "@safety",
+    "@validate",
+    "@recompute",
+    "@accept"
+   ]
+  },
+  "colortransfer": {
+   "label": "no controls — this module can only be switched off",
+   "replaces": []
+  },
+  "equalizer": {
+   "label": "no controls — this module can only be switched off",
+   "replaces": []
+  }
+ },
+ "primary": {
+  "note": "Collapsed rows (0-2). Default: the inventory's primary-tier sliders, comboboxes and toggles. Overridden where the inventory picks a custom editor or a control that means little on its own.",
+  "basecurve": [],
+  "tonecurve": [],
+  "rgbcurve": [],
+  "rgblevels": [],
+  "levels": [],
+  "lowlight": [],
+  "colorzones": [],
+  "zonesystem": [],
+  "colorcorrection": [],
+  "monochrome": [],
+  "invert": [],
+  "colormapping": [],
+  "rasterfile": [],
+  "retouch": [],
+  "spots": [],
+  "liquify": [],
+  "atrous": [],
+  "enlargecanvas": [],
+  "watermark": [
+   "opacity"
+  ],
+  "overlay": [
+   "opacity"
+  ],
+  "colorize": [
+   "hue",
+   "saturation"
+  ],
+  "highlights": [
+   "clip"
+  ]
+ },
+ "tier": {
+  "note": "Per-row tier overrides for a hobby photographer.",
+  "graduatednd": {
+   "rotation": "primary"
+  },
+  "lens": {
+   "camera": "detail",
+   "lens": "detail"
+  },
+  "colorize": {
+   "saturation": "primary"
+  },
+  "highlights": {
+   "mode": "detail",
+   "clip": "primary"
+  }
+ },
+ "visible_when": {
+  "note": "Our own visibility choices where darktable's condition is a preference or layout state. Each entry: rows whose darktable condition contains 'match' get 'value'.",
+  "colorequal": {
+   "match": "show_sliders",
+   "value": null,
+   "why": "darktable shows the 24 colour sliders only with the show_sliders preference; Omalux always shows them as rows"
+  }
+ },
+ "colors": {
+  "note": "Coloured track overrides; the generator otherwise derives hue/saturation/light/temperature/tint from unit and label.",
+  "channelmixerrgb": {
+   "temperature": "temperature"
+  },
+  "toneequal": {
+   "noise": "light",
+   "ultra_deep_blacks": "light",
+   "deep_blacks": "light",
+   "blacks": "light",
+   "shadows": "light",
+   "midtones": "light",
+   "highlights": "light",
+   "whites": "light",
+   "speculars": "light"
+  }
+ },
+ "notes": {
+  "colisa": "Deprecated upstream but kept in the curated block for existing styles; all three controls are curated.",
+  "atrous": "The curves are the real controls; mix only scales them.",
+  "rasterfile": "Publishes a raster mask for other modules' blend section; useful only once masks are supported.",
+  "highpass": "Produces a grey detail layer; meaningful only with a blend mode such as overlay.",
+  "censorize": "Meant for a drawn mask over the area to hide; Omalux has no mask support yet.",
+  "colormapping": "Two-step workflow across two images (acquire source, acquire target).",
+  "overlay": "The overlay is another library image, chosen from the library rather than the file system."
+ }
+}

@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QVector4D>
 #include <QString>
+#include <QVariantMap>
 #include <QMetaType>
 #include <array>
 using ControlValues = std::array<float, OM_CONTROL_COUNT>;
@@ -16,7 +17,8 @@ enum class ActionKind {
     ApplyStyle,
     History,
     Halation,
-    SetParameter,
+    SetParameters,
+    ResetModule,
     Open,
     ExportImage,
     SaveStyle,
@@ -27,6 +29,14 @@ struct EditorAction {
     ActionKind kind = ActionKind::None;
     QString value, destination;
     int quality = 90;
+};
+// A generic edit of one module instance, addressed through darktable's introspection.
+// SetParameters carries {path: value}; ResetModule restores the module's defaults.
+struct ModuleEdit {
+    ActionKind kind = ActionKind::SetParameters;
+    QString operation;
+    int instance = 0;
+    QVariantMap values;
 };
 struct RenderResult {
     WorkTicket ticket;

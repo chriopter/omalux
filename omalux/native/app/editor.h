@@ -26,6 +26,7 @@ class Editor : public QObject {
     Q_PROPERTY(QVariantList controls READ controls CONSTANT)
     Q_PROPERTY(bool developerMode READ developerMode CONSTANT)
     Q_PROPERTY(QString displayData READ displayData CONSTANT)
+    Q_PROPERTY(QString layoutData READ layoutData CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
   public:
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
@@ -48,6 +49,7 @@ class Editor : public QObject {
     QVariantList controls() const;
     bool developerMode() const;
     QString displayData() const;
+    QString layoutData() const;
     QVariantMap controlValues() const;
     Q_INVOKABLE void hoverStyle(const QString &id, bool active);
     Q_INVOKABLE void applyStyle(const QString &id);
@@ -64,18 +66,25 @@ class Editor : public QObject {
     Q_INVOKABLE void adjustControl(const QString &id, int steps);
     Q_INVOKABLE void resetControl(const QString &id);
     QString moduleCatalog() const;
-    Q_INVOKABLE void setParameter(const QString &operation, int instance, const QString &field, double value);
+    // Generic module edits through darktable's introspection. A path is relative to the
+    // module's params, e.g. "exposure", "tonecurve[0][1].x" or "@enabled".
+    Q_INVOKABLE void setParameter(const QString &operation, int instance, const QString &path, double value);
+    Q_INVOKABLE void setParameters(const QString &operation, int instance, const QVariantMap &values);
+    Q_INVOKABLE void resetModule(const QString &operation, int instance);
   signals:
     void historyChanged();
     void changed();
     void controlsChanged();
     void stylesChanged();
     void modulesChanged();
+    // One module's catalog entry (a JSON object as in moduleCatalog) after a generic edit.
+    void moduleUpdated(QString operation, int instance, QString moduleJson);
 
   private:
     bool styleAvailable(const QString &id) const;
     void queueAction(EditorAction action);
     void queueControls(int index);
+    void queueModuleEdit(ModuleEdit edit);
     void showFrame(RenderResult result);
     std::unique_ptr<EngineWorker> worker;
     Frames *frames, *hoverFrames;

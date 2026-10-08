@@ -88,7 +88,7 @@ Rectangle {
                             text: root.style.name
                             color: root.appliedStyle === root.style.name ? root.theme.accent : root.theme.ink
                             font.family: root.theme.textFont.family
-                            font.pixelSize: 11
+                            font.pixelSize: root.theme.textFont.pixelSize
                             font.bold: root.appliedStyle === root.style.name
                             wrapMode: Text.Wrap
                             maximumLineCount: 2

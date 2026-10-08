@@ -27,11 +27,21 @@ void om_engine_free_preview(unsigned char *pixels);
 char *om_engine_metadata(OmEngine *engine);
 // What darktable set up for this camera before any style: colour, lens and base tone.
 char *om_engine_camera_defaults(OmEngine *engine);
-// Every module and every parameter darktable describes about itself, as JSON.
+// Every module and every parameter darktable describes about itself, as a JSON array.
 char *om_engine_modules(OmEngine *engine);
-// Set one described parameter by module operation, instance and field name.
-int om_engine_set_parameter(OmEngine *engine, const char *operation, int instance, const char *field_name,
+// The same description per pipeline position, so a caller can refresh single modules.
+int om_engine_module_count(OmEngine *engine);
+const char *om_engine_module_identity(OmEngine *engine, int position, int *instance);
+char *om_engine_module_at(OmEngine *engine, int position);
+// Set one described scalar by module operation, instance and path relative to the params,
+// e.g. "exposure", "tonecurve[0][1].x" or "@enabled". Returns 0, or 1 no image, 2 no such
+// module, 3 unknown path, 4 unsupported type, 5 invalid value.
+int om_engine_set_parameter(OmEngine *engine, const char *operation, int instance, const char *path,
                             double value);
+// Set several scalars of one module from a JSON object {path: number}; one history item.
+int om_engine_set_parameters(OmEngine *engine, const char *operation, int instance, const char *json);
+// darktable's module reset: default parameters and blending, module switched on; one history item.
+int om_engine_reset_module(OmEngine *engine, const char *operation, int instance);
 // Import camera presets (.dtpreset) so darktable auto-applies them; call before opening images.
 int om_engine_import_camera_presets(const char *directory);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);
