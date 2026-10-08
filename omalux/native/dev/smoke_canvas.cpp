@@ -9,8 +9,10 @@
 //   {"checkCanvasItem": {"property": "kind", "equals": "shapes"}} on the overlay item
 //   {"rememberPixels": "name"}, {"checkPixels": {"name", "same": true, "tolerance"}}: the
 //   preview against a remembered one by mean absolute 8-bit difference (drawn shapes must
-//   invalidate darktable's pipe cache)
+//   invalidate darktable's pipe cache); {"checkPixels": {"grey": true, "tolerance"}} by the
+//   mean spread between the channels (a mask shown in grey)
 #include "smoke_canvas.h"
+#include <algorithm>
 #include "app/editor.h"
 #include "app/frames.h"
 #include <QGuiApplication>
@@ -164,6 +166,27 @@ SmokeResult canvasSmokeStep(const QJsonObject &step, Editor &editor, QQmlApplica
     auto *frames = static_cast<Frames *>(engine.imageProvider("preview"));
     if (step.contains("rememberPixels")) {
         rememberedImages()[step["rememberPixels"].toString()] = frames->image();
+        return SmokeResult::Done;
+    }
+    if (step.contains("checkPixels") && step["checkPixels"].toObject().contains("grey")) {
+        // {"checkPixels": {"grey": true, "tolerance": 1}}: the preview is grey (a mask shown as
+        // grey levels), by the mean 8-bit spread between the channels of each pixel.
+        const auto call = step["checkPixels"].toObject();
+        const QImage image = frames->image().convertToFormat(QImage::Format_RGB32);
+        double spread = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            const auto *line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+            for (int x = 0; x < image.width(); ++x) {
+                const int r = qRed(line[x]), g = qGreen(line[x]), b = qBlue(line[x]);
+                spread += std::max({r, g, b}) - std::min({r, g, b});
+            }
+        }
+        spread /= std::max<qsizetype>(1, qsizetype(image.width()) * image.height());
+        if ((spread <= call["tolerance"].toDouble(1)) != call["grey"].toBool()) {
+            qInfo() << "Pixels pending" << call << spread;
+            return SmokeResult::Retry;
+        }
+        qInfo() << "Pixels grey" << call["grey"].toBool() << "mean spread" << spread;
         return SmokeResult::Done;
     }
     if (step.contains("checkPixels")) {

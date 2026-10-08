@@ -27,7 +27,8 @@ static const OmToolSpec *const tables[] = {om_tools_tone, om_tools_color, om_too
                                             om_tools_curves, om_tools_harmonizer, om_tools_blend,
                                             om_tools_effects, om_tools_toneequal, om_tools_colormapping,
                                             om_tools_vectorscope, om_tools_blend_display,
-                                            om_tools_masks, om_tools_ashift, om_tools_checker};
+                                            om_tools_masks, om_tools_ashift, om_tools_checker,
+                                            om_tools_module_display};
 
 static const OmToolSpec *find_spec(const char *operation, const char *tool) {
     for (size_t t = 0; t < G_N_ELEMENTS(tables); ++t)

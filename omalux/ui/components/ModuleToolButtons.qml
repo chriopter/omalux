@@ -6,7 +6,8 @@ import QtQuick.Layouts
 // level pickers, auto and auto region, the four flip buttons). A picker shows darktable's
 // pipette and stays highlighted while it is active; a button runs once, or opens its menu
 // (agx "reset primaries"). `entries` holds
-// [{ label, kind: "area"|"point"|"pointarea"|"button", icon, hint, active, menu: [{ label }] }];
+// [{ label, kind: "area"|"point"|"pointarea"|"button"|"display", icon, hint, active, menu: [{ label }] }];
+// "display" is darktable's mask preview toggle (its "showmask" button), highlighted while shown.
 // the component only reports which entry (and menu item, else -1) was chosen.
 Item {
     id: root
@@ -48,7 +49,8 @@ Item {
                 id: button
                 required property var modelData
                 required property int index
-                readonly property bool picker: modelData.kind !== "button"
+                readonly property bool picker: modelData.kind !== "button" && modelData.kind !== "display"
+                readonly property bool toggle: modelData.kind === "display"
                 readonly property bool hasMenu: !!modelData.menu && modelData.menu.length > 0
                 function run() {
                     if (hasMenu) menu.popup(button, 0, button.height)
@@ -62,7 +64,7 @@ Item {
                 hoverEnabled: true
                 onClicked: { nav.claim(); run() }
                 Accessible.name: (modelData.label || modelData.hint || "") + (picker ? " picker" : "")
-                Accessible.checkable: picker
+                Accessible.checkable: picker || toggle
                 Accessible.checked: !!modelData.active
                 // The hint explains the button before it is used; a click puts it away until the
                 // pointer comes back, so it does not cover the row while a picker runs.
@@ -71,7 +73,7 @@ Item {
                 onHoveredChanged: if (!hovered) tipDismissed = false
                 // A button too narrow for its label shows only its icon (flip's four arrows) or an
                 // elided label; the tooltip then names it in full.
-                readonly property string glyph: modelData.icon && ["camera", "wand"].indexOf(modelData.icon) < 0 ? modelData.icon : ""
+                readonly property string glyph: modelData.icon && ["camera", "wand", "showmask"].indexOf(modelData.icon) < 0 ? modelData.icon : ""
                 readonly property string fullText: (glyph ? glyph + " " : "") + (modelData.label || "") + (hasMenu ? " ▾" : "")
                 readonly property bool iconOnly: glyph !== "" && metrics.advanceWidth(fullText) > width - (picker ? 26 : 12)
                 readonly property string tip: [label.truncated || iconOnly ? modelData.label || "" : "", modelData.hint || ""]
@@ -87,6 +89,7 @@ Item {
                     group: root.navGroup
                     enabled: root.editable
                     activateLabel: button.picker ? (button.modelData.active ? "STOP PICKING" : "PICK")
+                                 : button.toggle ? (button.modelData.active ? "HIDE MASK" : "SHOW MASK")
                                                  : (button.modelData.label || "run").toUpperCase()
                     onActivate: button.run()
                 }
@@ -106,12 +109,15 @@ Item {
                     spacing: 6
                     Item { Layout.fillWidth: true }
                     Canvas {
-                        visible: button.picker || camera || wand
+                        visible: button.picker || camera || wand || showmask
                         Layout.preferredWidth: 12; Layout.preferredHeight: 12
                         property color stroke: label.color
                         property bool camera: button.modelData.icon === "camera"
                         property bool wand: button.modelData.icon === "wand"
+                        property bool showmask: button.modelData.icon === "showmask"
                         onStrokeChanged: requestPaint()
+                        property bool shown: !!button.modelData.active
+                        onShownChanged: requestPaint()
                         onPaint: {
                             const c = getContext("2d")
                             c.clearRect(0, 0, width, height)
@@ -121,6 +127,14 @@ Item {
                                 c.strokeRect(1, 3.5, 10, 7)
                                 c.fillRect(3.5, 1.5, 4, 2)
                                 c.beginPath(); c.arc(6, 7, 2, 0, Math.PI * 2); c.stroke()
+                                return
+                            }
+                            if (showmask) {
+                                // darktable's mask glyph (dtgtk_cairo_paint_showmask): a frame
+                                // with a filled circle, the circle hollow while off
+                                c.strokeRect(0.75, 1.75, 10.5, 8.5)
+                                c.beginPath(); c.arc(6, 6, 2.6, 0, Math.PI * 2)
+                                if (button.modelData.active) c.fill(); else c.stroke()
                                 return
                             }
                             if (wand) {

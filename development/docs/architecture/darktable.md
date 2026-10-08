@@ -418,6 +418,18 @@ source. Findings verified against 5.6.1:
   composes like gamma's `_mask_display` (gamma.c:247). "Switch off mask" swaps
   `piece->blendop_data` after `dt_dev_pixelpipe_change` (sync reads history, not
   `module->blend_params`) and invalidates the cache.
+- **Mask previews inside modules.** toneequal, filmicrgb, colorzones, colorbalancergb and
+  colorequal draw their previews in `process` only with `gui_attached`/`gui_data` (colorzones
+  also needs `dt_iop_has_focus`). `module_display.c` swaps the shown module's
+  `process_plain` (which `default_process` and tiling call) for a wrapper that acts on the
+  full pipe only and sets `piece->process_cl_ready = FALSE` after synchronising: toneequal,
+  filmicrgb and colorzones run ported display code with commit_params' values and set
+  `pipe->mask_display` as the module does (gamma composes it); colorbalancergb runs unchanged
+  and is mixed with the checkerboard by its own opacity masks; colorequal runs with a GUI data
+  block of the pinned struct layout holding `mask_mode`. colorzones' copy of the data struct
+  and colorequal's GUI struct must be checked after a darktable update. `om_module_display_init`
+  creates colorbalancergb's checkerboard dt_conf keys as `gui_init` does (otherwise
+  commit_params' `dt_conf_get_float` stores 0).
 - **dt_conf.** GUI-only values darktable keeps in `darkroom/modules/*` keys are stored by QML
   in QtCore `Settings` (category `darktable-conf`) under the same names and sent with each
   tool request; the engine falls back to `dt_conf_get_*` of the headless library.

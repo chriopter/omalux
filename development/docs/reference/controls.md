@@ -774,11 +774,28 @@ scales, the current scale, merge from scale and cut/paste of a scale's shapes. D
 "preview single scale" and the preview levels are display modes of the focused module's
 output; they are shown as a notice.
 
+**Mask previews inside modules** (`module_display.c`, tool `display_mask`). The toggles with
+darktable's mask button draw the module's own preview on the photo, one module at a time:
+tone equalizer "display exposure mask" (the luminance mask in grey, −8…0 EV with gamma 2,
+later modules skipped), filmic rgb "display highlight reconstruction mask" (the clipping mask
+in grey), color zones "display selection" (the selection of the curve shown, in yellow over
+grey), color balance rgb's mask buttons on "shadows fall-off", "mask middle-gray fulcrum" and
+"highlights fall-off" (the image over a checkerboard by the luminance mask; "checkerboard
+color 1/2" and "checkerboard size" under darktable's dt_conf keys, defaults white, 18 % grey
+and 8 px) and color equalizer's buttons on "saturation threshold" and "effect radius" (red/blue
+visualisation of the last colour page). As in darktable, tone equalizer, color zones and color
+balance rgb switch the module on and refuse while the blend section shows its mask ("cannot
+display masks when the blending mask is displayed"); showing the blend section's mask, opening
+a photo or collapsing the module (darktable: the module loses focus) ends the preview; color
+zones' own blending is bypassed while its selection is shown. Differences: the checkerboard
+size is in preview pixels (darktable multiplies it by the screen's DPI factor); filmic rgb's
+mask is computed also while highlight reconstruction is off (darktable then shows an
+uninitialised buffer). Not available: retouch's "display masks"/"preview single scale",
+highlight reconstruction's and demosaic's visualisation buttons and lens correction's
+vignetting visualisation (they need darktable's module focus inside the pipe).
+
 Not built: feather handles per path node (darktable's `point_border_dragging`; the wheel
-with Shift sets the feather), gradient curvature by drag (the wheel changes it), and the
-mask display toggles inside modules (tone equalizer's exposure mask, filmic rgb's highlight
-reconstruction mask, color zones' display mask, color balance rgb's checkerboard settings);
-the blend section's display mask covers the blended result. The overlay of a path border and
+with Shift sets the feather), gradient curvature by drag (the wheel changes it). The overlay of a path border and
 a brush stroke follows darktable's geometry (border × shorter input side along the Bézier
 normal) but not its exact border construction.
 

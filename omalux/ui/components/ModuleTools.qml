@@ -30,6 +30,7 @@ QtObject {
         "@luma_gamma_flag", "@luma_gain_flag", "@color_lift_0", "@color_lift_1", "@color_lift_2",
         "@color_gamma_0", "@color_gamma_1", "@color_gamma_2", "@color_gain_0", "@color_gain_1",
         "@color_gain_2", "@color_lift_flag", "@color_gamma_flag", "@color_gain_flag"]
+    readonly property var checkerGui: ["@checker_size", "@checker_color_1", "@checker_color_2"]
     readonly property var rowTools: ({
         temperature: {
             "preset:from_image_area": { tool: "from_image_area", kind: "area", hint: "set white balance to detected from area" }
@@ -57,7 +58,13 @@ QtObject {
             "orientation:flip_horizontally": { tool: "flip_horizontally", kind: "button", icon: "⇋" },
             "orientation:flip_vertically": { tool: "flip_vertically", kind: "button", icon: "⇵" }
         },
+        // Mask previews darktable draws from inside the module (module_display.c): a toggle
+        // with its "showmask" button; one preview at a time.
+        toneequal: {
+            "@display_exposure_mask": { tool: "display_mask", kind: "display", icon: "showmask" }
+        },
         filmicrgb: {
+            "@display_highlight_reconstruction_mask": { tool: "display_mask", kind: "display", icon: "showmask" },
             "@auto_tune_levels": { tool: "auto_tune_levels", kind: "area",
                                    hint: "try to optimize the settings with some statistical assumptions.\nthis will fit the luminance range inside the histogram bounds.\nworks better for landscapes and evenly-lit images\nbut fails for high-keys, low-keys and high-ISO images.\nthis is not an artificial intelligence, but a simple guess.\nensure you understand its assumptions before using it." }
         },
@@ -106,6 +113,8 @@ QtObject {
                                hint: "create a curve based on an area from the image\ndrag to create a flat curve\nctrl+drag to create a positive curve\nshift+drag to create a negative curve" }
         },
         colorzones: {
+            // the selection of the curve shown (g->channel, colorzones.c:439)
+            "@display_mask": { tool: "display_mask", kind: "display", icon: "showmask", gui: ["@tab"] },
             "@colorpicker": { tool: "show_color", kind: "pointarea", marker: true, keepActive: true,
                               hint: "pick GUI color from image\nctrl+click or right-click to select an area" },
             "@colorpicker_set_values": { tool: "create_curve", kind: "area", marker: true, gui: ["@tab"],
@@ -174,6 +183,16 @@ QtObject {
         // blend section's "add existing shape" then offers.
         rasterfile: { "@vectorize": { tool: "vectorize", kind: "button", report: "message",
                                       hint: "vectorize the current bitmap and create corresponding\nshapes in the mask manager" } },
+        // colorbalancergb.c:2030-2068 "mask preview settings", dt_conf keys with darktable's defaults.
+        colorbalancergb: {
+            "@checker_color_1": { local: true, conf: ["plugins/darkroom/colorbalancergb/checker1/red",
+                                                       "plugins/darkroom/colorbalancergb/checker1/green",
+                                                       "plugins/darkroom/colorbalancergb/checker1/blue"], fallback: [1, 1, 1] },
+            "@checker_color_2": { local: true, conf: ["plugins/darkroom/colorbalancergb/checker2/red",
+                                                       "plugins/darkroom/colorbalancergb/checker2/green",
+                                                       "plugins/darkroom/colorbalancergb/checker2/blue"], fallback: [0.18, 0.18, 0.18] },
+            "@checker_size": { local: true, conf: "plugins/darkroom/colorbalancergb/checker/size" }
+        },
         // GUI-only "scale for graph" of the curve (CurveEditor xLog/yLog), 0 = linear.
         basecurve: { "@scale_for_graph": { local: true } },
         // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.
@@ -243,7 +262,21 @@ QtObject {
         invert: { color: { tool: "color", kind: "area", hint: "pick color of film material from image" } },
         relight: { center: { tool: "center", kind: "pointarea", band: true, hint: "toggle tool for picking median lightness in image" } },
         colorequal: { hue_shift: { tool: "hue_shift", kind: "pointarea", band: true },
-                      white_level: { tool: "white_level", kind: "area" } },
+                      white_level: { tool: "white_level", kind: "area" },
+                      // colorequal.c:3120, 3142 the showmask quads; mode by the last colour page (@channel)
+                      threshold: { tool: "display_mask", kind: "display", icon: "showmask", extra: { typeBase: 4 }, gui: ["@channel"],
+                                   hint: "visualize weighting function on changed output and view weighting curve.\nred shows possibly changed data, blueish parts will not be changed." },
+                      param_size: { tool: "display_mask", kind: "display", icon: "showmask", extra: { typeBase: 0 }, gui: ["@channel"],
+                                    hint: "visualize changed output for the selected tab.\nred shows increased values, blue decreased." } },
+        // colorbalancergb.c:1982-2010 the masks over a checkerboard (mask_callback 1418)
+        colorbalancergb: {
+            shadows_weight: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 0 }, gui: checkerGui,
+                              hint: "displays a shadows mask, overlaid as a checkerboard\nthe still-visible area of the image (not hidden by the mask) is the area\nthat will be affected by the shadows sliders in the other tabs" },
+            mask_grey_fulcrum: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 1 }, gui: checkerGui,
+                                 hint: "displays a mid-tones mask, overlaid as a checkerboard\nthe still-visible area of the image (not hidden by the mask) is the area\nthat will be affected by the mid-tones sliders in the other tabs" },
+            highlights_weight: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 2 }, gui: checkerGui,
+                                 hint: "displays a highlights mask, overlaid as a checkerboard\nthe still-visible area of the image (not hidden by the mask) is the area\nthat will be affected by the highlights sliders in the other tabs" }
+        },
         retouch: { fill_color: { tool: "fill_color", kind: "point", hint: "pick fill color from image" } },
         // toneequal.c:3326, 3338: magic-wand buttons on the two mask compensation sliders.
         toneequal: { exposure_boost: { tool: "exposure_boost", kind: "button", icon: "wand", hint: "auto-adjust the average exposure" },
@@ -265,7 +298,16 @@ QtObject {
         const v = confStore.value(key, undefined)
         return v === undefined || v === null || v === "" ? fallback : Number(v)
     }
-    function storeConf(key, value) { if (key) confStore.setValue(key, value) }
+    function storeConf(key, value) {
+        if (Array.isArray(key)) { for (let i = 0; i < key.length; ++i) storeConf(key[i], Array.isArray(value) ? value[i] : value); return }
+        if (key) confStore.setValue(key, value)
+    }
+    // A GUI-only row's stored value: one key, or one key per channel of a colour.
+    function confValues(spec, fallback) {
+        if (!spec || !spec.conf) return fallback
+        if (Array.isArray(spec.conf)) return spec.conf.map((k, i) => confValue(k, (spec.fallback || [])[i] || 0))
+        return confValue(spec.conf, fallback)
+    }
     function confOf(operation, field) { const s = (rowTools[operation] || {})[field]; return s && s.conf ? s.conf : "" }
     // The vectorscope's harmony guide and plot (tools_vectorscope.c), from the latest result.
     property var harmonyGuide: ({ type: 0, rotation: 0, width: 0 })
@@ -290,7 +332,59 @@ QtObject {
     }
     function setBlendDisplay(operation, instance, mask, suppress) {
         blendDisplay = mask || suppress ? { operation: operation, instance: instance, mask: mask, suppress: suppress } : null
+        // One preview at a time (the engine switches the module's own preview off as well).
+        if (mask || suppress) moduleDisplay = null
         send(operation, instance, "blend_display", null, { mask: mask ? 1 : 0, suppress: suppress ? 1 : 0 })
+    }
+    // A module's own mask preview (module_display.c): toneequal "display exposure mask", filmic
+    // rgb "display highlight reconstruction mask", color zones "display selection", color
+    // balance rgb's three mask quads, color equalizer's two quads. darktable shows it for the
+    // focused module only and drops it when the module loses focus (collapsed here).
+    property var moduleDisplay: null   // { operation, instance, key, spec }
+    function displayKey(spec) { return spec.tool + JSON.stringify(spec.extra || {}) }
+    function displayActive(operation, instance, spec) {
+        return !!moduleDisplay && moduleDisplay.operation === operation && moduleDisplay.instance === instance
+               && moduleDisplay.key === displayKey(spec)
+    }
+    function displayGui(spec, gui) {
+        const g = { display: 1 }
+        const extra = spec.extra || {}
+        if (extra.type !== undefined) g.type = extra.type
+        if (extra.typeBase !== undefined) g.type = extra.typeBase + (Number(gui["@channel"]) || 0) + 1
+        if (gui["@tab"] !== undefined) g.channel = Number(gui["@tab"]) || 0
+        // colorbalancergb's checkerboard, under darktable's dt_conf names
+        const keys = rowTools.colorbalancergb
+        if (gui["@checker_size"] !== undefined) g[keys["@checker_size"].conf] = Number(gui["@checker_size"])
+        for (const name of ["@checker_color_1", "@checker_color_2"])
+            if (Array.isArray(gui[name])) for (let i = 0; i < 3; ++i) g[keys[name].conf[i]] = Number(gui[name][i])
+        return g
+    }
+    function toggleDisplay(operation, instance, spec, gui) {
+        if (displayActive(operation, instance, spec)) { hideDisplay(); return }
+        // toneequal, colorzones and colorbalancergb refuse while the blend section shows its mask
+        // (toneequal.c:1940, colorzones.c:2379, colorbalancergb.c:1423).
+        if (blendDisplayOf(operation, instance) && blendDisplayOf(operation, instance).mask
+                && ["toneequal", "colorzones", "colorbalancergb"].indexOf(operation) >= 0) {
+            message = "cannot display masks when the blending mask is displayed"
+            return
+        }
+        blendDisplay = null
+        moduleDisplay = { operation: operation, instance: instance, key: displayKey(spec), spec: spec }
+        send(operation, instance, spec.tool, null, displayGui(spec, gui))
+    }
+    function hideDisplay() {
+        if (!moduleDisplay) return
+        const d = moduleDisplay
+        moduleDisplay = null
+        send(d.operation, d.instance, d.spec.tool, null, { display: 0 })
+    }
+    // The shown page or the checkerboard changed: darktable redraws the preview.
+    function updateDisplay(operation, instance, gui) {
+        if (!moduleDisplay || moduleDisplay.operation !== operation || moduleDisplay.instance !== instance) return
+        send(operation, instance, moduleDisplay.spec.tool, null, displayGui(moduleDisplay.spec, gui))
+    }
+    function moduleCollapsed(operation, instance) {
+        if (moduleDisplay && moduleDisplay.operation === operation && moduleDisplay.instance === instance) hideDisplay()
     }
     signal runRequested(string operation, int instance, var request)
 
@@ -343,6 +437,7 @@ QtObject {
     // A picker button: switch it on (and apply it with its last box) or off. A button runs once;
     // `extraGui` carries a menu choice.
     function toggle(operation, instance, spec, gui, extraGui) {
+        if (spec.kind === "display") { toggleDisplay(operation, instance, spec, gui || {}); return }
         const g = Object.assign({}, gui || {}, spec.extra || {}, extraGui || {})
         if (spec.kind === "button") {
             // area E: validate / accept use the corners of the chart shown on the photo

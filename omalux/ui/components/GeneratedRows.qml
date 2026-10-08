@@ -44,7 +44,8 @@ Column {
     // The GUI-only values a tool sends along (the target lightness, the levels channel).
     function toolGui(spec) {
         const out = {}
-        for (const name of (spec.gui || [])) out[name] = name === "@tab" ? root.tabValue : (root.gui[name] || 0)
+        for (const name of (spec.gui || []))
+            out[name] = name === "@tab" ? root.tabValue : name === "@channel" ? root.lastChannel : (root.gui[name] || 0)
         return out
     }
     function runTool(spec, choice) {
@@ -57,7 +58,8 @@ Column {
     function toolEntries(specs) {
         const t = root.tools
         return specs.map(s => ({ label: s.label, kind: s.kind, icon: s.icon || "", hint: s.hint || "", menu: s.menu || null,
-                                 active: !!t && !!t.active && t.isActive(module.operation, root.instance, s.tool),
+                                 active: s.kind === "display" ? !!t && t.displayActive(module.operation, root.instance, s)
+                                                              : !!t && !!t.active && t.isActive(module.operation, root.instance, s.tool),
                                  enabled: !s.disabledBy || !root.gui[s.disabledBy] }))
     }
     // What darktable prints beside a picker: exposure's input lightness (exposure.c:887),
@@ -109,6 +111,19 @@ Column {
     property int tabIndex: 0
     property var gui: ({})
     readonly property int tabValue: module.tabs && module.tabs.length ? tabIndex : (gui["@tab"] || 0)
+    // The last colour page shown (color equalizer keeps it while "options" is open,
+    // colorequal.c _channel_tabs_switch_callback 2596).
+    property int lastChannel: 0
+    onTabValueChanged: { if (tabValue < 3) lastChannel = tabValue; refreshDisplay() }
+    onLastChannelChanged: refreshDisplay()
+    // A module's own mask preview follows the page shown and the checkerboard settings;
+    // collapsing the module (darktable: losing focus) switches it off.
+    function refreshDisplay() {
+        const t = root.tools
+        if (!t || !t.moduleDisplay || t.moduleDisplay.operation !== module.operation || t.moduleDisplay.instance !== root.instance) return
+        t.updateDisplay(module.operation, root.instance, toolGui(t.moduleDisplay.spec))
+    }
+    onExpandedChanged: if (!expanded && root.tools) root.tools.moduleCollapsed(module.operation, root.instance)
 
     spacing: 4
 
@@ -175,7 +190,8 @@ Column {
             if (ts && ts.local) {
                 const lr = Object.assign({}, r, { path: r.field })
                 out.push(Object.assign(base(lr), r.widget === "slider"
-                         ? { kind: "localSlider", control: sliderControl(lr, id(lr)) } : { kind: "local" }))
+                         ? { kind: "localSlider", control: sliderControl(lr, id(lr)) }
+                         : r.widget === "color" ? { kind: "localColor", fallback: ts.fallback || [0, 0, 0] } : { kind: "local" }))
                 if (!ts.tool) continue
             }
             if (ts && (ts.tool || ts.choices || ts.set)) {
@@ -309,7 +325,7 @@ Column {
             const ts = root.toolOf(r)
             if (ts && ts.local) g[r.field] = r.default !== null && r.default !== undefined ? Number(r.default) || 0 : 0
             // area E: darktable's dt_conf value of this GUI-only row, as stored last time.
-            if (ts && ts.conf) g[r.field] = root.tools.confValue(ts.conf, g[r.field])
+            if (ts && ts.conf) g[r.field] = root.tools.confValues(ts, g[r.field])
         }
         gui = g
     }
@@ -361,6 +377,7 @@ Column {
     function setGui(name, value) {
         const g = Object.assign({}, root.gui); g[name] = value; root.gui = g
         if (root.tools) root.tools.storeConf(root.tools.confOf(module.operation, name), value)
+        if (name.startsWith("@checker_")) refreshDisplay()
     }
     // A GUI-only value a module tool reads changed: an active picker of this module applies again,
     // in "correction" mode only (exposure.c and channelmixerrgb.c _spot_settings_changed_callback;
@@ -443,7 +460,7 @@ Column {
             sourceComponent: ({ slider: sliderRow, choice: choiceRow, "switch": switchRow, local: localRow, text: textRow,
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
-                                textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
+                                textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow, localColor: localColorRow,
                                 histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow, waveletbar: waveletBarRow })[modelData.kind] || noticeRow
         }
     }
@@ -1162,6 +1179,23 @@ Column {
             onEdited: v => { root.setGui(r.field, Math.max(r.min, Math.min(r.max, v))); root.guiEdited() }
             onResetRequested: { root.setGui(r.field, r.default); root.guiEdited() }
             navTarget.group: root.navGroup
+        }
+    }
+    // A GUI-only colour (color balance rgb's checkerboard colours, kept in darktable's dt_conf keys).
+    Component {
+        id: localColorRow
+        ColorSwatch {
+            readonly property var r: it.row
+            width: root.width - 28
+            theme: root.theme
+            label: r.label
+            color: Array.isArray(root.gui[r.field]) ? root.gui[r.field] : it.fallback
+            editable: true
+            onInteractionChanged: active => root.interactionChanged(active)
+            navTarget.navId: root.navId(r)
+            navTarget.group: root.navGroup
+            onColorEdited: rgb => root.setGui(r.field, rgb)
+            onResetRequested: root.setGui(r.field, it.fallback)
         }
     }
     Component {

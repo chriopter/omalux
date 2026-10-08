@@ -15,7 +15,9 @@ Item {
         available: JSON.stringify([{ operation: "rgblevels", tool: "black" }, { operation: "rgblevels", tool: "auto" },
                                    { operation: "rgblevels", tool: "auto_region" }, { operation: "rgblevels", tool: "histogram" },
                                    { operation: "colorbalance", tool: "auto_luma" }, { operation: "rgbcurve", tool: "show_color" },
-                                   { operation: "filmicrgb", tool: "white_point_source" }])
+                                   { operation: "filmicrgb", tool: "white_point_source" },
+                                   { operation: "toneequal", tool: "display_mask" }, { operation: "colorbalancergb", tool: "display_mask" },
+                                   { operation: "colorequal", tool: "display_mask" }, { operation: "colorzones", tool: "display_mask" }])
         onRunRequested: (operation, instance, request) => requests = requests.concat([{ operation: operation, instance: instance, request: request }])
     }
     ModuleCatalog {
@@ -70,7 +72,7 @@ Item {
 
     TestCase {
         name: "tools"; when: windowShown
-        function init() { requests = []; tools.cancel(); tools.results = ({}); tools.boxes = ({}) }
+        function init() { requests = []; tools.cancel(); tools.results = ({}); tools.boxes = ({}); tools.moduleDisplay = null; tools.blendDisplay = null; tools.message = "" }
         function test_specs() {
             verify(tools.rowTool("rgblevels", "@black"))
             verify(!tools.rowTool("rgblevels", "@white"))           // not implemented by this engine list
@@ -117,6 +119,54 @@ Item {
             tools.accept("colorbalance", 0, "auto_luma", JSON.stringify({ changed: ["colorbalance"], gui: { "@luma_lift": .1 } }), 0)
             verify(!tools.active)                                     // the optimiser switched itself off
             compare(tools.results["colorbalance/0/auto_luma"].gui["@luma_lift"], .1)
+        }
+        // A module's own mask preview (module_display.c): one at a time, off with the blend
+        // section's mask display and when the module collapses.
+        function test_module_display() {
+            const te = tools.rowTool("toneequal", "@display_exposure_mask")
+            verify(te)
+            compare(te.kind, "display")
+            tools.toggle("toneequal", 0, te, {})
+            verify(tools.displayActive("toneequal", 0, te))
+            compare(requests[0].request.tool, "display_mask")
+            compare(requests[0].request.gui.display, 1)
+            verify(!tools.active)                                     // not a picker
+            // colour balance rgb's highlights quad with the checkerboard settings
+            const hi = tools.sliderTool("colorbalancergb", "highlights_weight")
+            tools.toggle("colorbalancergb", 0, hi, { "@checker_size": 12, "@checker_color_1": [1, 0, 0.5], "@checker_color_2": [0, 0, 0] })
+            verify(!tools.displayActive("toneequal", 0, te))
+            verify(tools.displayActive("colorbalancergb", 0, hi))
+            verify(!tools.displayActive("colorbalancergb", 0, tools.sliderTool("colorbalancergb", "shadows_weight")))
+            const g = requests[1].request.gui
+            compare(g.type, 2)
+            compare(g["plugins/darkroom/colorbalancergb/checker/size"], 12)
+            compare(g["plugins/darkroom/colorbalancergb/checker1/blue"], 0.5)
+            // a new checkerboard redraws it
+            tools.updateDisplay("colorbalancergb", 0, { "@checker_size": 4 })
+            compare(requests[2].request.gui["plugins/darkroom/colorbalancergb/checker/size"], 4)
+            compare(requests[2].request.gui.type, 2)
+            // the blend section's mask takes over
+            tools.setBlendDisplay("colorbalancergb", 0, true, false)
+            verify(!tools.moduleDisplay)
+            // and colour balance rgb refuses its own preview while it is shown (colorbalancergb.c:1423)
+            const n = requests.length
+            tools.toggle("colorbalancergb", 0, hi, {})
+            compare(requests.length, n)
+            compare(tools.message, "cannot display masks when the blending mask is displayed")
+            // color equalizer: the mode follows the last colour page (colorequal.c:2579)
+            tools.toggle("colorequal", 0, tools.sliderTool("colorequal", "threshold"), { "@channel": 2 })
+            compare(requests[requests.length - 1].request.gui.type, 7)
+            verify(!tools.blendDisplay)
+            // collapsing the module switches it off
+            tools.moduleCollapsed("colorequal", 0)
+            verify(!tools.moduleDisplay)
+            compare(requests[requests.length - 1].request.gui.display, 0)
+            // color zones shows the selection of the curve shown
+            tools.toggle("colorzones", 1, tools.rowTool("colorzones", "@display_mask"), { "@tab": 1 })
+            compare(requests[requests.length - 1].request.gui.channel, 1)
+            compare(requests[requests.length - 1].instance, 1)
+            tools.toggle("colorzones", 1, tools.rowTool("colorzones", "@display_mask"), { "@tab": 1 })
+            verify(!tools.moduleDisplay)
         }
         function test_histogram_result() {
             tools.accept("rgblevels", 0, "histogram", JSON.stringify({ histogram: { channels: [[1]], max: [1] } }), 0)

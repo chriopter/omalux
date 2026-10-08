@@ -17,6 +17,7 @@
 //   gui {"mask": 0/1, "suppress": 0/1}; activating either switches the module on, as darktable.
 #include "module_tools_internal.h"
 #include "blend_display.h"
+#include "module_display.h"
 #include "develop/blend.h"
 
 static struct {
@@ -48,6 +49,8 @@ static int blend_display(OmToolContext *ctx) {
     state.mask = mask;
     state.suppress = suppress;
     if (mask || suppress) {
+        // One preview at a time: a module's own mask preview goes off (module_display.c).
+        om_module_display_reset(ctx->engine);
         g_strlcpy(state.operation, m->op, sizeof(state.operation));
         state.instance = m->multi_priority;
     }

@@ -110,12 +110,13 @@ static void te_histogram(const float *luminance, size_t num_elem, int histogram[
     }
 }
 
-// The mask's deciles of the current module input; also reports the histogram for the graph.
-static int te_deciles(OmToolContext *ctx, float *first_decile, float *last_decile) {
-    dt_iop_module_t *m = ctx->module;
-    OmCapture *c = ctx->capture;
-    if (!c || !c->input || c->dsc.channels != 4)
-        return 4;
+// The luminance mask of the module input `in` (width × height pixels at roi_scale, the image
+// being max_size pixels on its long side), with the parameters as commit_params and
+// modify_roi_in prepare them; module_display.c draws it for "display exposure mask".
+gboolean om_toneequal_mask(dt_iop_module_t *m, const float *in, float *luminance, size_t width, size_t height,
+                           int max_size, float roi_scale) {
+    if (!m->get_p || !m->get_p(m->params, "blending"))
+        return FALSE;
     OmToneMask d = {0};
     d.method = *PI(m, "method");
     d.details = *PI(m, "details");
@@ -125,14 +126,23 @@ static int te_deciles(OmToolContext *ctx, float *first_decile, float *last_decil
     d.feathering = 1.f / *P(m, "feathering");
     d.contrast_boost = exp2f(*P(m, "contrast_boost"));
     d.exposure_boost = exp2f(*P(m, "exposure_boost"));
-    const int max_size = MAX(c->piece->iwidth, c->piece->iheight);
-    const float diameter = d.blending * max_size * c->roi.scale;
+    const float diameter = d.blending * max_size * roi_scale;
     d.radius = (int)((diameter - 1.0f) / (2.0f));
+    te_luminance_mask(in, luminance, width, height, &d);
+    return TRUE;
+}
+
+// The mask's deciles of the current module input; also reports the histogram for the graph.
+static int te_deciles(OmToolContext *ctx, float *first_decile, float *last_decile) {
+    dt_iop_module_t *m = ctx->module;
+    OmCapture *c = ctx->capture;
+    if (!c || !c->input || c->dsc.channels != 4)
+        return 4;
     const size_t width = c->roi.width, height = c->roi.height;
     float *luminance = dt_alloc_align_float(width * height);
     if (!luminance)
         return 4;
-    te_luminance_mask(c->input, luminance, width, height, &d);
+    om_toneequal_mask(m, c->input, luminance, width, height, MAX(c->piece->iwidth, c->piece->iheight), c->roi.scale);
     int histogram[TE_UI_SAMPLES], max_histogram = 0;
     te_histogram(luminance, width * height, histogram, &max_histogram, first_decile, last_decile);
     dt_free_align(luminance);

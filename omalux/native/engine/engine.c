@@ -16,6 +16,7 @@
 #include "canvas.h"
 #include "module_gui_changed.h"
 #include "blend_display.h"
+#include "module_display.h"
 
 extern const char darktable_package_version[];
 OmEngine *om_engine_create(int argc, char **argv) {
@@ -26,6 +27,7 @@ OmEngine *om_engine_create(int argc, char **argv) {
     if (dt_init(argc, argv, FALSE, TRUE, NULL))
         return NULL;
     om_engine_import_camera_presets(g_getenv("OMALUX_CAMERA_DIR"));
+    om_module_display_init(); // dt_conf keys darktable's gui_init would create
     return g_new0(OmEngine, 1);
 }
 const char *om_engine_gpu_warning(OmEngine *engine) {
@@ -48,6 +50,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
         return 1;
     if (engine->loaded) {
         om_blend_display_reset(engine);
+        om_module_display_reset(engine);
         om_style_baseline_clear(engine);
         dt_dev_cleanup(&engine->dev);
         engine->loaded = 0;
@@ -232,10 +235,12 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
     // Drawn shapes are not part of the pipe hash headless (canvas.c).
     om_engine_canvas_before_render(engine);
     om_blend_display_before_render(engine); // blend section view state (blend_display.c)
+    om_module_display_before_render(engine); // module-internal mask previews (module_display.c)
     dt_dev_process_image_job(&engine->dev, &engine->dev.full, engine->dev.full.pipe, -1, DT_DEVICE_NONE);
     om_preview_geometry(engine->dev.full.pipe, geometry);
     *width = engine->dev.full.pipe->backbuf_width;
     *height = engine->dev.full.pipe->backbuf_height;
+    om_module_display_after_render(engine);
     *pixels = om_blend_display_after_render(engine, engine->dev.full.pipe->backbuf, *width, *height);
     return (engine->dev.full.pipe->status == DT_DEV_PIXELPIPE_VALID && *pixels && *width > 0 && *height > 0)
                ? 0

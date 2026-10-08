@@ -88,6 +88,11 @@ extern const OmToolSpec om_tools_blend_display[]; // area E: display mask / swit
 extern const OmToolSpec om_tools_masks[];         // area E: mask manager, rasterfile vectorize (mask_manager.c)
 extern const OmToolSpec om_tools_ashift[];        // area E: rotate and perspective fit (ashift_fit.c)
 extern const OmToolSpec om_tools_checker[];       // area E: color checker calibration (checker.c)
+extern const OmToolSpec om_tools_module_display[]; // module-internal mask previews (module_display.c)
+
+// tone equalizer's luminance mask of a module input (tools_toneequal.c), for module_display.c.
+gboolean om_toneequal_mask(dt_iop_module_t *m, const float *in, float *luminance, size_t width, size_t height,
+                           int max_size, float roi_scale);
 
 // Number from the request's "gui" member, or fallback.
 double om_tool_gui(const OmToolContext *ctx, const char *name, double fallback);

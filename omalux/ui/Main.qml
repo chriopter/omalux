@@ -171,7 +171,7 @@ ApplicationWindow {
     EditorDialogs {
         id: dialogs
         theme: editorTheme
-        onOpenRequested: file => { sidebar.geometry.cancel(); sidebar.tools.blendDisplay = null; viewport.fit(); editor.openPhoto(file) }
+        onOpenRequested: file => { sidebar.geometry.cancel(); sidebar.tools.blendDisplay = null; sidebar.tools.moduleDisplay = null; viewport.fit(); editor.openPhoto(file) }
         onExportRequested: (file, quality) => editor.exportPhoto(file, quality)
         onStyleSaveRequested: name => editor.saveStyle(name)
         onStyleDeleteRequested: id => editor.deleteStyle(id)

@@ -177,20 +177,6 @@
    "preset:camera_reference": "button bar duplicates the 'settings' combobox",
    "preset:as_shot_to_reference": "button bar duplicates the 'settings' combobox"
   },
-  "filmicrgb": {
-   "@display_highlight_reconstruction_mask": "mask preview overlay not available in Omalux"
-  },
-  "toneequal": {
-   "@display_exposure_mask": "mask preview overlay not available in Omalux"
-  },
-  "colorzones": {
-   "@display_mask": "mask preview overlay not available in Omalux"
-  },
-  "colorbalancergb": {
-   "@checker_size": "settings of the mask preview overlay, which Omalux does not have",
-   "@checker_color_1": "settings of the mask preview overlay",
-   "@checker_color_2": "settings of the mask preview overlay"
-  },
   "lut3d": {
    "filepath:file_combobox_no_label": "merged into the single file row"
   },
