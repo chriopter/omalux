@@ -527,6 +527,11 @@ static void temperature_read(dt_iop_module_t *module, JsonObject *out) {
     OmWbPreset preset = {-1, 0, 0, 0, NULL};
     const int position = om_wb_current(module, &tuning, &preset);
     put(out, "@preset", position);
+    // darktable shows the fourth coefficient ("emerald", "yellow" on CYGM) only for 4-colour
+    // sensors (temperature.c:2010); the row reads this flag.
+    const dt_image_t *img = &module->dev->image_storage;
+    if (dt_image_is_raw(img) && (img->flags & DT_IMAGE_4BAYER))
+        put(out, "@four_channels", 1);
     // The finetune slider exists only for a camera preset with fine-tuning variants.
     if (position > OM_WB_STANDARD && preset.min_ft != preset.max_ft) {
         put(out, "@finetune", tuning);

@@ -12,6 +12,8 @@ Item {
     required property var theme
     property var color: [0.5, 0.5, 0.5]
     property string label: ""
+    // false under a section caption of the same name: darktable's swatch there has no label.
+    property bool labelShown: true
     property bool editable: true
     signal colorEdited(var rgb)
     signal interactionChanged(bool active)
@@ -75,11 +77,12 @@ Item {
     RowLayout {
         anchors.fill: parent
         spacing: 8
+        // Same label as the slider and choice rows around it (it read as disabled in grey).
         Text {
             Layout.fillWidth: true
-            text: root.label
-            color: root.theme.muted
-            font: root.theme.textFont
+            text: root.labelShown ? root.label : ""
+            color: navTarget.current ? root.theme.accent : root.theme.ink
+            font: root.theme.settingsFont
             elide: Text.ElideRight
         }
         Text {

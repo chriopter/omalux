@@ -36,7 +36,8 @@ Column {
     property string navGroup: module.operation + "/" + instance
     function navId(r) { return module.operation + "/" + root.instance + "/" + (r.path || r.field) }
 
-    readonly property bool moduleEnabled: !!moduleState && moduleState.enabled
+    // GeneratedModule passes the state just clicked, before the engine reports it.
+    property bool moduleEnabled: !!moduleState && moduleState.enabled
     // ---- module tools (pickers, buttons, histograms; ModuleTools.qml) --------------------
     readonly property var tools: catalogModel && catalogModel.tools ? catalogModel.tools : null
     function toolOf(r) { return root.tools ? root.tools.rowTool(module.operation, r.field) : null }
@@ -273,11 +274,25 @@ Column {
             if (it.kind === "notice" && it.tier === "primary") it.tier = "detail"
             out.push(it)
         }
-        // Section captions where darktable has them.
+        // A notebook page whose rows are all "advanced" (tone equalizer "advanced", "masking")
+        // shows them when chosen: darktable's page has no "more", and an empty page reads as a
+        // tab that did nothing.
+        const pageTabs = module.tabs || []
+        for (const t of pageTabs)
+            if (!out.some(it => it.tab === t && it.tier !== "advanced"))
+                for (const it of out) if (it.tab === t) it.tier = "detail"
+        // Section captions where darktable has them. A colour swatch named like its caption
+        // shows no label of its own (negadoctor "color of the film base", negadoctor.c:852); a
+        // caption that only repeats the label of a value row below it is left out (white
+        // balance "settings" is an action section in darktable, not a caption, temperature.c:2130).
+        for (const it of out)
+            if (it.kind === "color" && it.section && it.row.label === it.section) it.underCaption = true
+        const repeats = it => out.some(o => o.kind !== "color" && o.section === it.section && o.tab === it.tab
+                                            && o.row && o.row.label === it.section)
         const withSections = []
         let section = null, tab = null
         for (const it of out) {
-            if (it.section && (it.section !== section || it.tab !== tab))
+            if (it.section && (it.section !== section || it.tab !== tab) && !repeats(it))
                 withSections.push({ kind: "section", text: it.section, tab: it.tab, tier: it.tier, cond: null, labels: [] })
             section = it.section; tab = it.tab
             withSections.push(it)
@@ -383,6 +398,8 @@ Column {
             // A displayed conversion the engine does not report here (e.g. white balance finetune
             // without a camera preset with tuning) is not shown, as darktable hides the slider.
             if (ok && it.derived && (it.kind === "slider" || it.kind === "choice") && !root.readable(it.row)) ok = false
+            // The fourth white balance coefficient exists only on 4-colour sensors (temperature.c:2010).
+            if (ok && module.operation === "temperature" && it.row.field === "various" && root.raw("@four_channels") !== 1) ok = false
             return ok && root.condition(it.cond)
         })
         for (let i = 0; i < items.length; ++i) {
@@ -871,7 +888,8 @@ Column {
             readonly property var bandRows: root.module.rows.filter(x => r.custom.fields.indexOf(x.field) >= 0 && /EV$/.test(x.label || ""))
             width: root.width - 28
             theme: root.theme
-            title: "simple"
+            // darktable's advanced page draws the graph without a caption; the header keeps the readout.
+            title: ""
             xs: bandRows.map((x, i) => i - bandRows.length + 1)
             ys: bandRows.map(x => root.valueOrDefault(x))
             yMin: -2; yMax: 2; yZero: 0
@@ -900,6 +918,7 @@ Column {
             width: root.width - 28
             theme: root.theme
             label: r.label
+            labelShown: !it.underCaption
             color: known ? rgb3.map(Number) : [0.5, 0.5, 0.5]
             editable: root.editable && known && it.paths.every(p => root.canWrite(p))
             opacity: !known ? .45 : root.moduleEnabled ? 1 : .7
@@ -951,16 +970,19 @@ Column {
             readonly property string key: root.catalogModel.choiceKey(root.module.operation, root.instance, c.list || r.field)
             readonly property var result: root.catalogModel.choiceResults[key] || null
             readonly property var labels: root.moduleState && root.moduleState.labels ? root.moduleState.labels : ({})
+            // darktable's LUT file and name widgets carry no label, only a folder icon and the
+            // tooltips "the file path ..." and "select the LUT" (lut3d.c:1747-1776): name them.
+            readonly property string shownLabel: r.label || ({ "lut3d/filepath": "LUT file", "lut3d/lutname": "LUT name" })[root.module.operation + "/" + r.field] || ""
             width: root.width
             theme: root.theme
-            label: r.label
+            label: shownLabel
             resetEnabled: false
             opacity: !root.moduleState ? .45 : root.moduleEnabled ? 1 : .7
             ChoiceRow {
                 objectName: "choice-" + root.module.operation + "-" + wrapper.r.field
                 width: parent.width
                 theme: root.theme
-                label: wrapper.r.label
+                label: wrapper.shownLabel
                 valueText: wrapper.labels[wrapper.r.field] !== undefined ? wrapper.labels[wrapper.r.field] : ""
                 items: wrapper.result ? wrapper.result.items : []
                 current: wrapper.result ? wrapper.result.current : -1
