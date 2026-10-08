@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "engine_internal.h"
+// darktable composes the name from maker and model with printf, so a file without them reads
+// "(null) (null)"; show it as missing instead.
+static char *camera_name(const char *makermodel) {
+    gchar **words = g_strsplit(makermodel ? makermodel : "", " ", -1);
+    GString *name = g_string_new(NULL);
+    for (gchar **word = words; *word; ++word)
+        if (**word && strcmp(*word, "(null)")) {
+            if (name->len)
+                g_string_append_c(name, ' ');
+            g_string_append(name, *word);
+        }
+    g_strfreev(words);
+    return g_string_free(name, FALSE);
+}
 char *om_engine_metadata(OmEngine *engine) {
     JsonObject *object = json_object_new();
     dt_image_t *image = &engine->dev.image_storage;
-    json_object_set_string_member(object, "camera", image->camera_makermodel);
+    char *camera = camera_name(image->camera_makermodel);
+    json_object_set_string_member(object, "camera", camera);
+    g_free(camera);
     json_object_set_string_member(object, "lens", image->exif_lens);
     json_object_set_int_member(object, "width", image->width);
     json_object_set_int_member(object, "height", image->height);

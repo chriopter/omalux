@@ -134,6 +134,30 @@
   }
  },
  {
+  "pointerClick": "sidebar-area-details"
+ },
+ {
+  "pointerClick": "sidebar-tab-4"
+ },
+ {
+  "checkPanel": 4
+ },
+ {
+  "checkItem": "text:(null) (null)",
+  "visible": false
+ },
+ {
+  "pointerClick": "sidebar-tab-3"
+ },
+ {
+  "pointerClick": "history-step-2"
+ },
+ {
+  "checkItem": "history-step-2",
+  "property": "current",
+  "value": true
+ },
+ {
   "pointerClick": "sidebar-area-edit"
  },
  {

@@ -11,6 +11,10 @@ ColumnLayout {
     required property bool ready
     required property bool busy
     signal stepRequested(int step)
+    // The step just chosen is shown as current at once; the engine's history confirms it.
+    property int requestedStep: -1
+    onEntriesChanged: requestedStep = -1
+    function request(step) { requestedStep = step; stepRequested(step) }
     spacing: 12
 
     // What darktable set up for this camera before any style: colour, lens, base tone.
@@ -129,7 +133,8 @@ ColumnLayout {
             width: list.width
             implicitHeight: row.implicitHeight + 20
             enabled: root.ready && !root.busy
-            onClicked: { stepNav.claim(); root.stepRequested(modelData.step) }
+            readonly property bool current: root.requestedStep >= 0 ? modelData.step === root.requestedStep : modelData.current
+            onClicked: { stepNav.claim(); root.request(modelData.step) }
             NavTarget {
                 id: stepNav
                 navId: "step-" + entry.modelData.step
@@ -137,10 +142,10 @@ ColumnLayout {
                 kind: "step"
                 active: entry.modelData.current
                 enabled: entry.enabled
-                onActivate: root.stepRequested(entry.modelData.step)
+                onActivate: root.request(entry.modelData.step)
             }
             background: Rectangle {
-                color: entry.modelData.current ? root.theme.line : entry.hovered ? "#313244" : "transparent"
+                color: entry.current ? root.theme.line : entry.hovered ? "#313244" : "transparent"
                 border.color: entry.activeFocus || stepNav.current ? root.theme.accent : "transparent"
             }
             opacity: modelData.active ? 1 : .45
@@ -160,11 +165,11 @@ ColumnLayout {
                         // darktable returns escaped module/instance labels.
                         textFormat: Text.StyledText
                         wrapMode: Text.WordWrap
-                        color: modelData.current ? root.theme.accent : root.theme.ink
+                        color: entry.current ? root.theme.accent : root.theme.ink
                         font: root.theme.textFont
                     }
                     Text {
-                        text: (modelData.step === 0 ? "original" : modelData.enabled ? "on" : "off") + (modelData.current ? " · current" : "")
+                        text: (modelData.step === 0 ? "original" : modelData.enabled ? "on" : "off") + (entry.current ? " · current" : "")
                         color: root.theme.muted
                         font: root.theme.textFont
                     }

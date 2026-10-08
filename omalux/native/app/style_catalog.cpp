@@ -17,6 +17,24 @@ const StyleFile *StyleCatalog::find(const QString &id) const {
             return &file;
     return nullptr;
 }
+// Arrays and structures (a vignette centre, a curve) as readable text: "x 0, y 0", "0.1, 0.5".
+static QString compoundText(const QVariant &value) {
+    QStringList parts;
+    if (value.metaType().id() == QMetaType::QVariantMap) {
+        const auto map = value.toMap();
+        for (auto it = map.begin(); it != map.end(); ++it)
+            parts << it.key() + " " + compoundText(it.value());
+    } else if (value.metaType().id() == QMetaType::QVariantList) {
+        for (const auto &item : value.toList())
+            parts << compoundText(item);
+    } else if (value.metaType().id() == QMetaType::Bool)
+        return value.toBool() ? "on" : "off";
+    else if (value.canConvert<double>() && value.metaType().id() != QMetaType::QString)
+        return QString::number(value.toDouble(), 'g', 6);
+    else
+        return value.toString();
+    return parts.join(", ");
+}
 QVariantList StyleCatalog::reload(OmEngine *engine) {
     files = discoverStyles(root);
     QVariantList catalog;
@@ -67,8 +85,7 @@ QVariantList StyleCatalog::reload(OmEngine *engine) {
                             display = QString::number(v.toDouble(), 'f', 4);
                     } else if (v.metaType().id() == QMetaType::QVariantList ||
                                v.metaType().id() == QMetaType::QVariantMap)
-                        display =
-                            QString::fromUtf8(QJsonDocument::fromVariant(v).toJson(QJsonDocument::Compact));
+                        display = compoundText(v);
                     else
                         display = v.toString();
                     setting["display"] = display;
