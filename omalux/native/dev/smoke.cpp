@@ -103,6 +103,14 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                      });
     // "rejectStyle" expects a style error containing this text; once seen it is tolerated.
     auto expectedError = std::make_shared<QString>(), toleratedError = std::make_shared<QString>();
+    // Module tool results by "operation/tool" (pickers and buttons, engine/module_tools.h).
+    auto toolResults = std::make_shared<QVariantMap>();
+    QObject::connect(&editor, &Editor::moduleToolResult, &app,
+                     [toolResults](QString operation, int, QString tool, QString result, int error) {
+                         auto map = QJsonDocument::fromJson(result.toUtf8()).object().toVariantMap();
+                         map["error"] = error;
+                         (*toolResults)[operation + "/" + tool] = map;
+                     });
     QObject::connect(&editor, &Editor::moduleUpdated, &app,
                      [updatedModules](QString operation, int instance, QString json) {
                          const auto module = QJsonDocument::fromJson(json.toUtf8()).object();
@@ -121,7 +129,7 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     QObject::connect(
         timer, &QTimer::timeout, &app,
         [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging, retries, updatedModules,
-         choiceResults, expectedError, toleratedError] {
+         choiceResults, expectedError, toleratedError, toolResults] {
             if (*dragging)
                 return;
             if (!expectedError->isEmpty() && editor.styleError().contains(*expectedError)) {
@@ -402,6 +410,41 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
+            } else if (step.contains("dragItem")) {
+                // Press, move and release the pointer over an item, in fractions of its size
+                // (e.g. a box on the picker overlay): {"dragItem", "from": [x, y], "to": [x, y]}.
+                const auto name = step["dragItem"].toString();
+                std::function<QQuickItem *(QQuickItem *)> find = [&](QQuickItem *parent) -> QQuickItem * {
+                    if (parent->objectName() == name && parent->isVisible())
+                        return parent;
+                    for (auto *child : parent->childItems())
+                        if (auto *found = find(child))
+                            return found;
+                    return nullptr;
+                };
+                auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+                auto *item = find(window->contentItem());
+                if (!item) {
+                    qCritical() << "Missing item" << name;
+                    app.exit(2);
+                    return;
+                }
+                const Qt::KeyboardModifiers modifiers = step["modifiers"].toString() == "ctrl"    ? Qt::ControlModifier
+                                                        : step["modifiers"].toString() == "shift" ? Qt::ShiftModifier
+                                                                                                  : Qt::NoModifier;
+                const auto from = step["from"].toArray(), to = step["to"].toArray();
+                auto send = [&](QEvent::Type type, double fx, double fy, Qt::MouseButtons buttons) {
+                    const QPointF point = item->mapToScene(QPointF(fx * item->width(), fy * item->height()));
+                    QMouseEvent event(type, point, window->mapToGlobal(point.toPoint()), Qt::LeftButton, buttons,
+                                      modifiers);
+                    QGuiApplication::sendEvent(window, &event);
+                };
+                toolResults->clear(); // the next toolResult waits for what the drag applied
+                send(QEvent::MouseButtonPress, from[0].toDouble(), from[1].toDouble(), Qt::LeftButton);
+                for (int i = 1; i <= 8; ++i)
+                    send(QEvent::MouseMove, from[0].toDouble() + i * (to[0].toDouble() - from[0].toDouble()) / 8,
+                         from[1].toDouble() + i * (to[1].toDouble() - from[1].toDouble()) / 8, Qt::LeftButton);
+                send(QEvent::MouseButtonRelease, to[0].toDouble(), to[1].toDouble(), Qt::NoButton);
             } else if (step.contains("dumpControls")) {
                 QFile file(step["dumpControls"].toString());
                 if (file.open(QIODevice::WriteOnly)) {
@@ -419,7 +462,50 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 engine.rootObjects().first()->setProperty("selectedPanel", step["panel"].toInt());
             else if (step.contains("filterView"))
                 engine.rootObjects().first()->setProperty("filterView", step["filterView"].toInt());
-            else if (step.contains("setParameters")) {
+            else if (step.contains("moduleTool")) {
+                // A picker or module button: {"operation", "instance", "tool", "box", "gui"}.
+                const auto call = step["moduleTool"].toObject();
+                QVariantMap request{{"tool", call["tool"].toString()}};
+                if (call.contains("box"))
+                    request["box"] = call["box"].toVariant();
+                if (call.contains("gui"))
+                    request["gui"] = call["gui"].toVariant();
+                toolResults->remove(call["operation"].toString() + "/" + call["tool"].toString());
+                editor.runModuleTool(call["operation"].toString(), call["instance"].toInt(), request);
+            } else if (step.contains("toolResult")) {
+                // Wait for a tool result; check its status, changed modules and reported values.
+                const auto call = step["toolResult"].toObject();
+                const auto key = call["operation"].toString() + "/" + call["tool"].toString();
+                if (!toolResults->contains(key)) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "No tool result" << key;
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
+                const auto result = (*toolResults)[key].toMap();
+                bool ok = result["error"].toInt() == call["error"].toInt(0);
+                if (call.contains("changed"))
+                    ok = ok && result["changed"].toList() == call["changed"].toArray().toVariantList();
+                const auto gui = call["gui"].toObject();
+                for (auto it = gui.begin(); it != gui.end(); ++it) {
+                    const auto range = it.value().toArray();
+                    const double v = result["gui"].toMap()[it.key()].toDouble();
+                    ok = ok && result["gui"].toMap().contains(it.key()) && v >= range[0].toDouble() &&
+                         v <= range[1].toDouble();
+                }
+                if (call.contains("has"))
+                    ok = ok && result.contains(call["has"].toString());
+                qInfo().noquote() << "Tool" << key << QJsonDocument::fromVariant(result).toJson(QJsonDocument::Compact).left(400);
+                if (!ok) {
+                    qCritical() << "Unexpected tool result" << call << result;
+                    app.exit(2);
+                    return;
+                }
+            } else if (step.contains("setParameters")) {
                 const auto call = step["setParameters"].toObject();
                 editor.setParameters(call["operation"].toString(), call["instance"].toInt(),
                                      call["values"].toObject().toVariantMap());
@@ -511,8 +597,12 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const bool matches =
                     found &&
                     (textMatches ||
-                     (value.isDouble() && std::abs(value.toDouble() - call["value"].toDouble()) <=
-                                              call["tolerance"].toDouble(1e-4))) &&
+                     (value.isDouble() &&
+                      // "minimum"/"maximum" accept a range where the exact value depends on pixels.
+                      (call.contains("value") ? std::abs(value.toDouble() - call["value"].toDouble()) <=
+                                                    call["tolerance"].toDouble(1e-4)
+                                              : value.toDouble() >= call["minimum"].toDouble(-1e30) &&
+                                                    value.toDouble() <= call["maximum"].toDouble(1e30)))) &&
                     (!call.contains("enabled") || enabled == call["enabled"].toBool()) &&
                     (!call["updated"].toBool() || updatedModules->contains(call["operation"].toString()));
                 if (!matches) {

@@ -25,7 +25,9 @@ enum class ActionKind {
     DeleteStyle,
     ExportStyle,
     // darktable's multi-instance menu; ModuleEdit.values carries "action" and "name".
-    ModuleInstance
+    ModuleInstance,
+    // A darktable picker or module button (engine/module_tools.h); values hold the request.
+    ModuleTool
 };
 struct EditorAction {
     ActionKind kind = ActionKind::None;

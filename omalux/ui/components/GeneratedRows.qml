@@ -5,7 +5,8 @@ import QtQuick.Layouts
 // The rows of one darktable module as described by omalux/design/layout.json, drawn with the
 // same controls as the curated block. Primary rows show while the module is collapsed, detail
 // rows when it is expanded and advanced rows behind "more". Rows that need something Omalux
-// cannot do yet (pickers, drawn shapes) collapse into one muted notice. Values darktable shows
+// cannot do yet (drawn shapes) collapse into one muted notice. darktable's pickers and module
+// buttons come from catalogModel.tools (ModuleTools). Values darktable shows
 // through a conversion ("@" paths) and runtime lists are read from the engine's catalog entry
 // ("derived", "labels") and its choice lists (catalogModel.requestChoices).
 // The component never writes a parameter: edits leave through changesRequested as
@@ -36,6 +37,58 @@ Column {
     function navId(r) { return module.operation + "/" + root.instance + "/" + (r.path || r.field) }
 
     readonly property bool moduleEnabled: !!moduleState && moduleState.enabled
+    // ---- module tools (pickers, buttons, histograms; ModuleTools.qml) --------------------
+    readonly property var tools: catalogModel && catalogModel.tools ? catalogModel.tools : null
+    function toolOf(r) { return root.tools ? root.tools.rowTool(module.operation, r.field) : null }
+    // The GUI-only values a tool sends along (the target lightness, the levels channel).
+    function toolGui(spec) {
+        const out = {}
+        for (const name of (spec.gui || [])) out[name] = name === "@tab" ? root.tabValue : (root.gui[name] || 0)
+        return out
+    }
+    function runTool(spec, choice) {
+        if (spec.choices) { root.findList = spec.choices; root.catalogModel.requestChoices(module.operation, root.instance, spec.choices, ""); return }
+        const extra = spec.menu && choice >= 0 ? spec.menu[choice].gui : null
+        root.tools.toggle(module.operation, root.instance, spec, toolGui(spec), extra)
+    }
+    function toolEntries(specs) {
+        const t = root.tools
+        return specs.map(s => ({ label: s.label, kind: s.kind, icon: s.icon || "", hint: s.hint || "", menu: s.menu || null,
+                                 active: !!t && !!t.active && t.isActive(module.operation, root.instance, s.tool) }))
+    }
+    // What darktable prints beside a picker: exposure's input lightness (exposure.c:887),
+    // color calibration's input LCh (channelmixerrgb.c:4189).
+    function toolReport(specs) {
+        const s = specs.find(x => x.report)
+        const r = s && root.tools ? root.tools.results[root.tools.key(module.operation, root.instance, s.tool)] : null
+        const g = r && r.gui ? r.gui : null
+        if (!g || g.input_lightness === undefined) return ""
+        if (s.report === "lch")
+            return "L: " + Number(g.input_lightness).toFixed(1) + " %  h: " + Number(g.input_hue).toFixed(1)
+                   + " °  c: " + Number(g.input_chroma).toFixed(1)
+        return "L : " + Number(g.input_lightness).toFixed(1) + " %"
+    }
+    // A "find" button's list (lens find camera / find lens) while its menu is wanted.
+    property string findList: ""
+    // A picker writes GUI-only values back (exposure "measure" fills the target lightness).
+    property var seenResults: ({})
+    Connections {
+        target: root.tools
+        ignoreUnknownSignals: true
+        function onResultsChanged() {
+            const prefix = root.module.operation + "/" + root.instance + "/"
+            const results = root.tools.results
+            let g = null
+            for (const k in results) {
+                if (!k.startsWith(prefix) || root.seenResults[k] === results[k]) continue
+                const next = Object.assign({}, root.seenResults); next[k] = results[k]; root.seenResults = next
+                const out = results[k].gui || {}
+                for (const name in out) if (name.startsWith("@")) { g = g || Object.assign({}, root.gui); g[name] = out[name] }
+            }
+            if (g) root.gui = g
+        }
+    }
+    // --------------------------------------------------------------------------------------
     property int tabIndex: 0
     property var gui: ({})
     readonly property int tabValue: module.tabs && module.tabs.length ? tabIndex : (gui["@tab"] || 0)
@@ -98,6 +151,25 @@ Column {
             const path = r.path
             const local = path && path.startsWith("@") && path.indexOf("[") < 0 && localNames[path]
             let it
+            // Module tools: GUI-only rows they read, and the pickers and buttons themselves.
+            const ts = root.toolOf(r)
+            if (ts && ts.local) {
+                const lr = Object.assign({}, r, { path: r.field })
+                out.push(Object.assign(base(lr), r.widget === "slider"
+                         ? { kind: "localSlider", control: sliderControl(lr, id(lr)) } : { kind: "local" }))
+                if (!ts.tool) continue
+            }
+            if (ts && (ts.tool || ts.choices)) {
+                const spec = Object.assign({ label: r.label }, ts)
+                const prev = out.length ? out[out.length - 1] : null
+                const item = Object.assign(base(r), { kind: "tools", specs: [spec] })
+                if (item.tier === "primary") item.tier = "detail"
+                if (prev && prev.kind === "tools" && prev.tier === item.tier && prev.tab === item.tab && prev.section === item.section
+                        && JSON.stringify(prev.cond) === JSON.stringify(item.cond) && prev.specs.length < 4) {
+                    prev.specs = prev.specs.concat([spec]); prev.labels.push(r.label)
+                } else out.push(item)
+                continue
+            }
             // ---- values and lists (area "Werte & Listen") ----
             const derivedPath = path && path.startsWith("@") && !local
             if (r.custom && r.custom.kind === "choice")
@@ -125,6 +197,9 @@ Column {
                 const channels = r.custom.channels || []
                 const names = ["black", "gray", "white"]
                 const deflt = Array.isArray(r.default) ? r.default : [0, 0.5, 1]
+                // darktable draws the module input histogram behind the three handles.
+                if (root.tools && root.tools.histogramField(module.operation) === r.field)
+                    out.push(Object.assign(base(r), { kind: "histogram", tier: r.tier, levelsPath: r.custom.fields[0], multi: channels.length > 1 }))
                 if (channels.length > 1)
                     out.push(Object.assign(base(r), { kind: "channels", channels: channels, tier: r.tier,
                                                       cond: { all: [r.visible_when, { field: "autoscale", in: [1] }].filter(x => x) } }))
@@ -180,6 +255,10 @@ Column {
         const g = {}
         for (const r of module.rows)
             if (r.path && localNames[r.path]) g[r.path] = r.default !== null && r.default !== undefined ? Number(r.default) || 0 : 0
+        for (const r of module.rows) {
+            const ts = root.toolOf(r)
+            if (ts && ts.local) g[r.field] = r.default !== null && r.default !== undefined ? Number(r.default) || 0 : 0
+        }
         gui = g
     }
 
@@ -229,6 +308,15 @@ Column {
     }
     function setGui(name, value) {
         const g = Object.assign({}, root.gui); g[name] = value; root.gui = g
+    }
+    // A GUI-only value a module tool reads changed: an active picker of this module applies again,
+    // in "correction" mode only (exposure.c and channelmixerrgb.c _spot_settings_changed_callback;
+    // in "measure" mode the target is just recorded).
+    function guiEdited() {
+        if (!root.tools || !root.tools.active || root.tools.active.operation !== module.operation) return
+        if (root.gui["@area_mode"] === 1 || root.gui["@spot_mode"] === 1) return
+        const spec = { gui: Object.keys(root.tools.active.gui || {}) }
+        root.tools.updateGui(module.operation, root.instance, toolGui(spec))
     }
     function matches(it) {
         const t = root.term
@@ -289,7 +377,8 @@ Column {
             sourceComponent: ({ slider: sliderRow, choice: choiceRow, "switch": switchRow, local: localRow, text: textRow,
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
-                                textEdit: textEditRow, patches: patchesRow })[modelData.kind] || noticeRow
+                                textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
+                                histogram: histogramRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -348,6 +437,23 @@ Column {
             onEdited: v => root.editRaw(r, (v - (r.offset || 0)) / (r.factor || 1))
             onResetRequested: root.edit(r.path, r.default)
             navTarget.group: root.navGroup
+            // darktable's picker on the slider (its "quad" button), in the free right column.
+            Loader {
+                readonly property var spec: root.tools ? root.tools.sliderTool(root.module.operation, r.field) : null
+                active: !!spec
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 24; height: 24
+                sourceComponent: ModuleToolButtons {
+                    width: 24 + 28
+                    theme: root.theme
+                    entries: root.toolEntries([Object.assign({}, spec, { label: "" })])
+                    editable: root.editable
+                    navPrefix: root.navId(r) + "/@picker"
+                    navGroup: root.navGroup
+                    onTriggered: (index, choice) => root.runTool(spec, choice)
+                }
+            }
         }
     }
     Component {
@@ -435,7 +541,7 @@ Column {
             options: choices
             value: root.gui[r.path] || 0
             editable: true
-            onEdited: v => root.setGui(r.path, v)
+            onEdited: v => { root.setGui(r.path, v); root.guiEdited() }
             navTarget.navId: root.navId(r)
             navTarget.group: root.navGroup
             navTarget.resettable: false
@@ -450,7 +556,7 @@ Column {
             labelColor: root.theme.ink
             value: root.gui[r.path] || 0
             editable: true
-            onEdited: v => root.setGui(r.path, v)
+            onEdited: v => { root.setGui(r.path, v); root.guiEdited() }
             navTarget.navId: root.navId(r)
             navTarget.group: root.navGroup
             navTarget.resettable: false
@@ -587,6 +693,39 @@ Column {
                     changes[curveBox.nodesPath + "[1].x"] = 1; changes[curveBox.nodesPath + "[1].y"] = 1
                     changes[curveBox.countPath] = 2
                     root.changesRequested(changes)
+                }
+                // The active picker's band (min…max) and mean on the graph, with darktable's
+                // "input → output" label where the module prints one.
+                Canvas {
+                    id: pickerMarker
+                    readonly property var marker: root.tools ? root.tools.marker(root.module.operation, root.instance) : null
+                    readonly property int ch: Math.max(0, Math.min(2, curveBox.channel))
+                    visible: !!marker
+                    x: 0; y: 22
+                    width: parent.width; height: parent.height - 22
+                    onMarkerChanged: requestPaint()
+                    onWidthChanged: requestPaint()
+                    onPaint: {
+                        const c = getContext("2d")
+                        c.clearRect(0, 0, width, height)
+                        const m = marker
+                        if (!m) return
+                        const curve = parent
+                        const a = curve.toPx(Math.max(0, Math.min(1, m.min[ch]))), b = curve.toPx(Math.max(0, Math.min(1, m.max[ch])))
+                        c.fillStyle = Qt.rgba(0.7, 0.5, 0.5, 0.33)
+                        c.fillRect(Math.min(a, b), 0, Math.max(1, Math.abs(b - a)), height)
+                        c.strokeStyle = Qt.rgba(0.9, 0.7, 0.7, 0.8)
+                        c.lineWidth = 1
+                        const x = Math.round(curve.toPx(Math.max(0, Math.min(1, m.mean[ch])))) + .5
+                        c.beginPath(); c.moveTo(x, 0); c.lineTo(x, height); c.stroke()
+                    }
+                    Text {
+                        visible: !!pickerMarker.marker && !!pickerMarker.marker.text
+                        x: 8; y: 6
+                        text: pickerMarker.marker && pickerMarker.marker.text ? pickerMarker.marker.text[pickerMarker.ch] : ""
+                        color: root.theme.ink
+                        font: root.theme.textFont
+                    }
                 }
             }
             ModuleNotice {
@@ -848,6 +987,83 @@ Column {
             }
             navTarget.navId: root.navGroup + "/@patches"
             navTarget.group: root.navGroup
+        }
+    }
+    // ---- module tool rows ------------------------------------------------------------------
+    Component {
+        id: toolsRow
+        ModuleToolButtons {
+            width: root.width
+            theme: root.theme
+            entries: root.toolEntries(it.specs)
+            editable: root.editable
+            navPrefix: root.navId(it.row)
+            navGroup: root.navGroup
+            // A value darktable shows beside the picker, e.g. exposure's input lightness.
+            report: root.toolReport(it.specs)
+            opacity: root.moduleEnabled ? 1 : .7
+            onTriggered: (index, choice) => root.runTool(it.specs[index], choice)
+            // The answer of a find button opens as a menu, as darktable pops one up.
+            readonly property var found: {
+                if (!root.findList || !it.specs.some(s => s.choices === root.findList)) return null
+                const r = root.catalogModel.choiceResults[root.catalogModel.choiceKey(root.module.operation, root.instance, root.findList)]
+                return r && !r.loading ? r : null
+            }
+            onFoundChanged: if (found) { root.findList = ""; findMenu.items = found.items; findMenu.popup(0, height) }
+            Menu {
+                id: findMenu
+                objectName: "module-find-menu-" + root.module.operation
+                property var items: []
+                Repeater {
+                    model: findMenu.items
+                    MenuItem {
+                        required property var modelData
+                        text: modelData.label + (modelData.detail ? "  ·  " + modelData.detail : "")
+                        onTriggered: if (modelData.set) root.changesRequested(Object.assign({}, modelData.set))
+                    }
+                }
+                MenuItem { visible: findMenu.items.length === 0; enabled: false; text: "no match" }
+            }
+        }
+    }
+    // A GUI-only slider a tool reads (exposure's target lightness).
+    Component {
+        id: localSliderRow
+        ControlSlider {
+            readonly property var r: it.row
+            width: root.width
+            theme: root.theme
+            control: it.control
+            value: root.gui[r.field] !== undefined ? root.gui[r.field] : (r.default || 0)
+            editable: true
+            compact: true
+            moduleToggleAvailable: false
+            qualifyLabel: false
+            selected: root.activeControl === it.control.id
+            onSelectedRequested: root.controlSelected(it.control.id)
+            onEdited: v => { root.setGui(r.field, Math.max(r.min, Math.min(r.max, v))); root.guiEdited() }
+            onResetRequested: { root.setGui(r.field, r.default); root.guiEdited() }
+            navTarget.group: root.navGroup
+        }
+    }
+    Component {
+        id: histogramRow
+        HistogramView {
+            id: hist
+            readonly property string key: root.module.operation + "/" + root.instance
+            width: root.width - 28
+            theme: root.theme
+            histogram: root.tools ? root.tools.histogramData[key] || null : null
+            channels: it.multi ? (Math.round(root.valueOrDefault({ path: "autoscale", default: 0 })) === 1 ? [root.tabValue] : [0, 1, 2]) : [0]
+            markers: {
+                const l = root.raw(it.levelsPath + (it.multi ? "[" + root.tabValue + "]" : ""))
+                return Array.isArray(l) ? l.map(Number) : []
+            }
+            opacity: root.moduleEnabled ? 1 : .7
+            // Refresh after edits anywhere in the pipe, at most every 400 ms.
+            Timer { id: refresh; interval: 400; onTriggered: if (root.tools) root.tools.requestHistogram(root.module.operation, root.instance) }
+            Connections { target: root.catalogModel; function onStatesChanged() { refresh.restart() } }
+            Component.onCompleted: refresh.restart()
         }
     }
 }

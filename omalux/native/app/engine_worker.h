@@ -35,6 +35,8 @@ class EngineWorker : public QObject {
     void metadataReady(QString source, QVariantMap metadata, QVariantList cameraDefaults);
     void modulesReady(QString catalog);
     void moduleReady(QString operation, int instance, QString module);
+    // The JSON result of a module tool (picked values, histogram, GUI values), see module_tools.h.
+    void moduleToolReady(QString operation, int instance, QString tool, QString result, int error);
     void historyReady(QVariantList rows);
     void stylesReady(QVariantList styles);
     void styleReady(QString name);

@@ -85,7 +85,8 @@ def main():
         (work / 'workflow.json').write_text(json.dumps(workflow))
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
                    ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
-                   ROOT / 'omalux/tests/blending.json',
+                   ROOT / 'omalux/tests/blending.json', ROOT / 'omalux/tests/module-tools.json',
+                   ROOT / 'omalux/tests/module-tools-ui.json',
                    ROOT / 'omalux/tests/keyboard.json',
                    work / 'workflow.json']
         # Displayed conversions, runtime lists and file choices; "{WORK}" names this run's folder.

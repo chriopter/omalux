@@ -11,7 +11,9 @@ Rectangle {
     required property string activeControl
     required property url iconsRoot
     property alias geometry: geometryPanel
-    onSelectedPanelChanged: { if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
+    property alias tools: moduleTools
+    // A module picker belongs to the pane it was started in.
+    onSelectedPanelChanged: { moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
     // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
     property int filterView: 0
@@ -68,16 +70,24 @@ Rectangle {
             if (typeof root.backend.requestChoices === "function")
                 root.backend.requestChoices(operation, instance, list, query)
         }
+        tools: moduleTools
     }
     ParameterQueue {
         id: parameterQueue
         backend: root.backend
+    }
+    // darktable's pickers and module buttons (ModuleTools.qml); rows reach it as catalogModel.tools.
+    ModuleTools {
+        id: moduleTools
+        available: typeof root.backend.moduleTools === "function" ? root.backend.moduleTools() : "[]"
+        onRunRequested: (operation, instance, request) => root.backend.runModuleTool(operation, instance, request)
     }
     Connections {
         target: root.backend
         ignoreUnknownSignals: true
         function onModuleUpdated(operation, instance, moduleJson) { moduleCatalog.updateModule(operation, instance, moduleJson) }
         function onChoicesReady(operation, instance, list, query, result) { moduleCatalog.receiveChoices(operation, instance, list, query, result) }
+        function onModuleToolResult(operation, instance, tool, result, error) { moduleTools.accept(operation, instance, tool, result, error) }
     }
     // The engine switches a module on when one of its parameters is edited, as darktable does.
     // Action keys ride along with the edits so every pane reaches them without extra wiring:
@@ -92,12 +102,15 @@ Rectangle {
         }
         if ("@reset" in changes) { root.resetModule(operation, instance, moduleCatalog.modulesByOperation[operation] || { rows: [] }); return }
         if ("@drawn" in changes) { root.drawnShapeRequested(operation, instance, changes["@drawn"]); return }
+        moduleTools.parameterEdited(operation, instance)
         parameterQueue.send(operation, instance, changes)
     }
     function enableModule(operation, instance, enabled) {
+        moduleTools.parameterEdited(operation, instance)
         parameterQueue.send(operation, instance, { "@enabled": enabled ? 1 : 0 })
     }
     function resetModule(operation, instance, module) {
+        moduleTools.parameterEdited(operation, instance)
         if (typeof root.backend.resetModule === "function") { root.backend.resetModule(operation, instance); return }
         const changes = {}
         for (const r of module.rows)

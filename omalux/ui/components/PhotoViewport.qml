@@ -12,6 +12,9 @@ Rectangle {
     property var crop: ({x:0,y:0,width:1,height:1})
     property real aspectRatio: 0
     signal cropEdited(var rect)
+    // The active module colour picker ({ kind: "area"|"point", box }) or null (ModuleTools).
+    property var picker: null
+    signal pickerEdited(var box, int modifiers)
     property real zoom: 1
     readonly property real fitWidth: Math.max(1, width - 40)
     readonly property real fitHeight: Math.max(1, height - 40)
@@ -27,7 +30,7 @@ Rectangle {
         anchors.fill: parent
         contentWidth: Math.max(width, root.imageWidth + 40)
         contentHeight: Math.max(height, root.imageHeight + 40)
-        interactive: !root.cropping
+        interactive: !root.cropping && !root.picker
         boundsBehavior: Flickable.StopAtBounds
         Image {
             id: photo
@@ -52,6 +55,13 @@ Rectangle {
             visible: root.cropping
             crop: root.crop; aspectRatio: root.aspectRatio
             onCropChangedByUser: rect => root.cropEdited(rect)
+        }
+        PickerOverlay {
+            x: photo.x; y: photo.y; width: photo.width; height: photo.height
+            visible: !!root.picker && !root.cropping
+            kind: root.picker ? root.picker.kind : "area"
+            box: root.picker ? root.picker.box : [0.02, 0.02, 0.98, 0.98]
+            onBoxEdited: (box, modifiers) => root.pickerEdited(box, modifiers)
         }
         WheelHandler { enabled: !root.cropping; onWheel: event => { root.zoomBy(event.angleDelta.y > 0 ? 1.15 : 1 / 1.15); event.accepted = true } }
         PinchHandler {

@@ -319,3 +319,28 @@ Headless differences: darktable's colour-space change records a forced new histo
 `native/engine/module_instances.c` ports the multi-instance menu (`imageop.c`: `dt_iop_gui_duplicate` :703, `_gui_moveup_callback` :667, `_gui_movedown_callback` :632, `_gui_delete_callback` :480, `_rename_module_key_press` :826, `_get_multi_show` :945). New instances come from `dt_dev_module_duplicate` (`develop.c:3520`), which places them after their base and names them by priority; `_dev_auto_module_label` (`develop.c:1141`) then renames unnamed modules after a matching preset (for example `_builtin_scene-referred default`) whenever a history item is added, as darktable does with `darkroom/ui/auto_module_name_update`. Three GUI paths had to be spelled out: `dt_dev_module_remove` (`develop.c:3618`) drops a deleted module's history items only with `gui_attached`, so the adapter removes them itself (decrementing `history_end` only for items below it); `dt_iop_update_multi_name` (`imageop.c:3567`) records through the GUI-only history call, so rename writes `multi_name`/`multi_name_hand_edited` and records with the ext call; `dt_masks_iop_use_same_as` (`masks/masks.c:1587`) copies drawn shapes through `darktable.develop`, so duplicating a module whose drawn mask holds shapes is refused. Deleting instance 0 promotes the instance first in history; the adapter also renames its `iop_order_list` entry and drops the deleted one, which the GUI code leaves to later resyncs. The deleted module joins `dev->alliop` (freed by `dt_dev_cleanup`) and leaves the style baseline, which hover previews look up by operation and instance. Move up/down pass the nearest module with a GUI (deprecated ones only while enabled) after `dt_ioppr_check_can_move_*`, because Omalux has no right-hand panel whose visible modules darktable uses.
 
 Comparison snapshots (`style_snapshot.c` with a module or `*`) now carry every instance with its `multi_priority`, name and hand-edited flag, and raster masks; applying them in the comparison window goes through `dt_history_merge_module_into_history` (`common/history.c:309`), which matches by name, then an unused, a default and a same-priority instance and creates missing instances. It never deletes or reorders modules, so instance deletions and moves are not mirrored. Saved styles still reject extra instances, drawn and raster masks.
+
+## Pickers and module buttons (2026-10)
+
+darktable's module pickers depend on GUI state: `_request_color_pick` (`pixelpipe_hb.c:1182`)
+requires `gui_attached`, the preview pipe, a picker proxy in `darktable.lib` and the module as
+`dev->gui_module`; the result reaches the module through `DT_SIGNAL_CONTROL_PICKERDATA_READY`
+and `color_picker_apply`. None of this exists headless, and most `color_picker_apply`
+implementations write through `gui_data` widgets. `native/engine/module_tools.c` therefore
+reproduces the sampling explicitly: a private `dt_dev_pixelpipe_init_export` pipe of the
+editor's `dev` (own cache, never the interactive FULL pipe) with every node from the target
+on disabled, `dt_dev_pixelpipe_process_no_gamma` into a float buffer (export-type pipes hand
+back the float buffer; screen pipes copy only 8-bit bytes), the colour conversion to the
+module's `input_colorspace` with `dt_ioppr_transform_image_colorspace` (and to the blend colour
+space while a mask is active, `blend_picking`), the box back-transformed with
+`dt_dev_distort_backtransform_plus(..., iop_order - expanded, DT_DEV_TRANSFORM_DIR_FORW_EXCL)`
+and sorted like `dt_color_picker_box`, and the statistics from the exported
+`dt_color_picker_helper`. Sensor data before demosaic cannot be scaled at the pipe input
+(`dt_iop_clip_and_zoom` needs four channels), so those modules are sampled 1:1 around the box.
+darktable picks on the preview pipe (downscaled mipmap); this pipe works from the full image at
+fit size, so means agree up to resampling. Module ports read and write parameters through
+introspection names; where a port needs a module's maths (AgX curve, basic adjustments' auto
+exposure, color harmonizer RYB tables) it is copied with line references. A tool snapshots the
+parameters and blend parameters of every module it may write, records one
+`dt_dev_add_history_item_ext` per changed module and restores them on failure.
+

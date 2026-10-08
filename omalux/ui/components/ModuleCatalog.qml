@@ -13,6 +13,8 @@ QtObject {
     readonly property var blendRows: {
         try { return (JSON.parse(root.blendLayoutText || "{}").rows || []) } catch (e) { return [] }
     }
+    // ModuleTools (pickers, module buttons, histograms) for the generated rows; may be null.
+    property QtObject tools: null
 
     // Which sidebar tab shows which module. Everything not listed follows its darktable group.
     readonly property var tabOfGroup: ({ base: "tone", tone: "tone", color: "color", correct: "detail",

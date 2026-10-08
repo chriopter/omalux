@@ -345,11 +345,11 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   rows edit. Displayed conversions (`@` paths) are sliders and swatches like any other row;
   runtime lists and file choices are `ChoiceRow`s; the colour checker patches are a
   `PatchGrid` (see "Displayed values and runtime lists" below).
-- Shown as a muted notice instead of a control, merged per section: image pickers, buttons
-  (auto-tune, lens/camera search, flip rotations, structure-line fitting), drawn features
+- Pickers and module buttons are rows of `ModuleToolButtons` and pickers on sliders (see
+  "Pickers and module buttons" below). Shown as a muted notice instead of a control, merged per
+  section: the pickers and buttons not ported yet (listed there), drawn features
   (retouch, liquify, spots, graduated density line, monochrome and colour correction grids,
-  relight center, zone system), darktable's own graphs of filmic rgb/AgX/filmic, the picker
-  settings of color calibration's mapping section and exposure's area mode, and the remaining
+  relight center, zone system), darktable's own graphs of filmic rgb/AgX/filmic, and the remaining
   `@` conversions without an adapter (rotate and perspective/clipping `@flip` and `@aspect` of the
   deprecated crop module). Right-click on a row resets it to darktable's default; module reset uses
   `backend.resetModule`.
@@ -398,9 +398,10 @@ opened photo, then recorded as darktable records a dropped image). Watermark tex
 text fields. Each choice is one `setParameters` batch: one history item, a single-module style
 in split mode.
 
-Not covered: gmic-compressed LUTs (`.gmz`, darktable's reader is bound to its GUI), the
-"from image area" white balance entry and the lens/camera "find" buttons (image pickers and
-buttons), color calibration's colour checker calibration and mapping picker settings. Own
+Not covered: gmic-compressed LUTs (`.gmz`, darktable's reader is bound to its GUI) and color
+calibration's colour checker calibration. The "from image area" white balance, the lens/camera
+"find" buttons and color calibration's mapping picker are described under "Pickers and module
+buttons". Own
 styles: lens names, LUT paths (packaged as before), profiles and noise profiles are plain
 parameters; watermark, overlay and raster mask modules that are switched on are rejected, as
 before, because their files are not packaged. colorin and colorout have no enable button and
@@ -421,6 +422,72 @@ The generator stops with an error if a decision names a missing module or row, a
 placed twice or not at all, a primary is not a row, a slider lacks a numeric range or default,
 a combobox lacks values or its default, or a field repeats within a module. It prints modules
 and rows per group, widget and custom-widget counts and the modules with notices.
+
+## Pickers and module buttons
+
+darktable's colour pickers and the buttons that compute parameters run in the engine
+(`omalux/native/engine/module_tools.c`, ports in `tools_*.c`) through
+`backend.runModuleTool(operation, instance, {tool, box, gui})`; the answer arrives as
+`moduleToolResult` (picked statistics, values for GUI-only rows, histograms, graph markers).
+
+**Picking.** darktable samples the module input on the preview pipe while the module has focus
+(`pixelpipe_hb.c` `_pixelpipe_picker`, `color_picker.c` `dt_color_picker_box`/`_helper`).
+Headless, the engine renders the module input with a private export-type pipe of the editor's
+develop state (every node from the module on disabled; the output is the module input at the
+1400 × 1000 fit size, or 1:1 around the box for a module before demosaic of a raw), converts it
+to the module's input colour space — or to the blend colour space while a mask is active, as
+darktable does — transforms the box drawn on the displayed image back through the later
+distortions, and calls darktable's own `dt_color_picker_helper` in the picker's colour space
+(the module's default one, or the one the module sets, e.g. LCh for color zones, none for white
+balance), with denoising where darktable asks for it. Pickers with darktable's `DT_COLOR_PICKER_IO`
+also pick the module output. The module's `color_picker_apply` logic is ported per module and
+writes the parameters; every module a tool changed (or switched on — activating a picker switches
+its module on, as in darktable) gets one history item and is mirrored to split mode as a
+single-module style. A tool that fails leaves the parameters untouched.
+
+**On the photo.** `ModuleTools.qml` (sidebar composition, handed to rows as `catalogModel.tools`)
+holds the active picker; `PickerOverlay` in the viewport shows its box. Area pickers start with
+darktable's default area (2–98 %), point pickers at the centre; dragging outside the box draws a
+new area, inside moves it, at a corner resizes it; point-or-area pickers pick a point on a click
+and an area on a drag. Every release applies the picker again; each picker remembers its box.
+A picker stays active until its button is pressed again, the pane changes, cropping starts, or a
+parameter of its module is edited (darktable's `dt_iop_gui_changed`), except darktable's
+"keep-active" pickers (show color of rgb curve, color zones and the blend section). The
+colour balance optimisers switch themselves off after one run, as in darktable. Ctrl/Shift on
+release select darktable's positive/negative "create curve" and the output slider of "set range".
+
+| Module | Pickers and buttons (darktable source) |
+| --- | --- |
+| white balance | from image area (temperature.c:1948) |
+| exposure | area exposure mapping: picker with area mode (correction/measure) and target lightness, input L shown (exposure.c:865) |
+| rgb levels | black/gray/white point pickers on the shown channel, auto, auto region; input histogram behind the handles (rgblevels.c:774, 1180) |
+| levels (deprecated) | auto from the input histogram; histogram behind the handles (levels.c:186, 978) |
+| filmic rgb, filmic (deprecated) | auto tune levels and the pickers of middle gray, white and black relative exposure (filmicrgb.c:2582–2715, filmic.c:606–757) |
+| AgX | auto tune levels, black/white relative exposure and pivot pickers, read exposure, reset primaries (menu: blender-like, smooth, unmodified), set from above (agx.c:1103–1220, 2087–2140, 2657) |
+| unbreak input profile | auto tune levels and the middle gray, black relative exposure and dynamic range pickers (profile_gamma.c:322–416) |
+| negadoctor | film material, shadows and illuminant pickers, and the D max, scan exposure bias, paper black and print exposure pickers (negadoctor.c:633–810) |
+| basic adjustments (deprecated) | auto, select region, middle gray picker (basicadj.c:482, 676–1333) |
+| color balance | factor and hue pickers of each wheel, contrast fulcrum, optimize luma, neutralize colors; the picked patches stay in the rows' GUI state (colorbalance.c:945–1342) |
+| tone curve, rgb curve, color zones | pick/show color (band, mean and "input → output" on the graph), create curve (rgbcurve.c:507–581, colorzones.c:2396) |
+| color calibration | the CAT picker with the area mapping (correction/measure, target lightness/hue/chroma, take channel mixing into account), input LCh shown (channelmixerrgb.c:4161–4421) |
+| color harmonizer | auto detect (camera button), anchor and custom node hue pickers (colorharmonizer.c:1170–1378) |
+| orientation | rotate 90° CCW/CW, flip horizontally/vertically, with the crop following (flip.c:524–590, crop.c:1235) |
+| lens correction | find camera, find lens: lensfun's matches for the EXIF names as a menu (lens.cc:3857, 4184; list `find_camera`/`find_lens` of `requestChoices`) |
+| every blending module | show color and set range of the parametric mask (blend_gui.c:1050–1910) |
+
+GUI-only state darktable keeps in its widgets or configuration (exposure's and color
+calibration's target and mode, the colour balance patches) lives in the rows' GUI state for the
+session; it is sent with each request and the tool returns what it measured. It is not stored
+across restarts as darktable's `darkroom/modules/*` keys are.
+
+Still a notice: ashift's structure fitting buttons (vertical/horizontal/both and the auto toggle
+need darktable's line detection and optimiser), color mapping's acquire as source/target
+(k-means clustering and the cross-image hand-over through darktable's GUI), color harmonizer's
+set from vectorscope (darktable's scopes panel), color calibration's colour checker buttons,
+rasterfile's vectorize (drawn masks), and the pickers of colorize, split-toning, graduated
+density, monochrome, borders, watermark, invert, relight, color equalizer, colour checker and
+retouch. The tone equalizer's auto-adjust buttons for its mask need the module's guided-filter
+mask and are not ported.
 
 ## Components
 
@@ -443,6 +510,12 @@ properties and reports changes through signals; none of them edits a parameter i
 - `ChannelChooser` — chips that pick which channel or curve is shown; a view choice only.
 - `ColorSwatch` — colour parameter with a hue × saturation, value and hex picker.
 - `ModuleNotice` — one muted line for what cannot be edited here yet.
+- `ModuleToolButtons` — a row of pickers (darktable's pipette, highlighted while active) and
+  buttons, optionally with a menu; reports the entry and menu item chosen.
+- `PickerOverlay` — the active picker's area or point on the photo (in `PhotoViewport`).
+- `HistogramView` — a module input histogram (logarithmic) with handle markers.
+- `ModuleTools` — non-visual: which rows and sliders have pickers and buttons, the active
+  picker, its boxes and results.
 - `ChoiceRow` — a value from a list darktable fills at runtime or from a file dialog: shows
   the current value, opens a list with a search field (sections, details, "n more — refine the
   search"), reports `requested(query)`, `chosen(index)` and `fileChosen(path)`.
@@ -504,9 +577,13 @@ darktable's `dt_iop_gui_init_blending` / `dt_iop_gui_update_blending` (`develop/
   (raw images only), **feathering guide**, **feathering radius**, **blurring radius**, **mask
   opacity**, **mask contrast**; a module blending in raw data keeps only the blur.
 
-Not built yet: the colour pickers of the parametric mask (a notice says so), darktable's
-display mask / temporarily switch off mask buttons and the alternative (log, magnifier)
-marker scales.
+The parametric mask's two pickers are built (see "Pickers and module buttons"): **show color**
+marks the picked mean and min…max band on both channel sliders with darktable's value label,
+**set range** sets the four markers of the input slider from the picked area (Ctrl+drag: the
+output slider, while it is shown) with darktable's 1 % feather, switches the channel on and sets
+its polarity so the picked values are included (`blend_color_picker_apply`, blend_gui.c:1757).
+Not built yet: darktable's display mask / temporarily switch off mask buttons and the
+alternative (log, magnifier) marker scales.
 
 Edits use the generic path `blend.<name>` in `setParameters`, so a module edit and a blend
 edit can share one history item and the parameter queue merges them like any other drag:

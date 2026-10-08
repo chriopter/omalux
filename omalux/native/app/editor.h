@@ -81,6 +81,11 @@ class Editor : public QObject {
     // darktable's multi-instance menu: "new", "duplicate", "up", "down", "delete" or "rename".
     Q_INVOKABLE void moduleInstance(const QString &operation, int instance, const QString &action,
                                     const QString &name = {});
+    // darktable's colour pickers and module buttons (engine/module_tools.h). request carries
+    // "tool", the normalised "box" on the displayed image and GUI-only "gui" values.
+    Q_INVOKABLE void runModuleTool(const QString &operation, int instance, const QVariantMap &request);
+    // The tools the engine implements: JSON array of {operation, tool}.
+    Q_INVOKABLE QString moduleTools() const;
   signals:
     void historyChanged();
     void changed();
@@ -90,6 +95,8 @@ class Editor : public QObject {
     // One module's catalog entry (a JSON object as in moduleCatalog) after a generic edit.
     void moduleUpdated(QString operation, int instance, QString moduleJson);
     void choicesReady(QString operation, int instance, QString list, QString query, QString result);
+    // A module tool finished: its JSON result (see module_tools.h) and the engine status.
+    void moduleToolResult(QString operation, int instance, QString tool, QString result, int error);
 
   private:
     bool styleAvailable(const QString &id) const;

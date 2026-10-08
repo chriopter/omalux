@@ -22,6 +22,9 @@ FocusScope {
     property real increment: 0.01
     property bool editable: true
     property string tooltip: ""
+    // The active blend picker's sample on this channel (ModuleTools): { mean, min, max, text },
+    // drawn as darktable's gradient slider picker band (dtgtk_gradient_slider_multivalue_set_picker_meanminmax).
+    property var pickerMarker: null
     signal valuesEdited(var values)
     signal polarityToggled(bool negative)
     signal resetRequested()
@@ -101,7 +104,7 @@ FocusScope {
             spacing: 0
             Text {
                 Layout.preferredWidth: parent.width * .25
-                text: root.label
+                text: root.label + (root.pickerMarker ? " " + root.pickerMarker.text : "")
                 color: navTarget.current || root.activeFocus ? root.theme.accent : root.theme.ink
                 font: root.theme.textFont
                 elide: Text.ElideRight
@@ -174,6 +177,14 @@ FocusScope {
                     c.lineWidth = 1.2
                     if (filled) c.fill(); else c.stroke()
                 }
+                const pm = root.pickerMarker
+                if (pm) {
+                    c.fillStyle = Qt.rgba(1, 1, 1, .25)
+                    c.fillRect(inset + pm.min * w, top, Math.max(1, (pm.max - pm.min) * w), bottom - top)
+                    c.strokeStyle = "white"
+                    c.lineWidth = 1
+                    c.beginPath(); c.moveTo(inset + pm.mean * w + .5, top); c.lineTo(inset + pm.mean * w + .5, bottom); c.stroke()
+                }
                 if (navTarget.current) {
                     c.strokeStyle = root.theme.accent
                     c.lineWidth = 1
@@ -186,6 +197,7 @@ FocusScope {
                 function onNegativeChanged() { bar.requestPaint() }
                 function onStopsChanged() { bar.requestPaint() }
                 function onActiveMarkerChanged() { bar.requestPaint() }
+                function onPickerMarkerChanged() { bar.requestPaint() }
                 function onActiveFocusChanged() { bar.requestPaint() }
             }
             Connections {

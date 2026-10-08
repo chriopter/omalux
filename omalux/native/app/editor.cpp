@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "editor.h"
+#include "engine/module_tools.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -67,6 +68,17 @@ void Editor::requestChoices(const QString &operation, int instance, const QStrin
     if (url.isEmpty() || operation.isEmpty() || list.isEmpty())
         return;
     worker->choices(operation, instance, list, query);
+}
+void Editor::runModuleTool(const QString &operation, int instance, const QVariantMap &request) {
+    if (request.value("tool").toString().isEmpty())
+        return;
+    queueModuleEdit({ActionKind::ModuleTool, operation, instance, request});
+}
+QString Editor::moduleTools() const {
+    char *raw = om_engine_module_tool_list();
+    const QString list = QString::fromUtf8(raw);
+    om_engine_free_json(raw);
+    return list;
 }
 void Editor::queueModuleEdit(ModuleEdit edit) {
     if (applying || url.isEmpty() || edit.operation.isEmpty())
@@ -243,6 +255,7 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
     });
     connect(worker.get(), &EngineWorker::moduleReady, this, &Editor::moduleUpdated);
     connect(worker.get(), &EngineWorker::choicesReady, this, &Editor::choicesReady);
+    connect(worker.get(), &EngineWorker::moduleToolReady, this, &Editor::moduleToolResult);
     connect(worker.get(), &EngineWorker::historyReady, this, [this](QVariantList rows) {
         if (historyRows != rows) {
             historyRows = rows;

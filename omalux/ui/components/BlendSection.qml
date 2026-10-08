@@ -328,6 +328,7 @@ Column {
         label: root.row("blendif_output").label
         tooltip: "adjustment based on unblended output of this module"
         readonly property int ch: root.channel ? root.channel.out : 4
+        pickerMarker: root.pickerMarkers ? root.pickerMarkers.output || null : null
         values: root.range(ch)
         negative: root.negative(ch)
         stops: root.stopsOf(root.channel)
@@ -351,6 +352,7 @@ Column {
         label: root.row("blendif_input").label
         tooltip: "adjustment based on input received by this module"
         readonly property int ch: root.channel ? root.channel.in : 0
+        pickerMarker: root.pickerMarkers ? root.pickerMarkers.input || null : null
         values: root.range(ch)
         negative: root.negative(ch)
         stops: root.stopsOf(root.channel)
@@ -414,11 +416,41 @@ Column {
         TextButton { label: "reset blend mask settings"; onTriggered: root.set("reset_parametric", 1) }
         TextButton { label: "invert all channel's polarities"; onTriggered: root.set("invert_all", 1) }
     }
-    ModuleNotice {
-        visible: root.parametric
-        width: root.width - 28
+    // The parametric mask's pickers (blend_gui.c:2578 "show color", :2588 "set range"),
+    // run through ModuleTools (engine tools_blend.c) for the shown channel.
+    readonly property var tools: root.catalogModel && root.catalogModel.tools ? root.catalogModel.tools : null
+    readonly property var pickerSpecs: [
+        { tool: "blend_show", kind: "pointarea", keepActive: true, label: "show color",
+          hint: "pick GUI color from image\nctrl+click or right-click to select an area" },
+        { tool: "blend_set_range", kind: "area", label: "set range",
+          hint: "set the range based on an area from the image\ndrag to use the input image\nctrl+drag to use the output image" }]
+    function pickerGui() {
+        return { tab: Math.min(root.tab, Math.max(0, root.channels.length - 1)), channel_in: root.channel ? root.channel.in : 0,
+                 channel_out: root.channel ? root.channel.out : 4, outputs_shown: root.outputsShown ? 1 : 0 }
+    }
+    // The last sample of the active blend picker of this module, per slider.
+    readonly property var pickerMarkers: {
+        const t = root.tools, s = root.moduleState
+        if (!t || !s || !t.active || t.active.operation !== s.operation || t.active.instance !== s.instance
+                || t.active.tool.indexOf("blend_") !== 0) return null
+        const r = t.results[t.key(s.operation, s.instance, t.active.tool)]
+        return r && r.blendMarker ? r.blendMarker : null
+    }
+    // Another channel tab: an active picker samples that channel instead.
+    onTabChanged: if (root.tools && root.moduleState && root.tools.active && root.tools.active.tool.indexOf("blend_") === 0)
+                      root.tools.updateGui(root.moduleState.operation, root.moduleState.instance, root.pickerGui())
+    ModuleToolButtons {
+        visible: root.parametric && !!root.tools && root.tools.supported["*/blend_set_range"] === true
+        width: root.width
         theme: root.theme
-        text: "picking the mask range from the image is not available yet"
+        editable: root.editable
+        navPrefix: root.navGroup + "/blend/pickers"
+        navGroup: root.navGroup
+        entries: root.pickerSpecs.map(p => ({ label: p.label, kind: p.kind, hint: p.hint,
+                                              active: !!root.tools && !!root.moduleState
+                                                      && root.tools.isActive(root.moduleState.operation, root.moduleState.instance, p.tool) }))
+        onTriggered: (index, choice) => root.tools.toggle(root.moduleState.operation, root.moduleState.instance,
+                                                          root.pickerSpecs[index], root.pickerGui())
     }
 
     // dt_iop_gui_update_blending: refinement for drawn or parametric masks, or a raster mask;

@@ -3,6 +3,7 @@
 #include "frames.h"
 #include "image_export.h"
 #include "engine/module_instances.h"
+#include "engine/module_tools.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -250,6 +251,30 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
                     recipes.append(edit.operation);
                 continue;
             }
+        }
+        else if (edit.kind == ActionKind::ModuleTool) {
+            // Pickers and module buttons: the tool reports which modules it wrote.
+            const auto request =
+                QJsonDocument(QJsonObject::fromVariantMap(edit.values)).toJson(QJsonDocument::Compact);
+            char *raw = nullptr;
+            const int status =
+                om_engine_module_tool(engine, operation.constData(), edit.instance, request.constData(), &raw);
+            const auto output = takeJson(raw).object();
+            for (const auto &changed : output["changed"].toArray()) {
+                const QString name = changed.toString();
+                const int target = name == edit.operation ? edit.instance : 0;
+                if (!edited.contains({name, target}))
+                    edited.append({name, target});
+                if (!recipes.contains(name))
+                    recipes.append(name);
+            }
+            emit moduleToolReady(edit.operation, edit.instance, edit.values["tool"].toString(),
+                                 QString::fromUtf8(QJsonDocument(output).toJson(QJsonDocument::Compact)), status);
+            if (status && status != 6 && error.isEmpty())
+                error = QString("Could not run %1 of %2 (%3)")
+                            .arg(edit.values["tool"].toString(), edit.operation)
+                            .arg(status);
+            continue;
         } else {
             const auto values =
                 QJsonDocument(QJsonObject::fromVariantMap(edit.values)).toJson(QJsonDocument::Compact);

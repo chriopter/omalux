@@ -75,6 +75,8 @@ ApplicationWindow {
                 crop: sidebar.geometry.crop
                 aspectRatio: sidebar.geometry.aspectRatio
                 onCropEdited: rect => sidebar.geometry.crop = rect
+                picker: sidebar.tools.active ? { kind: sidebar.tools.active.kind, box: sidebar.tools.activeBox() } : null
+                onPickerEdited: (box, modifiers) => sidebar.tools.setBox(box, modifiers)
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 theme: editorTheme
@@ -111,7 +113,7 @@ ApplicationWindow {
             status: editor.status
         }
     }
-    Connections { target: sidebar.geometry; function onCroppingChanged() { if(sidebar.geometry.cropping) viewport.fit() } }
+    Connections { target: sidebar.geometry; function onCroppingChanged() { if(sidebar.geometry.cropping) { sidebar.tools.cancel(); viewport.fit() } } }
     EditorDialogs {
         id: dialogs
         theme: editorTheme

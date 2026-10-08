@@ -421,6 +421,69 @@ static void lens_list(dt_iop_module_t *module, OmList *list) {
     g_ptr_array_free(makers, TRUE);
     lf_free(lenses);
 }
+// ---- "find camera" and "find lens" (area "Pipetten & Knöpfe") ----
+// _camera_autosearch_clicked (lens.cc:3857-3888) and _lens_autosearch_clicked (:4184-4207): the
+// cameras and lenses lensfun finds for the names darktable detected from the image's EXIF
+// (the module's default parameters, _parse_model drops leading spaces). darktable leaves the
+// maker argument of FindCamerasExt uninitialised; it is passed as unknown here.
+static const char *default_name(dt_iop_module_t *module, const char *name) {
+    const char *txt = module->get_f && module->get_f(name) ? module->get_p(module->default_params, name) : NULL;
+    while (txt && *txt && g_ascii_isspace(*txt))
+        ++txt;
+    return txt;
+}
+static void camera_autosearch(dt_iop_module_t *module, OmList *list) {
+    lfDatabase *db = lens_db();
+    const char *model = default_name(module, "camera");
+    if (!db)
+        return;
+    if (!model || !*model) {
+        camera_list(module, list);
+        return;
+    }
+    const lfCamera **cams = lf_db_find_cameras_ext(db, NULL, model, 0);
+    if (!cams)
+        return;
+    const lfCamera *cur = current_camera(module);
+    for (int i = 0; cams[i]; ++i) {
+        gchar *label = camera_label(cams[i]);
+        gchar *detail = g_strdup_printf("%s · crop factor %.1f", cams[i]->Mount ? cams[i]->Mount : "", cams[i]->CropFactor);
+        JsonObject *set = add(list, label, detail, mlstr(cams[i]->Maker), cams[i] == cur);
+        if (set) {
+            json_object_set_string_member(set, "camera", cams[i]->Model);
+            json_object_set_double_member(set, "crop", cams[i]->CropFactor);
+            json_object_set_int_member(set, "has_been_set", 1);
+        }
+        g_free(label);
+        g_free(detail);
+    }
+    lf_free(cams);
+}
+static void lens_autosearch(dt_iop_module_t *module, OmList *list) {
+    lfDatabase *db = lens_db();
+    const lfCamera *cam = current_camera(module);
+    const char *model = default_name(module, "lens");
+    if (!db)
+        return;
+    const lfLens **lenses =
+        lf_db_find_lenses_hd(db, cam, NULL, model && *model ? model : NULL, LF_SEARCH_SORT_AND_UNIQUIFY);
+    if (!lenses)
+        return;
+    const lfLens *cur = current_lens(module, cam);
+    for (int i = 0; lenses[i]; ++i) {
+        const lfLens *lens = lenses[i];
+        gchar *detail = lens->MinFocal < lens->MaxFocal ? g_strdup_printf("%g-%gmm", lens->MinFocal, lens->MaxFocal)
+                                                        : g_strdup_printf("%gmm", lens->MinFocal);
+        JsonObject *set = add(list, mlstr(lens->Model), detail, mlstr(lens->Maker), lens == cur);
+        if (set) {
+            json_object_set_string_member(set, "@lens", lens->Model);
+            json_object_set_string_member(set, "@lens_maker", lens->Maker ? lens->Maker : "");
+        }
+        g_free(detail);
+    }
+    lf_free(lenses);
+}
+// ---- end find camera / lens ----
 // _precision, lens.cc:3602-3623: the digits darktable prints for focal, aperture and distance.
 static int precision(double x, double adj) {
     x *= adj;
@@ -944,6 +1007,13 @@ char *om_engine_module_choices(OmEngine *engine, const char *operation, int inst
         if (!lens_db())
             error = "the lensfun database could not be loaded";
         lens_list(module, &list);
+    } else if (!strcmp(operation, "lens") && (!strcmp(name, "find_camera") || !strcmp(name, "find_lens"))) {
+        if (!lens_db())
+            error = "the lensfun database could not be loaded";
+        if (!strcmp(name, "find_camera"))
+            camera_autosearch(module, &list);
+        else
+            lens_autosearch(module, &list);
     } else if (!strcmp(operation, "lens") &&
                (!strcmp(name, "focal") || !strcmp(name, "aperture") || !strcmp(name, "distance")))
         lens_values(module, name, &list);
