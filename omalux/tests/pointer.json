@@ -1,0 +1,114 @@
+[
+ {
+  "pointerClick": "sidebar-area-styles"
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "checkPanel": 0
+ },
+ {
+  "pointerClick": "sidebar-tab-5"
+ },
+ {
+  "checkPanel": 5
+ },
+ {
+  "pointerClick": "sidebar-area-details"
+ },
+ {
+  "checkPanel": 3
+ },
+ {
+  "pointerClick": "sidebar-area-styles"
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "checkPanel": 5
+ },
+ {
+  "pointerClick": "module-toggle-toneequal"
+ },
+ {
+  "checkParameter": {
+   "operation": "toneequal",
+   "path": "@enabled",
+   "value": 1
+  }
+ },
+ {
+  "pointerClick": "module-details-toneequal"
+ },
+ {
+  "checkItem": "module-details-toneequal",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "module-details-toneequal"
+ },
+ {
+  "checkItem": "module-details-toneequal",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "pointerClick": "module-group-base"
+ },
+ {
+  "checkItem": "module-toggle-toneequal",
+  "visible": false
+ },
+ {
+  "pointerClick": "module-group-base"
+ },
+ {
+  "checkItem": "module-toggle-toneequal",
+  "visible": true
+ },
+ {
+  "pointerClick": "text:+"
+ },
+ {
+  "checkItem": "toolbar-fit",
+  "property": "text",
+  "value": "1.3×"
+ },
+ {
+  "pointerClick": "toolbar-fit"
+ },
+ {
+  "checkItem": "toolbar-fit",
+  "property": "text",
+  "value": "FIT"
+ },
+ {
+  "key": "Down"
+ },
+ {
+  "logFocus": "after clicks"
+ },
+ {
+  "pointerClick": "sidebar-tab-0"
+ },
+ {
+  "checkPanel": 0
+ },
+ {
+  "key": "Right"
+ },
+ {
+  "check": {
+   "exposure": 0.01
+  }
+ }
+]

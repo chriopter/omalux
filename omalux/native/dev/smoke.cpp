@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "smoke.h"
 #include "smoke_canvas.h"
+#include "smoke_pointer.h"
 #include "app/editor.h"
 #include "app/frames.h"
 #include <QGuiApplication>
@@ -159,6 +160,12 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             const auto step = steps[(*index)++].toObject();
             qInfo() << "Smoke step" << *index << step;
             *previous = editor.preview();
+            // Genuine mouse input on items (smoke_pointer.cpp).
+            if (const auto pointer = pointerSmokeStep(step, engine, dragging); pointer != SmokeResult::NotHandled) {
+                if (pointer == SmokeResult::Fail)
+                    app.exit(2);
+                return;
+            }
             // Drawing on the image (smoke_canvas.cpp).
             if (const auto canvas = canvasSmokeStep(step, editor, engine); canvas != SmokeResult::NotHandled) {
                 if (canvas == SmokeResult::Fail) {

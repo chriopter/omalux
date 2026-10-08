@@ -571,6 +571,32 @@ Item {
             tryVerify(() => keyboard.activeFocus, 500, "and leaves it")
         }
 
+        // A person holds the button down for a moment: the event loop runs between press and
+        // release. The navigator must not take focus back in between, or the click is lost.
+        function slowClick(item) {
+            mousePress(item, item.width / 2, item.height / 2)
+            wait(80)
+            mouseRelease(item, item.width / 2, item.height / 2)
+        }
+        function test_30_slow_clicks() {
+            slowClick(find(sidebar, "sidebar-tab-5"))
+            compare(sidebar.selectedPanel, 5, "one click on Tone")
+            slowClick(find(sidebar, "sidebar-area-styles"))
+            compare(sidebar.selectedPanel, 1, "one click on Styles")
+            slowClick(find(sidebar, "sidebar-area-edit"))
+            compare(sidebar.selectedPanel, 5, "Edit returns to its last pane")
+            slowClick(find(sidebar, "sidebar-area-details"))
+            compare(sidebar.selectedPanel, 3)
+            slowClick(find(sidebar, "sidebar-area-styles"))
+            slowClick(find(sidebar, "sidebar-area-details"))
+            compare(sidebar.selectedPanel, 3, "Details returns to its last pane")
+            slowClick(find(sidebar, "sidebar-area-edit"))
+            compare(sidebar.selectedPanel, 5)
+            tryVerify(() => keyboard.activeFocus, 500, "focus returns after the release")
+            press(Qt.Key_Tab)
+            compare(sidebar.selectedPanel, 6, "keys work after clicks (Tab: Tone → Color)")
+        }
+
         function isText(item) { return !!item && typeof item.selectAll === "function" && item.cursorPosition !== undefined }
     }
 }

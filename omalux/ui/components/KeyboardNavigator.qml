@@ -30,6 +30,8 @@ Item {
     property int _pendingTries: 0
     // A graph that was given the keys with Enter (NavTarget.focusItem), until Escape.
     property Item _lent: null
+    // A pressed control that keeps focus until its release (see reclaim).
+    property Item _pressedItem: null
 
     focus: true
     Keys.onPressed: event => root.handleKey(event)
@@ -299,6 +301,22 @@ Item {
                         || !(Keyboard.within(focused, root.content) || Keyboard.within(root.content, focused)))) return
         if (focused && root._lent && Keyboard.within(focused, root._lent)) return
         root._lent = null
+        // A control that took focus on a mouse press keeps it until the button is released:
+        // a button loses its press when it loses focus (QQuickAbstractButton::focusOutEvent),
+        // so taking focus back at once would swallow the click.
+        if (focused && focused.pressed === true) {
+            if (root._pressedItem !== focused) {
+                root._pressedItem = focused
+                const released = () => {
+                    if (focused.pressed === true) return
+                    focused.pressedChanged.disconnect(released)
+                    if (root._pressedItem === focused) root._pressedItem = null
+                    Qt.callLater(root.reclaim)
+                }
+                focused.pressedChanged.connect(released)
+            }
+            return
+        }
         // A combo box keeps the keys while its list is open; they come back when it closes.
         const popup = focused ? focused.popup : null
         if (popup && popup.visible !== undefined && popup.visible) {

@@ -15,7 +15,9 @@ Rectangle {
     readonly property alias moduleStates: moduleCatalog.states
     property alias tools: moduleTools
     // A module picker belongs to the pane it was started in.
-    onSelectedPanelChanged: { const g = currentGroup; if (lastPaneInGroup[g] !== selectedPanel) { let next = Object.assign({}, lastPaneInGroup); next[g] = selectedPanel; lastPaneInGroup = next } moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
+    // The group is looked up here, not read from currentGroup: that binding may still hold the
+    // previous area while this handler runs, which would file the Styles pane under Edit.
+    onSelectedPanelChanged: { const g = groupOf(selectedPanel); if (lastPaneInGroup[g] !== selectedPanel) { let next = Object.assign({}, lastPaneInGroup); next[g] = selectedPanel; lastPaneInGroup = next } moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }
     property int selectedPanel: 0
     // 0 = the designed controls, 1 = the parameters still without one (developer mode only).
     property int filterView: 0
@@ -40,7 +42,8 @@ Rectangle {
         { id: "styles", icon: "styles.svg", label: "Styles", name: "Apply a look" },
         { id: "details", icon: "info.svg", label: "Details", name: "History and image information" }
     ]
-    readonly property string currentGroup: (panes.find(p => p.index === selectedPanel) || panes[0]).group
+    function groupOf(index) { return (panes.find(p => p.index === index) || panes[0]).group }
+    readonly property string currentGroup: groupOf(selectedPanel)
     readonly property var groupPanes: panes.filter(p => p.group === currentGroup)
     // The pane each area returns to when it is chosen again.
     property var lastPaneInGroup: ({ edit: 0, styles: 1, details: 3 })
@@ -184,7 +187,9 @@ Rectangle {
                         Accessible.name: modelData.name
                         Accessible.role: Accessible.PageTab
                         Accessible.selected: current
-                        ToolTip.visible: hovered
+                        // Names the area or pane before it is chosen; gone once it is current, so
+                        // it never stays over the strip after the click.
+                        ToolTip.visible: hovered && !pressed && !current
                         ToolTip.delay: 500
                         ToolTip.text: modelData.name
                         background: Rectangle {
@@ -250,7 +255,9 @@ Rectangle {
                         Accessible.name: modelData.name
                         Accessible.role: Accessible.PageTab
                         Accessible.selected: current
-                        ToolTip.visible: hovered
+                        // Names the area or pane before it is chosen; gone once it is current, so
+                        // it never stays over the strip after the click.
+                        ToolTip.visible: hovered && !pressed && !current
                         ToolTip.delay: 500
                         ToolTip.text: modelData.name
                         background: Rectangle {
