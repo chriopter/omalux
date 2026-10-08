@@ -702,14 +702,27 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                             return true;
                     return false;
                 };
+                static int listRetries = 0;
                 if (items.size() < call["min"].toInt(1) ||
                     (call.contains("contains") && !has(call["contains"].toString())) ||
                     (call.contains("current") &&
                      (current < 0 || !labels.value(current).contains(call["current"].toString())))) {
+                    // A list asked for right after the edit that fills it can be answered before the
+                    // worker applied that edit: ask again a few times before failing.
+                    if (++listRetries < 8) {
+                        *retries = 1; // asked already: do not ask again while waiting
+                        qInfo() << "List not ready, asking again" << key << labels.size();
+                        choiceResults->remove(key);
+                        editor.requestChoices(call["operation"].toString(), call["instance"].toInt(),
+                                              call["list"].toString(), call["query"].toString());
+                        --*index;
+                        return;
+                    }
                     qCritical() << "Unexpected list" << key << labels << current << result["error"];
                     app.exit(2);
                     return;
                 }
+                listRetries = 0;
                 if (call.contains("choose")) {
                     for (const auto &item : items)
                         if (item.toObject()["label"].toString().contains(call["choose"].toString())) {

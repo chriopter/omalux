@@ -68,8 +68,19 @@ Column {
         property string key: ""
         onTriggered: {
             if (release) { release(); release = null; return }
-            const item = root.openedItem(key)
-            if (item) Scroll.reveal(item, 0, item.height)
+            revealed = root.openedItem(key)
+            until = Date.now() + 1500
+            if (revealed) Scroll.reveal(revealed, 0, revealed.height)
+        }
+        // Rows are built over a few frames (later under load): follow the opened item's height
+        // for a moment.
+        property Item revealed: null
+        property real until: 0
+    }
+    Connections {
+        target: settle.revealed
+        function onHeightChanged() {
+            if (Date.now() < settle.until) Scroll.reveal(settle.revealed, 0, settle.revealed.height)
         }
     }
     // The heading or module that `key` ("openGroups:id", "expandedModules:operation") opened.

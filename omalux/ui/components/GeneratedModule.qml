@@ -184,6 +184,7 @@ Column {
         moduleState: root.moduleState
         catalogModel: root.catalogModel
         instance: root.instance
+        moduleEnabled: root.moduleEnabled
         overrides: root.overrides
         overridePrefix: root.module.operation + "/" + root.instance + "/"
         editable: root.editable && !!root.moduleState

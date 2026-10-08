@@ -241,12 +241,16 @@ Column {
     }
     // A new mask mode adds rows below the choice: scroll them into view, keeping the choice
     // itself on screen, so the choice visibly did something.
+    // Rows are built over a few frames (later under load): follow the section's height for a
+    // moment instead of guessing when it is complete.
     Timer {
         id: revealRows
         property Item target: null
+        property real until: 0
         interval: 120
-        onTriggered: if (target) Scroll.reveal(root, target.y, root.height)
+        onTriggered: { until = Date.now() + 1500; if (target) Scroll.reveal(root, target.y, root.height) }
     }
+    onHeightChanged: if (revealRows.target && Date.now() < revealRows.until) Scroll.reveal(root, revealRows.target.y, root.height)
     // area E: darktable's "display mask and/or color channel" and "temporarily switch off blend
     // mask" toggles beside the mask modes (blend_gui.c:3508-3528), shown for a real mask only
     // (3121); view state, not history (engine blend_display.c).
