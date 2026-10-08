@@ -90,6 +90,10 @@ class EngineWorker : public QObject {
     WorkTicket ticket;
     EditorAction pendingAction;
     std::vector<ModuleEdit> pendingEdits;
+    // Edits queued after a pending action wait for it (an export before the file is chosen, an
+    // image opened before its first edit): their count before the action and its ticket.
+    size_t editsBeforeAction = SIZE_MAX;
+    WorkTicket actionTicket;
     std::vector<ChoiceQuery> pendingChoices;
     bool stopping = false, pending = true, dragging = false, hoverPending = false;
     QString hoverId;

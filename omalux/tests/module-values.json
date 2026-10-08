@@ -14,7 +14,7 @@
   {"setParameters": {"operation": "channelmixerrgb", "instance": 0, "values": {"illuminant": 7, "@x": 40, "@y": 25}}},
   {"checkParameter": {"operation": "channelmixerrgb", "path": "@x", "value": 40, "tolerance": 0.01, "enabled": true}},
   {"checkParameter": {"operation": "channelmixerrgb", "path": "@y", "value": 25, "tolerance": 0.01}},
-  {"parameterDrag": {"operation": "channelmixerrgb", "instance": 0, "path": "@x", "from": 40, "to": 200, "samples": 30}},
+  {"parameterDrag": {"operation": "channelmixerrgb", "instance": 0, "path": "@x", "from": 40, "to": 200, "samples": 90}},
   {"checkParameter": {"operation": "channelmixerrgb", "path": "@x", "value": 200, "tolerance": 0.01}},
   {"checkParameter": {"operation": "channelmixerrgb", "path": "@y", "value": 25, "tolerance": 0.01}},
   {"refresh": true},
@@ -83,7 +83,7 @@
 
   {"panel": 6},
   {"property": "moduleSearch", "value": "color balance"},
-  {"drag": "colorbalance/0/@lift_hue", "pointer": true, "from": 120, "to": 200, "samples": 30},
+  {"drag": "colorbalance/0/@lift_hue", "pointer": true, "from": 120, "to": 200, "samples": 90},
   {"checkParameter": {"operation": "colorbalance", "path": "@lift_hue", "value": 200, "tolerance": 1}},
   {"checkParameter": {"operation": "colorbalance", "path": "@lift_saturation", "value": 20, "tolerance": 0.01}},
   {"refresh": true},

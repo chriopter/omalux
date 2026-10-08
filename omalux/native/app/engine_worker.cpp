@@ -67,7 +67,9 @@ WorkTicket EngineWorker::interactive(bool active) {
 }
 WorkTicket EngineWorker::moduleEdit(ModuleEdit edit) {
     std::lock_guard lock(mutex);
-    auto *last = pendingEdits.empty() ? nullptr : &pendingEdits.back();
+    // Never merge an edit into one queued before a pending action (it must run after it).
+    const bool atAction = editsBeforeAction != SIZE_MAX && pendingEdits.size() == editsBeforeAction;
+    auto *last = pendingEdits.empty() || atAction ? nullptr : &pendingEdits.back();
     if (last && edit.kind == ActionKind::SetParameters && last->kind == ActionKind::SetParameters &&
         last->operation == edit.operation && last->instance == edit.instance) {
         for (auto it = edit.values.cbegin(); it != edit.values.cend(); ++it)
@@ -85,6 +87,8 @@ WorkTicket EngineWorker::action(EditorAction action) {
     pendingAction = std::move(action);
     ++ticket.epoch;
     ++ticket.revision;
+    editsBeforeAction = pendingEdits.size();
+    actionTicket = ticket;
     pending = true;
     wake.notify_one();
     return ticket;
@@ -126,6 +130,17 @@ bool EngineWorker::take(Request &request) {
         request.draft = dragging;
         request.action = std::move(pendingAction);
         pendingAction = {};
+        if (editsBeforeAction != SIZE_MAX && editsBeforeAction < pendingEdits.size()) {
+            // Edits queued after the action run in the next request, after it (area E: the
+            // worker used to apply them first, e.g. choosing an overlay file before its export).
+            request.ticket = actionTicket;
+            request.edits.assign(std::make_move_iterator(pendingEdits.begin()),
+                                 std::make_move_iterator(pendingEdits.begin() + editsBeforeAction));
+            pendingEdits.erase(pendingEdits.begin(), pendingEdits.begin() + editsBeforeAction);
+            editsBeforeAction = SIZE_MAX;
+            return true;
+        }
+        editsBeforeAction = SIZE_MAX;
         request.edits.swap(pendingEdits);
         pendingEdits.clear();
         pending = false;

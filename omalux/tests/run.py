@@ -73,8 +73,12 @@ def main():
             print(next((line for line in result.stdout.splitlines() if line.startswith('Totals')), ''), flush=True)
         shutil.copytree(ROOT / 'catalog/styles', work / 'styles')
         # A G'MIC compressed LUT file with two LUTs below the LUT root (module-tools-rest.json).
-        subprocess.run(['gmic', '-v', '-1', '/usr/share/gmic/gmic_cluts.gmz', 'k[0,1]', 'o',
-                        str(work / 'styles' / 'two-luts.gmz')], check=True)
+        # Always with an explicit output and without a display: gmic must never open a window.
+        gmic_env = {k: v for k, v in os.environ.items() if k not in ('DISPLAY', 'WAYLAND_DISPLAY')}
+        gmic_env['QT_QPA_PLATFORM'] = 'offscreen'
+        subprocess.run(['gmic', '-v', '-1', '/usr/share/gmic/gmic_cluts.gmz', 'k[0,1]', '-o',
+                        str(work / 'styles' / 'two-luts.gmz')], check=True, env=gmic_env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
                    OMALUX_STYLES_DIR=str(work / 'styles'))
