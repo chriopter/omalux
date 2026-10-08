@@ -13,6 +13,7 @@
 #include "style_details.h"
 #include "develop/blend.h"
 #include "white_balance.h"
+#include "canvas.h"
 
 extern const char darktable_package_version[];
 OmEngine *om_engine_create(int argc, char **argv) {
@@ -224,6 +225,8 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
     // Diagnostic reference: identical pipe/ROI, but recompute every stage.
     if (g_getenv("OMALUX_FLUSH_PREVIEW_CACHE"))
         dt_dev_pixelpipe_cache_flush(engine->dev.full.pipe);
+    // Drawn shapes are not part of the pipe hash headless (canvas.c).
+    om_engine_canvas_before_render(engine);
     dt_dev_process_image_job(&engine->dev, &engine->dev.full, engine->dev.full.pipe, -1, DT_DEVICE_NONE);
     om_preview_geometry(engine->dev.full.pipe, geometry);
     *pixels = engine->dev.full.pipe->backbuf;

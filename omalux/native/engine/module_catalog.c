@@ -12,6 +12,7 @@
 #include "common/introspection.h"
 #include "controls.h"
 #include "blending.h"
+#include "canvas.h"
 #include <math.h>
 
 // True when the curated panel already offers this parameter under its own name. The raw
@@ -570,6 +571,8 @@ static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const ch
     // Like a darktable slider, editing a parameter switches its module on, unless this
     // edit states the enablement itself or the module has no enable button at all.
     const gboolean switch_on = enable < 0 && !module->hide_enable_button;
+    // A selected retouch shape follows the module's blur and fill fields (canvas.c).
+    om_engine_canvas_parameters_changed(engine, module);
     dt_dev_add_history_item_ext(&engine->dev, module, switch_on, FALSE);
     engine->dev.full.pipe->changed |= DT_DEV_PIPE_SYNCH;
     return om_engine_bind_controls(engine);

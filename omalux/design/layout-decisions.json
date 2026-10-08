@@ -203,43 +203,17 @@
    "top": "hidden in darktable by default",
    "right": "hidden in darktable by default",
    "bottom": "hidden in darktable by default"
+  },
+  "retouch": {
+   "@mask_opacity": "the selected shape's opacity is set on the photo toolbar"
   }
  },
  "notices": {
   "retouch": {
-   "label": "retouch shapes are drawn on the image — not available yet",
+   "label": "wavelet decompose and preview levels — not available yet",
    "replaces": [
-    "algorithm",
-    "@shapes",
     "wavelet_decompose",
     "preview_levels"
-   ]
-  },
-  "spots": {
-   "label": "spots are drawn on the image — not available yet",
-   "replaces": [
-    "@show_and_edit_shapes",
-    "@shapes"
-   ]
-  },
-  "liquify": {
-   "label": "warps are drawn on the image — not available yet",
-   "replaces": [
-    "@edit_add_and_delete_nodes",
-    "@shapes"
-   ]
-  },
-  "graduatednd": {
-   "label": "dragging the gradient line on the image — not available yet",
-   "replaces": [
-    "offset"
-   ]
-  },
-  "ashift": {
-   "label": "drawing structure lines on the image — not available yet",
-   "replaces": [
-    "@rectangle",
-    "@lines"
    ]
   },
   "channelmixerrgb": {
@@ -259,6 +233,60 @@
   },
   "equalizer": {
    "label": "no controls — this module can only be switched off",
+   "replaces": []
+  }
+ },
+ "canvas": {
+  "note": "Rows that open a module's tool on the photograph (PhotoViewport): a row with a button replaces the rows darktable draws on the image. Selecting any row of the module shows the tool too.",
+  "retouch": {
+   "label": "shapes",
+   "tool": "shapes",
+   "hint": "click a shape, then the photo; drag shapes, their source or edges; wheel resizes",
+   "replaces": [
+    "algorithm",
+    "@shapes"
+   ]
+  },
+  "spots": {
+   "label": "shapes",
+   "tool": "shapes",
+   "hint": "click a shape, then the photo; drag a spot or its source",
+   "replaces": [
+    "@show_and_edit_shapes",
+    "@shapes"
+   ]
+  },
+  "liquify": {
+   "label": "warps",
+   "tool": "liquify",
+   "hint": "add points, lines or curves on the photo; drag centres, radii and strength arrows",
+   "replaces": [
+    "@edit_add_and_delete_nodes",
+    "@shapes"
+   ]
+  },
+  "graduatednd": {
+   "label": "gradient line",
+   "tool": "line",
+   "hint": "drag the line or its ends on the photo; right-drag draws a new line",
+   "replaces": [
+    "offset"
+   ]
+  },
+  "ashift": {
+   "label": "structure",
+   "tool": "ashift",
+   "hint": "draw lines or a rectangle along the building; right-drag a level line to straighten",
+   "replaces": [
+    "@rectangle",
+    "@lines"
+   ],
+   "section": "perspective"
+  },
+  "vignette": {
+   "label": "vignette",
+   "tool": "vignette",
+   "hint": "drag the centre or the inner and outer handles on the photo",
    "replaces": []
   }
  },

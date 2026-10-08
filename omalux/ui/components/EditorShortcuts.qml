@@ -10,6 +10,8 @@ QtObject {
     property var navigator: null       // KeyboardNavigator
     property bool cropping: false
     property bool fullscreen: false
+    // A drawing tool on the photo is active (shape, line, warp being added).
+    property bool canvasDrawing: false
     property int panelCount: 5
     signal panelRequested(int index)
     signal panelStepRequested(int direction)
@@ -21,6 +23,7 @@ QtObject {
     signal fullscreenExitRequested()
     signal cropApplyRequested()
     signal cropCancelRequested()
+    signal canvasCancelRequested()
     signal openRequested()
     signal saveRequested()
     signal helpRequested()
@@ -31,6 +34,7 @@ QtObject {
         { section: "Crop", scope: "crop", keys: ["Return", "Enter"], label: "Apply crop", run: () => cropApplyRequested() },
         { section: "Crop", scope: "crop", keys: ["Escape"], label: "Cancel crop (restores the previous crop)", run: () => cropCancelRequested() },
         { section: "Photograph", scope: "fullscreen", keys: ["F", "Escape"], label: "Leave photograph fullscreen", run: () => fullscreenExitRequested() },
+        { section: "Photograph", scope: "canvas", keys: ["Escape"], label: "Leave the drawing tool on the photo (shape, line or warp being added)", run: () => canvasCancelRequested() },
 
         { section: "Sidebar", keys: ["Up", "K"], label: "Previous item (crosses modules; collapsed parameters are skipped)", run: () => navigator.move(-1) },
         { section: "Sidebar", keys: ["Down", "J"], label: "Next item", run: () => navigator.move(1) },
@@ -81,6 +85,7 @@ QtObject {
         switch (binding.scope) {
         case "crop": return cropping
         case "fullscreen": return fullscreen
+        case "canvas": return canvasDrawing
         case "view": return true
         default: return !fullscreen
         }

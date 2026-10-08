@@ -15,6 +15,21 @@ Rectangle {
     // The active module colour picker ({ kind: "area"|"point", box }) or null (ModuleTools).
     property var picker: null
     signal pickerEdited(var box, int modifiers)
+    // Drawing on the photo: the module whose tool is shown ({ operation, instance, kind } or
+    // null), what the engine reports for it, and its catalog state (see CanvasOverlay).
+    property var canvasTool: null
+    property string canvasOverlay: ""
+    property var canvasState
+    property bool canvasEditable: true
+    signal canvasEdited(string operation, int instance, var gesture)
+    signal canvasParametersEdited(string operation, int instance, var changes)
+    signal canvasInteractionChanged(bool active)
+    // A module colour picker takes the photo; the drawn tool waits until it ends.
+    readonly property bool canvasShown: !!canvasTool && !cropping && !picker && preview !== ""
+    readonly property bool canvasCapturing: canvasShown && canvas.capturing
+    function cancelCanvasTool() { canvas.cancel() }
+    // Pick one of the shown tool's toolbar entries, e.g. "shape:circle".
+    function startCanvasTool(key) { canvas.toolClicked(key, 0) }
     property real zoom: 1
     readonly property real fitWidth: Math.max(1, width - 40)
     readonly property real fitHeight: Math.max(1, height - 40)
@@ -30,7 +45,7 @@ Rectangle {
         anchors.fill: parent
         contentWidth: Math.max(width, root.imageWidth + 40)
         contentHeight: Math.max(height, root.imageHeight + 40)
-        interactive: !root.cropping && !root.picker
+        interactive: !root.cropping && !root.picker && !(root.canvasShown && canvas.capturing)
         boundsBehavior: Flickable.StopAtBounds
         Image {
             id: photo
@@ -63,6 +78,21 @@ Rectangle {
             box: root.picker ? root.picker.box : [0.02, 0.02, 0.98, 0.98]
             onBoxEdited: (box, modifiers) => root.pickerEdited(box, modifiers)
         }
+        CanvasOverlay {
+            id: canvas
+            objectName: "canvas-overlay"
+            x: photo.x; y: photo.y; width: photo.width; height: photo.height
+            visible: root.canvasShown
+            theme: root.theme
+            tool: root.canvasShown ? root.canvasTool : null
+            overlayJson: root.canvasOverlay
+            moduleState: root.canvasState
+            editable: root.canvasEditable
+            viewScale: Math.min(flick.width, flick.height) / Math.max(1, Math.min(root.imageWidth, root.imageHeight))
+            onEdited: gesture => root.canvasEdited(root.canvasTool.operation, root.canvasTool.instance, gesture)
+            onParametersEdited: changes => root.canvasParametersEdited(root.canvasTool.operation, root.canvasTool.instance, changes)
+            onInteractionChanged: active => root.canvasInteractionChanged(active)
+        }
         WheelHandler { enabled: !root.cropping; onWheel: event => { root.zoomBy(event.angleDelta.y > 0 ? 1.15 : 1 / 1.15); event.accepted = true } }
         PinchHandler {
             enabled: !root.cropping
@@ -71,6 +101,15 @@ Rectangle {
             onActiveChanged: if (active) startZoom = root.zoom
             onActiveScaleChanged: root.zoom = Math.max(1, Math.min(16, startZoom * activeScale))
         }
+    }
+    CanvasToolbar {
+        objectName: "canvas-toolbar"
+        anchors.top: parent.top; anchors.left: parent.left; anchors.margins: 10
+        visible: root.canvasShown && (canvas.tools.length > 0 || title !== "")
+        theme: root.theme
+        title: root.canvasTool ? (root.canvasTool.title || "") : ""
+        tools: canvas.tools
+        onToolClicked: (key, modifiers) => canvas.toolClicked(key, modifiers)
     }
     Text {
         anchors.centerIn: parent; width: parent.width - 40

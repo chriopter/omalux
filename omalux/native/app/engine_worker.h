@@ -42,6 +42,8 @@ class EngineWorker : public QObject {
     void styleReady(QString name);
     void frameReady(RenderResult result);
     void hoverReady(QImage image, quint64 revision, double aspectRatio, QVector4D textureTransform);
+    // The overlay of the module whose on-canvas tool is shown, after each render that changed it.
+    void canvasReady(QString operation, int instance, QString overlay);
     void failed(WorkTicket ticket, QString message);
     void choicesReady(QString operation, int instance, QString list, QString query, QString result);
 
@@ -69,6 +71,12 @@ class EngineWorker : public QObject {
     void replaceControls(OmEngine *, Request &, ControlRevisions &);
     void refreshModule(OmEngine *, const QString &operation, int instance);
     QString applyModuleEdits(OmEngine *, Request &, ControlRevisions &, QStringList &recipes);
+    // On-canvas tools (engine_worker_canvas.cpp); the canvas state belongs to the worker thread.
+    static bool mergeCanvasEdit(ModuleEdit &last, const ModuleEdit &edit);
+    int applyCanvasEdit(OmEngine *, const ModuleEdit &);
+    void publishCanvas(OmEngine *);
+    QString canvasOperation, publishedCanvas;
+    int canvasInstance = -1;
     QString source;
     std::vector<QByteArray> arguments;
     StyleCatalog catalog;

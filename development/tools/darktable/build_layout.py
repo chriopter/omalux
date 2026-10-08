@@ -35,8 +35,8 @@ FAMILIES = ["tone", "color", "correct", "effects"]
 CONTROLS_H = ROOT / "omalux" / "native" / "engine" / "controls.h"
 GROUP_IDS = ["base", "tone", "color", "correct", "effect", "technical", "deprecated"]
 WIDGETS = {"slider", "combobox", "toggle", "button", "curve", "graph", "color", "picker",
-           "drawn", "text", "file", "notice", "choice", "patches"}
-CUSTOM_KINDS = {"curve", "graph", "color", "picker", "drawn", "file", "text", "choice", "patches"}
+           "drawn", "text", "file", "notice", "choice", "patches", "canvas"}
+CUSTOM_KINDS = {"curve", "graph", "color", "picker", "drawn", "file", "text", "choice", "patches", "canvas"}
 INTERPOLATIONS = {None, "cubic", "catmull", "monotone", "linear"}
 TIERS = {"primary", "detail", "advanced"}
 COLORS = {"", "light", "saturation", "hue", "temperature", "tint"}
@@ -428,6 +428,15 @@ def notice_row(label):
                        colors="", custom=None, action=None)
 
 
+def canvas_row(entry):
+    """A row that opens a module's tool on the photograph (layout-decisions "canvas")."""
+    return OrderedDict(field="@canvas", path=None, label=entry["label"], tab=None, section=entry.get("section"),
+                       widget="canvas", unit="", factor=1, offset=0, digits=0, min=None, max=None,
+                       soft_min=None, soft_max=None, default=None, values=None, visible_when=None,
+                       tier="detail", colors="", custom=OrderedDict(kind="canvas", tool=entry["tool"],
+                                                                    hint=entry["hint"]), action=None)
+
+
 # ---------------------------------------------------------------------------------------------
 # visible_when: darktable prose -> {"field","in"} / {"all": [...]}
 
@@ -651,16 +660,30 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
         rows.insert(min(first, len(rows)), {"_notice": notice["label"]})
         report["notices"].append(op)
 
+    # on-canvas tools replace the rows they draw (and take the place of the first of them)
+    canvas = dec.get("canvas", {}).get(op)
+    if canvas:
+        for f in canvas["replaces"]:
+            if not any(r.get("field") == f for r in rows):
+                fail(f"layout-decisions: canvas of {op} replaces unknown row {f}")
+        first = next((i for i, r in enumerate(rows) if r.get("field") in canvas["replaces"]), 0)
+        rows = [r for r in rows if r.get("field") not in canvas["replaces"]]
+        rows.insert(min(first, len(rows)), {"_canvas": canvas})
+        report["canvas"].append(op)
+
     # finish rows
     layout_notes, dropped = [], []
     vw_dec = dec["visible_when"].get(op)
     # conditions may name a curated parameter: it is referred to by its params member
-    live = [r for r in rows if "_notice" not in r] + \
+    live = [r for r in rows if "_notice" not in r and "_canvas" not in r] + \
         [dict(r, field=r["path"] or r["field"]) for r in curated_rows]
     out_rows = []
     for r in rows:
         if "_notice" in r:
             out_rows.append(notice_row(r["_notice"]))
+            continue
+        if "_canvas" in r:
+            out_rows.append(canvas_row(r["_canvas"]))
             continue
         row = finish_row(op, r, notes)
         text = r["_inv"]["visible_when"]
@@ -703,6 +726,8 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
     for row in out_rows:
         if row["widget"] == "notice":
             row["tier"] = "primary"
+        elif row["widget"] == "canvas":
+            row["tier"] = "detail"
         elif row["field"] in primary:
             row["tier"] = "primary"
         elif row["tier"] == "primary":
@@ -738,7 +763,7 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
         # A further instance of a curated module is not edited through controls.h: it gets
         # every row, as an uncurated module would (instance_rows, instance_primary, instance_tabs).
         full = build_module(op, inv, dec, curated_pairs, curated_modules - {op},
-                            dict(reordered=[], notices=[], vw_partial=[], vw_unconverted=[], vw_layout=0))
+                            dict(reordered=[], notices=[], canvas=[], vw_partial=[], vw_unconverted=[], vw_layout=0))
         full.pop("_curated_refs")
         module["instance_rows"] = full["rows"]
         module["instance_primary"] = full["primary"]
@@ -820,7 +845,7 @@ def main():
     if errors:
         fail("\n".join(errors))
 
-    report = dict(reordered=[], notices=[], vw_partial=[], vw_unconverted=[], vw_layout=0)
+    report = dict(reordered=[], notices=[], canvas=[], vw_partial=[], vw_unconverted=[], vw_layout=0)
     layout = OrderedDict(darktable="5.6.1", groups=[])
     for g in dec["groups"]:
         mods = []
@@ -875,6 +900,7 @@ def main():
     print("  widgets: " + ", ".join(f"{k} {v}" for k, v in widgets.most_common()))
     print("  custom widgets: " + ", ".join(f"{k} {v}" for k, v in kinds.most_common()))
     print("  notices: " + ", ".join(report["notices"]))
+    print("  on-canvas tools: " + ", ".join(report["canvas"]))
     print(f"  visible_when: {len(report['vw_partial'])} partly converted, {len(report['vw_unconverted'])} left null "
           f"(image/sensor conditions), {report['vw_layout']} layout-only clauses dropped")
     print("  rows regrouped by tab: " + (", ".join(report["reordered"]) or "none"))

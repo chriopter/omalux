@@ -12826,12 +12826,12 @@
        "action": "aspect adjust"
       },
       {
-       "field": "@notice",
+       "field": "@canvas",
        "path": null,
-       "label": "drawing structure lines on the image — not available yet",
+       "label": "structure",
        "tab": null,
-       "section": null,
-       "widget": "notice",
+       "section": "perspective",
+       "widget": "canvas",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -12843,9 +12843,13 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "canvas",
+        "tool": "ashift",
+        "hint": "draw lines or a rectangle along the building; right-drag a level line to straighten"
+       },
        "action": null
       },
       {
@@ -13211,12 +13215,12 @@
        "action": "aspect adjust"
       },
       {
-       "field": "@notice",
+       "field": "@canvas",
        "path": null,
-       "label": "drawing structure lines on the image — not available yet",
+       "label": "structure",
        "tab": null,
-       "section": null,
-       "widget": "notice",
+       "section": "perspective",
+       "widget": "canvas",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -13228,9 +13232,13 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "canvas",
+        "tool": "ashift",
+        "hint": "draw lines or a rectangle along the building; right-drag a level line to straighten"
+       },
        "action": null
       },
       {
@@ -16096,9 +16104,36 @@
      "primary": [],
      "rows": [
       {
+       "field": "@canvas",
+       "path": null,
+       "label": "shapes",
+       "tab": null,
+       "section": null,
+       "widget": "canvas",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "detail",
+       "colors": "",
+       "custom": {
+        "kind": "canvas",
+        "tool": "shapes",
+        "hint": "click a shape, then the photo; drag shapes, their source or edges; wheel resizes"
+       },
+       "action": null
+      },
+      {
        "field": "@notice",
        "path": null,
-       "label": "retouch shapes are drawn on the image — not available yet",
+       "label": "wavelet decompose and preview levels — not available yet",
        "tab": null,
        "section": null,
        "widget": "notice",
@@ -16264,32 +16299,9 @@
        "colors": "",
        "custom": null,
        "action": "blur radius"
-      },
-      {
-       "field": "@mask_opacity",
-       "path": null,
-       "label": "mask opacity",
-       "tab": null,
-       "section": "shapes",
-       "widget": "slider",
-       "unit": "%",
-       "factor": 100,
-       "offset": 0,
-       "digits": 1,
-       "min": 0,
-       "max": 1,
-       "soft_min": 0,
-       "soft_max": 1,
-       "default": 1,
-       "values": null,
-       "visible_when": null,
-       "tier": "detail",
-       "colors": "",
-       "custom": null,
-       "action": "mask opacity"
       }
      ],
-     "notes": "fill mode: shown when selected tool/shape algorithm == fill (not machine-readable). fill color: shown when algorithm == fill (not machine-readable). brightness: shown when algorithm == fill (not machine-readable). blur type: shown when algorithm == blur (not machine-readable). blur radius: shown when algorithm == blur (not machine-readable). mask opacity: shown when a shape is selected; value lives in the mask form, not in params (not machine-readable)."
+     "notes": "fill mode: shown when selected tool/shape algorithm == fill (not machine-readable). fill color: shown when algorithm == fill (not machine-readable). brightness: shown when algorithm == fill (not machine-readable). blur type: shown when algorithm == blur (not machine-readable). blur radius: shown when algorithm == blur (not machine-readable)."
     },
     {
      "operation": "liquify",
@@ -16302,12 +16314,12 @@
      "primary": [],
      "rows": [
       {
-       "field": "@notice",
+       "field": "@canvas",
        "path": null,
-       "label": "warps are drawn on the image — not available yet",
+       "label": "warps",
        "tab": null,
        "section": null,
-       "widget": "notice",
+       "widget": "canvas",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -16319,9 +16331,13 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "canvas",
+        "tool": "liquify",
+        "hint": "add points, lines or curves on the photo; drag centres, radii and strength arrows"
+       },
        "action": null
       }
      ],
@@ -16693,6 +16709,33 @@
      "primary": [],
      "rows": [
       {
+       "field": "@canvas",
+       "path": null,
+       "label": "vignette",
+       "tab": null,
+       "section": null,
+       "widget": "canvas",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "detail",
+       "colors": "",
+       "custom": {
+        "kind": "canvas",
+        "tool": "vignette",
+        "hint": "drag the centre or the inner and outer handles on the photo"
+       },
+       "action": null
+      },
+      {
        "field": "saturation",
        "path": "saturation",
        "label": "saturation",
@@ -16874,6 +16917,33 @@
      ],
      "notes": "",
      "instance_rows": [
+      {
+       "field": "@canvas",
+       "path": null,
+       "label": "vignette",
+       "tab": null,
+       "section": null,
+       "widget": "canvas",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "detail",
+       "colors": "",
+       "custom": {
+        "kind": "canvas",
+        "tool": "vignette",
+        "hint": "drag the centre or the inner and outer handles on the photo"
+       },
+       "action": null
+      },
       {
        "field": "scale",
        "path": "scale",
@@ -18137,12 +18207,12 @@
        "action": "saturation"
       },
       {
-       "field": "@notice",
+       "field": "@canvas",
        "path": null,
-       "label": "dragging the gradient line on the image — not available yet",
+       "label": "gradient line",
        "tab": null,
        "section": null,
-       "widget": "notice",
+       "widget": "canvas",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -18154,9 +18224,13 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "canvas",
+        "tool": "line",
+        "hint": "drag the line or its ends on the photo; right-drag draws a new line"
+       },
        "action": null
       }
      ],
@@ -24238,12 +24312,12 @@
      "primary": [],
      "rows": [
       {
-       "field": "@notice",
+       "field": "@canvas",
        "path": null,
-       "label": "spots are drawn on the image — not available yet",
+       "label": "shapes",
        "tab": null,
        "section": null,
-       "widget": "notice",
+       "widget": "canvas",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -24255,9 +24329,13 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "canvas",
+        "tool": "shapes",
+        "hint": "click a shape, then the photo; drag a spot or its source"
+       },
        "action": null
       }
      ],

@@ -184,6 +184,8 @@ Column {
                 it = Object.assign(base(r), { kind: "color", derived: true, paths: [path + "[0]", path + "[1]", path + "[2]"] })
             // ---- end values and lists ----
             else if (r.widget === "notice") it = Object.assign(base(r), { kind: "notice", text: r.label })
+            // A tool drawn on the photo (CanvasToolRow); selecting it shows the tool there.
+            else if (r.widget === "canvas") it = Object.assign(base(r), { kind: "canvas", tier: r.tier })
             else if (local && (r.widget === "combobox" || r.widget === "toggle" || r.widget === "text"))
                 it = Object.assign(base(r), { kind: "local" })
             else if (r.widget === "curve" && r.custom && !r.custom.nodes_field && r.custom.fields.length)
@@ -378,7 +380,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
-                                histogram: histogramRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -590,6 +592,20 @@ Column {
                 }
                 color: root.theme.muted; font: root.theme.settingsFont
             }
+        }
+    }
+    Component {
+        id: canvasRow
+        CanvasToolRow {
+            width: root.width - 28
+            theme: root.theme
+            label: it.row.label
+            hint: it.row.custom ? it.row.custom.hint || "" : ""
+            active: root.activeControl.indexOf(root.navGroup + "/") === 0
+            editable: root.editable
+            onActivated: root.controlSelected(root.navId(it.row))
+            navTarget.navId: root.navId(it.row)
+            navTarget.group: root.navGroup
         }
     }
     Component {

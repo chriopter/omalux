@@ -72,7 +72,7 @@ WorkTicket EngineWorker::moduleEdit(ModuleEdit edit) {
         last->operation == edit.operation && last->instance == edit.instance) {
         for (auto it = edit.values.cbegin(); it != edit.values.cend(); ++it)
             last->values.insert(it.key(), it.value());
-    } else
+    } else if (!last || !mergeCanvasEdit(*last, edit))
         pendingEdits.push_back(std::move(edit));
     // A revision, not a new epoch: frames rendered meanwhile stay presentable during a drag.
     ++ticket.revision;
@@ -235,7 +235,13 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
     for (const auto &edit : request.edits) {
         const auto operation = edit.operation.toUtf8();
         int result = 0;
-        if (edit.kind == ActionKind::ResetModule)
+        if (edit.kind == ActionKind::CanvasSelect) {
+            applyCanvasEdit(engine, edit);
+            continue;
+        }
+        if (edit.kind == ActionKind::CanvasEdit)
+            result = applyCanvasEdit(engine, edit);
+        else if (edit.kind == ActionKind::ResetModule)
             result = om_engine_reset_module(engine, operation.constData(), edit.instance);
         else if (edit.kind == ActionKind::ModuleInstance) {
             // New, duplicated, moved, renamed or deleted instances change the module list:
@@ -403,6 +409,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     OmPreviewGeometry geometry{};
     requireEngine(om_engine_render(engine, &pixels, &width, &height, request.draft, &geometry),
                   "darktable preview failed");
+    publishCanvas(engine);
     RenderResult result{request.ticket,
                         copyDisplayPixels(pixels, width, height),
                         {},

@@ -344,3 +344,53 @@ exposure, color harmonizer RYB tables) it is copied with line references. A tool
 parameters and blend parameters of every module it may write, records one
 `dt_dev_add_history_item_ext` per changed module and restores them on failure.
 
+## Drawing on the image (2026-10-08)
+
+darktable's on-image tools live in GUI code that works on the process-global
+`darktable.develop` and its preview pipe (`develop/masks/*.c`, the modules' `mouse_moved`,
+`button_pressed`/`released`, `gui_post_expose`). None of that runs headless, so the parts
+that decide stored values are ported into `native/engine/canvas.c`, `shapes.c` and
+`liquify_canvas.c` and applied to the worker's develop context; each function names its
+source. Findings verified against 5.6.1:
+
+- **Coordinates.** Modules convert pointer fractions of `dev->preview_pipe`'s processed size
+  with `dt_dev_distort_(back)transform_plus` (`develop.c:3693`). The adapter uses its full
+  pipe, processed at input resolution (iscale 1): its `processed_width/height` and node
+  transforms give the same geometry in full-resolution pixels. Forms store fractions of the
+  pipe's input size (`iwidth/iheight`), as `dt_masks_get_image_size` does; graduated density
+  works in its own output buffer (`FORW_EXCL`), liquify skips itself (`BACK_EXCL` then
+  `FORW_EXCL`, `liquify.c:542`), clone sources are shifted in the module's input space
+  (`_circle_get_points_source`, `circle.c:702`). Transforms need nodes, so overlays are read
+  after a render.
+- **Forms bookkeeping.** `dt_masks_gui_form_save_creation`, `_check_id`, `_group_create` and
+  `dt_masks_form_remove` use `darktable.develop`; their logic is repeated on `engine->dev.forms`.
+  History items carry forms through `dt_dev_add_masks_history_item_ext(..., include masks)`,
+  `dt_dev_pop_history_items_ext` restores them (`dt_masks_replace_current_forms`).
+- **Pipe cache.** `dt_iop_commit_params` adds drawn forms to a piece's hash from
+  `darktable.develop` (`imageop.c:2235`), not from the processed develop context, and only
+  while a mask mode is set or the module has GUI focus; retouch and spot removal use forms
+  without a mask mode. Moving a shape therefore leaves every hash unchanged and the cache would
+  return the old output. `om_engine_canvas_before_render` hashes the worker's forms before each
+  render and, when they changed, invalidates the cache from the first module with a mask group
+  (`dt_dev_pixelpipe_cache_invalidate_later`). `omalux/tests/canvas-engine.json` checks that a
+  moved shape changes the pixels and that history jumps reproduce earlier previews exactly.
+- **Rendering** reads forms from `piece->pipe->forms`, copied from the develop context at each
+  process (`pixelpipe_hb.c:3182`), and retouch/blend use only the pipe copy, so processing is
+  headless-safe (as for darktable-cli).
+- **Selection.** retouch's selected shape is `dev->mask_form_selected_id`
+  (`rt_get_selected_shape_id`); the adapter sets it on the worker's context and runs the
+  `gui_changed` copy after generic edits (`module_catalog.c` calls
+  `om_engine_canvas_parameters_changed`).
+- **Persistence and split mode.** darktable styles have no forms (`common/styles.c`), so own
+  styles still reject drawn masks; single-module comparison snapshots are refused only for
+  modules with a mask group, which go as an XMP sidecar written with
+  `dt_dev_write_history_ext` + `dt_exif_xmp_write` and applied by Lua's `apply_sidecar`
+  (`lua/image.c:96`, `dt_history_load_and_apply`).
+- **Defaults.** New shapes take darktable's configuration values (`DT_MASKS_CONF`,
+  `plugins/darkroom/spots|masks/...`, liquify's `dt_conf_get_sanitize_float`, which moves an
+  unset value a quarter of the way to its default), and resizing stores them back as darktable
+  does.
+- **Not ported.** ashift's automatic cropping (`cl/cr/ct/cb` are computed in GUI code, so a
+  rotated photo keeps black corners), its structure detection and fitting (the drawn structure
+  is stored for them), single path/brush node editing and the mask manager.
+

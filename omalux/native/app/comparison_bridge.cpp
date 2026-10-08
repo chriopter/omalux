@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "comparison_bridge.h"
+#include "engine/canvas.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QSaveFile>
@@ -40,7 +41,7 @@ void ComparisonBridge::modules(OmEngine *engine, const QStringList &modules, qui
             }
             journal = kept + prefix + QByteArray::number(revision) + " " + module.toUtf8() + " " +
                       name.toUtf8() + "\n";
-        } else
+        } else if (!om_engine_canvas_uses_forms(engine, module.toUtf8().constData()) || !sidecar(engine, revision))
             qWarning() << "Could not synchronize module" << module;
     }
 }
@@ -49,7 +50,7 @@ bool ComparisonBridge::history(OmEngine *engine, quint64 revision) {
         return true;
     const QString name = "omalux-history-" + QString::number(revision);
     if (!writeSnapshot(name, om_engine_history_snapshot(engine, name.toUtf8().constData())))
-        return false;
+        return om_engine_canvas_uses_forms(engine, "*") && sidecar(engine, revision);
     ++epoch;
     journal = "history " + QByteArray::number(epoch) + " " + name.toUtf8() + "\n";
     return true;

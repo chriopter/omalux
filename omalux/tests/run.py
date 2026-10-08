@@ -37,6 +37,18 @@ def check_blend_mailbox(mailbox):
     print('Mailbox carries blend edits and the second exposure instance', flush=True)
 
 
+def check_sidecar(mailbox):
+    """Drawn shapes reach split mode as an XMP sidecar of the whole history."""
+    lines = [line.split() for line in mailbox.read_text().splitlines() if line.startswith('sidecar ')]
+    if len(lines) != 1:
+        raise RuntimeError(f'Mailbox should carry one current sidecar: {mailbox.read_text()[:400]}')
+    xmp = (mailbox.parent / (lines[0][2] + '.xmp')).read_text()
+    for needle in ('darktable:masks_history', 'retouch', 'exposure'):
+        if needle not in xmp:
+            raise RuntimeError(f'Sidecar {lines[0][2]} lacks {needle}')
+    print('Mailbox carries the drawn shapes as an XMP sidecar', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--split', action='store_true', help='also verify the GTK comparison path')
@@ -88,6 +100,7 @@ def main():
                    ROOT / 'omalux/tests/blending.json', ROOT / 'omalux/tests/module-tools.json',
                    ROOT / 'omalux/tests/module-tools-ui.json',
                    ROOT / 'omalux/tests/keyboard.json',
+                   ROOT / 'omalux/tests/canvas-engine.json', ROOT / 'omalux/tests/canvas.json',
                    work / 'workflow.json']
         # Displayed conversions, runtime lists and file choices; "{WORK}" names this run's folder.
         values = work / 'module-values.json'
@@ -99,6 +112,8 @@ def main():
         mailbox.parent.mkdir()
         blend_mailbox = work / 'mailbox-blending' / 'controls'
         blend_mailbox.parent.mkdir()
+        canvas_mailbox = work / 'canvas-mailbox' / 'controls'
+        canvas_mailbox.parent.mkdir()
         for script in scripts:
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
@@ -109,6 +124,8 @@ def main():
                 env['OMALUX_RECORD_MAILBOX'] = str(values_mailbox)
             if script.stem == 'blending' and not args.split:
                 env['OMALUX_RECORD_MAILBOX'] = str(blend_mailbox)
+            if script.stem == 'canvas-engine' and not args.split:
+                env['OMALUX_RECORD_MAILBOX'] = str(canvas_mailbox)
             command = ROOT / ('development/start_split' if args.split else 'development/start')
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
@@ -120,13 +137,15 @@ def main():
                 raise RuntimeError(text[-12000:])
             for line in text.splitlines():
                 if 'Drag draft frames' in line or 'Smoke complete' in line or line.startswith('Parameter ') \
-                        or line.startswith('Instances ') or 'Rejected as expected' in line:
+                        or line.startswith('Instances ') or 'Rejected as expected' in line \
+                        or line.startswith('Pixels '):
                     print(line, flush=True)
         if not args.split:
             check_mailbox(mailbox, {'exposure', 'tonecurve', 'rgbcurve'})
             check_mailbox(values_mailbox, {'colorbalance', 'channelmixerrgb', 'colorharmonizer', 'splittoning',
                                            'colorchecker', 'colorin', 'lens', 'lut3d'})
             check_blend_mailbox(blend_mailbox)
+            check_sidecar(canvas_mailbox)
         for name, size in [('full.png', '1536x1024'), ('square.jpg', '1024x1024')]:
             actual = subprocess.check_output(['magick', 'identify', '-format', '%wx%h',
                                               str(work / name)], text=True)

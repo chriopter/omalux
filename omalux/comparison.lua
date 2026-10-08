@@ -44,8 +44,11 @@ dt.control.dispatch(function()
         local records = {}
         for line in body:gmatch("[^\n]+") do
           local history_epoch, history_file = line:match("^history (%d+) ([%w%-]+)$")
+          local sidecar_epoch, sidecar_file = line:match("^sidecar (%d+) ([%w%-]+)$")
           if history_epoch then
             records[#records+1]={kind="history",sequence=tonumber(history_epoch),filename=history_file}
+          elseif sidecar_epoch then
+            records[#records+1]={kind="sidecar",sequence=tonumber(sidecar_epoch),filename=sidecar_file}
           else
           local epoch, revision, module, snapshot = line:match("^module (%d+) (%d+) ([%w_]+) ([%w%-]+)$")
           if epoch then
@@ -79,6 +82,14 @@ dt.control.dispatch(function()
               dt.styles.apply(selected,assert(dt.gui.views.darkroom.display_image(), "no darkroom image"))
               style_revision,controls_applied=record.sequence,{}
               log("restored history " .. record.sequence)
+            end
+          elseif record.kind == "sidecar" then
+            -- Drawn shapes cannot travel in a style: the whole history as an XMP sidecar.
+            if record.sequence > style_revision then
+              local image=assert(dt.gui.views.darkroom.display_image(), "no darkroom image")
+              assert(image:apply_sidecar(mailbox:match("^(.*)/") .. "/" .. record.filename .. ".xmp"), "sidecar not applied")
+              style_revision,controls_applied=record.sequence,{}
+              log("applied sidecar " .. record.sequence)
             end
           elseif record.kind == "style" then
             if record.sequence > style_revision then

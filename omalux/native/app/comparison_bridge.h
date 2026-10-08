@@ -17,4 +17,7 @@ class ComparisonBridge {
     quint64 epoch = 0;
     QByteArray journal;
     bool writeSnapshot(const QString &name, char *json);
+    // Drawn shapes cannot travel in a style: the whole history as an XMP sidecar
+    // (comparison_bridge_canvas.cpp).
+    bool sidecar(OmEngine *, quint64 revision);
 };

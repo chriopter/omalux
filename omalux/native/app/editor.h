@@ -29,6 +29,8 @@ class Editor : public QObject {
     Q_PROPERTY(QString layoutData READ layoutData CONSTANT)
     Q_PROPERTY(QString blendLayoutData READ blendLayoutData CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
+    // The overlay of the on-canvas tool shown on the photo (JSON, engine/canvas.h).
+    Q_PROPERTY(QString canvasOverlay READ canvasOverlay NOTIFY canvasChanged)
   public:
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
     ~Editor() override;
@@ -86,6 +88,11 @@ class Editor : public QObject {
     Q_INVOKABLE void runModuleTool(const QString &operation, int instance, const QVariantMap &request);
     // The tools the engine implements: JSON array of {operation, tool}.
     Q_INVOKABLE QString moduleTools() const;
+    // Drawing on the image (editor_canvas.cpp): which module's tool the photo shows ("" for
+    // none), and one gesture of it in preview coordinates.
+    QString canvasOverlay() const;
+    Q_INVOKABLE void setCanvasModule(const QString &operation, int instance);
+    Q_INVOKABLE void editCanvas(const QString &operation, int instance, const QVariantMap &gesture);
   signals:
     void historyChanged();
     void changed();
@@ -97,6 +104,7 @@ class Editor : public QObject {
     void choicesReady(QString operation, int instance, QString list, QString query, QString result);
     // A module tool finished: its JSON result (see module_tools.h) and the engine status.
     void moduleToolResult(QString operation, int instance, QString tool, QString result, int error);
+    void canvasChanged();
 
   private:
     bool styleAvailable(const QString &id) const;
@@ -118,4 +126,8 @@ class Editor : public QObject {
     bool catalogReady = false, applying = false;
     WorkTicket requestedTicket;
     quint64 presentedRevision = 0, hoverRevision = 0;
+    void connectCanvas();
+    QString canvasJson, canvasOperation;
+    int canvasInstance = -1;
+    bool canvasConnected = false;
 };

@@ -100,7 +100,7 @@ Tests: `omalux/tests/components/tst_keyboard.qml` (qmltestrunner, every pane aga
 
 The optional `OMALUX_SMOKE_SCRIPT` development driver runs deterministic actions against the real engine. It exercised scalar edits, white balance, grain, wavelet curves, the diffusion recipe, style application, LUT opacity, own style save/reapply and full-resolution JPEG/PNG export. A square crop produced a 1024 × 1024 export from the 1536 × 1024 source; bundle export retained the thumbnail and declared LUT, and own-style deletion was checked. Split mode acknowledged control updates and a source-image switch followed by exposure editing; this does not establish byte-identical output or performance parity.
 
-The curated controls edit the base module instance. The generic module API below reaches every described parameter of any instance; the multi-instance menu creates, duplicates, moves, renames and deletes instances, and every module with darktable's blending has its blend section (see [Blending and module instances](#blending-and-module-instances)). Drawn mask shapes are not drawn yet. Own-style snapshots reject drawn and raster masks, extra instances and external image dependencies rather than silently losing them. The original colisa controls are deprecated upstream; they remain for existing styles. See the architecture notes for cache and GPU-reporting limitations.
+The curated controls edit the base module instance. The generic module API below reaches every described parameter of any instance; the multi-instance menu creates, duplicates, moves, renames and deletes instances, and every module with darktable's blending has its blend section (see [Blending and module instances](#blending-and-module-instances)). Drawn shapes, liquify warps and the other on-image tools are drawn on the photo (see [Drawing on the image](#drawing-on-the-image)). Own-style snapshots reject drawn and raster masks, extra instances and external image dependencies rather than silently losing them. The original colisa controls are deprecated upstream; they remain for existing styles. See the architecture notes for cache and GPU-reporting limitations.
 
 Scrolling reference: [Omawrite 0.5.0, Main.qml](https://github.com/omacom/omawrite/blob/v0.5.0/src/Main.qml), event handling and `snapToPixel`. Omalux adopts its event classification and pixel alignment; its angle-only movement remains immediate rather than using Omawrite’s animated wheel curve.
 
@@ -260,14 +260,19 @@ instance of the operation with its `multi_priority` and name, and the blend para
 including a raster mask taken from another module, so blend edits and edits of further
 instances are mirrored; darktable matches the instances by name, then unused, default and
 priority (`dt_history_merge_module_into_history`). Deleting or moving an instance is not
-mirrored (a style never removes or reorders modules), and drawn masks are still rejected.
+mirrored (a style never removes or reorders modules). darktable styles cannot carry drawn forms: a module
+that uses a mask group (retouch, spot removal, a drawn blend mask), and a history step while
+shapes exist, reach the comparison as an XMP sidecar of the whole history instead
+(`omalux-sidecar-<revision>.xmp`, a `sidecar <epoch> <name>` mailbox line), which `comparison.lua`
+applies with `image:apply_sidecar`; like a history snapshot it starts a new epoch.
 `python3 omalux/tests/run.py` records the mailbox of `omalux/tests/module-parameters.json`
 (`OMALUX_RECORD_MAILBOX`, no comparison window) and checks it carries one current snapshot
 each for exposure, tonecurve and rgbcurve. `omalux/tests/module-values.json` does the same for
 the displayed conversions and runtime lists (color balance, color calibration, color
 harmonizer, split-toning, color look up table, input profile, lens, LUT 3D); for `omalux/tests/blending.json` it checks that
-the exposure snapshot carries the second instance. The real comparison window was not run
-with instances.
+the exposure snapshot carries the second instance, and for `omalux/tests/canvas-engine.json` that
+the current sidecar holds the drawn shapes. The real comparison window was not run with
+instances or sidecars.
 
 ## Generated layout of every module
 
@@ -300,9 +305,11 @@ unlabelled get an empty label.
 - `visible_when` is `{field, in}` or `{all: [...]}`. Conditions on the sensor, the image file
   or darktable preferences cannot be expressed this way and stay `null`, with the condition
   in the module's notes. A condition may name a curated parameter by its params member.
-- Drawn or on-canvas features (retouch, liquify, spots, the graduated density line, ashift
-  structure lines, colour checker calibration) become one `notice` row; plain sliders of the
-  same module are kept. Rows darktable fills from a runtime list or a file dialog (profiles,
+- On-image tools (retouch and spot removal shapes, liquify warps, the graduated density line,
+  rotate and perspective's structure, the vignetting ellipse) become one `canvas` row from the
+  decisions' `canvas` block (`custom.tool`, `custom.hint`); the rows it replaces are left out.
+  Colour checker calibration and retouch's wavelet bar stay a `notice` row; plain sliders of
+  the same module are kept. Rows darktable fills from a runtime list or a file dialog (profiles,
   lensfun camera and lens, focal length, aperture, distance, noise profiles, LUT, watermark,
   raster mask and overlay files, white balance settings; `CHOICES` in `build_layout.py`)
   become `choice` rows whose `custom` names the engine list (`list`), the `@` path a chosen
@@ -347,8 +354,8 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   `PatchGrid` (see "Displayed values and runtime lists" below).
 - Pickers and module buttons are rows of `ModuleToolButtons` and pickers on sliders (see
   "Pickers and module buttons" below). Shown as a muted notice instead of a control, merged per
-  section: the pickers and buttons not ported yet (listed there), drawn features
-  (retouch, liquify, spots, graduated density line, monochrome and colour correction grids,
+  section: the pickers and buttons not ported yet (listed there), sidebar-drawn
+  features (retouch's wavelet bar and preview levels, monochrome and colour correction grids,
   relight center, zone system), darktable's own graphs of filmic rgb/AgX/filmic, and the remaining
   `@` conversions without an adapter (rotate and perspective/clipping `@flip` and `@aspect` of the
   deprecated crop module). Right-click on a row resets it to darktable's default; module reset uses
@@ -558,8 +565,9 @@ darktable's `dt_iop_gui_init_blending` / `dt_iop_gui_update_blending` (`develop/
   `_blendop_blend_mode_callback`, 716) and **opacity**.
 - **drawn mask**: how many shapes the mask group holds ("no mask used", "N shapes used") and
   **toggle polarity of drawn mask** (`DEVELOP_COMBINE_MASKS_POS`). The shape buttons (add
-  gradient, path, ellipse, circle, brush) appear only when the on-image drawing work is
-  linked (`masks_api.h`); until then a notice stands in for them.
+  gradient, path, ellipse, circle, brush) show the module's drawn mask on the photo with that
+  shape picked (`EditorSidebar.drawnShapeRequested` → `Main.requestDrawnShape`, see
+  [Drawing on the image](#drawing-on-the-image)); `masks_api.h` is implemented in `shapes.c`.
 - **raster mask**: the raster masks of earlier modules as darktable lists them
   (`_raster_combo_populate`, 2856: every module before this one that advertises one) and
   **toggle polarity of raster mask**.
@@ -638,3 +646,66 @@ module (when it is not the last history item) and the new one; deleting an insta
 history items, and deleting instance 0 renumbers the instance first in history to 0. Duplicating
 a module whose drawn mask holds shapes is refused, as their copy needs darktable's GUI develop
 context (`dt_masks_iop_use_same_as`).
+
+## Drawing on the image
+
+darktable draws some modules on the image: shapes, lines, warps and handles that its mouse
+handlers turn into parameters. Omalux shows them over the photo for the module whose row is
+selected, as darktable shows the overlay of the focused module: any row of vignetting,
+graduated density, rotate and perspective (also the curated rotation in Crop & Rotate),
+liquify, retouch or spot removal, the module's `canvas` row ("show on photo"), or a
+blend section's shape button (`operation/instance/@shapes`). History and Info show none, nor
+does cropping. A small toolbar at the top left of the photo names the module and holds its
+tools; Escape leaves a drawing tool. All positions cross the engine interface as fractions of
+the processed image as the preview shows it (`omalux/native/engine/canvas.h`); the adapter
+converts them with darktable's distortion transforms on the full pipe, so a shape stays on its
+image feature through crop, rotation, perspective and lens correction.
+
+| Module | On the photo | darktable source ported |
+| --- | --- | --- |
+| vignetting | centre, inner and outer ellipse; handles for centre, width, height (Ctrl: size instead of ratio) and fall-off | `vignette.c` `gui_post_expose`, `mouse_moved` (381, 469), in QML (`VignetteOverlay`) |
+| graduated density | the line with its end arrows; drag an end or the line, right-drag (or *draw line*) draws a new one; applied on release | `graduatednd.c` `_set_grad_from_points`, `_set_points_from_grad`, `button_released` (206, 307, 670) |
+| rotate and perspective | right-drag (or *straighten*) a level or plumb line: rotation minus its angle (at least 25 screen pixels); *lines* and *rectangle* draw structure, stored in `last_drawn_lines`/`last_quad_lines` in input pixels; ends and corners stay draggable; *clear* | `ashift.c` `_calculate_straightening` (4070), `_draw_save_lines_to_params` (3008) |
+| retouch | shapes circle, ellipse, path, brush; algorithms clone, heal, blur, fill (Ctrl: the selected shape, within clone↔heal and blur↔fill); the selected shape's opacity and *remove* | `retouch.c` `rt_resynch_params`, `rt_select_algorithm_callback`, `rt_shape_selection_changed`, `gui_changed` |
+| spot removal | circle, ellipse and path clones | `spots.c` `_resynch_params` |
+| drawn blend mask | circle, ellipse, path, brush and gradient in the module's mask group; adding one sets the drawn mask mode | `blend_gui.c` shape buttons, `masks.c` `dt_masks_gui_form_save_creation` |
+| liquify | each warp's centre, radius circle and strength arrow, curve control points; *point*, *line*, *curve*; Ctrl+click on an arrow cycles linear, grow, shrink; right-click deletes a node, Ctrl+right-click its path | `liquify.c` node handling, `smooth_paths_linsys`, `get_point_scale`, `get_stamp_params` |
+
+Shapes (develop/masks): pick a shape, then click (circle, ellipse), drag (gradient: the
+direction), click the corners (path; finish with a right-click, a double-click or on the
+first corner) or paint (brush; simplified with darktable's Ramer–Douglas–Peucker step and
+Catmull-Rom control points). Ctrl when picking keeps adding; Shift+click first places a clone
+source, otherwise darktable's default offset is used. Drag a shape to move it, its dashed
+source to move that, its outline to resize it, its dashed feather line to soften it, the
+round handle to turn an ellipse or gradient. The wheel over a shape: size, Shift feather,
+Ctrl opacity, Shift+Ctrl rotation (darktable's steps and limits); right-click removes it.
+New shapes take darktable's configured defaults, and resizing stores the new default, as in
+darktable. The selected shape is darktable's `mask_form_selected_id`; editing retouch's blur
+or fill fields edits the selected shape, as darktable's `gui_changed` does.
+
+Each gesture is one history item, consecutive steps of one drag merge like a slider drag
+(the worker merges queued moves and multiplies scale factors), and the module is switched
+on. While a drag is on, the shape follows the pointer locally; the engine's overlay replaces
+it after release. Drawn forms are part of the history (`dt_dev_add_masks_history_item_ext`),
+so history jumps restore them, and of the XMP written for export and for split mode.
+
+Engine and app pieces: `canvas.c` (dispatch, spaces, graduated density, rotate and
+perspective, sidecar), `shapes.c` (forms, retouch/spots bookkeeping, `masks_api.h`),
+`liquify_canvas.c`; `EngineWorker` keeps the shown module and sends its overlay after each
+render that changed it (`canvasReady`), `Editor.setCanvasModule`, `editCanvas` and
+`canvasOverlay`; QML `CanvasOverlay` picks `VignetteOverlay`, `GradientLineOverlay`,
+`StructureOverlay`, `ShapesOverlay` or `LiquifyOverlay`, `CanvasToolbar` and `CanvasToolRow`
+(sidebar row). Tests: `omalux/tests/components/tst_canvas.qml` (gestures without an engine),
+`omalux/tests/canvas-engine.json` (every gesture against the engine, history jumps comparing
+pixels, the sidecar) and `omalux/tests/canvas.json` (real pointer events on the photo).
+
+Not built: darktable's path and brush node editing (moving single corners or control
+points, adding or deleting nodes on a path), feather handles per path node, gradient
+curvature by drag (the wheel changes it), shape groups with several operations
+(union/intersection/difference set in the mask manager), the mask manager itself, colour
+checker calibration on the image, retouch's wavelet scales bar and preview levels, ashift's
+automatic cropping (darktable computes it in its GUI; a straightened photo keeps black
+corners until crop is set) and the fit buttons that use the drawn structure. The overlay of
+a path border and a brush stroke follows darktable's geometry (border × shorter input side
+along the Bézier normal) but not its exact border construction.
+

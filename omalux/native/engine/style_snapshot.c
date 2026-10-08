@@ -4,7 +4,11 @@
 // A style snapshot is generated without mutating the current module parameters.
 // Complex masks need their own portable serialization and are rejected here.
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module) {
-    if (!engine->loaded || engine->dev.forms)
+    // darktable styles carry no drawn forms. A whole recipe with forms is rejected; a single
+    // module travels as a style unless it uses a mask group (the comparison bridge then sends
+    // an XMP sidecar, see canvas.c).
+    const gboolean single = only_module && strcmp(only_module, "*");
+    if (!engine->loaded || (engine->dev.forms && !single))
         return NULL;
     JsonObject *object = json_object_new();
     JsonArray *assets = json_array_new();
@@ -33,7 +37,8 @@ char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const 
         // style travels to other images and still rejects them.
         const gboolean same_image = only_module != NULL;
         if ((!same_image && module->multi_priority != 0) ||
-            (module->blend_params->mask_mode & (DEVELOP_MASK_MASK | (same_image ? 0 : DEVELOP_MASK_RASTER))))
+            (module->blend_params->mask_mode & (DEVELOP_MASK_MASK | (same_image ? 0 : DEVELOP_MASK_RASTER))) ||
+            dt_is_valid_maskid(module->blend_params->mask_id))
             goto unsupported;
         // Do not silently export a dependency which this snapshot writer cannot package.
         if (module->enabled && (!strcmp(module->op, "watermark") || !strcmp(module->op, "overlay") ||

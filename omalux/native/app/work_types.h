@@ -27,7 +27,10 @@ enum class ActionKind {
     // darktable's multi-instance menu; ModuleEdit.values carries "action" and "name".
     ModuleInstance,
     // A darktable picker or module button (engine/module_tools.h); values hold the request.
-    ModuleTool
+    ModuleTool,
+    // Drawing on the image (engine/canvas.h): one gesture, or which module's tool is shown.
+    CanvasEdit,
+    CanvasSelect
 };
 struct EditorAction {
     ActionKind kind = ActionKind::None;
@@ -35,7 +38,8 @@ struct EditorAction {
     int quality = 90;
 };
 // A generic edit of one module instance, addressed through darktable's introspection.
-// SetParameters carries {path: value}; ResetModule restores the module's defaults.
+// SetParameters carries {path: value}; ResetModule restores the module's defaults;
+// CanvasEdit carries one gesture of the module's on-canvas tool.
 struct ModuleEdit {
     ActionKind kind = ActionKind::SetParameters;
     QString operation;

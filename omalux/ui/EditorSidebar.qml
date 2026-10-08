@@ -11,6 +11,8 @@ Rectangle {
     required property string activeControl
     required property url iconsRoot
     property alias geometry: geometryPanel
+    // Module states for the tools drawn on the photo (Main.qml passes them to the viewport).
+    readonly property alias moduleStates: moduleCatalog.states
     property alias tools: moduleTools
     // A module picker belongs to the pane it was started in.
     onSelectedPanelChanged: { moduleTools.cancel(); if (selectedPanel !== 2) geometryPanel.cancel(); if (selectedPanel === 2) controlSelected("rotation"); else if (selectedPanel === 0 && activeControl === "rotation") controlSelected("exposure") }

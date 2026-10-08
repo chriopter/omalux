@@ -26,6 +26,8 @@ struct OmEngine {
     float enabled_values[OM_CONTROL_COUNT], integer_values[OM_CONTROL_COUNT];
     int *integer_parameters[OM_CONTROL_COUNT];
     GList *style_baseline;
+    // Drawn shapes last rendered (canvas.c): their change invalidates the pipe cache.
+    guint64 canvas_forms_hash;
 };
 typedef struct {
     dt_iop_module_t *module;
