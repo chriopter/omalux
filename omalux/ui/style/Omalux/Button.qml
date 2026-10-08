@@ -3,8 +3,10 @@ import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 // A plain button (Edit crop, Save current look…) like the toolbar buttons: outlined on the
-// dark background, the raised fill on hover, the accent for hover, focus and "highlighted"
-// (the keyboard selection). Buttons with their own background keep it.
+// dark background, the raised fill on hover, the accent for focus, "checked" and "highlighted"
+// (the keyboard selection). Hover never takes the accent: on the sidebar tabs the accent marks
+// the chosen pane, and a hovered tab must not look chosen. Buttons with their own background
+// keep it.
 T.Button {
     id: control
 
@@ -28,7 +30,7 @@ T.Button {
 
         icon: control.icon
         defaultIconColor: !control.enabled ? Color.transparent(control.palette.windowText, 0.4)
-                          : control.hovered || control.highlighted || control.visualFocus || control.checked
+                          : control.highlighted || control.visualFocus || control.checked
                             ? control.palette.highlight : control.palette.buttonText
         text: control.text
         font: control.font
