@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "development_tools.h"
 #include "smoke.h"
+#include "perf.h"
 #include "app/editor.h"
 #include "app/frames.h"
 #include "engine/engine.h"
@@ -19,6 +20,7 @@
 void installDevelopmentTools(QGuiApplication &app, Editor &editor, Frames *frames,
                              QQmlApplicationEngine &engine) {
     install_smoke(app, editor, frames, engine);
+    install_perf(app, editor, engine);
     // Batch thumbnails advance only after a completed engine render, without per-style startup.
     if (qEnvironmentVariableIsSet("OMALUX_PREVIEW_DIR")) {
         auto ids = std::make_shared<QStringList>();

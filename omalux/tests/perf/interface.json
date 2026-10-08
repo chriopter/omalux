@@ -1,0 +1,231 @@
+[
+ {
+  "name": "area styles (first)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 1
+  }
+ },
+ {
+  "name": "area edit",
+  "set": {
+   "property": "selectedPanel",
+   "value": 0
+  }
+ },
+ {
+  "name": "area styles (again)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 1
+  }
+ },
+ {
+  "name": "area details",
+  "set": {
+   "property": "selectedPanel",
+   "value": 3
+  }
+ },
+ {
+  "name": "area edit (2)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 0
+  }
+ },
+ {
+  "name": "tab tone",
+  "set": {
+   "property": "selectedPanel",
+   "value": 5
+  }
+ },
+ {
+  "name": "tab color",
+  "set": {
+   "property": "selectedPanel",
+   "value": 6
+  }
+ },
+ {
+  "name": "tab detail",
+  "set": {
+   "property": "selectedPanel",
+   "value": 7
+  }
+ },
+ {
+  "name": "tab effects",
+  "set": {
+   "property": "selectedPanel",
+   "value": 8
+  }
+ },
+ {
+  "name": "tab crop",
+  "set": {
+   "property": "selectedPanel",
+   "value": 2
+  }
+ },
+ {
+  "name": "tab filters",
+  "set": {
+   "property": "selectedPanel",
+   "value": 0
+  }
+ },
+ {
+  "name": "tab tone again",
+  "set": {
+   "property": "selectedPanel",
+   "value": 5
+  }
+ },
+ {
+  "name": "tab color again",
+  "set": {
+   "property": "selectedPanel",
+   "value": 6
+  }
+ },
+ {
+  "name": "tab tone (3)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 5
+  }
+ },
+ {
+  "name": "scroll tone down",
+  "wheel": "tonePanel",
+  "dy": -120,
+  "count": 30,
+  "interval": 16
+ },
+ {
+  "name": "scroll tone up",
+  "wheel": "tonePanel",
+  "dy": 120,
+  "count": 30,
+  "interval": 16
+ },
+ {
+  "reveal": "module-details-sigmoid"
+ },
+ {
+  "name": "expand sigmoid",
+  "click": "module-details-sigmoid"
+ },
+ {
+  "name": "drag generated slider (sigmoid contrast)",
+  "drag": "control-slider-sigmoid/0/middle_grey_contrast",
+  "from": 0.3,
+  "to": 0.7,
+  "steps": 60,
+  "interval": 16
+ },
+ {
+  "name": "collapse sigmoid",
+  "click": "module-details-sigmoid"
+ },
+ {
+  "name": "keys down x20 (tone)",
+  "key": "Down",
+  "repeat": 20,
+  "interval": 50
+ },
+ {
+  "name": "tab filters (2)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 0
+  }
+ },
+ {
+  "name": "drag curated slider (exposure)",
+  "drag": "control-slider-exposure",
+  "from": 0.4,
+  "to": 0.6,
+  "steps": 60,
+  "interval": 16
+ },
+ {
+  "name": "scroll filters down",
+  "wheel": "filtersScroll",
+  "dy": -120,
+  "count": 30,
+  "interval": 16
+ },
+ {
+  "name": "area styles (3)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 1
+  }
+ },
+ {
+  "name": "scroll styles down",
+  "wheel": "camera-presets",
+  "dy": -120,
+  "count": 40,
+  "interval": 16
+ },
+ {
+  "reveal": "module-details-splittoning"
+ },
+ {
+  "name": "expand split-toning",
+  "click": "module-details-splittoning"
+ },
+ {
+  "reveal": "module-details-colormapping"
+ },
+ {
+  "name": "expand color mapping",
+  "click": "module-details-colormapping"
+ },
+ {
+  "reveal": "module-details-colorchecker"
+ },
+ {
+  "name": "expand color look up table",
+  "click": "module-details-colorchecker"
+ },
+ {
+  "reveal": "control-slider-splittoning/0/shadow_hue"
+ },
+ {
+  "name": "drag look slider (split-toning shadow hue)",
+  "drag": "control-slider-splittoning/0/shadow_hue",
+  "from": 0.2,
+  "to": 0.6,
+  "steps": 60,
+  "interval": 16
+ },
+ {
+  "name": "toggle split-toning",
+  "click": "module-toggle-splittoning"
+ },
+ {
+  "name": "area edit (3)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 0
+  }
+ },
+ {
+  "name": "click search",
+  "click": "module-search"
+ },
+ {
+  "name": "type search 'sat'",
+  "type": "sat",
+  "interval": 80
+ },
+ {
+  "name": "escape search",
+  "key": "Escape"
+ }
+]
