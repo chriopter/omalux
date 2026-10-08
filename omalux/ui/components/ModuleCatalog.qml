@@ -52,22 +52,31 @@ QtObject {
     onCatalogChanged: parse(catalog)
     Component.onCompleted: parse(catalog)
 
+    // The engine's catalog holds one module per line (module_catalog.cpp): a module whose line
+    // did not change keeps its state without being parsed again. Other texts (tests) are
+    // parsed whole and compared module by module.
+    function entries(text) {
+        if (text.length > 2 && text[0] === "[" && text.indexOf("\n") >= 0) {
+            const lines = text.slice(1, -1).split(",\n")
+            if (lines.every(l => l[0] === "{" && l[l.length - 1] === "}"))
+                return lines.map(l => ({ signature: l, module: null }))
+        }
+        let parsed = null
+        try { parsed = JSON.parse(text || "[]") } catch (e) { return null }
+        return parsed.map(m => ({ signature: JSON.stringify(m), module: m }))
+    }
     function parse(text) {
-        let parsed = []
-        try { parsed = JSON.parse(text || "[]") } catch (e) { return }
+        const list = root.entries(text || "[]")
+        if (!list) return
         const next = {}, cache = {}, inst = {}
         let paths = false
-        for (const m of parsed) {
-            const key = m.operation + "/" + m.instance
-            const signature = JSON.stringify(m)
-            const previous = root._cache[key]
-            if (previous && previous.signature === signature) {
-                next[key] = previous.state
-                cache[key] = previous
-            } else {
+        for (const entry of list) {
+            let cached = root._cache[entry.signature]
+            if (!cached) {
+                let m = entry.module
+                if (!m) { try { m = JSON.parse(entry.signature) } catch (e) { continue } }
                 const values = {}, params = {}
                 for (const p of m.parameters) {
-                    if (p.path !== undefined) paths = true
                     const k = p.path !== undefined ? p.path : p.name
                     values[k] = p.value
                     params[k] = p
@@ -79,12 +88,15 @@ QtObject {
                                 hidden: !!m.hidden, values: values, params: params,
                                 derived: m.derived || ({}), labels: m.labels || ({}) }
                 Object.assign(state, root.extras(m))
-                next[key] = state
-                cache[key] = { signature: signature, state: state }
+                cached = { state: state, paths: m.parameters.some(p => p.path !== undefined) }
             }
-            if (m.parameters.some(p => p.path !== undefined)) paths = true
-            if (!inst[m.operation]) inst[m.operation] = []
-            inst[m.operation].push(m.instance)
+            const state = cached.state
+            const key = state.operation + "/" + state.instance
+            next[key] = state
+            cache[entry.signature] = cached
+            if (cached.paths) paths = true
+            if (!inst[state.operation]) inst[state.operation] = []
+            inst[state.operation].push(state.instance)
         }
         root._cache = cache
         root.pathsSupported = paths

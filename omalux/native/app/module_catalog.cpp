@@ -35,8 +35,9 @@ QString ModuleCatalog::update(OmEngine *engine, const QString &operation, int in
     }
     return entry;
 }
+// One module per line: the interface parses again only the lines that changed (ModuleCatalog.qml).
 QString ModuleCatalog::json() const {
-    return '[' + entries.join(',') + ']';
+    return '[' + entries.join(QStringLiteral(",\n")) + ']';
 }
 bool ModuleCatalog::takeChanged() {
     const bool result = changed;
