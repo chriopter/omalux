@@ -12,6 +12,9 @@
 //                                    ctrl mirrors it, ctrl+shift keeps the angle only
 //                                    (DT_MASKS_BEZIER_*); the node becomes a corner (USER)
 //   node-feather  {to}               drag a brush node's feather handle (_brush_feather_to_ctrl)
+//   node-border   {to}               drag a path node's border handle: the pointer projected
+//                                    onto the line from the node to its handle sets the node's
+//                                    feather (path.c mouse_moved 2665-2690, point_border_dragging)
 //   node-toggle                      ctrl+click a node: smooth ↔ sharp corner
 //   node-reset                       right-click a handle: smooth again
 //   node-remove                      right-click a node; a path of three nodes or a brush of
@@ -67,10 +70,49 @@ static gboolean pointer_input(const OmSpace *space, const float *at, float *out)
     return TRUE;
 }
 
+// darktable's own points of a path (_path_get_pts_border, reached through
+// dt_masks_get_points_border, which uses dev->preview_pipe: the full pipe stands in for it, as
+// for every canvas tool here), in output pixels: the border line as darktable draws it
+// (post_expose 2908-2927, skipping the self-intersections it marks) and each node's border
+// handle (border[k * 6], the anchor darktable draws for point_border_selected).
+static gboolean path_dt_border(const OmSpace *space, dt_masks_form_t *form, OmPoly *line, float *handles) {
+    if (!(form->type & DT_MASKS_PATH))
+        return FALSE;
+    const int nb = g_list_length(form->points);
+    dt_develop_t *dev = space->dev;
+    dt_dev_pixelpipe_t *saved = dev->preview_pipe;
+    dev->preview_pipe = space->pipe;
+    float *points = NULL, *border = NULL;
+    int points_count = 0, border_count = 0;
+    const int ok = dt_masks_get_points_border(dev, form, &points, &points_count, &border, &border_count, FALSE, NULL);
+    dev->preview_pipe = saved;
+    const gboolean valid = ok && border && border_count > nb * 3 + 6;
+    if (valid) {
+        for (int k = 0; k < nb && handles; ++k) {
+            handles[2 * k] = border[k * 6];
+            handles[2 * k + 1] = border[k * 6 + 1];
+        }
+        for (int i = nb * 3; line && i < border_count; i++) {
+            if (border[i * 2] == DT_INVALID_COORDINATE) {
+                if (border[i * 2 + 1] == DT_INVALID_COORDINATE)
+                    break;
+                i = border[i * 2 + 1] - 1;
+                continue;
+            }
+            poly_add(line, border[i * 2], border[i * 2 + 1]);
+        }
+    }
+    dt_free_align(points);
+    dt_free_align(border);
+    return valid;
+}
+
 static void shape_nodes_overlay(const OmSpace *space, dt_masks_form_t *form, JsonBuilder *builder) {
     if (!(form->type & (DT_MASKS_PATH | DT_MASKS_BRUSH)))
         return;
     const gboolean brush = (form->type & DT_MASKS_BRUSH) != 0;
+    float *borders = brush ? NULL : g_new0(float, 2 * g_list_length(form->points));
+    const gboolean have_borders = borders && path_dt_border(space, form, NULL, borders);
     json_builder_set_member_name(builder, "nodes");
     json_builder_begin_array(builder);
     const int n = g_list_length(form->points);
@@ -95,12 +137,18 @@ static void shape_nodes_overlay(const OmSpace *space, dt_masks_form_t *form, Jso
         if (!brush) {
             om_json_point(builder, "ctrl1", pts[2], pts[3]);
             om_json_point(builder, "ctrl2", pts[4], pts[5]);
+            if (have_borders) {
+                float b[2] = {borders[2 * k], borders[2 * k + 1]};
+                om_space_to_preview(space, b, 1);
+                om_json_point(builder, "border", b[0], b[1]);
+            }
         }
         json_builder_set_member_name(builder, "smooth");
         json_builder_add_boolean_value(builder, *node.state == DT_MASKS_POINT_STATE_NORMAL);
         json_builder_end_object(builder);
     }
     json_builder_end_array(builder);
+    g_free(borders);
 }
 
 static void shift_node(OmNode *node, float dx, float dy) {
@@ -236,6 +284,35 @@ static int shape_nodes_edit(const OmSpace *space, dt_masks_form_t *form, const c
         node.ctrl2[1] = p2y / iheight;
         *node.state = DT_MASKS_POINT_STATE_USER;
         init_ctrl_points(form);
+        return 1;
+    }
+    if (!strcmp(action, "node-border")) {
+        if (!path || !om_gesture_point(gesture, "to", to))
+            return 5;
+        float *handles = g_new0(float, 2 * n);
+        const gboolean have = path_dt_border(space, form, NULL, handles);
+        float c[2] = {node.corner[0] * iwidth, node.corner[1] * iheight};
+        const float hx = handles[2 * index], hy = handles[2 * index + 1];
+        g_free(handles);
+        if (!have || !om_space_transform(space, c, 1))
+            return 5;
+        // the pointer reflected on the corner–border line (path.c:2669-2674)
+        const float x = to[0] * space->width, y = to[1] * space->height;
+        float pts[2];
+        if (fabsf(hx - c[0]) > 1e-6f) {
+            const float a = (hy - c[1]) / (hx - c[0]);
+            const float b = c[1] - a * c[0];
+            pts[0] = (a * y + x - b * a) / (a * a + 1.0f);
+            pts[1] = a * pts[0] + b;
+        } else {
+            // a vertical line, where darktable's slope is infinite
+            pts[0] = c[0];
+            pts[1] = y;
+        }
+        if (!om_space_backtransform(space, pts, 1))
+            return 5;
+        const float nr = hypotf(pts[0] - node.corner[0] * iwidth, pts[1] - node.corner[1] * iheight);
+        node.border[0] = node.border[1] = nr / fminf(iwidth, iheight);
         return 1;
     }
     if (!strcmp(action, "node-toggle")) {

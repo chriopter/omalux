@@ -794,8 +794,21 @@ uninitialised buffer). Not available: retouch's "display masks"/"preview single 
 highlight reconstruction's and demosaic's visualisation buttons and lens correction's
 vignetting visualisation (they need darktable's module focus inside the pipe).
 
-Not built: feather handles per path node (darktable's `point_border_dragging`; the wheel
-with Shift sets the feather), gradient curvature by drag (the wheel changes it). The overlay of a path border and
-a brush stroke follows darktable's geometry (border × shorter input side along the Bézier
-normal) but not its exact border construction.
+**Path border handles** (`node-border`; darktable's `point_border_dragging`, path.c
+mouse_moved 2665–2690). A selected path shows one border handle beside each node, where
+darktable draws it (`border[k * 6]` of `_path_get_pts_border`); dragging it slides along the
+line from the node through the handle and sets that node's feather to the distance of the
+projected pointer from the node in input pixels over the shorter input side (both border
+values, no clamp, as darktable). The handle is picked after its node, node by node, as in
+path.c:2780–2805. A path's dashed border line is darktable's own construction (self-
+intersections skipped), computed by `dt_masks_get_points_border` with the full pipe standing
+in for the preview pipe; a brush stroke's border is still drawn as the stroke width along the
+Bézier normal (not darktable's exact construction).
+
+**Gradient curvature** (gradient.c). darktable 5.6.1 has no curvature drag: the wheel over a
+gradient bends it (±0.01 per step, −2…2), a double-click straightens it (curvature 0,
+`_gradient_events_button_pressed` 208) and Shift+click switches its transition between linear
+and sigmoidal (`gradient_toggling`, 442); all three are here. darktable's mask manager
+"properties" sliders (curvature, compression, rotation, size, feather, hardness of the
+selected shapes, libs/masks.c) are not built.
 

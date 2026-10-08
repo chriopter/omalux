@@ -15,7 +15,10 @@ import "CanvasDraw.js" as Draw
 //   a selected path or brush shows its nodes (area E): drag a node or a segment, click a
 //   node for its handles and drag them (Shift one handle, Ctrl mirrored, Ctrl+Shift angle
 //   only), Ctrl+click a node for a sharp/smooth corner, Ctrl+click a segment for a new node,
-//   right-click a node to delete it and a handle to make the node smooth again
+//   right-click a node to delete it and a handle to make the node smooth again; a path's
+//   border handles (one beside each node) set that node's feather (path.c point_border_dragging)
+//   a gradient: double-click straightens it, Shift+click switches its transition between
+//   linear and sigmoidal (gradient.c:208, 442); the wheel bends it
 // While a drag is on, the shape follows the pointer locally; the engine's next overlay
 // replaces it after release.
 Item {
@@ -113,7 +116,7 @@ Item {
         // area E: the nodes of a path or brush stroke and their handles (shape_nodes.inc)
         const px = p => p ? [p[0] * w, p[1] * h] : null
         out.nodesPx = (s.nodes || []).map(n => ({ corner: px(n.corner), ctrl1: px(n.ctrl1), ctrl2: px(n.ctrl2),
-                                                 feather: px(n.feather), smooth: n.smooth }))
+                                                 feather: px(n.feather), border: px(n.border), smooth: n.smooth }))
         return out
     }
     // area E: which node, handle or segment of the selected path or brush is under the pointer
@@ -121,9 +124,11 @@ Item {
     function hitNode(s, x, y) {
         if (s.id !== selected || !s.nodesPx || !s.nodesPx.length) return ""
         const close = p => p && Math.hypot(p[0] - x, p[1] - y) < near
+        // each node, then its border handle (path.c:2780-2805)
         for (let i = 0; i < s.nodesPx.length; ++i) {
             const n = s.nodesPx[i]
             if (close(n.corner)) return { kind: "node", node: i }
+            if (s.type === "path" && close(n.border)) return { kind: "nborder", node: i }
         }
         // the Bézier handles of the node clicked last (path.c:2888 point_edited)
         const e = editedNode && editedNode.id === s.id ? s.nodesPx[editedNode.node] : null
@@ -234,6 +239,20 @@ Item {
                         ctx.fillStyle = hot ? "white" : "rgba(255,255,255,0.75)"; ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1
                         ctx.fillRect(c[0] - 3.5, c[1] - 3.5, 7, 7); ctx.strokeRect(c[0] - 3.5, c[1] - 3.5, 7, 7)
                     }
+                    // a path's border handles (dt_masks_draw_anchor at border[k * 6]); the one
+                    // under the pointer or dragged is joined to its node (path.c:2930-2946)
+                    if (s.type === "path") {
+                        for (let i = 0; i < s.nodesPx.length; ++i) {
+                            const n = s.nodesPx[i]
+                            if (!n.border) continue
+                            const dragging = d && d.kind === "nborder" && d.node === i
+                            const b = dragging && d.at ? d.at : n.border
+                            const hot = dragging || (root.hover && root.hover.id === s.id && root.hover.kind === "nborder" && root.hover.node === i)
+                            if (hot) Draw.stroke(ctx, [n.corner, b], false, false, null, true)
+                            ctx.fillStyle = hot ? "white" : "rgba(255,255,255,0.6)"; ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1
+                            ctx.fillRect(b[0] - 2.5, b[1] - 2.5, 5, 5); ctx.strokeRect(b[0] - 2.5, b[1] - 2.5, 5, 5)
+                        }
+                    }
                     const en = root.editedNode && root.editedNode.id === s.id ? s.nodesPx[root.editedNode.node] : null
                     if (en) {
                         const handles = s.type === "path" ? [[en.ctrl1, 1], [en.ctrl2, 2]] : [[en.feather, 0]]
@@ -306,6 +325,8 @@ Item {
                 root.editedNode = { id: hit.id, node: hit.node }
                 if (mouse.button === Qt.RightButton) { root.editedNode = null; root.edited({ action: "node-remove", id: hit.id, node: hit.node }); return }
                 if (ctrlKey) { root.edited({ action: "node-toggle", id: hit.id, node: hit.node }); return }
+            } else if (hit.kind === "nborder") {
+                if (mouse.button === Qt.RightButton) return
             } else if (hit.kind === "ctrl" || hit.kind === "nfeather") {
                 if (mouse.button === Qt.RightButton) { root.edited({ action: "node-reset", id: hit.id, node: hit.node }); return }
             } else if (hit.kind === "segment") {
@@ -316,7 +337,14 @@ Item {
                     return
                 }
             }
-            if (["node", "ctrl", "nfeather", "segment"].indexOf(hit.kind) >= 0) {
+            // a gradient: Shift+click switches linear ↔ sigmoidal (gradient.c:225, 442)
+            if (hit.shape && hit.shape.type === "gradient" && shiftKey && mouse.button === Qt.LeftButton
+                    && ["move", "size", "feather"].indexOf(hit.kind) >= 0) {
+                if (hit.id !== root.selected) root.edited({ action: "select", id: hit.id })
+                root.edited({ action: "transition", id: hit.id })
+                return
+            }
+            if (["node", "ctrl", "nfeather", "nborder", "segment"].indexOf(hit.kind) >= 0) {
                 root.frozen = root.shapes
                 root.drag = { kind: hit.kind, id: hit.id, node: hit.node, ctrl: hit.ctrl, segment: hit.segment, from: p, at: null,
                               start: [mouse.x, mouse.y], last: p, total: [0, 0], factor: 1, angle: 0,
@@ -342,8 +370,14 @@ Item {
             }
             if (d.kind === "gradient") { d.to = p; root.drag = d; return }
             // area E: node handles follow the pointer here; the gesture goes on release
-            if (d.kind === "node" || d.kind === "ctrl" || d.kind === "nfeather" || d.kind === "segment") {
+            if (d.kind === "node" || d.kind === "ctrl" || d.kind === "nfeather" || d.kind === "nborder" || d.kind === "segment") {
                 d.at = [mouse.x, mouse.y]; d.to = p
+                // a border handle stays on the line through its node (path.c:2669)
+                if (d.kind === "nborder") {
+                    const sh = root.drawn.find(x => x.id === d.id)
+                    const n = sh && sh.nodesPx[d.node]
+                    if (n && n.border) d.at = Draw.project(n.corner, n.border, [mouse.x, mouse.y])
+                }
                 if (d.kind === "segment") d.total = [mouse.x - d.start[0], mouse.y - d.start[1]]
                 root.drag = d
                 return
@@ -378,10 +412,11 @@ Item {
                 root.add({ action: "add", type: "gradient", at: root.gradientFrom, to: d.to })
                 root.gradientFrom = null
                 if (!root.continuous) root.mode = ""
-            } else if (d.kind === "node" || d.kind === "ctrl" || d.kind === "nfeather" || d.kind === "segment") {
+            } else if (d.kind === "node" || d.kind === "ctrl" || d.kind === "nfeather" || d.kind === "nborder" || d.kind === "segment") {
                 // area E: one gesture per drag (a click without moving only picks the node)
                 if (d.to) {
                     if (d.kind === "node") root.edited({ action: "node-move", id: d.id, node: d.node, to: d.to })
+                    else if (d.kind === "nborder") root.edited({ action: "node-border", id: d.id, node: d.node, to: d.to })
                     else if (d.kind === "ctrl") root.edited({ action: "node-ctrl", id: d.id, node: d.node, ctrl: d.ctrl, to: d.to, modifier: d.modifier })
                     else if (d.kind === "nfeather") root.edited({ action: "node-feather", id: d.id, node: d.node, to: d.to })
                     else root.edited({ action: "segment-move", id: d.id, segment: d.segment, from: d.from, to: d.to })
@@ -393,7 +428,13 @@ Item {
                 root.interactionChanged(false)
             }
         }
-        onDoubleClicked: if (root.mode === "path") root.finishPath()
+        onDoubleClicked: mouse => {
+            if (root.mode === "path") { root.finishPath(); return }
+            // a gradient straightens (gradient.c:208)
+            const hit = root.mode ? null : root.hitAt(mouse.x, mouse.y)
+            if (hit && hit.shape && hit.shape.type === "gradient" && mouse.button === Qt.LeftButton)
+                root.edited({ action: "curvature-reset", id: hit.id })
+        }
         onCanceled: { root.drag = null; root.settled = null; root.frozen = null; root.interactionChanged(false) }
         onExited: root.hover = null
         onWheel: wheel => {

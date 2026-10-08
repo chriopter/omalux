@@ -83,8 +83,45 @@ Item {
         onActivated: got++
     }
 
+    // A selected path with its border handles and a gradient (path.c, gradient.c).
+    CanvasOverlay {
+        id: pathShapes
+        x: 450; y: 620; width: 400; height: 300
+        theme: th
+        tool: ({ operation: "exposure", instance: 0, kind: "shapes" })
+        overlayJson: JSON.stringify({ operation: "exposure", instance: 0, kind: "shapes", tool: "mask", selected: 3, shapes: [
+            { id: 3, type: "path", opacity: 1, closed: true, center: [0.3, 0.3],
+              outline: [[0.2, 0.2], [0.4, 0.2], [0.3, 0.4], [0.2, 0.2]], border: [[0.15, 0.15], [0.45, 0.15], [0.3, 0.45]],
+              nodes: [{ corner: [0.2, 0.2], ctrl1: [0.2, 0.2], ctrl2: [0.2, 0.2], border: [0.15, 0.15], smooth: true },
+                      { corner: [0.4, 0.2], ctrl1: [0.4, 0.2], ctrl2: [0.4, 0.2], border: [0.45, 0.15], smooth: true },
+                      { corner: [0.3, 0.4], ctrl1: [0.3, 0.4], ctrl2: [0.3, 0.4], border: [0.3, 0.45], smooth: true }] },
+            { id: 4, type: "gradient", opacity: 1, closed: false, curvature: 0.3, transition: "sigmoid",
+              outline: [[0.5, 0.8], [0.7, 0.8], [0.9, 0.8]], border: [], pivot: [0.7, 0.75], pivot2: [0.7, 0.85] }] })
+        onEdited: g => gestures = gestures.concat([g])
+    }
     TestCase {
         name: "canvas"; when: windowShown
+
+        function test_path_border_handle_and_gradient() {
+            gestures = []
+            // drag the second node's border handle: it slides along its line, one gesture on release
+            mousePress(pathShapes, 180, 45)
+            mouseMove(pathShapes, 190, 40); mouseMove(pathShapes, 200, 30)
+            mouseRelease(pathShapes, 200, 30)
+            compare(last().action, "node-border"); compare(last().id, 3); compare(last().node, 1)
+            fuzzyCompare(last().to[0], 0.5, 0.01); fuzzyCompare(last().to[1], 0.1, 0.01)
+            // the node itself is picked before its handle
+            gestures = []
+            mousePress(pathShapes, 160, 60); mouseMove(pathShapes, 165, 62); mouseMove(pathShapes, 170, 64); mouseRelease(pathShapes, 170, 64)
+            compare(last().action, "node-move"); compare(last().node, 1)
+            // gradient: double-click straightens, Shift+click switches the transition
+            gestures = []
+            mouseDoubleClickSequence(pathShapes, 240, 240)
+            verify(gestures.some(g => g.action === "curvature-reset" && g.id === 4))
+            gestures = []
+            mouseClick(pathShapes, 240, 240, Qt.LeftButton, Qt.ShiftModifier)
+            verify(gestures.some(g => g.action === "transition" && g.id === 4))
+        }
 
         function test_shapes_add_move_scroll_remove() {
             gestures = []

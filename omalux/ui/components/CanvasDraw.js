@@ -96,3 +96,10 @@ function rotateAround(pts, c, angle) {
     return (pts || []).map(p => p ? [c[0] + (p[0] - c[0]) * k - (p[1] - c[1]) * s,
                                      c[1] + (p[0] - c[0]) * s + (p[1] - c[1]) * k] : null)
 }
+// The point of the line through a and b nearest to p (a border handle sliding along its line).
+function project(a, b, p) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy
+    if (l2 <= 0) return [a[0], a[1]]
+    const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2
+    return [a[0] + t * dx, a[1] + t * dy]
+}

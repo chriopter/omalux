@@ -534,7 +534,7 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
     float ref[2] = {0, 0};
     form_reference(form, ref);
     float centre[2] = {ref[0] * space->iwidth, ref[1] * space->iheight};
-    OmPoly line = {0}, border = {0}, target = {0};
+    OmPoly line = {0}, border = {0}, target = {0}, dt_border = {0};
     const void *first = form->points->data;
     if (form->type & DT_MASKS_CIRCLE) {
         const dt_masks_point_circle_t *c = first;
@@ -555,6 +555,11 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
         }
     } else if (form->type & (DT_MASKS_PATH | DT_MASKS_BRUSH)) {
         spline_outline(space, form, &line, &border);
+        // a path's border exactly as darktable draws it (shape_nodes.inc), already in output pixels
+        if (path_dt_border(space, form, &dt_border, NULL)) {
+            g_free(border.xy);
+            border = (OmPoly){0};
+        }
         shape_nodes_overlay(space, form, builder);
         // The geometric centre of the corners, where a drag of the whole shape is anchored.
         float sx = 0, sy = 0;
@@ -569,6 +574,10 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
         centre[1] = sy / n * space->iheight;
     } else if (form->type & DT_MASKS_GRADIENT) {
         const dt_masks_point_gradient_t *g = first;
+        json_builder_set_member_name(builder, "curvature");
+        json_builder_add_double_value(builder, g->curvature);
+        json_builder_set_member_name(builder, "transition");
+        json_builder_add_string_value(builder, g->state == DT_MASKS_GRADIENT_STATE_LINEAR ? "linear" : "sigmoid");
         gradient_line(space, g, 0.f, &line);
         gradient_line(space, g, g->compression, &border);
         poly_break(&border);
@@ -593,7 +602,10 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
     json_builder_add_boolean_value(builder, !(form->type & (DT_MASKS_BRUSH | DT_MASKS_GRADIENT)));
     if (to_preview(space, &line))
         write_poly(builder, "outline", &line);
-    if (to_preview(space, &border))
+    if (dt_border.count) {
+        om_space_to_preview(space, dt_border.xy, dt_border.count);
+        write_poly(builder, "border", &dt_border);
+    } else if (to_preview(space, &border))
         write_poly(builder, "border", &border);
     if (form->type & DT_MASKS_CLONE) {
         float source[2] = {form->source[0] * space->iwidth, form->source[1] * space->iheight};
@@ -606,6 +618,7 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
     }
     g_free(line.xy);
     g_free(border.xy);
+    g_free(dt_border.xy);
     g_free(target.xy);
     json_builder_end_object(builder);
 }
@@ -1418,6 +1431,21 @@ int om_shapes_edit(OmEngine *engine, const OmSpace *space, dt_iop_module_t *modu
         if (!isfinite(value))
             return 5;
         member->opacity = CLAMP(value, 0.05f, 1.0f);
+        changed = TRUE;
+    } else if (!strcmp(action, "curvature-reset")) {
+        // gradient.c:208 a double-click straightens the gradient
+        if (!(form->type & DT_MASKS_GRADIENT))
+            return 5;
+        dt_masks_point_gradient_t *g = form->points->data;
+        changed = g->curvature != 0.0f;
+        g->curvature = 0.0f;
+    } else if (!strcmp(action, "transition")) {
+        // gradient.c:442 Shift+click switches the transition between linear and sigmoidal
+        if (!(form->type & DT_MASKS_GRADIENT))
+            return 5;
+        dt_masks_point_gradient_t *g = form->points->data;
+        g->state = g->state == DT_MASKS_GRADIENT_STATE_LINEAR ? DT_MASKS_GRADIENT_STATE_SIGMOIDAL
+                                                              : DT_MASKS_GRADIENT_STATE_LINEAR;
         changed = TRUE;
     } else if (!strcmp(action, "invert")) {
         member->state ^= DT_MASKS_STATE_INVERSE;
