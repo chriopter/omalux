@@ -1343,7 +1343,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-8 EV"
+       "action": "simple/-8 EV",
+       "display": "noise -8 EV"
       },
       {
        "field": "ultra_deep_blacks",
@@ -1366,7 +1367,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-7 EV"
+       "action": "simple/-7 EV",
+       "display": "ultra deep blacks -7 EV"
       },
       {
        "field": "deep_blacks",
@@ -1389,7 +1391,8 @@
        "tier": "primary",
        "colors": "light",
        "custom": null,
-       "action": "simple/-6 EV"
+       "action": "simple/-6 EV",
+       "display": "deep blacks -6 EV"
       },
       {
        "field": "blacks",
@@ -1412,7 +1415,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-5 EV"
+       "action": "simple/-5 EV",
+       "display": "blacks -5 EV"
       },
       {
        "field": "shadows",
@@ -1435,7 +1439,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-4 EV"
+       "action": "simple/-4 EV",
+       "display": "shadows -4 EV"
       },
       {
        "field": "midtones",
@@ -1458,7 +1463,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-3 EV"
+       "action": "simple/-3 EV",
+       "display": "mid-tones -3 EV"
       },
       {
        "field": "highlights",
@@ -1481,7 +1487,8 @@
        "tier": "primary",
        "colors": "light",
        "custom": null,
-       "action": "simple/-2 EV"
+       "action": "simple/-2 EV",
+       "display": "highlights -2 EV"
       },
       {
        "field": "whites",
@@ -1504,7 +1511,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/-1 EV"
+       "action": "simple/-1 EV",
+       "display": "whites -1 EV"
       },
       {
        "field": "speculars",
@@ -1527,7 +1535,8 @@
        "tier": "detail",
        "colors": "light",
        "custom": null,
-       "action": "simple/+0 EV"
+       "action": "simple/+0 EV",
+       "display": "speculars +0 EV"
       },
       {
        "field": "@graph",
@@ -24908,5 +24917,223 @@
     }
    ]
   }
- ]
+ ],
+ "panes": {
+  "tone": {
+   "summary": [
+    {
+     "control": "exposure",
+     "label": "exposure"
+    },
+    {
+     "module": "sigmoid",
+     "field": "middle_grey_contrast",
+     "label": "contrast",
+     "colors": "",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "contrast",
+     "label": "contrast",
+     "colors": "",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "curve_contrast_around_pivot",
+     "label": "contrast",
+     "colors": "",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "white_point_source",
+     "label": "white point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "range_white_relative_ev",
+     "label": "white point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "black_point_source",
+     "label": "black point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "range_black_relative_ev",
+     "label": "black point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "toneequal",
+     "field": "highlights",
+     "label": "highlights",
+     "colors": "light"
+    },
+    {
+     "module": "toneequal",
+     "field": "shadows",
+     "label": "shadows",
+     "colors": "light"
+    }
+   ],
+   "advanced": [
+    "rgbcurve",
+    "tonecurve",
+    "rgblevels",
+    "sigmoid",
+    "filmicrgb",
+    "agx",
+    "toneequal",
+    "basecurve",
+    "colorreconstruct",
+    "negadoctor"
+   ]
+  },
+  "color": {
+   "summary": [
+    {
+     "module": "channelmixerrgb",
+     "field": "temperature",
+     "label": "white balance",
+     "colors": "temperature"
+    },
+    {
+     "module": "colorbalancergb",
+     "field": "chroma_global",
+     "label": "chroma",
+     "colors": "saturation"
+    },
+    {
+     "module": "colorbalancergb",
+     "field": "saturation_global",
+     "label": "saturation",
+     "colors": "saturation"
+    },
+    {
+     "module": "velvia",
+     "field": "strength",
+     "label": "velvia",
+     "colors": "saturation"
+    },
+    {
+     "module": "colorcontrast",
+     "field": "a_steepness",
+     "label": "green–magenta",
+     "colors": "green-magenta"
+    },
+    {
+     "module": "colorcontrast",
+     "field": "b_steepness",
+     "label": "blue–yellow",
+     "colors": "blue-yellow"
+    }
+   ],
+   "advanced": [
+    "colorequal",
+    "colorzones",
+    "channelmixerrgb",
+    "monochrome",
+    "colorharmonizer",
+    "primaries",
+    "velvia",
+    "colorcontrast",
+    "colorbalance",
+    "colorcorrection",
+    "profile_gamma"
+   ]
+  },
+  "detail": {
+   "summary": [
+    {
+     "control": "sharpen_amount",
+     "label": "sharpen"
+    },
+    {
+     "control": "detail",
+     "label": "local contrast"
+    },
+    {
+     "control": "denoise_strength",
+     "label": "denoise"
+    },
+    {
+     "module": "hazeremoval",
+     "field": "strength",
+     "label": "haze removal",
+     "colors": ""
+    }
+   ],
+   "advanced": [
+    "retouch",
+    "cacorrectrgb",
+    "atrous",
+    "defringe",
+    "hazeremoval",
+    "nlmeans",
+    "bilateral",
+    "liquify",
+    "dither",
+    "rasterfile"
+   ]
+  },
+  "effects": {
+   "summary": [
+    {
+     "control": "grain",
+     "label": "grain"
+    },
+    {
+     "control": "vignette",
+     "label": "vignetting"
+    },
+    {
+     "control": "bloom_strength",
+     "label": "bloom"
+    },
+    {
+     "module": "soften",
+     "field": "amount",
+     "label": "soften",
+     "colors": ""
+    },
+    {
+     "module": "graduatednd",
+     "field": "density",
+     "label": "graduated filter",
+     "colors": ""
+    },
+    {
+     "module": "borders",
+     "field": "size",
+     "label": "frame",
+     "colors": ""
+    }
+   ],
+   "advanced": [
+    "graduatednd",
+    "soften",
+    "colorize",
+    "blurs",
+    "borders",
+    "lowlight",
+    "watermark",
+    "highpass",
+    "lowpass",
+    "enlargecanvas",
+    "overlay",
+    "censorize"
+   ]
+  }
+ }
 }

@@ -7,7 +7,9 @@ Inputs
   omalux/native/engine/controls.h                           curated rows, which stay where they are
 
 Outputs
-  omalux/design/layout.json            groups -> modules -> rows, consumed by the QML integration
+  omalux/design/layout.json            groups -> modules -> rows, consumed by the QML integration,
+                                       and panes -> summary rows and Advanced order (Tone, Color,
+                                       Detail, Effects)
   omalux/design/layout-blending.json   the per-module blend section, same row format, for later
 
 Conventions of the row "path":
@@ -39,7 +41,7 @@ WIDGETS = {"slider", "combobox", "toggle", "button", "curve", "graph", "color", 
 CUSTOM_KINDS = {"curve", "graph", "color", "picker", "drawn", "file", "text", "choice", "patches", "canvas"}
 INTERPOLATIONS = {None, "cubic", "catmull", "monotone", "linear"}
 TIERS = {"primary", "detail", "advanced"}
-COLORS = {"", "light", "saturation", "hue", "temperature", "tint"}
+COLORS = {"", "light", "saturation", "hue", "temperature", "tint", "green-magenta", "blue-yellow"}
 VALUE_WIDGETS = {"slider", "combobox", "toggle", "color", "file", "text", "curve", "drawn"}
 
 # ---------------------------------------------------------------------------------------------
@@ -846,6 +848,62 @@ def validate_rows(where, rows, primary=(), curated_refs=()):
     return errors
 
 
+def build_panes(dec, layout, errors):
+    """The summary and the Advanced order of the Tone, Color, Detail and Effects panes.
+
+    A summary entry is either a registered control ({"control": id}, shown as the curated
+    block of its module) or a slider row of the generated layout ({"module", "field"}). Entries
+    with the same "pick" key belong to alternative modules (the tone mappers): the pane shows
+    the rows of the first of them the image uses. The display labels of rows ("display_labels")
+    are applied here too.
+    """
+    modules = {m["operation"]: m for g in layout["groups"] for m in g["modules"]}
+    for op, labels in dec.get("display_labels", {}).items():
+        if op == "note":
+            continue
+        for field, text in labels.items():
+            hit = [r for r in modules[op]["rows"] if r["field"] == field] if op in modules else []
+            if not hit:
+                errors.append(f"display_labels: {op}.{field} is not a row")
+                continue
+            hit[0]["display"] = text
+    registry = set(re.findall(r'^\s*\{"([^"]+)",', CONTROLS_H.read_text(), re.M))
+    panes = OrderedDict()
+    for pane, spec in dec.get("panes", {}).items():
+        if pane == "note":
+            continue
+        summary = []
+        for e in spec["summary"]:
+            if not e.get("label"):
+                errors.append(f"panes.{pane}: summary entry without a label: {e}")
+            if "control" in e:
+                if e["control"] not in registry:
+                    errors.append(f"panes.{pane}: {e['control']} is not a registered control")
+                summary.append(OrderedDict(control=e["control"], label=e["label"]))
+                continue
+            m = modules.get(e.get("module"))
+            row = next((r for r in m["rows"] if r["field"] == e.get("field")), None) if m else None
+            if not row or row["widget"] != "slider" or not row["path"]:
+                errors.append(f"panes.{pane}: {e.get('module')}.{e.get('field')} is not a slider row")
+                continue
+            colors = e.get("colors", row["colors"])
+            if colors not in COLORS:
+                errors.append(f"panes.{pane}: unknown colors {colors}")
+            out = OrderedDict(module=e["module"], field=e["field"], label=e["label"], colors=colors)
+            if e.get("pick"):
+                out["pick"] = e["pick"]
+            summary.append(out)
+        for op in spec["advanced"]:
+            if op not in modules:
+                errors.append(f"panes.{pane}: advanced lists unknown module {op}")
+            elif modules[op]["curated"]:
+                errors.append(f"panes.{pane}: advanced lists the curated module {op}")
+        if len(set(spec["advanced"])) != len(spec["advanced"]):
+            errors.append(f"panes.{pane}: advanced lists a module twice")
+        panes[pane] = OrderedDict(summary=summary, advanced=spec["advanced"])
+    return panes
+
+
 def main():
     modules, blending = load_inventory()
     INVENTORY.update(modules)
@@ -907,6 +965,7 @@ def main():
     blend = OrderedDict(darktable="5.6.1", name=blending["name"], rows=blend_rows,
                         notes=" ".join(n if n.endswith(".") else n + "." for n in dict.fromkeys(bnotes)))
 
+    layout["panes"] = build_panes(dec, layout, errors)
     if errors:
         fail("\n".join(errors))
 

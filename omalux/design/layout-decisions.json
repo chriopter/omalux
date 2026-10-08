@@ -333,6 +333,227 @@
    "speculars": "light"
   }
  },
+ "panes": {
+  "note": "Tone, Color, Detail and Effects follow the Filters pane: a short summary of the controls a photographer reaches for first (module icon, plain short label, value, chevron to the whole module), then 'Advanced' with every other module of the pane as a compact card, in this order (most used first). A module with a summary row opens from that row and is not repeated under Advanced. Modules missing from 'advanced' are appended by the pane, so none is lost. Entries with the same 'pick' are alternatives: only the rows of the first of these modules the image uses are shown (the active tone mapper), sigmoid when it uses none.",
+  "tone": {
+   "summary": [
+    {
+     "control": "exposure",
+     "label": "exposure"
+    },
+    {
+     "module": "sigmoid",
+     "field": "middle_grey_contrast",
+     "label": "contrast",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "contrast",
+     "label": "contrast",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "curve_contrast_around_pivot",
+     "label": "contrast",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "white_point_source",
+     "label": "white point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "range_white_relative_ev",
+     "label": "white point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "filmicrgb",
+     "field": "black_point_source",
+     "label": "black point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "agx",
+     "field": "range_black_relative_ev",
+     "label": "black point",
+     "colors": "light",
+     "pick": "tone mapper"
+    },
+    {
+     "module": "toneequal",
+     "field": "highlights",
+     "label": "highlights"
+    },
+    {
+     "module": "toneequal",
+     "field": "shadows",
+     "label": "shadows"
+    }
+   ],
+   "advanced": [
+    "rgbcurve",
+    "tonecurve",
+    "rgblevels",
+    "sigmoid",
+    "filmicrgb",
+    "agx",
+    "toneequal",
+    "basecurve",
+    "colorreconstruct",
+    "negadoctor"
+   ]
+  },
+  "color": {
+   "summary": [
+    {
+     "module": "channelmixerrgb",
+     "field": "temperature",
+     "label": "white balance"
+    },
+    {
+     "module": "colorbalancergb",
+     "field": "chroma_global",
+     "label": "chroma"
+    },
+    {
+     "module": "colorbalancergb",
+     "field": "saturation_global",
+     "label": "saturation"
+    },
+    {
+     "module": "velvia",
+     "field": "strength",
+     "label": "velvia",
+     "colors": "saturation"
+    },
+    {
+     "module": "colorcontrast",
+     "field": "a_steepness",
+     "label": "green–magenta",
+     "colors": "green-magenta"
+    },
+    {
+     "module": "colorcontrast",
+     "field": "b_steepness",
+     "label": "blue–yellow",
+     "colors": "blue-yellow"
+    }
+   ],
+   "advanced": [
+    "colorequal",
+    "colorzones",
+    "channelmixerrgb",
+    "monochrome",
+    "colorharmonizer",
+    "primaries",
+    "velvia",
+    "colorcontrast",
+    "colorbalance",
+    "colorcorrection",
+    "profile_gamma"
+   ]
+  },
+  "detail": {
+   "summary": [
+    {
+     "control": "sharpen_amount",
+     "label": "sharpen"
+    },
+    {
+     "control": "detail",
+     "label": "local contrast"
+    },
+    {
+     "control": "denoise_strength",
+     "label": "denoise"
+    },
+    {
+     "module": "hazeremoval",
+     "field": "strength",
+     "label": "haze removal"
+    }
+   ],
+   "advanced": [
+    "retouch",
+    "cacorrectrgb",
+    "atrous",
+    "defringe",
+    "hazeremoval",
+    "nlmeans",
+    "bilateral",
+    "liquify",
+    "dither",
+    "rasterfile"
+   ]
+  },
+  "effects": {
+   "summary": [
+    {
+     "control": "grain",
+     "label": "grain"
+    },
+    {
+     "control": "vignette",
+     "label": "vignetting"
+    },
+    {
+     "control": "bloom_strength",
+     "label": "bloom"
+    },
+    {
+     "module": "soften",
+     "field": "amount",
+     "label": "soften"
+    },
+    {
+     "module": "graduatednd",
+     "field": "density",
+     "label": "graduated filter"
+    },
+    {
+     "module": "borders",
+     "field": "size",
+     "label": "frame"
+    }
+   ],
+   "advanced": [
+    "graduatednd",
+    "soften",
+    "colorize",
+    "blurs",
+    "borders",
+    "lowlight",
+    "watermark",
+    "highpass",
+    "lowpass",
+    "enlargecanvas",
+    "overlay",
+    "censorize"
+   ]
+  }
+ },
+ "display_labels": {
+  "note": "Labels shown instead of darktable's where its label only makes sense next to a graph: the tone equalizer's band sliders are named by their params member, followed by darktable's own label.",
+  "toneequal": {
+   "noise": "noise -8 EV",
+   "ultra_deep_blacks": "ultra deep blacks -7 EV",
+   "deep_blacks": "deep blacks -6 EV",
+   "blacks": "blacks -5 EV",
+   "shadows": "shadows -4 EV",
+   "midtones": "mid-tones -3 EV",
+   "highlights": "highlights -2 EV",
+   "whites": "whites -1 EV",
+   "speculars": "speculars +0 EV"
+  }
+ },
  "notes": {
   "colisa": "Deprecated upstream but kept in the curated block for existing styles; all three controls are curated.",
   "atrous": "The curves are the real controls; mix only scales them.",
