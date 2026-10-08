@@ -1,8 +1,8 @@
 import QtQuick
 
 // The active colour picker's area or point on the photo, as darktable draws it in the center
-// view. Area: drag outside the box to draw a new area, inside to move it, at a corner to resize
-// it. Point: the cross follows the pointer. Point-or-area (darktable's POINT_AREA pickers): a
+// view. Area: a drag anywhere draws a new area, a drag at a corner resizes it (darkroom.c
+// button_pressed; the default area covers almost the whole photo, so moving it is not offered). Point: the cross follows the pointer. Point-or-area (darktable's POINT_AREA pickers): a
 // click picks a point, a drag draws an area. The box is normalised to the displayed image and
 // reported with the keyboard modifiers once the pointer is released (the module applies the
 // picker then; Ctrl/Shift select darktable's positive/negative "create curve").
@@ -78,7 +78,6 @@ Item {
             else if (near(root.boxRight, root.boxTop)) mode = "ne"
             else if (near(root.boxLeft, root.boxBottom)) mode = "sw"
             else if (near(root.boxRight, root.boxBottom)) mode = "se"
-            else if (mouse.x > root.boxLeft && mouse.x < root.boxRight && mouse.y > root.boxTop && mouse.y < root.boxBottom) mode = "move"
             else mode = "new"
         }
         onPositionChanged: mouse => {
@@ -88,11 +87,7 @@ Item {
                        Math.max(startBox[0], startBox[2]), Math.max(startBox[1], startBox[3])]
             if (mode === "point") root.draft = [x, y, x, y]
             else if (mode === "new") root.draft = [root.clamp(start.x / width), root.clamp(start.y / height), x, y]
-            else if (mode === "move") {
-                const dx = Math.max(-b[0], Math.min(1 - b[2], (mouse.x - start.x) / width))
-                const dy = Math.max(-b[1], Math.min(1 - b[3], (mouse.y - start.y) / height))
-                root.draft = [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy]
-            } else {
+            else {
                 root.draft = [mode.indexOf("w") >= 0 ? x : b[0], mode.indexOf("n") >= 0 ? y : b[1],
                               mode.indexOf("e") >= 0 ? x : b[2], mode.indexOf("s") >= 0 ? y : b[3]]
             }

@@ -26,6 +26,10 @@ ApplicationWindow {
 
     property bool photoFullscreen: false
     property string activeControl: "exposure"
+    // The pane the active control was chosen in: its tool on the photo shows only with that pane,
+    // as darktable hides a module's overlay when the module loses focus.
+    property int activeControlPane: 0
+    onActiveControlChanged: activeControlPane = sidebar.selectedPanel
     property alias selectedPanel: sidebar.selectedPanel
     property alias filterView: sidebar.filterView
     property alias filterSearch: sidebar.filterSearch
@@ -42,7 +46,7 @@ ApplicationWindow {
                                            spots: "spot removal" })
     readonly property var canvasTool: {
         const id = window.activeControl || ""
-        if ([3, 4].indexOf(sidebar.selectedPanel) >= 0 || window.photoFullscreen) return null
+        if (sidebar.selectedPanel !== window.activeControlPane || window.photoFullscreen) return null
         let operation = "", instance = 0, path = ""
         if (id.indexOf("/") >= 0) {
             const parts = id.split("/")
@@ -177,6 +181,8 @@ ApplicationWindow {
         fullscreen: window.photoFullscreen
         canvasDrawing: viewport.canvasCapturing
         onCanvasCancelRequested: viewport.cancelCanvasTool()
+        picking: !!sidebar.tools.active
+        onPickerCancelRequested: sidebar.tools.cancel()
         panelCount: sidebar.paneOrder.length
         // Number keys and Tab both follow the tab strip as shown.
         onPanelRequested: position => sidebar.selectedPanel = sidebar.paneOrder[position]

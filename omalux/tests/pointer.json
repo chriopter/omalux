@@ -1,5 +1,27 @@
 [
  {
+  "property": "activeControl",
+  "value": "vignette"
+ },
+ {
+  "checkItem": "canvas-overlay",
+  "visible": true
+ },
+ {
+  "pointerClick": "sidebar-tab-8"
+ },
+ {
+  "checkItem": "canvas-overlay",
+  "visible": false
+ },
+ {
+  "pointerClick": "sidebar-tab-0"
+ },
+ {
+  "checkItem": "canvas-overlay",
+  "visible": true
+ },
+ {
   "pointerClick": "sidebar-area-styles"
  },
  {
@@ -110,5 +132,29 @@
   "check": {
    "exposure": 0.01
   }
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "pointerClick": "sidebar-tab-5"
+ },
+ {
+  "property": "moduleSearch",
+  "value": "rgb levels"
+ },
+ {
+  "pointerClick": "module-tool-rgblevels/0/@auto_region-0"
+ },
+ {
+  "checkItem": "picker-overlay",
+  "visible": true
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "checkItem": "picker-overlay",
+  "visible": false
  }
 ]

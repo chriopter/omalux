@@ -137,10 +137,15 @@ Item {
             overlay.box = [0.8, 0.8, 0.9, 0.9]   // outside the box: draw a new one
             mousePress(overlay, 20, 20); mouseMove(overlay, 100, 60); mouseRelease(overlay, 100, 60)
             fuzzyCompare(overlay.got[0], .1, .01); fuzzyCompare(overlay.got[3], .6, .01)
-            // drag inside moves the box
+            // inside darktable's default box (almost the whole photo) a drag draws a new area too
+            overlay.box = [0.02, 0.02, 0.98, 0.98]
+            mousePress(overlay, 50, 40); mouseMove(overlay, 150, 80); mouseRelease(overlay, 150, 80)
+            fuzzyCompare(overlay.got[0], .25, .01); fuzzyCompare(overlay.got[2], .75, .01)
+            fuzzyCompare(overlay.got[1], .4, .01); fuzzyCompare(overlay.got[3], .8, .01)
+            // a corner resizes it
             overlay.box = overlay.got
-            mousePress(overlay, 50, 40); mouseMove(overlay, 70, 40); mouseRelease(overlay, 70, 40)
-            fuzzyCompare(overlay.got[0], .2, .01)
+            mousePress(overlay, 150, 80); mouseMove(overlay, 180, 90); mouseRelease(overlay, 180, 90)
+            fuzzyCompare(overlay.got[0], .25, .01); fuzzyCompare(overlay.got[2], .9, .01)
             // a click of a point-or-area picker picks a point, with the modifiers
             overlay.kind = "pointarea"
             mousePress(overlay, 100, 50, Qt.LeftButton, Qt.ControlModifier)
