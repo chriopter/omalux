@@ -21,6 +21,9 @@ SidebarScrollView {
     property var overrides: ({})
     // Sidebar search: only matching modules stay, and they open.
     property string term: ""
+    // Blocks open for the search only while this pane is on screen; matchCount (the pane's dot
+    // and the search jump) always follows the term.
+    readonly property string shownTerm: visible ? term : ""
     signal parameterChangesRequested(string operation, int instance, var changes)
     signal interactionChanged(bool active)
     signal halationRequested()
@@ -94,9 +97,9 @@ SidebarScrollView {
         width: root.availableWidth
         padding: 18; spacing: 8
         Text {
-            visible: root.term !== "" && root.matchCount === 0
+            visible: root.shownTerm !== "" && root.matchCount === 0
             width: parent.width - 36
-            text: "No curated control matches “" + root.term + "”; the other panes are searched too."
+            text: "No curated control matches “" + root.shownTerm + "”; the other panes are searched too."
             color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
         }
         Repeater {
@@ -108,7 +111,7 @@ SidebarScrollView {
                 spacing: 0
                 topPadding: modelData.name === "Single" && root.sections.some(s => s.primary.length > 1) ? 20 : 0
                 Text {
-                    visible: group.modelData.name === "Advanced" && (root.term === "" || group.modelData.sections.some(s => root.sectionMatches(s)))
+                    visible: group.modelData.name === "Advanced" && (root.shownTerm === "" || group.modelData.sections.some(s => root.sectionMatches(s)))
                     text: "Advanced"
                     color: root.theme.muted; font: root.theme.settingsFont
                     topPadding: 12; bottomPadding: 4
@@ -125,14 +128,14 @@ SidebarScrollView {
                             // A shortcut row opens its module's block and stands in for it
                             // only while that block is closed.
                             readonly property string detailsKey: modelData.shortcut ? modelData.module : modelData.key
-                            visible: root.term !== "" ? !modelData.shortcut && root.sectionMatches(modelData)
+                            visible: root.shownTerm !== "" ? !modelData.shortcut && root.sectionMatches(modelData)
                                                       : !(modelData.shortcut && root.expandedDetails[detailsKey])
-                            expanded: !modelData.shortcut && (root.term !== "" || !!root.expandedDetails[detailsKey])
+                            expanded: !modelData.shortcut && (root.shownTerm !== "" || !!root.expandedDetails[detailsKey])
                             extraModule: root.catalogModel ? root.catalogModel.modulesByOperation[modelData.module] || null : null
                             moduleState: root.states[modelData.module + "/0"]
                             catalogModel: root.catalogModel
                             overrides: root.overrides
-                            term: root.term
+                            term: root.shownTerm
                             moreOpen: !!root.expandedDetails[detailsKey + "-more"]
                             onMoreRequested: root.setExpanded("expandedDetails", detailsKey + "-more", !root.expandedDetails[detailsKey + "-more"])
                             onParameterChangesRequested: changes => root.parameterChangesRequested(modelData.module, 0, changes)

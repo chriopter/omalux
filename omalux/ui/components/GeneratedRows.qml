@@ -414,7 +414,14 @@ Column {
             required property int index
             readonly property bool shown: !!root.visibility[index]
             visible: shown
-            active: shown
+            // A row is built once the change that shows it has settled: the search term and the
+            // expansion reach the rows along separate bindings, and their in-between states
+            // (expanded but not yet searching, or the reverse) would otherwise build and drop
+            // every row of every module. The first build happens at once.
+            active: false
+            Component.onCompleted: active = shown
+            onShownChanged: if (shown) Qt.callLater(entry.settle); else active = false
+            function settle() { active = shown }
             property var it: modelData
             sourceComponent: ({ slider: sliderRow, choice: choiceRow, "switch": switchRow, local: localRow, text: textRow,
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,

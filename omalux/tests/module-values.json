@@ -79,6 +79,7 @@
   {"checkParameter": {"operation": "overlay", "path": "labels:imgid", "value": "overlay.png", "enabled": true}},
   {"setParameter": {"operation": "overlay", "instance": 0, "field": "@enabled", "value": 0}},
   {"setParameters": {"operation": "rasterfile", "instance": 0, "values": {"path": "{WORK}", "file": "overlay.png", "@enabled": 0}}},
+  {"checkParameter": {"operation": "rasterfile", "path": "file", "value": "overlay.png", "contains": true}},
   {"choices": {"operation": "rasterfile", "instance": 0, "list": "file", "min": 1, "contains": "overlay.png", "current": "overlay.png"}},
 
   {"panel": 6},

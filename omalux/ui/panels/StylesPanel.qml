@@ -264,7 +264,8 @@ SidebarScrollView {
                     states: root.states
                     overrides: root.overrides
                     editable: !root.busy && root.photoReady
-                    term: root.term
+                    // Only while the pane is on screen (search opens every match).
+                    term: root.visible ? root.term : ""
                     activeControl: root.activeControl
                     settingsKey: "styles"
                     caption: "LOOK MODULES"

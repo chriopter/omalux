@@ -116,7 +116,8 @@ SidebarScrollView {
                 states: root.states
                 overrides: root.overrides
                 editable: root.editable && !root.cropping
-                term: root.term
+                // Only while the pane is on screen (search opens every match).
+                term: root.visible ? root.term : ""
                 activeControl: root.activeControl
                 settingsKey: "geometry"
                 caption: "MODULES"

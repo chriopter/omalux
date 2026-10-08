@@ -199,9 +199,15 @@ Column {
     }
     // The blend section of this instance, under the expanded module (blend_gui.c).
     Loader {
+        id: blendLoader
         width: parent.width
-        active: root.expanded && root.term === "" && !!root.moduleState && !!root.moduleState.blend
+        // Built once the expansion and the search term have both settled (see GeneratedRows).
+        readonly property bool wanted: root.expanded && root.term === "" && !!root.moduleState && !!root.moduleState.blend
+        active: false
         visible: active
+        Component.onCompleted: active = wanted
+        onWantedChanged: if (wanted) Qt.callLater(blendLoader.settle); else active = false
+        function settle() { active = wanted }
         sourceComponent: BlendSection {
             theme: root.theme
             moduleState: root.moduleState

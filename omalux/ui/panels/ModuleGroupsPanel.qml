@@ -35,7 +35,8 @@ SidebarScrollView {
             states: root.states
             overrides: root.overrides
             editable: root.editable
-            term: root.term
+            // Only the pane on screen opens its matches; the others follow when shown.
+            term: root.visible ? root.term : ""
             activeControl: root.activeControl
             settingsKey: root.tab
             onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
@@ -45,7 +46,7 @@ SidebarScrollView {
             onControlSelected: id => root.controlSelected(id)
         }
         Text {
-            visible: root.term !== "" && list.matchCount === 0
+            visible: list.term !== "" && list.matchCount === 0
             width: parent.width - 36
             topPadding: 12
             text: "No module here matches “" + root.term + "”."
