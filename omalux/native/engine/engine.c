@@ -14,6 +14,7 @@
 #include "develop/blend.h"
 #include "white_balance.h"
 #include "canvas.h"
+#include "module_gui_changed.h"
 
 extern const char darktable_package_version[];
 OmEngine *om_engine_create(int argc, char **argv) {
@@ -58,6 +59,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
     // Apply the history darktable just read (auto-applied camera presets and any sidecar), so
     // modules, controls and the style baseline reflect the image's actual opening state.
     dt_dev_pop_history_items_ext(&engine->dev, engine->dev.history_end);
+    om_module_defaults_loaded(&engine->dev, NULL); // darktable's GUI-state defaults (module_gui_changed.c)
     engine->dev.full.dev = &engine->dev;
     engine->dev.full.zoom = DT_ZOOM_FIT;
     engine->dev.full.ppd = 1.0;

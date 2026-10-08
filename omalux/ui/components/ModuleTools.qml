@@ -132,6 +132,12 @@ QtObject {
         // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.
         colorchecker: {
             "@patch": { local: true, tool: "patch", kind: "pointarea", label: "patch", hint: "pick the patch nearest to the picked color" }
+        },
+        // colormapping.c:1003-1013; the cluster swatches darktable draws above the buttons
+        // (cluster_preview_draw) come first ("before").
+        colormapping: {
+            source: { tool: "acquire_source", kind: "button", before: "clusters", hint: "analyze this image as a source image" },
+            target: { tool: "acquire_target", kind: "button", hint: "analyze this image as a target image" }
         }
     })
     readonly property var sliderTools: ({

@@ -98,7 +98,7 @@ def main():
         scripts = [ROOT / 'omalux/tests/interactive-preview.json',
                    ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
                    ROOT / 'omalux/tests/blending.json', ROOT / 'omalux/tests/module-tools.json',
-                   ROOT / 'omalux/tests/module-tools-ui.json', ROOT / 'omalux/tests/module-tools-rest.json',
+                   ROOT / 'omalux/tests/module-tools-ui.json',
                    ROOT / 'omalux/tests/keyboard.json',
                    ROOT / 'omalux/tests/canvas-engine.json', ROOT / 'omalux/tests/canvas.json',
                    work / 'workflow.json']
@@ -106,6 +106,11 @@ def main():
         values = work / 'module-values.json'
         values.write_text((ROOT / 'omalux/tests/module-values.json').read_text().replace('{WORK}', str(work)))
         scripts.append(values)
+        # Area E: the remaining pickers, tone equalizer, color mapping across two images ...
+        for name in ('module-tools-rest.json',):
+            script = work / name
+            script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work)))
+            scripts.append(script)
         values_mailbox = work / 'mailbox-values' / 'controls'
         values_mailbox.parent.mkdir()
         mailbox = work / 'mailbox' / 'controls'

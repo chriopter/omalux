@@ -25,7 +25,7 @@ typedef struct {
 
 static const OmToolSpec *const tables[] = {om_tools_tone, om_tools_color, om_tools_geometry, om_tools_basicadj,
                                             om_tools_curves, om_tools_harmonizer, om_tools_blend,
-                                            om_tools_effects, om_tools_toneequal};
+                                            om_tools_effects, om_tools_toneequal, om_tools_colormapping};
 
 static const OmToolSpec *find_spec(const char *operation, const char *tool) {
     for (size_t t = 0; t < G_N_ELEMENTS(tables); ++t)

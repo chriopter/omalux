@@ -13,6 +13,7 @@
 #include "controls.h"
 #include "blending.h"
 #include "canvas.h"
+#include "module_gui_changed.h"
 #include <math.h>
 
 // True when the curated panel already offers this parameter under its own name. The raw
@@ -533,6 +534,8 @@ static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const ch
         assignments[i].text = text;
     }
     void *backup = error ? NULL : g_memdup2(module->params, module->params_size);
+    // module_gui_changed.c compares against this after a successful edit.
+    void *before = error ? NULL : g_memdup2(module->params, module->params_size);
     gboolean changed = FALSE;
     for (size_t i = 0; i < count && !error; ++i)
         if (assignments[i].target.field) {
@@ -556,8 +559,13 @@ static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const ch
     g_free(derived_paths);
     g_free(derived_texts);
     g_free(derived_values);
-    if (error)
+    if (error) {
+        g_free(before);
         return error;
+    }
+    // darktable's gui_changed rules that keep parameters consistent (module_gui_changed.c).
+    om_module_gui_changed(module, before);
+    g_free(before);
     if (blend.touched) {
         om_blend_commit(module, &blend);
         changed = TRUE;
@@ -643,6 +651,7 @@ int om_engine_reset_module(OmEngine *engine, const char *operation, int instance
     if (!module->default_enabled && module->hide_enable_button)
         return 4;
     dt_iop_reload_defaults(module);
+    om_module_defaults_loaded(&engine->dev, module); // GUI-state defaults (module_gui_changed.c)
     dt_iop_commit_blend_params(module, module->default_blendop_params);
     dt_dev_add_history_item_ext(&engine->dev, module, TRUE, FALSE);
     engine->dev.full.pipe->changed |= DT_DEV_PIPE_SYNCH;

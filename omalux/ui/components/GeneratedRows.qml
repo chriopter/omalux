@@ -159,6 +159,7 @@ Column {
                          ? { kind: "localSlider", control: sliderControl(lr, id(lr)) } : { kind: "local" }))
                 if (!ts.tool) continue
             }
+            if (ts && ts.before) out.push(Object.assign(base(r), { kind: ts.before, tier: r.tier === "primary" ? "detail" : r.tier }))
             if (ts && (ts.tool || ts.choices)) {
                 const spec = Object.assign({ label: r.label }, ts)
                 const prev = out.length ? out[out.length - 1] : null
@@ -380,7 +381,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
-                                histogram: histogramRow, canvas: canvasRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -1106,6 +1107,33 @@ Column {
             Timer { id: refresh; interval: 400; onTriggered: if (root.tools) root.tools.requestHistogram(root.module.operation, root.instance) }
             Connections { target: root.catalogModel; function onStatesChanged() { refresh.restart() } }
             Component.onCompleted: refresh.restart()
+        }
+    }
+    // area E: color mapping's source and target clusters (colormapping.c:1000-1001).
+    Component {
+        id: clustersRow
+        Column {
+            width: root.width - 28
+            spacing: 4
+            opacity: root.moduleEnabled ? 1 : .7
+            Repeater {
+                model: [{ title: "source clusters:", mean: "source_mean", sigma: "source_var" },
+                        { title: "target clusters:", mean: "target_mean", sigma: "target_var" }]
+                Column {
+                    required property var modelData
+                    width: parent.width
+                    spacing: 2
+                    Text { text: modelData.title; color: root.theme.muted; font: root.theme.textFont }
+                    ClusterPreview {
+                        objectName: "clusters-" + modelData.mean
+                        width: parent.width
+                        theme: root.theme
+                        count: Math.max(0, Math.min(5, Number(root.raw("n")) || 0))
+                        means: root.raw(modelData.mean) || []
+                        sigmas: root.raw(modelData.sigma) || []
+                    }
+                }
+            }
         }
     }
 }
