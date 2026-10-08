@@ -57,57 +57,141 @@ SidebarScrollView {
     function resetCrop() { cropApplied({crop_left:0,crop_top:0,crop_right:0,crop_bottom:0,crop_enabled:0}) }
     function cancel() { if (cropping) { edited("crop_enabled", wasEnabled ? 1 : 0); cropping = false } }
     ColumnLayout {
-        width: root.availableWidth - 20
-        x: 10; spacing: 14
-        Text { text: "CROP & ROTATE"; color: root.theme.ink; font.bold: true }
-        Repeater {
-            model: root.controls.filter(c => c.id === "rotation")
-            ControlSlider {
-                required property var modelData
-                Layout.fillWidth: true
-                theme: root.theme; control: modelData; value: root.values[modelData.id]; editable: root.editable && !root.cropping
-                onInteractionChanged: active => root.interactionChanged(active)
-                onEdited: value => root.edited(modelData.id, value)
-                onResetRequested: root.edited(modelData.id, 0)
-            }
-        }
-        ComboBox {
-            id: ratioChoice
-            objectName: "aspectChoice"
-            wheelEnabled: false
+        // Same margins as the module lists of the other edit panes (ModuleGroupsPanel).
+        width: root.availableWidth - 36
+        x: 18; spacing: 10
+        // The crop block reads like the module cards below it: darktable's module name as the
+        // heading, its rows (rotation, aspect) and the crop actions as outlined buttons.
+        Rectangle {
             Layout.fillWidth: true
-            model: ["Free", "Original", "1:1", "3:2", "4:3", "4:5", "16:9"]
-            onActivated: root.chooseRatio(currentIndex)
-            NavTarget {
-                id: ratioNav
-                navId: "aspect"; label: "aspect " + ratioChoice.currentText; kind: "choice"
-                activateLabel: ""; resettable: false
-                onAdjust: steps => { ratioChoice.currentIndex = Math.max(0, Math.min(ratioChoice.count - 1, ratioChoice.currentIndex + Math.sign(steps))); root.chooseRatio(ratioChoice.currentIndex) }
+            Layout.topMargin: 18
+            // Module cards reach 14 px left of their list's text column.
+            Layout.leftMargin: -14
+            implicitHeight: cropColumn.implicitHeight + 16
+            color: root.theme.surface
+            ColumnLayout {
+                id: cropColumn
+                x: 14; y: 8
+                width: parent.width - 14
+                spacing: 8
+                Text {
+                    // In line with the module headings (after their enabled dot).
+                    Layout.leftMargin: 8
+                    text: "crop"
+                    color: root.theme.ink
+                    font: root.theme.moduleHeadingFont
+                }
+                Repeater {
+                    model: root.controls.filter(c => c.id === "rotation")
+                    ControlSlider {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        compact: true
+                        moduleToggleAvailable: false
+                        theme: root.theme; control: modelData; value: root.values[modelData.id]; editable: root.editable && !root.cropping
+                        onInteractionChanged: active => root.interactionChanged(active)
+                        onEdited: value => root.edited(modelData.id, value)
+                        onResetRequested: root.edited(modelData.id, 0)
+                    }
+                }
+                // darktable's "aspect" combobox (crop.c:1379) with its labels for these ratios.
+                ComboBox {
+                    id: ratioChoice
+                    objectName: "aspectChoice"
+                    wheelEnabled: false
+                    Layout.fillWidth: true
+                    Layout.rightMargin: 28
+                    implicitHeight: 26
+                    hoverEnabled: true
+                    model: ["freehand", "original image", "square", "3:2, 4x6, 35mm", "4:3, VGA, TV", "5:4, 4x5, 8x10", "16:9, HDTV"]
+                    onActivated: root.chooseRatio(currentIndex)
+                    NavTarget {
+                        id: ratioNav
+                        navId: "aspect"; label: "aspect " + ratioChoice.currentText; kind: "choice"
+                        activateLabel: ""; resettable: false
+                        onAdjust: steps => { ratioChoice.currentIndex = Math.max(0, Math.min(ratioChoice.count - 1, ratioChoice.currentIndex + Math.sign(steps))); root.chooseRatio(ratioChoice.currentIndex) }
+                    }
+                    leftPadding: 0; rightPadding: 0
+                    indicator: Item {}
+                    contentItem: RowLayout {
+                        spacing: 12
+                        Text {
+                            Layout.fillWidth: true
+                            text: "aspect"
+                            color: ratioNav.current ? root.theme.accent : root.theme.ink
+                            font: root.theme.settingsFont
+                        }
+                        Text {
+                            text: ratioChoice.displayText
+                            color: root.editable ? root.theme.ink : root.theme.muted
+                            font: root.theme.textFont
+                        }
+                        Text { text: "\u25be"; color: root.theme.muted; font: root.theme.textFont }
+                    }
+                    background: Rectangle {
+                        color: ratioChoice.hovered ? root.theme.hover : "transparent"
+                        radius: 4
+                        border.width: ratioNav.current ? 1 : 0
+                        border.color: root.theme.accent
+                    }
+                    delegate: ItemDelegate {
+                        id: ratioItem
+                        required property var modelData
+                        required property int index
+                        width: ListView.view.width
+                        implicitHeight: 26
+                        highlighted: ratioChoice.highlightedIndex === index
+                        hoverEnabled: true
+                        contentItem: Text {
+                            text: ratioItem.modelData
+                            color: ratioItem.highlighted || ratioChoice.currentIndex === ratioItem.index ? root.theme.accent : root.theme.ink
+                            font: root.theme.textFont
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: ratioItem.highlighted ? root.theme.active : "transparent"; radius: 3 }
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    Layout.rightMargin: 28
+                    visible: root.cropping
+                    text: "drag the frame or its handles; Enter applies, Escape cancels"
+                    wrapMode: Text.WordWrap
+                    color: root.theme.muted
+                    font: root.theme.textFont
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.rightMargin: 28
+                    spacing: 6
+                    Button {
+                        id: editButton
+                        Layout.fillWidth: true
+                        text: "edit crop"; enabled: root.editable && !root.cropping; onClicked: root.begin()
+                        highlighted: editNav.current
+                        NavTarget { id: editNav; navId: "edit-crop"; label: "Edit crop"; enabled: editButton.enabled; onActivate: root.begin() }
+                    }
+                    Button {
+                        id: resetButton
+                        Layout.fillWidth: true
+                        text: "reset crop"; enabled: root.editable && !root.cropping
+                        onClicked: root.resetCrop()
+                        highlighted: resetNav.current
+                        NavTarget { id: resetNav; navId: "reset-crop"; label: "Reset crop"; enabled: resetButton.enabled; onActivate: root.resetCrop() }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.rightMargin: 28
+                    visible: root.cropping
+                    spacing: 6
+                    Button { Layout.fillWidth: true; text: "apply  [Enter]"; enabled: root.cropping; onClicked: root.apply() }
+                    Button { Layout.fillWidth: true; text: "cancel  [Esc]"; enabled: root.cropping; onClicked: root.cancel() }
+                }
             }
-            Rectangle { anchors.fill: parent; visible: ratioNav.current; color: "transparent"; border.color: root.theme.accent }
-        }
-        Button {
-            id: editButton
-            text: "Edit crop"; enabled: root.editable && !root.cropping; onClicked: root.begin()
-            highlighted: editNav.current
-            NavTarget { id: editNav; navId: "edit-crop"; label: "Edit crop"; enabled: editButton.enabled; onActivate: root.begin() }
-        }
-        Text { Layout.fillWidth: true; visible: root.cropping; text: "Drag the frame or its handles. Enter applies; Escape cancels."; wrapMode: Text.WordWrap; color: root.theme.muted; font: root.theme.textFont }
-        RowLayout {
-            Button { text: "Apply [Enter]"; enabled: root.cropping; onClicked: root.apply() }
-            Button { text: "Cancel [Esc]"; enabled: root.cropping; onClicked: root.cancel() }
-        }
-        Button {
-            id: resetButton
-            text: "Reset crop"; enabled: root.editable && !root.cropping
-            onClicked: root.resetCrop()
-            highlighted: resetNav.current
-            NavTarget { id: resetNav; navId: "reset-crop"; label: "Reset crop"; enabled: resetButton.enabled; onActivate: root.resetCrop() }
         }
         Loader {
             Layout.fillWidth: true
-            Layout.leftMargin: 14
-            Layout.rightMargin: 4
             active: !!root.catalogModel
             sourceComponent: ModuleList {
                 theme: root.theme
@@ -120,7 +204,6 @@ SidebarScrollView {
                 term: root.visible ? root.term : ""
                 activeControl: root.activeControl
                 settingsKey: "geometry"
-                caption: "MODULES"
                 onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
                 onEnableRequested: (operation, instance, enabled) => root.enableRequested(operation, instance, enabled)
                 onResetRequested: (operation, instance, module) => root.moduleResetRequested(operation, instance, module)
