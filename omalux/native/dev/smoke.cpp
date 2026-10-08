@@ -101,6 +101,8 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                          (*choiceResults)[QString("%1/%2/%3").arg(operation).arg(instance).arg(list)] =
                              result;
                      });
+    // "rejectStyle" expects a style error containing this text; once seen it is tolerated.
+    auto expectedError = std::make_shared<QString>(), toleratedError = std::make_shared<QString>();
     QObject::connect(&editor, &Editor::moduleUpdated, &app,
                      [updatedModules](QString operation, int instance, QString json) {
                          const auto module = QJsonDocument::fromJson(json.toUtf8()).object();
@@ -119,10 +121,16 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     QObject::connect(
         timer, &QTimer::timeout, &app,
         [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging, retries, updatedModules,
-         choiceResults] {
+         choiceResults, expectedError, toleratedError] {
             if (*dragging)
                 return;
-            if (!editor.styleError().isEmpty()) {
+            if (!expectedError->isEmpty() && editor.styleError().contains(*expectedError)) {
+                qInfo() << "Rejected as expected:" << editor.styleError();
+                *toleratedError = editor.styleError();
+                expectedError->clear();
+                *waiting = false;
+            }
+            if (!editor.styleError().isEmpty() && editor.styleError() != *toleratedError) {
                 qCritical() << editor.styleError();
                 app.exit(2);
                 return;
@@ -415,6 +423,23 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const auto call = step["setParameters"].toObject();
                 editor.setParameters(call["operation"].toString(), call["instance"].toInt(),
                                      call["values"].toObject().toVariantMap());
+            } else if (step.contains("rejectStyle")) {
+                // Saving must fail with an error that contains "error" (never a silent partial style).
+                const auto call = step["rejectStyle"].toObject();
+                *expectedError = call["error"].toString();
+                editor.saveStyle(call["name"].toString());
+                *waiting = true;
+            } else if (step.contains("checkRejected")) {
+                if (!expectedError->isEmpty()) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "Style was not rejected";
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
             } else if (step.contains("moduleInstance")) {
                 // darktable's multi-instance menu: {operation, instance, action, name}.
                 const auto call = step["moduleInstance"].toObject();

@@ -29,7 +29,14 @@ Column {
 
     readonly property bool moduleEnabled: !!moduleState && moduleState.enabled
     readonly property bool nameMatched: term !== "" && catalogModel.moduleNameMatches(module, term)
-    readonly property string title: module.name + (instance > 0 ? " " + (instance + 1) : "")
+    // darktable's heading: the module name and, after a dot, the instance name
+    // (_iop_panel_name; moduleState.instanceLabel from module_instances.c).
+    readonly property string instanceLabel: moduleState && moduleState.instanceLabel !== undefined
+                                            ? moduleState.instanceLabel : (instance > 0 ? String(instance) : "")
+    readonly property string title: module.name + (instanceLabel !== "" ? " • " + instanceLabel : "")
+    // Multi-instance actions and drawn-shape requests travel with the edits as action keys
+    // (EditorSidebar.changeParameters): {"@instance": action, "@name": name}, {"@drawn": type}.
+    function requestInstance(action, name) { root.changesRequested({ "@instance": action, "@name": name }) }
     spacing: 4
     topPadding: 12
     bottomPadding: 8
@@ -98,6 +105,17 @@ Column {
                 }
                 background: Rectangle { color: "transparent"; border.color: heading.activeFocus || headerNav.current ? root.theme.accent : "transparent" }
             }
+            InstanceButton {
+                id: instanceButton
+                objectName: "module-instances-" + root.module.operation + (root.instance ? "-" + root.instance : "")
+                visible: !!root.moduleState && root.term === ""
+                theme: root.theme
+                moduleState: root.moduleState
+                title: root.title
+                editable: root.editable
+                navGroup: root.module.operation + "/" + root.instance
+                onInstanceRequested: (action, name) => root.requestInstance(action, name)
+            }
         }
         TapHandler {
             acceptedButtons: Qt.RightButton
@@ -114,6 +132,17 @@ Column {
                 text: "Reset " + root.title
                 enabled: root.editable && !!root.moduleState
                 onTriggered: root.resetRequested()
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: "new instance"
+                enabled: root.editable && !!root.moduleState && root.moduleState.canNew
+                onTriggered: root.requestInstance("new", "")
+            }
+            MenuItem {
+                text: "duplicate instance"
+                enabled: root.editable && !!root.moduleState && root.moduleState.canNew
+                onTriggered: root.requestInstance("duplicate", "")
             }
         }
         DisclosureButton {
@@ -147,5 +176,32 @@ Column {
         onInteractionChanged: active => root.interactionChanged(active)
         onControlSelected: id => root.controlSelected(id)
         onMoreRequested: root.moreRequested()
+    }
+    // The blend section of this instance, under the expanded module (blend_gui.c).
+    Loader {
+        width: parent.width
+        active: root.expanded && root.term === "" && !!root.moduleState && !!root.moduleState.blend
+        visible: active
+        sourceComponent: BlendSection {
+            theme: root.theme
+            moduleState: root.moduleState
+            catalogModel: root.catalogModel
+            overrides: root.overrides
+            overridePrefix: root.module.operation + "/" + root.instance + "/"
+            editable: root.editable && !!root.moduleState
+            moduleEnabled: root.moduleEnabled
+            navGroup: root.module.operation + "/" + root.instance
+            onChangesRequested: changes => root.changesRequested(changes)
+            onInteractionChanged: active => root.interactionChanged(active)
+            onDrawnShapeRequested: shape => root.changesRequested({ "@drawn": shape })
+        }
+    }
+    InstanceFooter {
+        visible: root.expanded && root.term === "" && !!root.moduleState
+        width: parent.width - 28
+        theme: root.theme
+        button: instanceButton
+        navGroup: root.module.operation + "/" + root.instance
+        enabled: root.editable
     }
 }

@@ -734,6 +734,15 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
     module["rows"] = out_rows
     module["notes"] = " ".join(n if n.endswith(".") else n + "." for n in dict.fromkeys(notes))
     module["_curated_refs"] = {r["path"] or r["field"] for r in curated_rows}
+    if curated:
+        # A further instance of a curated module is not edited through controls.h: it gets
+        # every row, as an uncurated module would (instance_rows, instance_primary, instance_tabs).
+        full = build_module(op, inv, dec, curated_pairs, curated_modules - {op},
+                            dict(reordered=[], notices=[], vw_partial=[], vw_unconverted=[], vw_layout=0))
+        full.pop("_curated_refs")
+        module["instance_rows"] = full["rows"]
+        module["instance_primary"] = full["primary"]
+        module["instance_tabs"] = full["tabs"]
     return module
 
 

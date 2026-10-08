@@ -20,6 +20,15 @@ Column {
     property string term: ""
     signal moreRequested()
     signal parameterChangesRequested(var changes)
+    // Edits and actions of further instances of this module (darktable's multi-instance).
+    signal instanceChangesRequested(int instance, var changes)
+    readonly property var extraInstances: !!catalogModel && !section.shortcut
+                                          ? (catalogModel.instances[section.module] || []).filter(i => i > 0) : []
+    property var instanceExpanded: ({})
+    property var instanceMore: ({})
+    function toggleInstance(property, instance) {
+        const next = Object.assign({}, root[property]); next[instance] = !next[instance]; root[property] = next
+    }
     readonly property bool hasExtra: !!extraModule && !!catalogModel && extraModule.rows.length > 0 && !section.shortcut
     signal interactionChanged(bool active)
     signal expansionRequested()
@@ -71,7 +80,7 @@ Column {
         Rectangle {
             z: -1
             width: parent.width
-            height: root.height - moduleHeader.y
+            height: (instancesBox.visible ? instancesBox.y : root.height) - moduleHeader.y
             color: root.theme.surface
         }
         RowLayout {
@@ -104,6 +113,17 @@ Column {
                     }
                 }
                 background: Rectangle { color: "transparent"; border.color: heading.activeFocus || headerNav.current ? root.theme.accent : "transparent" }
+            }
+            InstanceButton {
+                id: instanceButton
+                objectName: "module-instances-" + root.section.module
+                visible: !root.section.shortcut && !!root.moduleState && root.term === ""
+                theme: root.theme
+                moduleState: root.moduleState
+                title: root.section.name
+                editable: root.editable
+                navGroup: root.section.key
+                onInstanceRequested: (action, name) => root.parameterChangesRequested({ "@instance": action, "@name": name })
             }
         }
         DisclosureButton {
@@ -212,6 +232,67 @@ Column {
             onChangesRequested: changes => root.parameterChangesRequested(changes)
             onInteractionChanged: active => root.interactionChanged(active)
             onControlSelected: id => root.controlSelected(id)
+        }
+    }
+    // The blend section of the curated module's first instance (blend_gui.c).
+    Loader {
+        width: parent.width
+        active: root.expanded && !root.section.shortcut && root.term === "" && !!root.moduleState && !!root.moduleState.blend
+        visible: active
+        sourceComponent: BlendSection {
+            theme: root.theme
+            moduleState: root.moduleState
+            catalogModel: root.catalogModel
+            overrides: root.overrides
+            overridePrefix: root.section.module + "/0/"
+            editable: root.editable
+            moduleEnabled: root.moduleEnabled
+            navGroup: root.section.key
+            onChangesRequested: changes => root.parameterChangesRequested(changes)
+            onInteractionChanged: active => root.interactionChanged(active)
+            onDrawnShapeRequested: shape => root.parameterChangesRequested({ "@drawn": shape })
+        }
+    }
+    InstanceFooter {
+        visible: root.expanded && !root.section.shortcut && root.term === "" && !!root.moduleState
+        width: parent.width - 28
+        theme: root.theme
+        button: instanceButton
+        navGroup: root.section.key
+        enabled: root.editable
+    }
+    // Further instances are not edited through the curated controls: each is a generated
+    // module with every row of its darktable module (ModuleCatalog.moduleForInstance).
+    Column {
+        id: instancesBox
+        visible: root.extraInstances.length > 0 && !!root.extraModule && root.term === ""
+        width: parent.width
+        topPadding: 8
+        spacing: 8
+        Repeater {
+            model: instancesBox.visible ? root.extraInstances : []
+            delegate: GeneratedModule {
+                required property int modelData
+                objectName: "generated-module-" + root.section.module + "-" + modelData
+                width: instancesBox.width
+                theme: root.theme
+                module: root.catalogModel.moduleForInstance(root.extraModule, modelData)
+                instance: modelData
+                moduleState: root.catalogModel.states[root.section.module + "/" + modelData]
+                catalogModel: root.catalogModel
+                overrides: root.overrides
+                editable: root.editable
+                expanded: !!root.instanceExpanded[modelData]
+                moreOpen: !!root.instanceMore[modelData]
+                activeControl: root.activeControl
+                onExpansionRequested: root.toggleInstance("instanceExpanded", modelData)
+                onMoreRequested: root.toggleInstance("instanceMore", modelData)
+                onChangesRequested: changes => root.instanceChangesRequested(modelData, changes)
+                onEnableRequested: on => root.instanceChangesRequested(modelData, { "@enabled": on ? 1 : 0 })
+                onResetRequested: root.instanceChangesRequested(modelData, { "@reset": 1 })
+                onInteractionChanged: active => root.interactionChanged(active)
+                onControlSelected: id => root.controlSelected(id)
+            }
         }
     }
 }

@@ -13,9 +13,7 @@
   {"setParameters": {"operation": "exposure", "instance": 0, "values": {"blend.reverse": 1}}},
   {"checkParameter": {"operation": "exposure", "path": "blend.reverse", "value": 1}},
   {"setParameters": {"operation": "exposure", "instance": 0, "values": {"blend.mask_mode": 5}}},
-  {"setParameters": {"operation": "exposure", "instance": 0, "values": {
-    "blend.blendif_parameters[0]": 0, "blend.blendif_parameters[1]": 0.2,
-    "blend.blendif_parameters[2]": 1, "blend.blendif_parameters[3]": 1}}},
+  {"setParameters": {"operation": "exposure", "instance": 0, "values": {"blend.blendif_parameters[0]": 0, "blend.blendif_parameters[1]": 0.2, "blend.blendif_parameters[2]": 1, "blend.blendif_parameters[3]": 1}}},
   {"checkParameter": {"operation": "exposure", "path": "blend.blendif", "value": 1}},
   {"checkParameter": {"operation": "exposure", "path": "blend.blendif_parameters[1]", "value": 0.2}},
   {"setParameters": {"operation": "exposure", "instance": 0, "values": {"blend.polarity[0]": 1}}},
@@ -62,5 +60,15 @@
   {"statusContains": "Could not delete exposure"},
   {"moduleInstance": {"operation": "exposure", "instance": 0, "action": "rename", "name": ""}},
   {"checkParameter": {"operation": "exposure", "instance": 0, "path": "@multi_name_hand_edited", "value": 0}},
+  {"moduleInstance": {"operation": "exposure", "instance": 0, "action": "new"}},
+  {"checkInstances": {"operation": "exposure", "instances": [0, 1]}},
+  {"setParameters": {"operation": "exposure", "instance": 1, "values": {"exposure": 0.5, "blend.mask_mode": 1, "blend.opacity": 60}}},
+  {"checkParameter": {"operation": "exposure", "instance": 1, "path": "blend.opacity", "value": 60}},
+  {"panel": 0},
+  {"clickItem": "module-details-exposure"},
+  {"visibleItem": "blend-mask-mode-exposure", "visible": true},
+  {"visibleItem": "generated-module-exposure-1", "visible": true},
+  {"rejectStyle": {"name": "Omalux instances", "error": "cannot yet be saved portably"}},
+  {"checkRejected": true},
   {"refresh": true}
 ]

@@ -159,7 +159,7 @@ Column {
                                     objectName: "generated-module-" + moduleEntry.modelData.operation + (modelData ? "-" + modelData : "")
                                     width: group.width
                                     theme: root.theme
-                                    module: moduleEntry.modelData
+                                    module: root.catalogModel.moduleForInstance(moduleEntry.modelData, modelData)
                                     instance: modelData
                                     moduleState: root.states[key]
                                     catalogModel: root.catalogModel

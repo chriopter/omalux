@@ -61,6 +61,7 @@ Rectangle {
         id: moduleCatalog
         catalog: root.backend.moduleCatalog
         layoutText: root.backend.layoutData || "{}"
+        blendLayoutText: root.backend.blendLayoutData || "{}"
         onStatesChanged: parameterQueue.acknowledge()
         // Runtime lists of module rows (profiles, lenses, files): asked here, answered below.
         onChoicesRequested: (operation, instance, list, query) => {
@@ -79,7 +80,18 @@ Rectangle {
         function onChoicesReady(operation, instance, list, query, result) { moduleCatalog.receiveChoices(operation, instance, list, query, result) }
     }
     // The engine switches a module on when one of its parameters is edited, as darktable does.
+    // Action keys ride along with the edits so every pane reaches them without extra wiring:
+    // "@instance" is darktable's multi-instance menu ("@name" for rename), "@reset" a module
+    // reset and "@drawn" a request to draw a mask shape of that type on the image.
+    signal drawnShapeRequested(string operation, int instance, int shape)
     function changeParameters(operation, instance, changes) {
+        if ("@instance" in changes) {
+            if (typeof root.backend.moduleInstance === "function")
+                root.backend.moduleInstance(operation, instance, changes["@instance"], changes["@name"] || "")
+            return
+        }
+        if ("@reset" in changes) { root.resetModule(operation, instance, moduleCatalog.modulesByOperation[operation] || { rows: [] }); return }
+        if ("@drawn" in changes) { root.drawnShapeRequested(operation, instance, changes["@drawn"]); return }
         parameterQueue.send(operation, instance, changes)
     }
     function enableModule(operation, instance, enabled) {

@@ -75,6 +75,7 @@ ApplicationWindow {
         }
         return h
     }
+    property var blendRange: [0.12, 0.3, 0.72, 0.9]
     property var sampleNodes: [{ x: 0, y: 0.08 }, { x: 0.18, y: 0.1 }, { x: 0.4, y: 0.62 }, { x: 0.55, y: 0.6 }, { x: 0.85, y: 0.92 }, { x: 1, y: 0.9 }]
 
     RowLayout {
@@ -203,6 +204,26 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     theme: editorTheme
                     text: "masks and blending are kept from the image history but cannot be edited here"
+                }
+            }
+            Caption { text: "BlendifRange · parametric mask · InstanceButton" }
+            Block {
+                BlendifRange {
+                    Layout.fillWidth: true
+                    theme: editorTheme
+                    label: "input"
+                    values: window.blendRange
+                    stops: [[0, "#000000"], [.125, "#101010"], [.25, "#202020"], [.5, "#404040"], [1, "#808080"]]
+                    onValuesEdited: v => window.blendRange = v
+                    onPolarityToggled: n => negative = n
+                }
+                RowLayout {
+                    Text { Layout.fillWidth: true; text: "exposure • sky"; color: editorTheme.ink; font: editorTheme.moduleHeadingFont }
+                    InstanceButton {
+                        theme: editorTheme
+                        moduleState: ({ canNew: true, canDelete: true, canMoveUp: true, canMoveDown: false, instanceLabel: "sky" })
+                        title: "exposure • sky"
+                    }
                 }
             }
         }

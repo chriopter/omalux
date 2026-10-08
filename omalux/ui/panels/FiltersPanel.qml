@@ -136,6 +136,7 @@ SidebarScrollView {
                             moreOpen: !!root.expandedDetails[detailsKey + "-more"]
                             onMoreRequested: root.setExpanded("expandedDetails", detailsKey + "-more", !root.expandedDetails[detailsKey + "-more"])
                             onParameterChangesRequested: changes => root.parameterChangesRequested(modelData.module, 0, changes)
+                            onInstanceChangesRequested: (instance, changes) => root.parameterChangesRequested(modelData.module, instance, changes)
                             onExpansionRequested: root.setExpanded("expandedDetails", detailsKey, !root.expandedDetails[detailsKey])
                             onControlSelected: id => root.controlSelected(id)
                             onInteractionChanged: active => root.interactionChanged(active)

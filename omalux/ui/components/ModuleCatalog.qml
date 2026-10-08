@@ -8,6 +8,11 @@ QtObject {
     id: root
     property string catalog: ""
     property string layoutText: "{}"
+    // The per-module blend section (omalux/design/layout-blending.json, same row format).
+    property string blendLayoutText: "{}"
+    readonly property var blendRows: {
+        try { return (JSON.parse(root.blendLayoutText || "{}").rows || []) } catch (e) { return [] }
+    }
 
     // Which sidebar tab shows which module. Everything not listed follows its darktable group.
     readonly property var tabOfGroup: ({ base: "tone", tone: "tone", color: "color", correct: "detail",
@@ -71,6 +76,7 @@ QtObject {
                 const state = { operation: m.operation, instance: m.instance, label: m.label, enabled: !!m.enabled,
                                 hidden: !!m.hidden, values: values, params: params,
                                 derived: m.derived || ({}), labels: m.labels || ({}) }
+                Object.assign(state, root.extras(m))
                 next[key] = state
                 cache[key] = { signature: signature, state: state }
             }
@@ -100,6 +106,7 @@ QtObject {
         next[key] = { operation: operation, instance: instance, label: m.label, enabled: !!m.enabled,
                       hidden: !!m.hidden, values: values, params: params,
                       derived: m.derived || ({}), labels: m.labels || ({}) }
+        Object.assign(next[key], extras(m))
         root.states = next
     }
 
@@ -131,6 +138,34 @@ QtObject {
                 more: parsed.more || 0, error: parsed.error || "", loading: false }
             : { query: query, items: [], current: -1, more: 0, error: "the list is not available", loading: false }
         root.choiceResults = next
+    }
+
+    // Pipeline position, blend section and multi-instance state of a catalog entry.
+    function extras(m) {
+        return { position: m.position, blend: m.blend || null, multiName: m.multi_name || "",
+                 instanceLabel: m.instance_label || "", handEdited: !!m.multi_name_hand_edited,
+                 canNew: !!m.can_new, canDelete: !!m.can_delete,
+                 canMoveUp: !!m.can_move_up, canMoveDown: !!m.can_move_down }
+    }
+    // A further instance of a curated module shows every row (build_layout.py instance_rows).
+    function moduleForInstance(m, instance) {
+        if (!m || instance === 0 || !m.instance_rows) return m
+        return Object.assign({}, m, { rows: m.instance_rows, primary: m.instance_primary || [],
+                                      tabs: m.instance_tabs || [], curated: false })
+    }
+    // The raster masks earlier modules offer to this one (blend_gui.c _raster_combo_populate):
+    // [{ operation, instance, id, label }] in pipeline order.
+    function rasterSources(state) {
+        const out = []
+        if (!state) return out
+        for (const key in root.states) {
+            const s = root.states[key]
+            if (!s.blend || s.position === undefined || s.position >= state.position) continue
+            for (const r of (s.blend.raster_masks || []))
+                out.push({ operation: s.operation, instance: s.instance, id: r.id, label: r.label, position: s.position })
+        }
+        out.sort((a, b) => a.position - b.position || a.id - b.id)
+        return out
     }
 
     // "name", "name[i]", "name[i][j].member" → tokens.
