@@ -34,7 +34,11 @@ SidebarScrollView {
     }
     onExpandedChanged: if (!restoring) preferences.expanded = JSON.stringify(expanded)
 
+    // Built only while the pane is shown: it is a developer view, and rebuilding every
+    // parameter row of every module on each catalog change stalled the editor while hidden.
+    readonly property var none: []
     readonly property var modules: {
+        if (!root.visible) return root.none
         let parsed = []
         try { parsed = JSON.parse(root.catalog || "[]") } catch (e) { return [] }
         const term = root.search.trim().toLowerCase()

@@ -184,13 +184,17 @@ Column {
         highlighted: halationNav.current
         NavTarget { id: halationNav; navId: "halation"; label: "halation recipe"; group: root.section.key; enabled: halationButton.enabled; onActivate: root.halationRequested() }
     }
-    DenoiseCurve {
-        visible: root.expanded && root.section.name === "denoise (profiled)"
-        opacity: root.moduleEnabled ? 1 : .45
+    // Built only where it is shown (denoise, expanded): it repaints on every value change.
+    Loader {
+        active: root.expanded && root.section.name === "denoise (profiled)"
+        visible: active
         x: 12; width: parent.width - 12
-        theme: root.theme; values: root.values; editable: root.editable
-        group: root.section.key
-        onEdited: (id, value) => root.controlEdited(id, value)
+        sourceComponent: DenoiseCurve {
+            opacity: root.moduleEnabled ? 1 : .45
+            theme: root.theme; values: root.values; editable: root.editable
+            group: root.section.key
+            onEdited: (id, value) => root.controlEdited(id, value)
+        }
     }
     Item {
         visible: root.expanded && root.hasExtra && root.term === ""
