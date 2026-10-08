@@ -114,6 +114,15 @@ Item {
         property var got: []
         onEdited: c => got = got.concat([c])
     }
+    WaveletBar {
+        id: wavelets
+        y: 1600; width: 340
+        theme: th
+        numScales: 4; currScale: 1; mergeFrom: 0
+        formScales: [1, 1, 3]; formSlots: [0, 1, 5]
+        property var got: []
+        onEdited: c => got = got.concat([c])
+    }
     BlendifRange {
         id: range
         y: 1240; width: 260
@@ -245,6 +254,24 @@ Item {
             mouseWheel(zones, 50, 30, 0, 120)
             compare(zones.got[zones.got.length - 1].size, 7)
             compare(zones.got[zones.got.length - 1]["zone[6]"], -1)
+        }
+        function test_wavelet_bar() {
+            const bar = findChildByPrefix(wavelets, "wavelet-bar")
+            const bw = (bar.width - 2 * bar.inset) / 17
+            mouseClick(bar, bar.inset + bw * 2.5, bar.height / 2)          // a box: current scale
+            compare(wavelets.got[0], { curr_scale: 2 })
+            mouseClick(bar, bar.inset + bw * 6.5, bar.height - 2)          // bottom margin: number of scales
+            compare(wavelets.got[1].num_scales, 6)
+            mouseWheel(bar, bar.inset + bw * 1.5, 2, 0, 120)               // top margin, scroll up: merge from + 1
+            compare(wavelets.got[2], { merge_from_scale: 1 })
+            wavelets.numScales = 2; wavelets.mergeFrom = 2
+            wavelets.setNum(1)                                            // fewer scales pull merge from along
+            compare(wavelets.got[3], { num_scales: 1, merge_from_scale: 1 })
+            // cut the shapes of scale 1, paste them to scale 3
+            wavelets.copiedScale = 1; wavelets.currScale = 3
+            wavelets.paste()
+            compare(wavelets.got[4], { "rt_forms[0].scale": 3, "rt_forms[1].scale": 3 })
+            compare(wavelets.copiedScale, -1)
         }
         function test_lens_and_scale_rows() {
             const s = tools.rowTool("lens", "@use_latest_algorithm")

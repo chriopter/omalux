@@ -31,6 +31,12 @@
   {"refresh": true},
   {"checkParameter": {"operation": "monochrome", "path": "a", "minimum": -3, "maximum": 3, "enabled": true}},
   {"capture": "{WORK}/monochrome.png"},
+  {"property": "moduleSearch", "value": "retouch"},
+  {"refresh": true},
+  {"visibleItem": "wavelet-bar", "visible": true},
+  {"dragItem": "wavelet-bar", "from": [0.4, 0.95], "to": [0.4, 0.95]},
+  {"refresh": true},
+  {"checkParameter": {"operation": "retouch", "path": "num_scales", "minimum": 5, "maximum": 7, "enabled": true}},
   {"property": "moduleSearch", "value": ""},
   {"refresh": true}
 ]

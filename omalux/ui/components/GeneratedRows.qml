@@ -189,6 +189,12 @@ Column {
                 it = Object.assign(base(r), { kind: "textEdit" })
             else if (r.widget === "slider" && derivedPath)
                 it = Object.assign(base(r), { kind: "slider", derived: true, control: sliderControl(r, id(r)) })
+            // area E: retouch's wavelet decompose bar (WaveletBar); its preview levels only shape
+            // darktable's darkroom preview of a single scale, which the photo here does not show.
+            else if (module.operation === "retouch" && r.field === "wavelet_decompose")
+                it = Object.assign(base(r), { kind: "waveletbar" })
+            else if (module.operation === "retouch" && r.field === "preview_levels")
+                it = Object.assign(base(r), { kind: "notice", text: "preview single scale: darktable shows one wavelet scale in its darkroom preview, which is not drawn here" })
             // area E: zone system's bar edits both its rows (the number of zones by the wheel).
             else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "size") continue
             else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "zone")
@@ -400,7 +406,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow,
-                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow, waveletbar: waveletBarRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -1176,6 +1182,26 @@ Column {
             Timer { id: scopeRefresh; interval: 600; onTriggered: if (root.tools) root.tools.requestVectorscope() }
             Connections { target: root.catalogModel; function onStatesChanged() { scopeRefresh.restart() } }
             Component.onCompleted: { scopeRefresh.restart(); push() }
+        }
+    }
+    // area E: retouch's wavelet decompose bar (WaveletBar).
+    Component {
+        id: waveletBarRow
+        WaveletBar {
+            readonly property var forms: { const f = root.raw("rt_forms"); return Array.isArray(f) ? f : [] }
+            readonly property var used: forms.map((f, i) => ({ i: i, id: Number(f.formid), scale: Number(f.scale) })).filter(f => f.id > 0)
+            width: root.width - 28
+            theme: root.theme
+            numScales: Math.round(Number(root.raw("num_scales")) || 0)
+            currScale: Math.round(Number(root.raw("curr_scale")) || 0)
+            mergeFrom: Math.round(Number(root.raw("merge_from_scale")) || 0)
+            formScales: used.map(f => f.scale)
+            formSlots: used.map(f => f.i)
+            editable: root.editable && root.canWrite("num_scales")
+            opacity: root.moduleEnabled ? 1 : .7
+            onEdited: changes => root.changesRequested(changes)
+            navTarget.navId: root.navGroup + "/@wavelets"
+            navTarget.group: root.navGroup
         }
     }
     // area E: zone system's zone bar (ZoneBar).

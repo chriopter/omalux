@@ -16185,12 +16185,12 @@
        "action": null
       },
       {
-       "field": "@notice",
+       "field": "wavelet_decompose",
        "path": null,
-       "label": "wavelet decompose and preview levels — not available yet",
+       "label": "wavelet decompose",
        "tab": null,
-       "section": null,
-       "widget": "notice",
+       "section": "wavelet decompose",
+       "widget": "graph",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -16199,12 +16199,15 @@
        "max": null,
        "soft_min": null,
        "soft_max": null,
-       "default": null,
+       "default": 0,
        "values": null,
        "visible_when": null,
-       "tier": "primary",
+       "tier": "advanced",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "graph",
+        "fields": []
+       },
        "action": null
       },
       {
@@ -16353,9 +16356,37 @@
        "colors": "",
        "custom": null,
        "action": "blur radius"
+      },
+      {
+       "field": "preview_levels",
+       "path": "preview_levels",
+       "label": "adjust preview levels",
+       "tab": null,
+       "section": "preview single scale",
+       "widget": "graph",
+       "unit": "",
+       "factor": 1,
+       "offset": 0,
+       "digits": 0,
+       "min": null,
+       "max": null,
+       "soft_min": null,
+       "soft_max": null,
+       "default": null,
+       "values": null,
+       "visible_when": null,
+       "tier": "advanced",
+       "colors": "",
+       "custom": {
+        "kind": "graph",
+        "fields": [
+         "preview_levels"
+        ]
+       },
+       "action": null
       }
      ],
-     "notes": "fill mode: shown when selected tool/shape algorithm == fill (not machine-readable). fill color: shown when algorithm == fill (not machine-readable). brightness: shown when algorithm == fill (not machine-readable). blur type: shown when algorithm == blur (not machine-readable). blur radius: shown when algorithm == blur (not machine-readable)."
+     "notes": "fill mode: shown when selected tool/shape algorithm == fill (not machine-readable). fill color: shown when algorithm == fill (not machine-readable). brightness: shown when algorithm == fill (not machine-readable). blur type: shown when algorithm == blur (not machine-readable). blur radius: shown when algorithm == blur (not machine-readable). adjust preview levels: shown when display wavelet scale is on (not machine-readable)."
     },
     {
      "operation": "liquify",

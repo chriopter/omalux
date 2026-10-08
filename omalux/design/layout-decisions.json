@@ -205,13 +205,6 @@
   }
  },
  "notices": {
-  "retouch": {
-   "label": "wavelet decompose and preview levels — not available yet",
-   "replaces": [
-    "wavelet_decompose",
-    "preview_levels"
-   ]
-  },
   "channelmixerrgb": {
    "label": "calibrating with a color checker on the image — not available yet",
    "replaces": [
