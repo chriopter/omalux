@@ -29,7 +29,8 @@ Item {
     }
 
     readonly property bool on: value > 0.5
-    implicitHeight: 26
+    // A long darktable label wraps to a second line instead of being cut.
+    implicitHeight: Math.max(26, switchLabel.implicitHeight + 8)
 
     RowLayout {
         anchors.fill: parent
@@ -37,10 +38,13 @@ Item {
         anchors.rightMargin: 8
         spacing: 8
         Text {
+            id: switchLabel
             Layout.fillWidth: true
             text: root.label
             color: navTarget.current ? root.theme.accent : root.labelColor
             font: root.labelFont
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
             elide: Text.ElideRight
         }
         Rectangle {

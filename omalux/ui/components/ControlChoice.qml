@@ -36,7 +36,10 @@ Item {
     readonly property int current: options.findIndex(option => option.value === Math.round(value))
     readonly property bool inline: options.length > 0 && options.length <= 3
                                    && options.every(option => option.label.length <= 12)
-    implicitHeight: inline ? 46 : 30
+    // A long label wraps to a second line; a long value gives way first (elided in the middle,
+    // full text as tooltip) so the label keeps at least 40 % of the row.
+    readonly property real rowHeight: Math.max(22, choiceLabel.implicitHeight)
+    implicitHeight: rowHeight + (inline ? 24 : 8)
 
     Column {
         anchors.fill: parent
@@ -46,21 +49,31 @@ Item {
 
         RowLayout {
             width: parent.width
-            height: 22
+            height: root.rowHeight
             // A long value ("input after blur") keeps a clear gap to its label.
             spacing: 12
             Text {
+                id: choiceLabel
                 Layout.fillWidth: true
                 text: root.label
                 color: navTarget.current ? root.theme.accent : root.labelColor
                 font: root.labelFont
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
                 elide: Text.ElideRight
             }
             Text {
+                id: choiceValue
                 visible: !root.inline
+                Layout.maximumWidth: parent.width * .6
                 text: root.current >= 0 ? root.options[root.current].label : root.value
                 color: root.editable ? root.theme.ink : root.theme.muted
                 font: root.theme.textFont
+                elide: Text.ElideMiddle
+                HoverHandler { id: valueHover }
+                ToolTip.visible: valueHover.hovered && choiceValue.truncated
+                ToolTip.text: choiceValue.text
+                ToolTip.delay: 400
             }
             // Says that the value opens a list, which plain text next to a label does not.
             Text {

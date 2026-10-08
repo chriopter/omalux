@@ -62,23 +62,27 @@ Item {
         popup.open()
     }
 
-    implicitHeight: 24
+    // A long label wraps to a second line rather than shrinking to its first letter.
+    implicitHeight: Math.max(24, rowLabel.implicitHeight + 6)
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
         anchors.rightMargin: 8
         spacing: 8
         Text {
+            id: rowLabel
             Layout.fillWidth: true
-            Layout.minimumWidth: 60
+            Layout.minimumWidth: Math.min(implicitWidth, root.width * .3)
             text: root.label
             color: navTarget.current ? root.theme.accent : root.labelColor
             font: root.labelFont
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
             elide: Text.ElideRight
         }
         Text {
             id: value
-            Layout.maximumWidth: root.width * .62
+            Layout.maximumWidth: root.width * .55
             text: root.valueText || "none"
             color: root.editable ? root.theme.ink : root.theme.muted
             font: root.theme.textFont

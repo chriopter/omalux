@@ -32,7 +32,7 @@ Omalux displays darktable's English module/control labels and units. The v0 name
 | LUT strength | LUT 3D → opacity | %; uniform blending enabled when edited |
 | Rotation | rotate and perspective → rotation | degrees |
 
-The existing brightness control remains `contrast brightness saturation → brightness`. Denoising also exposes the original `strength`, `mode` and `color mode`. The curve editor adjusts the seven band ordinates in Y0U0V0 wavelet modes. Its connecting lines show a control polygon, not darktable's interpolated response; horizontal positions currently assume the standard evenly spaced bands. Imported nonstandard abscissas are preserved by the engine, but are not represented by that graph.
+The existing brightness control remains `contrast brightness saturation → brightness`. Denoising also exposes the original `strength`, `mode` and `color mode`. The curve editor adjusts the seven band ordinates in Y0U0V0 wavelet modes. Its connecting lines show a control polygon, not darktable's interpolated response; horizontal positions currently assume the standard evenly spaced bands. Imported nonstandard abscissas are preserved by the engine, but are not represented by that graph. Mode and color mode are choice rows like the generated modules' (`ControlChoice`), the Y0/U0V0 chips a `ChannelChooser` with a quiet **reset** for the shown curve, and the graph sits in the same recessed well as the other module graphs, aligned with the slider rows.
 
 The halation button initializes a red-channel diffusion recipe (one iteration, radius span 32, threshold 0.8, opacity 35%). It replaces the base diffuse module's parameters. This is an experimental approximation and is not calibrated to v0. Its sliders retain the original names `opacity` and `radius span`.
 
@@ -48,7 +48,8 @@ The halation button initializes a red-channel diffusion recipe (one iteration, r
 - Colored tracks indicate luminance, hue, saturation, temperature or tint. They are visual hints, not a simulation of the actual output.
 - The slider knob (an 11 px ring on compact rows, 9 px square otherwise) and the 3 px track are placed with the same integer rounding, so the ring is centred on the track at scale 1 and 2. Generated rows and coloured tracks use the same `ControlSlider`.
 - Slider tracks use darktable's soft range where specified. Double-click the numeric value to enter values within the full hard range. The context-menu reset and `R` restore registry defaults, not the photo's original history.
-- Crop uses the native crop module; dragging the frame changes a draft until Apply/Enter. Escape restores prior crop enablement. Rotation uses darktable's signed display conversion.
+- Crop uses the native crop module; dragging the frame changes a draft until Apply/Enter. Escape restores prior crop enablement. Rotation uses darktable's signed display conversion. The Crop pane starts with a **crop** block shaped like the module cards below it: the rotation slider, darktable's **aspect** list with its labels (freehand, original image, square, 3:2, 4:3, 5:4, 16:9), and outlined **edit crop** / **reset crop** buttons; while cropping a hint and **apply [Enter]** / **cancel [Esc]** appear underneath. The modules below sit in their darktable group, as in the other edit panes.
+- Menus, tooltips and plain buttons follow the dark theme everywhere through a small Qt Quick Controls style (`omalux/ui/style/Omalux`, Basic for everything else): menus on the window colour with an outline, the hovered entry on the raised fill with an accent label, disabled entries dimmed; a menu opened at the pointer keeps a 4 px margin, so no entry is hovered when it appears. Tooltips are dark boxes with the ink text; plain buttons are outlined like the toolbar buttons.
 - Zoom, pan, pinch and fullscreen operate on the interactive preview. Zoom does not yet request a full-resolution detail render. JPEG/PNG export uses the actual full-resolution darktable export pipe.
 
 See the main README for keyboard bindings and development commands.
@@ -355,7 +356,15 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   one `setParameters` batch; x/y band arrays (contrast equalizer, denoise all/R/G/B, raw
   denoise, low light) and the tone equalizer bands use `GraphView`; levels show darktable's
   black/gray/white handles as three sliders (per channel when the channels are independent);
-  colour parameters use `ColorSwatch`. GUI-only selectors (`@destination`, `@patch`, `@controls`,
+  colour parameters use `ColorSwatch` (labelled like the other rows; a swatch under a section
+  caption of the same name has no label of its own, as in darktable). Long labels wrap to a second
+  line instead of being cut (switch, choice and list rows; sliders already did), a long value in a
+  choice row gives way first (elided in the middle, full text as tooltip), and notices wrap to three
+  lines. A section caption that only repeats the label of a value row below it is left out (white
+  balance "settings"); the fourth white balance coefficient (emerald/yellow) shows only for
+  4-colour sensors, as darktable does; LUT 3D's unlabelled file and LUT list rows are named
+  **LUT file** and **LUT name** after darktable's tooltips. A notebook page whose rows are all
+  advanced (tone equalizer "advanced" and "masking") shows them without `more`. GUI-only selectors (`@destination`, `@patch`, `@controls`,
   the active page or channel for `@tab`) are local view state and pick which array element the
   rows edit. Displayed conversions (`@` paths) are sliders and swatches like any other row;
   runtime lists and file choices are `ChoiceRow`s; the colour checker patches are a
@@ -540,12 +549,14 @@ properties and reports changes through signals; none of them edits a parameter i
   the active node. `xLog`/`yLog` use tone curve's "scale for graph" mapping.
 - `GraphView` — response over fixed x positions (tone equalizer, wavelet levels); read-only
   or with draggable bars when editable.
-- `ModuleTabs` — a module's notebook pages in the sidebar's recessed tab style.
+- `ModuleTabs` — a module's notebook pages in the sidebar's recessed tab style; when the labels do
+  not fit one row they wrap into as few rows as needed, spread evenly, so every label stays readable.
 - `ChannelChooser` — chips that pick which channel or curve is shown; a view choice only.
 - `ColorSwatch` — colour parameter with a hue × saturation, value and hex picker.
-- `ModuleNotice` — one muted line for what cannot be edited here yet.
+- `ModuleNotice` — a muted note (up to three lines) for what cannot be edited here yet.
 - `ModuleToolButtons` — a row of pickers (darktable's pipette, highlighted while active) and
-  buttons, optionally with a menu; reports the entry and menu item chosen.
+  buttons, optionally with a menu; reports the entry and menu item chosen. A button too narrow
+  for its label shows only its icon (orientation's four arrows), with the label as tooltip.
 - `PickerOverlay` — the active picker's area or point on the photo (in `PhotoViewport`).
 - `HistogramView` — a module input histogram (logarithmic) with handle markers.
 - `ModuleTools` — non-visual: which rows and sliders have pickers and buttons, the active

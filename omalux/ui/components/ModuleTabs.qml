@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 
 // Pages inside one darktable module (its notebook tabs, e.g. color balance rgb "master",
 // "4 ways", "masks"). Same recessed strip as the sidebar pane tabs, with the current page
@@ -29,7 +28,7 @@ Rectangle {
     }
 
     implicitWidth: 260
-    implicitHeight: 26
+    implicitHeight: layout.rows * 22 + (layout.rows - 1) * 2 + 4
     radius: 6
     color: theme.well
     border.color: theme.line
@@ -39,28 +38,44 @@ Rectangle {
     Keys.onRightPressed: if (currentIndex < tabs.length - 1) tabSelected(currentIndex + 1)
     Accessible.role: Accessible.PageTabList
 
-    // Each tab first gets its label's width up to an equal share; what is left goes to the
-    // tabs still short of their label, so short labels (CAT, R, look) keep their width and long
-    // ones (colorfulness) give way first.
+    // Every label stays readable: tabs keep one row while their labels fit, otherwise they
+    // wrap into as few rows as needed with the tabs spread evenly (5 tabs: 3 + 2), each row
+    // filling the width. Only a single label wider than the whole strip still elides, with the
+    // full label as tooltip.
     FontMetrics { id: metrics; font: root.theme.textFont }
-    readonly property var widths: {
+    readonly property var layout: {
         const n = tabs.length
-        const avail = Math.max(0, width - 4 - Math.max(0, n - 1) * 2)
-        if (!n) return []
-        const natural = tabs.map(t => metrics.advanceWidth(t) + 10)
-        const total = natural.reduce((x, y) => x + y, 0)
-        if (total <= avail) return natural.map(w => w + (avail - total) / n)
-        const base = natural.map(w => Math.min(w, avail / n))
-        const left = avail - base.reduce((x, y) => x + y, 0)
-        const deficit = natural.map((w, i) => w - base[i])
-        const sum = deficit.reduce((x, y) => x + y, 0)
-        return base.map((w, i) => w + (sum > 0 ? left * deficit[i] / sum : 0))
+        const avail = Math.max(0, width - 4)
+        if (!n) return { rows: 1, boxes: [] }
+        const natural = tabs.map(t => Math.ceil(metrics.advanceWidth(t)) + 14)
+        let per = n
+        for (let k = 1; k <= n; ++k) {
+            per = Math.ceil(n / k)
+            let fits = true
+            for (let i = 0; i < n && fits; i += per) {
+                const chunk = natural.slice(i, i + per)
+                fits = chunk.reduce((x, y) => x + y, 0) + (chunk.length - 1) * 2 <= avail
+            }
+            if (fits) break
+        }
+        const boxes = []
+        let row = 0
+        for (let i = 0; i < n; i += per, ++row) {
+            const chunk = natural.slice(i, i + per)
+            const room = avail - (chunk.length - 1) * 2
+            const total = chunk.reduce((x, y) => x + y, 0)
+            let x = 2
+            for (let j = 0; j < chunk.length; ++j) {
+                const w = total <= room ? chunk[j] + (room - total) / chunk.length : room / chunk.length
+                boxes.push({ x: x, y: 2 + row * 24, w: w })
+                x += w + 2
+            }
+        }
+        return { rows: row, boxes: boxes }
     }
 
-    RowLayout {
+    Item {
         anchors.fill: parent
-        anchors.margins: 2
-        spacing: 2
         Repeater {
             model: root.tabs
             Button {
@@ -68,8 +83,12 @@ Rectangle {
                 required property string modelData
                 required property int index
                 readonly property bool current: root.currentIndex === index
-                Layout.fillHeight: true
-                Layout.preferredWidth: root.widths[index] || 0
+                objectName: "module-tab-" + modelData
+                readonly property var box: root.layout.boxes[index] || { x: 0, y: 0, w: 0 }
+                x: box.x
+                y: box.y
+                width: box.w
+                height: 22
                 padding: 0
                 hoverEnabled: true
                 focusPolicy: Qt.NoFocus

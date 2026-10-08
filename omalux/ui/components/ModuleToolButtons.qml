@@ -22,6 +22,7 @@ Item {
     property string details: ""
     signal triggered(int index, int choice)
 
+    FontMetrics { id: metrics; font: root.theme.textFont }
     readonly property real rowHeight: Math.max(28, layout.implicitHeight + 4)
     implicitHeight: rowHeight + (details !== "" ? detailsText.implicitHeight + 6 : 0)
     Text {
@@ -68,9 +69,16 @@ Item {
                 property bool tipDismissed: false
                 onPressedChanged: if (pressed) tipDismissed = true
                 onHoveredChanged: if (!hovered) tipDismissed = false
-                ToolTip.visible: hovered && !tipDismissed && !!modelData.hint
+                // A button too narrow for its label shows only its icon (flip's four arrows) or an
+                // elided label; the tooltip then names it in full.
+                readonly property string glyph: modelData.icon && ["camera", "wand"].indexOf(modelData.icon) < 0 ? modelData.icon : ""
+                readonly property string fullText: (glyph ? glyph + " " : "") + (modelData.label || "") + (hasMenu ? " ▾" : "")
+                readonly property bool iconOnly: glyph !== "" && metrics.advanceWidth(fullText) > width - (picker ? 26 : 12)
+                readonly property string tip: [label.truncated || iconOnly ? modelData.label || "" : "", modelData.hint || ""]
+                                              .filter(t => t).join("\n")
+                ToolTip.visible: hovered && !tipDismissed && tip !== ""
                 ToolTip.delay: 600
-                ToolTip.text: modelData.hint || ""
+                ToolTip.text: tip
                 NavTarget {
                     id: nav
                     navId: root.navPrefix + "/" + button.index
@@ -130,8 +138,7 @@ Item {
                     Text {
                         id: label
                         visible: text !== ""
-                        text: (button.modelData.icon && ["camera", "wand"].indexOf(button.modelData.icon) < 0 ? button.modelData.icon + " " : "")
-                              + (button.modelData.label || "") + (button.hasMenu ? " ▾" : "")
+                        text: button.iconOnly ? button.glyph : button.fullText
                         color: !button.enabled ? root.theme.muted
                              : button.modelData.active || nav.current || button.hovered ? root.theme.accent : root.theme.ink
                         font: root.theme.textFont
