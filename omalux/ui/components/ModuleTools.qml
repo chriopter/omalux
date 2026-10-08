@@ -127,6 +127,11 @@ QtObject {
         colorharmonizer: {
             "@auto_detect": { tool: "auto_detect", kind: "button", icon: "camera",
                               hint: "analyze the image's hue distribution and automatically suggest the harmony rule\nand anchor hue that best match its existing color palette." }
+        },
+        // ---- area E (tools_effects.c) ----
+        // colorchecker.c:1559: the picker beside "patch" selects the nearest source patch.
+        colorchecker: {
+            "@patch": { local: true, tool: "patch", kind: "pointarea", label: "patch", hint: "pick the patch nearest to the picked color" }
         }
     })
     readonly property var sliderTools: ({
@@ -173,7 +178,20 @@ QtObject {
             custom_hue_1: { tool: "custom_hue_1", kind: "pointarea" },
             custom_hue_2: { tool: "custom_hue_2", kind: "pointarea" },
             custom_hue_3: { tool: "custom_hue_3", kind: "pointarea" }
-        }
+        },
+        // ---- area E (tools_effects.c): pickers on sliders and beside colour swatches ----
+        colorize: { hue: { tool: "hue", kind: "point" } },
+        splittoning: { shadow_hue: { tool: "shadow_hue", kind: "point" }, highlight_hue: { tool: "highlight_hue", kind: "point" } },
+        graduatednd: { hue: { tool: "hue", kind: "point" } },
+        monochrome: { highlights: { tool: "highlights", kind: "area" } },
+        borders: { color: { tool: "color", kind: "point", hint: "pick border color from image" },
+                   frame_color: { tool: "frame_color", kind: "point", hint: "pick frame line color from image" } },
+        watermark: { color: { tool: "color", kind: "point", hint: "pick color from image" } },
+        invert: { color: { tool: "color", kind: "area", hint: "pick color of film material from image" } },
+        relight: { center: { tool: "center", kind: "pointarea", band: true, hint: "toggle tool for picking median lightness in image" } },
+        colorequal: { hue_shift: { tool: "hue_shift", kind: "pointarea", band: true },
+                      white_level: { tool: "white_level", kind: "area" } },
+        retouch: { fill_color: { tool: "fill_color", kind: "point", hint: "pick fill color from image" } }
     })
     readonly property var histograms: ({ rgblevels: "levels", levels: "levels" })
 
@@ -210,6 +228,13 @@ QtObject {
         if (!active || active.operation !== operation || active.instance !== instance) return null
         const r = results[key(operation, instance, active.tool)]
         return r && r.marker ? r.marker : null
+    }
+    // The picked band (min, mean, max on darktable's axis) of a marking picker while it is
+    // active: relight's center slider, color equalizer's hue (tools_effects.c report_band).
+    function band(operation, instance, tool) {
+        if (!isActive(operation, instance, tool)) return null
+        const r = results[key(operation, instance, tool)]
+        return r && r.band ? r.band : null
     }
     function send(operation, instance, tool, box, gui) {
         const request = { tool: tool }

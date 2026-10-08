@@ -78,10 +78,11 @@ Item {
                     spacing: 6
                     Item { Layout.fillWidth: true }
                     Canvas {
-                        visible: button.picker || button.modelData.icon === "camera"
+                        visible: button.picker || camera || wand
                         Layout.preferredWidth: 12; Layout.preferredHeight: 12
                         property color stroke: label.color
                         property bool camera: button.modelData.icon === "camera"
+                        property bool wand: button.modelData.icon === "wand"
                         onStrokeChanged: requestPaint()
                         onPaint: {
                             const c = getContext("2d")
@@ -94,6 +95,12 @@ Item {
                                 c.beginPath(); c.arc(6, 7, 2, 0, Math.PI * 2); c.stroke()
                                 return
                             }
+                            if (wand) {
+                                // darktable's magic wand (dtgtk_cairo_paint_wand): a stick and a spark
+                                c.beginPath(); c.moveTo(1.5, 10.5); c.lineTo(7.5, 4.5); c.stroke()
+                                c.beginPath(); c.moveTo(9, 0.5); c.lineTo(9, 5.5); c.moveTo(6.5, 3); c.lineTo(11.5, 3); c.stroke()
+                                return
+                            }
                             // darktable's pipette: a slanted dropper with a bulb.
                             c.beginPath(); c.moveTo(1.5, 10.5); c.lineTo(7, 5); c.stroke()
                             c.beginPath(); c.moveTo(5.5, 3.5); c.lineTo(8.5, 6.5); c.stroke()
@@ -103,7 +110,7 @@ Item {
                     Text {
                         id: label
                         visible: text !== ""
-                        text: (button.modelData.icon && button.modelData.icon !== "camera" ? button.modelData.icon + " " : "")
+                        text: (button.modelData.icon && ["camera", "wand"].indexOf(button.modelData.icon) < 0 ? button.modelData.icon + " " : "")
                               + (button.modelData.label || "") + (button.hasMenu ? " ▾" : "")
                         color: !button.enabled ? root.theme.muted
                              : button.modelData.active || nav.current || button.hovered ? root.theme.accent : root.theme.ink

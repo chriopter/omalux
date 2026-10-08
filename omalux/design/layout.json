@@ -23570,26 +23570,21 @@
        "label": "center",
        "tab": null,
        "section": null,
-       "widget": "drawn",
+       "widget": "slider",
        "unit": "",
        "factor": 1,
        "offset": 0,
-       "digits": 0,
-       "min": null,
-       "max": null,
-       "soft_min": null,
-       "soft_max": null,
+       "digits": 2,
+       "min": 0.0,
+       "max": 1.0,
+       "soft_min": 0.0,
+       "soft_max": 1.0,
        "default": 0,
        "values": null,
        "visible_when": null,
        "tier": "detail",
        "colors": "",
-       "custom": {
-        "kind": "drawn",
-        "fields": [
-         "center"
-        ]
-       },
+       "custom": null,
        "action": null
       },
       {
@@ -23616,7 +23611,7 @@
        "action": "width"
       }
      ],
-     "notes": ""
+     "notes": "center: darktable's black-to-grey gradient slider (relight.c:257)."
     },
     {
      "operation": "zonesystem",

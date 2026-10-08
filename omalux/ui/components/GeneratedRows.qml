@@ -456,6 +456,14 @@ Column {
                     onTriggered: (index, choice) => root.runTool(spec, choice)
                 }
             }
+            // area E: what a marking picker found (relight center, color equalizer hue).
+            PickerBand {
+                readonly property var spec: root.tools ? root.tools.sliderTool(root.module.operation, r.field) : null
+                theme: root.theme
+                band: spec && spec.band ? root.tools.band(root.module.operation, root.instance, spec.tool) : null
+                x: 0; y: parent.height - 7
+                width: parent.width - 28; height: 5
+            }
         }
     }
     Component {
@@ -856,6 +864,24 @@ Column {
                 const changes = {}
                 for (let i = 0; i < 3; ++i) changes[root.subst(it.paths[i])] = d[i]
                 root.changesRequested(changes)
+            }
+            // area E: darktable's picker beside a colour button (framing, watermark, invert,
+            // retouch fill), in the free right column.
+            Loader {
+                readonly property var spec: root.tools ? root.tools.sliderTool(root.module.operation, r.field) : null
+                active: !!spec
+                x: parent.width + 2
+                anchors.verticalCenter: parent.verticalCenter
+                width: 24; height: 24
+                sourceComponent: ModuleToolButtons {
+                    width: 24 + 28
+                    theme: root.theme
+                    entries: root.toolEntries([Object.assign({}, spec, { label: "" })])
+                    editable: root.editable
+                    navPrefix: root.navId(r) + "/@picker"
+                    navGroup: root.navGroup
+                    onTriggered: (index, choice) => root.runTool(spec, choice)
+                }
             }
         }
     }

@@ -127,7 +127,6 @@ CUSTOM = {
     ("levels", "levels"): dict(kind="graph", fields=["levels"]),
     ("zonesystem", "zone"): dict(kind="drawn", fields=["size", "zone"]),
     ("zonesystem", "size"): dict(kind="drawn", fields=["size"]),
-    ("relight", "center"): dict(kind="drawn", fields=["center"]),
     ("colorcorrection", "grid"): dict(kind="drawn", fields=["hia", "hib", "loa", "lob", "saturation"]),
     ("monochrome", "grid"): dict(kind="drawn", fields=["a", "b", "size"]),
     ("colorchecker", "patches"): dict(kind="patches", fields=["source_L", "source_a", "source_b",
@@ -143,6 +142,14 @@ CUSTOM = {
     ("rasterfile", "file"): dict(kind="file", fields=["path", "file"]),
     ("@blending", "blendif_output"): dict(kind="graph", fields=["blendif_parameters"]),
     ("@blending", "blendif_input"): dict(kind="graph", fields=["blendif_parameters"]),
+}
+
+# darktable's own drawn widgets that edit one float over a fixed range: shown as a slider row.
+# (operation, field) -> (min, max, digits, reason)
+GRADIENT_SLIDERS = {
+    # relight.c:254-257: dtgtk gradient slider from black to neutral grey over 0..1 (the
+    # gradient slider's own range, dtgtk/gradientslider.c); darktable prints no number.
+    ("relight", "center"): (0.0, 1.0, 2, "darktable's black-to-grey gradient slider (relight.c:257)"),
 }
 
 # Comboboxes whose entries darktable fills at runtime: shown as a text/file selector instead.
@@ -349,6 +356,12 @@ def finish_row(op, r, notes):
     if (op, r["field"]) in DYNAMIC:
         widget, fields = DYNAMIC[(op, r["field"])]
         custom = dict(kind=widget, fields=fields, dynamic=True)
+    gradient = GRADIENT_SLIDERS.get((op, r["field"]))
+    if gradient:
+        widget = "slider"
+        c = dict(c, min=gradient[0], max=gradient[1], soft_min=gradient[0], soft_max=gradient[1],
+                 digits=gradient[2], factor=1, offset=0, unit="")
+        notes.append(f"{r['label']}: {gradient[3]}")
     out["widget"] = widget
     is_slider = widget == "slider"
     out["unit"] = c["unit"] or ""
