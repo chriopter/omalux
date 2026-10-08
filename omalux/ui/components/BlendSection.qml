@@ -64,6 +64,9 @@ Column {
 
     // ---- parametric mask -----------------------------------------------------------------
     property int tab: 0
+    // area E: the alternative marker scale per channel tab and slider (blend_gui.c altmode[tab][in_out]).
+    property var altModes: ({})
+    function setAltMode(inOut, active) { const m = Object.assign({}, altModes); m[tab + "/" + inOut] = active; altModes = m }
     property bool outputsRequested: false
     readonly property bool outputsShown: outputsRequested || (!!blend && blend.outputs_used)
     readonly property var channels: (blend && blend.channels) || []
@@ -234,6 +237,28 @@ Column {
         value: root.maskMode
         onChosen: v => root.set("mask_mode", v)
     }
+    // area E: darktable's "display mask and/or color channel" and "temporarily switch off blend
+    // mask" toggles beside the mask modes (blend_gui.c:3508-3528), shown for a real mask only
+    // (3121); view state, not history (engine blend_display.c).
+    readonly property var displayState: root.tools && root.moduleState ? root.tools.blendDisplayOf(root.moduleState.operation, root.moduleState.instance) : null
+    ModuleToolButtons {
+        objectName: "blend-display-" + root.navGroup
+        visible: (root.maskMode & ~1) !== 0 && !!root.tools && root.tools.supported["*/blend_display"] === true
+        width: root.width
+        theme: root.theme
+        editable: root.editable
+        navPrefix: root.navGroup + "/blend/display"
+        navGroup: root.navGroup
+        entries: [{ label: "display mask", kind: "button", active: !!root.displayState && root.displayState.mask,
+                    hint: "display mask and/or color channel.\nctrl+click to display mask,\nshift+click to display channel.\nhover over parametric mask slider to select channel for display" },
+                  { label: "switch off mask", kind: "button", active: !!root.displayState && root.displayState.suppress,
+                    hint: "temporarily switch off blend mask.\nonly for module in focus" }]
+        onTriggered: (index, choice) => {
+            const s = root.displayState || { mask: false, suppress: false }
+            root.tools.setBlendDisplay(root.moduleState.operation, root.moduleState.instance,
+                                       index === 0 ? !s.mask : s.mask, index === 1 ? !s.suppress : s.suppress)
+        }
+    }
     // The blending options menu: colour space of the mask and blend (_blendif_options_callback).
     ChoiceRow {
         visible: root.maskEnabled && !!root.blend && root.blend.parametric && [2, 3, 4].indexOf(root.blend.default_cst) >= 0
@@ -333,6 +358,9 @@ Column {
         negative: root.negative(ch)
         stops: root.stopsOf(root.channel)
         scale: root.channel ? root.channel.scale : "default"
+        altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
+        altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
+        onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
         boost: Math.pow(2, root.boostOf(ch))
         increment: root.channel ? root.channel.increment : .01
         editable: root.editable
@@ -357,6 +385,9 @@ Column {
         negative: root.negative(ch)
         stops: root.stopsOf(root.channel)
         scale: root.channel ? root.channel.scale : "default"
+        altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
+        altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
+        onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
         boost: Math.pow(2, root.boostOf(ch))
         increment: root.channel ? root.channel.increment : .01
         editable: root.editable

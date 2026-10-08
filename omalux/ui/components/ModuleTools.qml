@@ -234,6 +234,15 @@ QtObject {
         send("gamma", 0, "harmony_guide", null, { type: type, rotation: rotation, width: width })
     }
     function requestVectorscope() { send("gamma", 0, "vectorscope", null, null) }
+    // The blend section's display mask / switch off mask of one module at a time (blend_display.c).
+    property var blendDisplay: null    // { operation, instance, mask, suppress }
+    function blendDisplayOf(operation, instance) {
+        return blendDisplay && blendDisplay.operation === operation && blendDisplay.instance === instance ? blendDisplay : null
+    }
+    function setBlendDisplay(operation, instance, mask, suppress) {
+        blendDisplay = mask || suppress ? { operation: operation, instance: instance, mask: mask, suppress: suppress } : null
+        send(operation, instance, "blend_display", null, { mask: mask ? 1 : 0, suppress: suppress ? 1 : 0 })
+    }
     signal runRequested(string operation, int instance, var request)
 
     function key(operation, instance, tool) { return operation + "/" + instance + "/" + tool }

@@ -47,6 +47,33 @@ FocusScope {
         onReset: root.resetRequested()
     }
 
+    // area E: darktable's alternative marker scale of the channel (blend_gui.c:946-1041):
+    // "log" (_log10_scale_callback, four decades) or "zoom" (_magnifier_scale_callback, tanh
+    // around the centre); "" for hue channels. darktable toggles it with A over the slider and
+    // adds " (log)" / " (zoom)" to the slider's heading; here A (with the keys) or a click on
+    // the heading. Only the drawing changes; values stay as they are.
+    property string altScale: ""
+    property bool altActive: false
+    function pos(v) {
+        if (!root.altActive || !root.altScale) return v
+        if (root.altScale === "log") return (Math.log10(Math.max(0.0001, Math.min(1, v))) + 4) / 4
+        const range = 6, scale = Math.tanh(range * .5)
+        let out = (Math.tanh(range * (Math.max(0, Math.min(1, v)) - .5)) / scale + 1) * .5
+        return out <= 1e-4 ? 0 : out >= 1 - 1e-4 ? 1 : out
+    }
+    function value(p) {
+        if (!root.altActive || !root.altScale) return p
+        let out
+        if (root.altScale === "log") out = Math.max(0, Math.min(1, Math.exp(Math.LN10 * (4 * p - 4))))
+        else {
+            const range = 6, scale = Math.tanh(range * .5), eps = 1e-6
+            out = Math.atanh((2 * Math.max(eps, Math.min(1 - eps, p)) - 1) * scale) / range + .5
+        }
+        return out <= 1e-4 ? 0 : out >= 1 - 1e-4 ? 1 : out
+    }
+    signal alternativeRequested(bool active)
+    function toggleAlternative() { if (root.altScale) root.alternativeRequested(!root.altActive) }
+    onAltActiveChanged: bar.requestPaint()
     // _blendif_scale_print_*: what darktable prints for one marker.
     function format(v) {
         if (root.scale === "hue")
@@ -69,7 +96,7 @@ FocusScope {
     }
     function nearest(x, y) {
         const w = bar.width - 2 * bar.inset
-        const distances = root.values.map(v => Math.abs(bar.inset + v * w - x))
+        const distances = root.values.map(v => Math.abs(bar.inset + root.pos(v) * w - x))
         const least = Math.min(...distances)
         const close = [0, 1, 2, 3].filter(i => distances[i] - least < 1)
         // Coinciding markers: the half with the filled triangles takes markers 1 and 2, the
@@ -77,7 +104,7 @@ FocusScope {
         const upper = (y < bar.height / 2) !== root.negative
         const preferred = close.filter(i => (i === 1 || i === 2) === upper)
         const pool = preferred.length ? preferred : close
-        return x >= bar.inset + root.values[pool[0]] * w ? pool[pool.length - 1] : pool[0]
+        return x >= bar.inset + root.pos(root.values[pool[0]]) * w ? pool[pool.length - 1] : pool[0]
     }
 
     Keys.onPressed: event => {
@@ -90,6 +117,9 @@ FocusScope {
             event.accepted = true
         } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
             root.activeMarker = (marker + (event.key === Qt.Key_Down ? 1 : 3)) % 4
+            event.accepted = true
+        } else if (event.key === Qt.Key_A && root.altScale) {
+            root.toggleAlternative()
             event.accepted = true
         }
     }
@@ -104,7 +134,10 @@ FocusScope {
             spacing: 0
             Text {
                 Layout.preferredWidth: parent.width * .25
-                text: root.label + (root.pickerMarker ? " " + root.pickerMarker.text : "")
+                objectName: "blendif-heading-" + root.label
+                text: root.label + (root.altActive && root.altScale ? (root.altScale === "log" ? " (log)" : " (zoom)") : "")
+                      + (root.pickerMarker ? " " + root.pickerMarker.text : "")
+                TapHandler { enabled: !!root.altScale; onTapped: root.toggleAlternative() }
                 color: navTarget.current || root.activeFocus ? root.theme.accent : root.theme.ink
                 font: root.theme.textFont
                 elide: Text.ElideRight
@@ -155,10 +188,10 @@ FocusScope {
                 c.lineWidth = 1.5
                 c.beginPath()
                 c.moveTo(inset, off)
-                c.lineTo(inset + v[0] * w, off)
-                c.lineTo(inset + v[1] * w, on)
-                c.lineTo(inset + v[2] * w, on)
-                c.lineTo(inset + v[3] * w, off)
+                c.lineTo(inset + root.pos(v[0]) * w, off)
+                c.lineTo(inset + root.pos(v[1]) * w, on)
+                c.lineTo(inset + root.pos(v[2]) * w, on)
+                c.lineTo(inset + root.pos(v[3]) * w, off)
                 c.lineTo(inset + w, off)
                 c.stroke()
                 // Markers: filled triangles for 1 and 2, open ones for 0 and 3; positive
@@ -166,7 +199,7 @@ FocusScope {
                 for (let i = 0; i < 4; ++i) {
                     const filled = i === 1 || i === 2
                     const above = filled !== root.negative
-                    const x = inset + v[i] * w
+                    const x = inset + root.pos(v[i]) * w
                     c.beginPath()
                     if (above) { c.moveTo(x - 5, 0); c.lineTo(x + 5, 0); c.lineTo(x, top + 1) }
                     else { c.moveTo(x - 5, height); c.lineTo(x + 5, height); c.lineTo(x, bottom - 1) }
@@ -180,10 +213,10 @@ FocusScope {
                 const pm = root.pickerMarker
                 if (pm) {
                     c.fillStyle = Qt.rgba(1, 1, 1, .25)
-                    c.fillRect(inset + pm.min * w, top, Math.max(1, (pm.max - pm.min) * w), bottom - top)
+                    c.fillRect(inset + root.pos(pm.min) * w, top, Math.max(1, (root.pos(pm.max) - root.pos(pm.min)) * w), bottom - top)
                     c.strokeStyle = "white"
                     c.lineWidth = 1
-                    c.beginPath(); c.moveTo(inset + pm.mean * w + .5, top); c.lineTo(inset + pm.mean * w + .5, bottom); c.stroke()
+                    c.beginPath(); c.moveTo(inset + root.pos(pm.mean) * w + .5, top); c.lineTo(inset + root.pos(pm.mean) * w + .5, bottom); c.stroke()
                 }
                 if (navTarget.current) {
                     c.strokeStyle = root.theme.accent
@@ -211,7 +244,7 @@ FocusScope {
                 enabled: root.editable
                 preventStealing: true
                 property int marker: -1
-                function valueAt(x) { return (x - bar.inset) / Math.max(1, bar.width - 2 * bar.inset) }
+                function valueAt(x) { return root.value((x - bar.inset) / Math.max(1, bar.width - 2 * bar.inset)) }
                 onPressed: mouse => {
                     navTarget.claim()
                     marker = root.nearest(mouse.x, mouse.y)

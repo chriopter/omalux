@@ -85,6 +85,14 @@ Item {
         onCustomRotated: t => turned = turned.concat([t])
     }
     PickerBand { id: band; y: 1200; width: 200; height: 6; theme: th }
+    BlendifRange {
+        id: range
+        y: 1240; width: 260
+        theme: th
+        altScale: "log"
+        property var asked: []
+        onAlternativeRequested: a => { asked = asked.concat([a]); altActive = a }
+    }
     ClusterPreview { id: clusters; y: 1220; width: 150; theme: th; count: 2; means: [[10, 20], [-5, 3]]; sigmas: [[2, 2], [1, 1]] }
 
     TestCase {
@@ -170,6 +178,35 @@ Item {
             fuzzyCompare(scope.sectors[1].len, .5, 1e-6)
             scope.guide = { type: 0, rotation: 0, width: 0 }
             compare(scope.sectors.length, 0)
+        }
+        function test_blend_display() {
+            tools.setBlendDisplay("exposure", 0, true, false)
+            compare(requests[0].request.tool, "blend_display")
+            compare(requests[0].request.gui.mask, 1)
+            verify(tools.blendDisplayOf("exposure", 0).mask)
+            verify(!tools.blendDisplayOf("exposure", 1))
+            tools.setBlendDisplay("colorzones", 0, false, true)        // one module at a time
+            verify(!tools.blendDisplayOf("exposure", 0))
+            tools.setBlendDisplay("colorzones", 0, false, false)
+            compare(tools.blendDisplay, null)
+            compare(requests[2].request.gui.suppress, 0)
+        }
+        function test_alternative_scales() {
+            compare(range.pos(0.01), 0.01)                            // linear until switched
+            range.toggleAlternative()
+            compare(range.asked, [true])
+            fuzzyCompare(range.pos(0.01), 0.5, 1e-6)                  // four decades: 1e-2 in the middle
+            fuzzyCompare(range.value(0.5), 0.01, 1e-6)
+            compare(range.pos(0.00001), 0)
+            range.altScale = "zoom"
+            fuzzyCompare(range.pos(0.5), 0.5, 1e-6)
+            fuzzyCompare(range.value(range.pos(0.3)), 0.3, 1e-4)
+            verify(range.pos(0.45) < 0.4)                             // magnified around the centre
+            range.altScale = ""
+            range.altActive = false
+            range.toggleAlternative()                                 // hue channels have none
+            compare(range.asked.length, 1)
+            range.altScale = "log"
         }
         function test_harmonizer_sync() {
             const kinds = harmonizerRows.items.map(it => it.kind)

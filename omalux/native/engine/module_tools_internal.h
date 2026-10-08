@@ -84,6 +84,7 @@ extern const OmToolSpec om_tools_effects[];   // area E: the remaining pickers (
 extern const OmToolSpec om_tools_toneequal[]; // area E: tone equalizer auto-adjust (tools_toneequal.c)
 extern const OmToolSpec om_tools_colormapping[]; // area E: color mapping acquire (tools_colormapping.c)
 extern const OmToolSpec om_tools_vectorscope[];  // area E: RYB vectorscope and harmony guide (tools_vectorscope.c)
+extern const OmToolSpec om_tools_blend_display[]; // area E: display mask / switch off mask (blend_display.c)
 
 // Number from the request's "gui" member, or fallback.
 double om_tool_gui(const OmToolContext *ctx, const char *name, double fallback);

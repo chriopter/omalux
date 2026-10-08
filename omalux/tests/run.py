@@ -107,7 +107,7 @@ def main():
         values.write_text((ROOT / 'omalux/tests/module-values.json').read_text().replace('{WORK}', str(work)))
         scripts.append(values)
         # Area E: the remaining pickers, tone equalizer, color mapping across two images ...
-        for name in ('module-tools-rest.json',):
+        for name in ('module-tools-rest.json', 'module-tools-rest-ui.json'):
             script = work / name
             script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work)))
             scripts.append(script)

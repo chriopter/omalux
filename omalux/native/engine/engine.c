@@ -15,6 +15,7 @@
 #include "white_balance.h"
 #include "canvas.h"
 #include "module_gui_changed.h"
+#include "blend_display.h"
 
 extern const char darktable_package_version[];
 OmEngine *om_engine_create(int argc, char **argv) {
@@ -46,6 +47,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
     if (!dt_is_valid_imgid(image))
         return 1;
     if (engine->loaded) {
+        om_blend_display_reset(engine);
         om_style_baseline_clear(engine);
         dt_dev_cleanup(&engine->dev);
         engine->loaded = 0;
@@ -229,11 +231,12 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
         dt_dev_pixelpipe_cache_flush(engine->dev.full.pipe);
     // Drawn shapes are not part of the pipe hash headless (canvas.c).
     om_engine_canvas_before_render(engine);
+    om_blend_display_before_render(engine); // blend section view state (blend_display.c)
     dt_dev_process_image_job(&engine->dev, &engine->dev.full, engine->dev.full.pipe, -1, DT_DEVICE_NONE);
     om_preview_geometry(engine->dev.full.pipe, geometry);
-    *pixels = engine->dev.full.pipe->backbuf;
     *width = engine->dev.full.pipe->backbuf_width;
     *height = engine->dev.full.pipe->backbuf_height;
+    *pixels = om_blend_display_after_render(engine, engine->dev.full.pipe->backbuf, *width, *height);
     return (engine->dev.full.pipe->status == DT_DEV_PIXELPIPE_VALID && *pixels && *width > 0 && *height > 0)
                ? 0
                : 3;
