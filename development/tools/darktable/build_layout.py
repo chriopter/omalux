@@ -196,7 +196,22 @@ TEXT_EDIT = {("watermark", "text"), ("watermark", "font")}  # watermark.c _text_
 
 # Comboboxes the inventory describes by reference to another one: (operation, field) -> (operation, field).
 VALUES_FROM = {
-    ("clipping", "aspect"): ("crop", "aspect"),  # same aspect list as crop (inventory note)
+}
+
+# Combobox entries that are positions in a list darktable builds in its GUI, written through an
+# "@" conversion (values_clipping.c). The deprecated crop and rotate keeps its own aspect list
+# (clipping.c:2124-2143): special entries first, then sorted square to wide (_aspect_ratio_cmp),
+# labelled "name  d/n" with two decimals (format_aspect, 2062).
+_CLIPPING_ASPECTS = [("freehand", 0, 0), ("original image", 1, 0), ("square", 1, 1),
+                     ("10:8 in print", 2445, 2032), ("5:4, 4x5, 8x10", 5, 4), ("11x14", 14, 11),
+                     ("8.5x11, letter", 110, 85), ("4:3, VGA, TV", 4, 3), ("5x7", 7, 5),
+                     ("ISO 216, DIN 476, A4", 14142136, 10000000), ("3:2, 4x6, 35mm", 3, 2),
+                     ("16:10, 8x5", 16, 10), ("golden cut", 16180340, 10000000), ("16:9, HDTV", 16, 9),
+                     ("widescreen", 185, 100), ("2:1, univisium", 2, 1), ("cinemascope", 235, 100),
+                     ("21:9", 237, 100), ("anamorphic", 239, 100), ("3:1, panorama", 300, 100)]
+INDEXED_VALUES = {
+    ("clipping", "aspect"): [OrderedDict(value=i, label=name if n == 0 else f"{name}  {d / n:4.2f}")
+                             for i, (name, d, n) in enumerate(_CLIPPING_ASPECTS)],
 }
 
 # Values the inventory gives as prose. (value, reason)
@@ -395,6 +410,9 @@ def finish_row(op, r, notes):
     out["default"] = default
     out["values"] = [OrderedDict(value=v["value"], label=v["label"]) for v in r["values"]] \
         if widget == "combobox" and r["values"] else None
+    if (op, r["field"]) in INDEXED_VALUES:
+        out["values"] = INDEXED_VALUES[(op, r["field"])]
+        out["default"] = 0
     out["visible_when"] = None
     out["tier"] = c["tier"]
     out["colors"] = ""

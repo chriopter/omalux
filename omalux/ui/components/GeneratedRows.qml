@@ -186,6 +186,8 @@ Column {
                 it = Object.assign(base(r), { kind: "textEdit" })
             else if (r.widget === "slider" && derivedPath)
                 it = Object.assign(base(r), { kind: "slider", derived: true, control: sliderControl(r, id(r)) })
+            else if (r.widget === "combobox" && derivedPath && r.values) // area E: a list position (clipping @aspect, @flip)
+                it = Object.assign(base(r), { kind: "choice", derived: true })
             else if (r.widget === "color" && derivedPath)
                 it = Object.assign(base(r), { kind: "color", derived: true, paths: [path + "[0]", path + "[1]", path + "[2]"] })
             // ---- end values and lists ----
@@ -351,7 +353,7 @@ Column {
             }
             // A displayed conversion the engine does not report here (e.g. white balance finetune
             // without a camera preset with tuning) is not shown, as darktable hides the slider.
-            if (ok && it.derived && it.kind === "slider" && !root.readable(it.row)) ok = false
+            if (ok && it.derived && (it.kind === "slider" || it.kind === "choice") && !root.readable(it.row)) ok = false
             return ok && root.condition(it.cond)
         })
         for (let i = 0; i < items.length; ++i) {

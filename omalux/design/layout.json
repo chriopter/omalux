@@ -24150,95 +24150,87 @@
        "max": null,
        "soft_min": null,
        "soft_max": null,
-       "default": "0:0",
+       "default": 0,
        "values": [
         {
-         "value": "0:0",
+         "value": 0,
          "label": "freehand"
         },
         {
-         "value": "1:0",
+         "value": 1,
          "label": "original image"
         },
         {
-         "value": "1:1",
-         "label": "square"
+         "value": 2,
+         "label": "square  1.00"
         },
         {
-         "value": "2445:2032",
-         "label": "10:8 in print"
+         "value": 3,
+         "label": "10:8 in print  1.20"
         },
         {
-         "value": "5:4",
-         "label": "5:4, 4x5, 8x10"
+         "value": 4,
+         "label": "5:4, 4x5, 8x10  1.25"
         },
         {
-         "value": "14:11",
-         "label": "11x14"
+         "value": 5,
+         "label": "11x14  1.27"
         },
         {
-         "value": "45:35",
-         "label": "45x35, portrait"
+         "value": 6,
+         "label": "8.5x11, letter  1.29"
         },
         {
-         "value": "110:85",
-         "label": "8.5x11, letter"
+         "value": 7,
+         "label": "4:3, VGA, TV  1.33"
         },
         {
-         "value": "4:3",
-         "label": "4:3, VGA, TV"
+         "value": 8,
+         "label": "5x7  1.40"
         },
         {
-         "value": "7:5",
-         "label": "5x7"
+         "value": 9,
+         "label": "ISO 216, DIN 476, A4  1.41"
         },
         {
-         "value": "14142136:10000000",
-         "label": "ISO 216, DIN 476, A4"
+         "value": 10,
+         "label": "3:2, 4x6, 35mm  1.50"
         },
         {
-         "value": "3:2",
-         "label": "3:2, 4x6, 35mm"
+         "value": 11,
+         "label": "16:10, 8x5  1.60"
         },
         {
-         "value": "16:10",
-         "label": "16:10, 8x5"
+         "value": 12,
+         "label": "golden cut  1.62"
         },
         {
-         "value": "16180340:10000000",
-         "label": "golden cut"
+         "value": 13,
+         "label": "16:9, HDTV  1.78"
         },
         {
-         "value": "16:9",
-         "label": "16:9, HDTV"
+         "value": 14,
+         "label": "widescreen  1.85"
         },
         {
-         "value": "185:100",
-         "label": "widescreen"
+         "value": 15,
+         "label": "2:1, univisium  2.00"
         },
         {
-         "value": "2:1",
-         "label": "2:1, Univisium"
+         "value": 16,
+         "label": "cinemascope  2.35"
         },
         {
-         "value": "235:100",
-         "label": "CinemaScope"
+         "value": 17,
+         "label": "21:9  2.37"
         },
         {
-         "value": "237:100",
-         "label": "21:9"
+         "value": 18,
+         "label": "anamorphic  2.39"
         },
         {
-         "value": "239:100",
-         "label": "anamorphic"
-        },
-        {
-         "value": "65:24",
-         "label": "65:24, XPan"
-        },
-        {
-         "value": "300:100",
-         "label": "3:1, panorama"
+         "value": 19,
+         "label": "3:1, panorama  3.00"
         }
        ],
        "visible_when": null,
@@ -24340,7 +24332,7 @@
        "action": "bottom"
       }
      ],
-     "notes": "aspect: values taken from crop 'aspect'. aspect: darktable's default is 'freehand'."
+     "notes": "aspect: darktable's default is 'freehand'."
     },
     {
      "operation": "spots",

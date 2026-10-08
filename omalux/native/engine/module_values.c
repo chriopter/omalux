@@ -16,6 +16,7 @@
 #define OM_HAVE_RYB 1
 #endif
 #include <math.h>
+#include "values_clipping.h"
 
 // A parameter by its introspection name, NULL when the module does not have it.
 static void *param(dt_iop_module_t *module, const char *name) {
@@ -649,6 +650,8 @@ void om_module_describe_values(dt_iop_module_t *module, JsonObject *entry) {
         colorchecker_read(module, out);
     else if (!strcmp(module->op, "temperature"))
         temperature_read(module, out);
+    else if (!strcmp(module->op, "clipping")) // area E (values_clipping.c)
+        om_values_clipping_read(module, out);
     if (json_object_get_size(out))
         json_object_set_object_member(entry, "derived", out);
     else
@@ -669,6 +672,8 @@ int om_module_set_values(OmEngine *engine, dt_iop_module_t *module, size_t count
             return 5;
     if (!strcmp(module->op, "splittoning"))
         return splittoning_write(module, count, paths, values);
+    if (!strcmp(module->op, "clipping")) // area E (values_clipping.c)
+        return om_values_clipping_write(module, count, paths, values);
     if (!strcmp(module->op, "channelmixerrgb"))
         return channelmixerrgb_write(module, count, paths, values);
     if (!strcmp(module->op, "colorbalance"))
