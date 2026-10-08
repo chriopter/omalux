@@ -47,6 +47,8 @@ Item {
         RowLayout {
             width: parent.width
             height: 22
+            // A long value ("input after blur") keeps a clear gap to its label.
+            spacing: 12
             Text {
                 Layout.fillWidth: true
                 text: root.label
@@ -118,7 +120,8 @@ Item {
                     model: root.options
                     MenuItem {
                         required property var modelData
-                        text: modelData.label
+                        // "&" would mark a mnemonic ("drawn & parametric mask" read "drawn _parametric").
+                        text: String(modelData.label).replace(/&/g, "&&")
                         onTriggered: root.edited(modelData.value)
                     }
                 }

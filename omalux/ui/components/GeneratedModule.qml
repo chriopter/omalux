@@ -27,7 +27,18 @@ Column {
     signal interactionChanged(bool active)
     signal controlSelected(string id)
 
-    readonly property bool moduleEnabled: !!moduleState && moduleState.enabled
+    // A click shows the new state at once; the engine's answer can take a while (a slow module
+    // renders first), and without feedback a second click would switch it back.
+    readonly property bool engineEnabled: !!moduleState && moduleState.enabled
+    property var requestedEnabled: undefined
+    readonly property bool moduleEnabled: requestedEnabled !== undefined ? requestedEnabled : engineEnabled
+    onEngineEnabledChanged: requestedEnabled = undefined
+    function requestEnabled(on) {
+        requestedEnabled = on
+        enableSettle.restart()
+        enableRequested(on)
+    }
+    Timer { id: enableSettle; interval: 30000; onTriggered: root.requestedEnabled = undefined }
     readonly property bool nameMatched: term !== "" && catalogModel.moduleNameMatches(module, term)
     // darktable's heading: the module name and, after a dot, the instance name
     // (_iop_panel_name; moduleState.instanceLabel from module_instances.c).
@@ -60,7 +71,7 @@ Column {
             activateLabel: rows.hasDetails && root.term === "" ? (root.expanded ? "COLLAPSE" : "EXPAND") : ""
             onActivate: if (rows.hasDetails) root.expansionRequested()
             onAdjust: steps => { if (rows.hasDetails && (steps > 0) !== root.expanded) root.expansionRequested() }
-            onToggleGroup: root.enableRequested(!root.moduleEnabled)
+            onToggleGroup: root.requestEnabled(!root.moduleEnabled)
             onResetGroup: root.resetRequested()
         }
         Rectangle {
@@ -82,10 +93,15 @@ Column {
                 padding: 0
                 enabled: root.editable && !!root.moduleState
                 hoverEnabled: true
-                onClicked: { headerNav.claim(); root.enableRequested(!root.moduleEnabled) }
+                onClicked: { headerNav.claim(); root.requestEnabled(!root.moduleEnabled) }
                 Accessible.name: "Enable " + root.title
                 Accessible.checkable: true; Accessible.checked: root.moduleEnabled
-                ToolTip.visible: hovered && !!root.module.purpose
+                // The purpose is read before using the heading; a click puts it away until the
+                // pointer comes back, so it does not cover the rows.
+                property bool tipDismissed: false
+                onPressedChanged: if (pressed) tipDismissed = true
+                onHoveredChanged: if (!hovered) tipDismissed = false
+                ToolTip.visible: hovered && !tipDismissed && !!root.module.purpose
                 ToolTip.delay: 900
                 ToolTip.text: root.module.purpose || ""
                 contentItem: RowLayout {
@@ -129,7 +145,7 @@ Column {
                 MenuItem {
                     text: (root.moduleEnabled ? "Disable " : "Enable ") + root.title
                     enabled: root.editable && !!root.moduleState
-                    onTriggered: root.enableRequested(!root.moduleEnabled)
+                    onTriggered: root.requestEnabled(!root.moduleEnabled)
                 }
                 MenuItem {
                     text: "Reset " + root.title

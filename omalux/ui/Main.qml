@@ -20,6 +20,9 @@ ApplicationWindow {
     palette.highlight: editorTheme.accent
     palette.highlightedText: "#11111b"
     palette.mid: editorTheme.line
+    // The hovered menu item (Basic MenuItem: palette.light) on the raised fill of the pane tabs;
+    // the default near-white bar made its pale label unreadable.
+    palette.light: editorTheme.active
     palette.dark: editorTheme.line
     color: editorTheme.background
     font: editorTheme.textFont

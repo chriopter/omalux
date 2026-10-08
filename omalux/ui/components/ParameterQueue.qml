@@ -13,6 +13,12 @@ QtObject {
     property var _queue: []          // [{ operation, instance, changes }]
     property bool _inFlight: false
     property var _sentKeys: []
+    // confirmed(key, value) → true once the catalog holds the value sent for key. An override
+    // stays until then: a catalog update for an earlier edit must not put an older value back
+    // on a row the person just changed. Without it every update confirms.
+    property var confirmed: null
+    // Overrides whose value the catalog has not shown yet, by key → time sent.
+    property var _waiting: ({})
 
     readonly property bool batchSupported: !!backend && typeof backend.setParameters === "function"
 
@@ -64,12 +70,30 @@ QtObject {
         _inFlight = false
         const pending = {}
         for (const item of _queue) for (const p in item.changes) pending[key(item.operation, item.instance, p)] = true
-        const next = Object.assign({}, overrides)
-        let changed = false
-        for (const k of _sentKeys) if (!pending[k] && k in next) { delete next[k]; changed = true }
-        if (changed) overrides = next
+        const waiting = Object.assign({}, _waiting)
+        for (const k of _sentKeys) waiting[k] = Date.now()
+        _waiting = waiting
+        settleOverrides(pending)
         pump()
     }
+    // Drop the overrides the catalog now shows (or that waited too long for it: the engine may
+    // clamp a value, and then nothing more would arrive).
+    function settleOverrides(pending) {
+        const next = Object.assign({}, overrides)
+        const waiting = Object.assign({}, _waiting)
+        let changed = false
+        for (const k in waiting) {
+            if (pending && pending[k]) continue
+            const done = !(k in next) || !confirmed || confirmed(k, next[k]) || Date.now() - waiting[k] > 3000
+            if (!done) continue
+            if (k in next) { delete next[k]; changed = true }
+            delete waiting[k]
+        }
+        _waiting = waiting
+        if (changed) overrides = next
+        if (Object.keys(waiting).length) recheck.restart()
+    }
+    property Timer recheck: Timer { interval: 250; onTriggered: if (!root._inFlight) root.settleOverrides(null); else restart() }
     // An edit that does not change the catalog (same value) produces no update; do not wait forever.
     property Timer settle: Timer { interval: 400; onTriggered: root.acknowledge() }
 }

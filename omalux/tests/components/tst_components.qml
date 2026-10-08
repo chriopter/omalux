@@ -1,12 +1,13 @@
 import QtQuick
 import QtTest
+import QtQuick.Controls
 import "../../ui/components"
 
 // Interaction checks for the module widgets:
 //   QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input omalux/tests/components/tst_components.qml
 
 Item {
-    width: 400; height: 900
+    width: 700; height: 900
     EditorTheme { id: th }
     property var edits: []
     property var lastNodes: null
@@ -67,8 +68,38 @@ Item {
         onChangesRequested: c => demoChanges = c
     }
 
+    ControlChoice {
+        id: maskChoice
+        x: 330; y: 0; width: 300
+        theme: th; label: "blend"; value: 0; editable: true
+        options: [{ value: 0, label: "off" }, { value: 1, label: "uniformly" }, { value: 3, label: "drawn mask" },
+                  { value: 7, label: "drawn & parametric mask" }]
+    }
+
     TestCase {
         name: "widgets"; when: windowShown
+        // The colour popup takes the keys while open: Escape closes it.
+        function test_swatch_escape() {
+            sw.openPicker()
+            const popup = sw.children.concat(sw.data).find(c => c && c.opened !== undefined && c.width === 220)
+            verify(popup, "colour popup")
+            tryVerify(() => popup.opened, 1000)
+            keyClick(Qt.Key_Escape)
+            tryVerify(() => !popup.visible, 1000, "Escape closes the colour popup")
+        }
+        // darktable's "&" is text, not a menu mnemonic.
+        function test_choice_menu_text() {
+            mouseClick(maskChoice, maskChoice.width / 2, maskChoice.height / 2)
+            let texts = []
+            function walk(item) {
+                if (!item) return
+                if (String(item).startsWith("MenuItem")) texts.push(item.text)
+                for (const child of item.children || []) walk(child)
+            }
+            tryVerify(() => { texts = []; walk(maskChoice.Window.contentItem); return texts.length === 4 }, 1000, "menu opens")
+            verify(texts.indexOf("drawn && parametric mask") >= 0, JSON.stringify(texts))
+            keyClick(Qt.Key_Escape)
+        }
         function px(x) { return curve.toPx(x) }
         function py(y) { return curve.y + 22 + curve.toPy(y) }
         function test_curve() {

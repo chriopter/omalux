@@ -91,6 +91,24 @@ Rectangle {
     ParameterQueue {
         id: parameterQueue
         backend: root.backend
+        // Whether the catalog shows the value sent for "operation/instance/path" yet.
+        confirmed: (key, value) => {
+            const parts = key.split("/")
+            const state = moduleCatalog.states[parts[0] + "/" + parts[1]]
+            const path = parts.slice(2).join("/")
+            if (!state) return true
+            let shown
+            if (path === "@enabled") shown = state.enabled
+            else if (path.startsWith("blend.")) {
+                const m = /^blend\.([a-z_]+)(?:\[(\d+)\])?$/.exec(path)
+                shown = m && state.blend ? (m[2] !== undefined ? (state.blend[m[1]] || [])[Number(m[2])] : state.blend[m[1]]) : undefined
+            } else shown = moduleCatalog.resolve(state, path)
+            if (shown === undefined) return true
+            if (typeof shown === "boolean") shown = shown ? 1 : 0
+            if (typeof shown === "number" && typeof value === "number")
+                return Math.abs(shown - value) <= 1e-4 * Math.max(1, Math.abs(value))
+            return JSON.stringify(shown) === JSON.stringify(value)
+        }
     }
     // darktable's pickers and module buttons (ModuleTools.qml); rows reach it as catalogModel.tools.
     ModuleTools {

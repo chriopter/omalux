@@ -33,8 +33,8 @@ Item {
         standardButtons: Dialog.Ok | Dialog.Cancel
         onAccepted: exportDialog.open()
         ColumnLayout {
-            Text { text: "Full-resolution JPEG or PNG · sRGB"; color: root.theme.ink }
-            Text { text: "JPEG quality: " + Math.round(quality.value); color: root.theme.ink }
+            Text { text: "Full-resolution JPEG or PNG · sRGB"; color: root.theme.ink; font: root.theme.textFont }
+            Text { text: "JPEG quality: " + Math.round(quality.value); color: root.theme.ink; font: root.theme.textFont }
             Slider { id: quality; from: 1; to: 100; value: 90; stepSize: 1; Layout.preferredWidth: 300 }
         }
     }
@@ -53,7 +53,8 @@ Item {
         modal: true
         standardButtons: Dialog.Save | Dialog.Cancel
         onAccepted: if (nameInput.text.trim()) root.styleSaveRequested(nameInput.text.trim())
-        TextField { id: nameInput; width: 300; placeholderText: "Style name"; onAccepted: saveStyleDialog.accept() }
+        // implicitWidth: the dialog sizes itself to the field (a fixed width stuck out of it).
+        TextField { id: nameInput; implicitWidth: 300; font: root.theme.textFont; placeholderText: "Style name"; onAccepted: saveStyleDialog.accept() }
         onOpened: nameInput.forceActiveFocus()
     }
     Dialog {
@@ -62,7 +63,7 @@ Item {
         anchors.centerIn: Overlay.overlay
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
-        contentItem: Text { text: root.styleName; color: root.theme.ink }
+        contentItem: Text { text: root.styleName; color: root.theme.ink; font: root.theme.textFont }
         onAccepted: root.styleDeleteRequested(root.styleId)
     }
     FolderDialog {

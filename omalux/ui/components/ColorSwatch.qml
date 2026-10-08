@@ -121,6 +121,8 @@ Item {
         y: root.height + 4
         width: 220
         padding: 10
+        // Takes the keys while open, so Escape closes it (the navigator leaves popups alone).
+        focus: true
         onOpened: root.syncFromColor()
         background: Rectangle {
             radius: 6

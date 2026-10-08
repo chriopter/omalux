@@ -63,7 +63,12 @@ Item {
                 Accessible.name: (modelData.label || modelData.hint || "") + (picker ? " picker" : "")
                 Accessible.checkable: picker
                 Accessible.checked: !!modelData.active
-                ToolTip.visible: hovered && !!modelData.hint
+                // The hint explains the button before it is used; a click puts it away until the
+                // pointer comes back, so it does not cover the row while a picker runs.
+                property bool tipDismissed: false
+                onPressedChanged: if (pressed) tipDismissed = true
+                onHoveredChanged: if (!hovered) tipDismissed = false
+                ToolTip.visible: hovered && !tipDismissed && !!modelData.hint
                 ToolTip.delay: 600
                 ToolTip.text: modelData.hint || ""
                 NavTarget {
