@@ -59,6 +59,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 
 - **Order.** The selectable items are the `NavTarget`s of the visible sidebar pane, ordered by where they are shown (top to bottom, then left to right). ↑/↓ cross module and group boundaries, stop at the first and last item (no wrap), and skip disabled items. Collapsed parameters, hidden panes and the other filter view are never reached: a hidden pane never receives keys. Only a direct shortcut (`G`, `S`, `M`) opens a collapsed module to select its parameter. Panes without items (Info) scroll with ↑/↓.
 - **Selection.** Each pane remembers its selection; a new pane starts at the item it marks as active (the active control, the current history step, the last applied style). The selection is marked in the accent colour and is scrolled into view at once, by the smallest movement with a small margin, also when a key adjusts it after the wheel moved it away.
+- **Blending and instances.** The rows of the blend section are ordinary stops (sliders, choices, switches, channel chips; the parametric ranges are graphs). The multi-instance button in a heading is not an ↑/↓ stop; the last stop of an open module, **multiple instances**, opens its menu with Enter.
 - **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
@@ -99,7 +100,7 @@ Tests: `omalux/tests/components/tst_keyboard.qml` (qmltestrunner, every pane aga
 
 The optional `OMALUX_SMOKE_SCRIPT` development driver runs deterministic actions against the real engine. It exercised scalar edits, white balance, grain, wavelet curves, the diffusion recipe, style application, LUT opacity, own style save/reapply and full-resolution JPEG/PNG export. A square crop produced a 1024 × 1024 export from the 1536 × 1024 source; bundle export retained the thumbnail and declared LUT, and own-style deletion was checked. Split mode acknowledged control updates and a source-image switch followed by exposure editing; this does not establish byte-identical output or performance parity.
 
-The curated controls edit the base module instance. The generic module API below reaches every described parameter of any existing instance, but the UI does not yet create instances, and custom module ordering and masks are not supported. Own-style snapshots reject unsupported masks, extra instances and external image dependencies rather than silently losing them. The original colisa controls are deprecated upstream; they remain for existing styles. See the architecture notes for cache and GPU-reporting limitations.
+The curated controls edit the base module instance. The generic module API below reaches every described parameter of any instance; the multi-instance menu creates, duplicates, moves, renames and deletes instances, and every module with darktable's blending has its blend section (see [Blending and module instances](#blending-and-module-instances)). Drawn mask shapes are not drawn yet. Own-style snapshots reject drawn and raster masks, extra instances and external image dependencies rather than silently losing them. The original colisa controls are deprecated upstream; they remain for existing styles. See the architecture notes for cache and GPU-reporting limitations.
 
 Scrolling reference: [Omawrite 0.5.0, Main.qml](https://github.com/omacom/omawrite/blob/v0.5.0/src/Main.qml), event handling and `snapToPixel`. Omalux adopts its event classification and pixel alignment; its angle-only movement remains immediate rather than using Omawrite’s animated wheel curve.
 
@@ -254,13 +255,19 @@ Every module touched by a generic edit, reset or `@enabled` change is sent to th
 comparison window as a temporary single-module style (`omalux-sync-<operation>-<revision>`),
 the same recipe mechanism the curves and the diffusion recipe use. A newer snapshot of a
 module replaces older ones of the same epoch in the mailbox, so the comparison applies only
-the latest state. The curated controls keep their GTK action path. Snapshots reject extra
-module instances and drawn masks, so edits of an instance other than 0 are not mirrored.
+the latest state. The curated controls keep their GTK action path. A snapshot holds every
+instance of the operation with its `multi_priority` and name, and the blend parameters
+including a raster mask taken from another module, so blend edits and edits of further
+instances are mirrored; darktable matches the instances by name, then unused, default and
+priority (`dt_history_merge_module_into_history`). Deleting or moving an instance is not
+mirrored (a style never removes or reorders modules), and drawn masks are still rejected.
 `python3 omalux/tests/run.py` records the mailbox of `omalux/tests/module-parameters.json`
 (`OMALUX_RECORD_MAILBOX`, no comparison window) and checks it carries one current snapshot
 each for exposure, tonecurve and rgbcurve. `omalux/tests/module-values.json` does the same for
 the displayed conversions and runtime lists (color balance, color calibration, color
-harmonizer, split-toning, color look up table, input profile, lens, LUT 3D).
+harmonizer, split-toning, color look up table, input profile, lens, LUT 3D); for `omalux/tests/blending.json` it checks that
+the exposure snapshot carries the second instance. The real comparison window was not run
+with instances.
 
 ## Generated layout of every module
 
@@ -400,8 +407,11 @@ before, because their files are not packaged. colorin and colorout have no enabl
 are not part of own styles.
 
 The per-module blend section is written separately in the same row format to
-`omalux/design/layout-blending.json` for a later step. Regenerate both after changing the
-inventory, the decisions or `controls.h`:
+`omalux/design/layout-blending.json` (see [Blending and module instances](#blending-and-module-instances)).
+A curated module also carries `instance_rows`, `instance_primary` and `instance_tabs`: every
+row, as an uncurated module would have them, for its further instances, which are not edited
+through `controls.h`. Regenerate both after changing the inventory, the decisions or
+`controls.h`:
 
 ```
 python3 development/tools/darktable/build_layout.py      # add -v to list unconverted conditions
@@ -443,3 +453,111 @@ properties and reports changes through signals; none of them edits a parameter i
 - `GeneratedModule`, `GeneratedRows`, `RowWrapper`, `ModuleList` — the generated modules and
   their rows (see above); `ModuleCatalog` and `ParameterQueue` are their non-visual data and
   write helpers, instantiated by the sidebar composition.
+- `BlendSection` — darktable's blend section of one module instance (below).
+- `BlendifRange` — one range of a parametric mask: darktable's gradient slider with four
+  markers over the channel's colour gradient, the mask's opacity drawn as a line, darktable's
+  marker labels and the ± polarity button. Drag a marker (it never passes its neighbours),
+  double-click resets the range; Enter lends the keys, ←/→ move the active marker by the
+  channel's increment (Shift ×10, Ctrl ×0.1), ↑/↓ pick the marker.
+- `InstanceButton`, `InstanceFooter` — darktable's multi-instance button in a module heading
+  and the keyboard's way to its menu at the end of an open module.
+
+## Blending and module instances
+
+### The blend section
+
+Every module darktable lets blend (`IOP_FLAGS_SUPPORTS_BLENDING`, with an enable button) shows
+its blend section at the end of the expanded module, in curated blocks and generated modules
+alike. Labels, units, digits and ranges come from `layout-blending.json`; the rows follow
+darktable's `dt_iop_gui_init_blending` / `dt_iop_gui_update_blending` (`develop/blend_gui.c`
+3393, 3051):
+
+- **blend mask mode** — off, uniformly, drawn mask, parametric mask, drawn & parametric mask,
+  raster mask. Drawn and raster need mask support (`IOP_FLAGS_NO_MASKS` unset), parametric a
+  module that blends in Lab or RGB; only the possible modes are offered.
+- **blend colorspace** — darktable's blending options menu (`_blendif_options_callback`):
+  Lab only for Lab modules, RGB (display), RGB (scene); right-click resets to the module's
+  default. Changing it re-initialises the parametric mask and takes the settings of the last
+  history item in that colour space (`_blendif_change_blend_colorspace`, 1912).
+- **blend mask**: **mode** with the modes and order darktable offers in the current colour
+  space (deprecated modes only while used), **toggle blend order**, **fulcrum** (RGB (scene)
+  with addition, multiply, subtract, divide or an RGB channel mode; other modes reset it to 0,
+  `_blendop_blend_mode_callback`, 716) and **opacity**.
+- **drawn mask**: how many shapes the mask group holds ("no mask used", "N shapes used") and
+  **toggle polarity of drawn mask** (`DEVELOP_COMBINE_MASKS_POS`). The shape buttons (add
+  gradient, path, ellipse, circle, brush) appear only when the on-image drawing work is
+  linked (`masks_api.h`); until then a notice stands in for them.
+- **raster mask**: the raster masks of earlier modules as darktable lists them
+  (`_raster_combo_populate`, 2856: every module before this one that advertises one) and
+  **toggle polarity of raster mask**.
+- **parametric mask**: the channel chips (Lab: L a b C h; RGB (display): g R G B H S L;
+  RGB (scene): g R G B Jz Cz hz), the **output** range (shown once used or with **show output
+  channels**; switching that off resets them, "reset and hide output channels") and the
+  **input** range (`BlendifRange`), **boost factor** (shown relative to darktable's offset, so
+  Jz and Cz read 0 at their default; rescales the markers like
+  `_blendop_blendif_boost_factor_callback`, 1283), **combine masks** (inverts the unused
+  channels for inclusive modes, `_blendop_masks_combine_callback`, 765), **reset blend mask
+  settings** and **invert all channel's polarities** (`_blendop_blendif_reset`,
+  `_blendop_blendif_invert`, 1553/1570). A channel is processed once its range no longer spans
+  everything (`_blendop_blendif_sliders_callback`, 831).
+- **mask refinement** (drawn or parametric mask, or a raster mask): **details threshold**
+  (raw images only), **feathering guide**, **feathering radius**, **blurring radius**, **mask
+  opacity**, **mask contrast**; a module blending in raw data keeps only the blur.
+
+Not built yet: the colour pickers of the parametric mask (a notice says so), darktable's
+display mask / temporarily switch off mask buttons and the alternative (log, magnifier)
+marker scales.
+
+Edits use the generic path `blend.<name>` in `setParameters`, so a module edit and a blend
+edit can share one history item and the parameter queue merges them like any other drag:
+
+| path | value | darktable rule |
+| --- | --- | --- |
+| `blend.mask_mode` | 0, 1, 3, 5, 7, 9 | `_blendop_masks_mode_callback` |
+| `blend.blend_cst` | 0 (module default), 2, 3, 4 | `_blendif_change_blend_colorspace` |
+| `blend.blend_mode`, `blend.reverse` | mode value, 0/1 | `_blendop_blend_mode_callback`, `_blendop_blend_order_clicked` |
+| `blend.blend_parameter`, `blend.opacity` | EV, % | fulcrum, opacity |
+| `blend.drawn_polarity` | 0/1 | `_blendop_masks_polarity_callback` |
+| `blend.mask_combine` | 0–3 | `_blendop_masks_combine_callback` (with `blend.output_channels_shown`) |
+| `blend.blendif_parameters[i]` | 0…1, i = 4 × channel + marker | `_blendop_blendif_sliders_callback` |
+| `blend.polarity[ch]` | 1 = negative | `_blendop_blendif_polarity_callback` |
+| `blend.reset_channel[ch]` | 1 | double-click on a range |
+| `blend.boost_factor[in]` | shown EV | `_blendop_blendif_boost_factor_callback` |
+| `blend.reset_parametric`, `blend.invert_all`, `blend.clean_output_channels` | 1 | reset, invert, hide output channels |
+| `blend.details`, `blend.feathering_guide`, `blend.feathering_radius`, `blend.blur_radius`, `blend.brightness`, `blend.contrast` | raw values | refinement |
+| `blend.raster_mask@<operation>/<instance>` | mask id | `_raster_value_changed_callback` |
+| `blend.raster_mask` | −1 | "no mask used" |
+| `blend.raster_mask_invert` | 0/1 | `_raster_polarity_callback` |
+
+Like a darktable blend widget, a blend edit switches its module on. The catalog entry of a
+module carries a `blend` object: the current values, what the module supports (`masks`,
+`parametric`, `csp`, `default_cst`, `raw`), `outputs_used`, `drawn_shapes`, `drawn_available`,
+the link state of a raster mask and the `raster_masks` the module offers to later modules;
+while a mask is on also the parametric ranges and boost factors, the offered `blend_modes` and
+the parametric `channels` (a module whose mask is off stays small in the catalog).
+
+### Module instances
+
+The heading of every module, curated or generated, carries darktable's multi-instance button
+(two frames). Its menu has darktable's entries — **new instance**, **duplicate instance**,
+**move up**, **move down**, **delete**, **rename** — enabled as darktable's `_get_multi_show`
+decides; right-click on the button creates a new instance, and the heading's context menu
+offers new and duplicate too. Move up means later in the pipeline, as in darktable's panel; the
+neighbour it moves past is the next module with a GUI (deprecated ones only while enabled),
+since Omalux has no right-hand panel order. Rename opens a field; Enter or leaving the field
+keeps the name, Escape cancels, an empty name gives the module back its automatic label. The
+heading shows darktable's instance label after a dot (`_iop_panel_name`): the hand-edited name,
+otherwise the automatic one (darktable names unnamed instances by their number or by a matching
+preset, e.g. "exposure • scene-referred default"). Further instances are listed after their base
+instance; under a curated block they appear as generated modules with every row.
+
+`backend.moduleInstance(operation, instance, action, name)` runs one action on the worker
+(`om_engine_module_instance`, `native/engine/module_instances.c`), after which the whole catalog
+is described again. Panes pass actions through `changesRequested` as action keys that the
+sidebar composition routes (`{"@instance": action, "@name": name}`; `{"@reset": 1}` for a
+module reset and `{"@drawn": type}` for a shape request, re-emitted as
+`EditorSidebar.drawnShapeRequested`). History follows darktable: a new instance records the base
+module (when it is not the last history item) and the new one; deleting an instance removes its
+history items, and deleting instance 0 renumbers the instance first in history to 0. Duplicating
+a module whose drawn mask holds shapes is refused, as their copy needs darktable's GUI develop
+context (`dt_masks_iop_use_same_as`).

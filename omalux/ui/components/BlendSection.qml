@@ -66,7 +66,7 @@ Column {
     property int tab: 0
     property bool outputsRequested: false
     readonly property bool outputsShown: outputsRequested || (!!blend && blend.outputs_used)
-    readonly property var channels: blend ? blend.channels : []
+    readonly property var channels: (blend && blend.channels) || []
     readonly property var channel: channels.length ? channels[Math.min(tab, channels.length - 1)] : null
     onCspChanged: tab = 0
     function negative(ch) {
@@ -75,7 +75,7 @@ Column {
         return !!root.blend && ((root.blend.blendif >>> (ch + 16)) & 1) === 1
     }
     function range(ch) { return [0, 1, 2, 3].map(k => num("blendif_parameters[" + (4 * ch + k) + "]", k < 2 ? 0 : 1)) }
-    function boostOf(ch) { return root.blend ? Number(root.blend.boost_factors[ch]) : 0 }
+    function boostOf(ch) { return root.blend && root.blend.boost_factors ? Number(root.blend.boost_factors[ch]) : 0 }
     // darktable's colour stops behind each channel (blend_gui.c _gradient_*).
     function hex(r, g, b) { return Qt.rgba(r, g, b, 1).toString() }
     readonly property var gradients: {
@@ -250,7 +250,7 @@ Column {
     ChoiceRow {
         visible: root.maskEnabled
         field: "blend_mode"
-        options: root.blend ? root.blend.blend_modes.map(m => ({ value: m.value, label: m.label })) : []
+        options: ((root.blend && root.blend.blend_modes) || []).map(m => ({ value: m.value, label: m.label }))
         value: root.blendMode
         resetValue: 24
         onChosen: v => root.set("blend_mode", v)

@@ -9,7 +9,7 @@ Item {
     required property var theme
     property Item button: null
     property string navGroup: ""
-    property bool enabled: true
+    property bool active: true
     implicitHeight: 22
     ToolButton {
         id: link
@@ -17,7 +17,7 @@ Item {
         anchors.left: parent.left
         padding: 0
         hoverEnabled: true
-        enabled: root.enabled && !!root.button
+        enabled: root.active && !!root.button
         onClicked: { nav.claim(); root.button.openMenu() }
         Accessible.name: "multiple instances actions"
         NavTarget {

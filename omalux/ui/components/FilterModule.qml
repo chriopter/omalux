@@ -107,7 +107,7 @@ Column {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: root.section.name
+                        text: root.section.name + (!root.section.shortcut && root.moduleState && root.moduleState.instanceLabel ? " • " + root.moduleState.instanceLabel : "")
                         color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
                         font: root.theme.moduleHeadingFont; wrapMode: Text.WordWrap
                     }
@@ -259,7 +259,7 @@ Column {
         theme: root.theme
         button: instanceButton
         navGroup: root.section.key
-        enabled: root.editable
+        active: root.editable
     }
     // Further instances are not edited through the curated controls: each is a generated
     // module with every row of its darktable module (ModuleCatalog.moduleForInstance).

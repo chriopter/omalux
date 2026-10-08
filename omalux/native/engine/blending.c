@@ -622,7 +622,6 @@ void om_blend_describe(JsonObject *entry, dt_iop_module_t *module) {
     if (!supports_blending(module))
         return;
     const dt_develop_blend_params_t *bp = module->blend_params;
-    const dt_develop_blend_params_t *dp = module->default_blendop_params;
     const dt_develop_blend_colorspace_t csp = blend_csp(module, bp);
     const dt_develop_blend_colorspace_t module_cst = dt_develop_blend_default_module_blend_colorspace(module);
     JsonObject *blend = json_object_new();
@@ -645,13 +644,6 @@ void om_blend_describe(JsonObject *entry, dt_iop_module_t *module) {
     json_object_set_boolean_member(blend, "drawn_polarity",
                                    (bp->mask_combine & DEVELOP_COMBINE_MASKS_POS) != 0);
     json_object_set_int_member(blend, "blendif", bp->blendif);
-    json_object_set_array_member(blend, "blendif_parameters",
-                                 float_array(bp->blendif_parameters, 4 * DEVELOP_BLENDIF_SIZE));
-    json_object_set_array_member(blend, "default_blendif_parameters",
-                                 float_array(dp->blendif_parameters, 4 * DEVELOP_BLENDIF_SIZE));
-    json_object_set_int_member(blend, "default_blendif", dp->blendif);
-    json_object_set_array_member(blend, "boost_factors",
-                                 float_array(bp->blendif_boost_factors, DEVELOP_BLENDIF_SIZE));
     json_object_set_boolean_member(blend, "outputs_used", outputs_used(bp, csp));
     json_object_set_double_member(blend, "details", bp->details);
     json_object_set_int_member(blend, "feathering_guide", bp->feathering_guide);
@@ -675,6 +667,16 @@ void om_blend_describe(JsonObject *entry, dt_iop_module_t *module) {
     OmRasterList rasters = {json_array_new(), module};
     g_hash_table_foreach(module->raster_mask.source.masks, add_raster, &rasters);
     json_object_set_array_member(blend, "raster_masks", rasters.array);
+    // The rest is needed only while a mask is on; every blend edit describes the module again,
+    // so the catalog of an image whose modules do not blend stays small.
+    if (bp->mask_mode == DEVELOP_MASK_DISABLED) {
+        json_object_set_object_member(entry, "blend", blend);
+        return;
+    }
+    json_object_set_array_member(blend, "blendif_parameters",
+                                 float_array(bp->blendif_parameters, 4 * DEVELOP_BLENDIF_SIZE));
+    json_object_set_array_member(blend, "boost_factors",
+                                 float_array(bp->blendif_boost_factors, DEVELOP_BLENDIF_SIZE));
 
     JsonArray *modes = json_array_new();
     visit_modes(csp, add_mode, modes);

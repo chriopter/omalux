@@ -202,6 +202,6 @@ Column {
         theme: root.theme
         button: instanceButton
         navGroup: root.module.operation + "/" + root.instance
-        enabled: root.editable
+        active: root.editable
     }
 }

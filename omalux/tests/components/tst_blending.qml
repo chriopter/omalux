@@ -66,8 +66,8 @@ Item {
         for (let ch = 0; ch < 16; ++ch) params.push(0, 0, 1, 1)
         return { masks: true, parametric: true, csp: 4, default_cst: 4, raw: false, mask_mode: mode, blend_cst: 4,
                  blend_mode: 24, reverse: false, blend_parameter: 0, fulcrum: false, opacity: 100, mask_combine: 0,
-                 drawn_polarity: false, blendif: 0, blendif_parameters: params, default_blendif_parameters: params,
-                 default_blendif: 0, boost_factors: [0, 0, 0, 0, 0, 0, 0, 0, -6.64385619, -6.64385619, 0, 0, -6.64385619, -6.64385619, 0, 0],
+                 drawn_polarity: false, blendif: 0, blendif_parameters: params,
+                 boost_factors: [0, 0, 0, 0, 0, 0, 0, 0, -6.64385619, -6.64385619, 0, 0, -6.64385619, -6.64385619, 0, 0],
                  outputs_used: false, details: 0, feathering_guide: 5, feathering_radius: 0, blur_radius: 0, brightness: 0,
                  contrast: 0, mask_id: 0, drawn_shapes: 0, drawn_available: false, raster_mask_source: "",
                  raster_mask_instance: 0, raster_mask_id: -1, raster_mask_invert: false, raster_linked: false, raster_masks: [],
