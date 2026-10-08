@@ -689,7 +689,7 @@
        "label": "settings",
        "tab": null,
        "section": "settings",
-       "widget": "combobox",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -699,36 +699,18 @@
        "soft_min": null,
        "soft_max": null,
        "default": 4,
-       "values": [
-        {
-         "value": 0,
-         "label": "as shot"
-        },
-        {
-         "value": 1,
-         "label": "from image area"
-        },
-        {
-         "value": 2,
-         "label": "user modified"
-        },
-        {
-         "value": 3,
-         "label": "camera reference"
-        },
-        {
-         "value": 4,
-         "label": "as shot to reference"
-        },
-        {
-         "value": ">=5",
-         "label": "camera-specific presets from wb_presets for this maker/model (dynamic, max 50, under a '<maker> <model>' section)"
-        }
-       ],
+       "values": null,
        "visible_when": null,
        "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "choice",
+        "fields": [],
+        "list": "preset",
+        "search": false,
+        "browse": null,
+        "filters": []
+       },
        "action": "settings/settings"
       },
       {
@@ -11883,7 +11865,7 @@
        "label": "",
        "tab": null,
        "section": null,
-       "widget": "file",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11898,9 +11880,16 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "file",
+        "kind": "choice",
         "fields": [
          "filepath"
+        ],
+        "list": "filepath",
+        "search": true,
+        "browse": "@lut_file",
+        "filters": [
+         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)",
+         "All files (*)"
         ]
        },
        "action": "(folder button)"
@@ -14761,7 +14750,7 @@
        "label": "profile",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -14776,12 +14765,15 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "a",
          "b"
         ],
-        "dynamic": true
+        "list": "@profile",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": "profile"
       },
