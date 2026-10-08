@@ -25,6 +25,7 @@
 #include <strings.h>
 #include <lensfun.h>
 #include <math.h>
+#include "lut3d_gmz.h"
 
 enum { OM_MAX_ITEMS = 400 };
 
@@ -696,9 +697,9 @@ static void collect_files(const char *root, const char *relative, int depth, con
 // LUT files below the LUT root folder (plugins/darkroom/lut3d/def_path). darktable picks one with
 // a file chooser limited to that folder and lists the files of the chosen file's folder
 // (_button_clicked, lut3d.c:1607-1675; _update_filepath_combobox :1570-1605; extensions
-// _check_extension :1550-1568). Omalux lists the whole root, sub-folders included. gmic
-// compressed LUTs (.gmz) need darktable's GUI-bound reader and are not offered.
-static const char *const lut_extensions[] = {".png", ".cube", ".3dl", NULL};
+// _check_extension :1550-1568). Omalux lists the whole root, sub-folders included. G'MIC
+// compressed LUTs (.gmz) are read by lut3d_gmz.cpp (area E) once the file is chosen.
+static const char *const lut_extensions[] = {".png", ".cube", ".3dl", ".gmz", NULL};
 static void lut_list(dt_iop_module_t *module, OmList *list) {
     gchar *root = dt_conf_get_string("plugins/darkroom/lut3d/def_path");
     const char *filepath = param(module, "filepath");
@@ -714,10 +715,12 @@ static void lut_list(dt_iop_module_t *module, OmList *list) {
                                   filepath && !strcmp(filepath, rel));
             if (set) {
                 json_object_set_string_member(set, "filepath", rel);
-                // _filepath_callback (lut3d.c:1460-1480): a new file drops a compressed LUT.
-                if (has_param(module, "nb_keypoints"))
+                // _filepath_callback (lut3d.c:1460-1480): a new file drops a compressed LUT;
+                // a new .gmz keeps the LUT name, the file is then read (lut3d_gmz_params.c).
+                const gboolean gmz = g_str_has_suffix(rel, ".gmz") || g_str_has_suffix(rel, ".GMZ");
+                if (has_param(module, "nb_keypoints") && !gmz)
                     json_object_set_int_member(set, "nb_keypoints", 0);
-                if (has_param(module, "lutname"))
+                if (has_param(module, "lutname") && !gmz)
                     json_object_set_string_member(set, "lutname", "");
             }
             g_free(folder);
@@ -810,7 +813,8 @@ static int set_lut_file(dt_iop_module_t *module, const char *path) {
     gchar *rel = below(root, path);
     g_free(root);
     int error = rel && has_extension(rel, lut_extensions) ? write_text(module, "filepath", rel) : 5;
-    if (!error) {
+    // a .gmz keeps the LUT name and is read after the edit (lut3d_gmz_params.c)
+    if (!error && !g_str_has_suffix(rel, ".gmz") && !g_str_has_suffix(rel, ".GMZ")) {
         int *keypoints = param(module, "nb_keypoints");
         if (keypoints)
             *keypoints = 0;
@@ -946,6 +950,9 @@ void om_module_describe_choices(dt_iop_module_t *module, JsonObject *entry) {
         const char *filepath = param(module, "filepath");
         if (filepath)
             json_object_set_string_member(labels, "filepath", filepath);
+        const char *lutname = param(module, "lutname");
+        if (lutname)
+            json_object_set_string_member(labels, "lutname", lutname);
     } else if (!strcmp(op, "watermark")) {
         const char *filename = param(module, "filename");
         if (filename) {
@@ -1019,6 +1026,25 @@ char *om_engine_module_choices(OmEngine *engine, const char *operation, int inst
         lens_values(module, name, &list);
     else if (!strcmp(operation, "lut3d") && !strcmp(name, "filepath"))
         lut_list(module, &list);
+    else if (!strcmp(operation, "lut3d") && !strcmp(name, "lutname")) {
+        // area E: the LUTs of a .gmz file (darktable's lutname list, lut3d.c:1714-1745)
+        char *names = om_lut3d_gmz_names(module);
+        JsonNode *parsed = names ? json_from_string(names, NULL) : NULL;
+        const char *current = param(module, "lutname");
+        if (parsed && JSON_NODE_HOLDS_ARRAY(parsed)) {
+            JsonArray *array = json_node_get_array(parsed);
+            for (guint i = 0; i < json_array_get_length(array); ++i) {
+                const char *lut = json_array_get_string_element(array, i);
+                JsonObject *set = add(&list, lut, NULL, NULL, current && !strcmp(current, lut));
+                if (set)
+                    json_object_set_string_member(set, "lutname", lut);
+            }
+        } else
+            error = "the chosen file is not a compressed LUT (.gmz)";
+        if (parsed)
+            json_node_unref(parsed);
+        g_free(names);
+    }
     else if (!strcmp(operation, "watermark") && !strcmp(name, "filename"))
         marker_list(module, &list);
     else if (!strcmp(operation, "rasterfile") && !strcmp(name, "file"))

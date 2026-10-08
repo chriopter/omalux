@@ -72,6 +72,9 @@ def main():
                 raise RuntimeError(result.stdout[-12000:])
             print(next((line for line in result.stdout.splitlines() if line.startswith('Totals')), ''), flush=True)
         shutil.copytree(ROOT / 'catalog/styles', work / 'styles')
+        # A G'MIC compressed LUT file with two LUTs below the LUT root (module-tools-rest.json).
+        subprocess.run(['gmic', '-v', '-1', '/usr/share/gmic/gmic_cluts.gmz', 'k[0,1]', 'o',
+                        str(work / 'styles' / 'two-luts.gmz')], check=True)
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
                    OMALUX_STYLES_DIR=str(work / 'styles'))

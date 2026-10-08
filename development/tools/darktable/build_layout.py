@@ -181,7 +181,8 @@ CHOICES = {
     ("lens", "aperture"): dict(list="aperture", search=True),
     ("lens", "distance"): dict(list="distance", search=True),
     ("lut3d", "filepath"): dict(list="filepath", search=True, browse="@lut_file",   # lut3d.c:1570-1675
-                                filters=["LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)", "All files (*)"]),
+                                filters=["LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL *.gmz *.GMZ)", "All files (*)"]),
+    ("lut3d", "lutname"): dict(list="lutname", search=True),     # the LUTs of a .gmz file, lut3d.c:1714-1745
     ("watermark", "filename"): dict(list="filename"),             # watermark.c:1142-1207
     ("rasterfile", "file"): dict(list="file", browse="@raster_file",                 # rasterfile.c:322-424
                                  filters=["raster masks (*.pfm *.PFM *.png *.PNG)"]),

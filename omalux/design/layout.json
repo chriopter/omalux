@@ -11784,7 +11784,7 @@
         "search": true,
         "browse": "@lut_file",
         "filters": [
-         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)",
+         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL *.gmz *.GMZ)",
          "All files (*)"
         ]
        },
@@ -11796,7 +11796,7 @@
        "label": "",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11811,10 +11811,14 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "lutname"
-        ]
+        ],
+        "list": "lutname",
+        "search": true,
+        "browse": null,
+        "filters": []
        },
        "action": "(LUT name entry + list)"
       },
@@ -11934,7 +11938,7 @@
         "search": true,
         "browse": "@lut_file",
         "filters": [
-         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)",
+         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL *.gmz *.GMZ)",
          "All files (*)"
         ]
        },
@@ -11946,7 +11950,7 @@
        "label": "",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11961,10 +11965,14 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "lutname"
-        ]
+        ],
+        "list": "lutname",
+        "search": true,
+        "browse": null,
+        "filters": []
        },
        "action": "(LUT name entry + list)"
       },

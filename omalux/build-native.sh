@@ -39,6 +39,15 @@ for source in omalux/native/engine/*.c; do
     -c "$source" -o "$object"
   objects+=("$object")
 done
+# Engine parts in C++: the G'MIC compressed LUT reader (lut3d_gmz.cpp, linked with libgmic).
+for source in omalux/native/engine/*.cpp; do
+  [[ -e "$source" ]] || continue
+  relative="${source#omalux/native/}"
+  object="omalux/build/objects/${relative%.cpp}.o"
+  mkdir -p "$(dirname "$object")"
+  c++ -std=c++17 -O2 -fPIC $(pkg-config --cflags glib-2.0) -c "$source" -o "$object"
+  objects+=("$object")
+done
 moc_sources=()
 for header in omalux/native/app/editor.h omalux/native/app/engine_worker.h; do
   source="omalux/build/moc_$(basename "${header%.h}").cpp"
@@ -57,6 +66,6 @@ for source in omalux/native/main.cpp omalux/native/app/*.cpp omalux/native/dev/*
   objects+=("$object")
 done
 c++ -pthread "${objects[@]}" "$library" \
-  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lensfun) -fopenmp \
+  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lensfun) -lgmic -fopenmp \
   -Wl,-rpath,"$(dirname "$library")" -o omalux/build/omalux
 printf '%s\n' "$library" > omalux/build/library-path
