@@ -7,8 +7,10 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QDebug>
+#include <QFileInfo>
 int main(int argc, char **argv) {
-    QQuickStyle::setStyle("Basic");
+    // Basic, with the menus themed (omalux/ui/style/Omalux).
+    QQuickStyle::setStyle("Omalux");
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName("Omalux");
     QCoreApplication::setOrganizationDomain("omalux.org");
@@ -24,6 +26,7 @@ int main(int argc, char **argv) {
         dtargs.push_back(args[i].toUtf8());
     // Editor joins its worker before QML destroys the image providers.
     QQmlApplicationEngine engine;
+    engine.addImportPath(QFileInfo(QStringLiteral(OMALUX_QML)).absolutePath() + QStringLiteral("/style"));
     Editor editor(frames, hoverFrames, args[1], std::move(dtargs));
     engine.addImageProvider("preview", frames);
     engine.addImageProvider("hover", hoverFrames);
