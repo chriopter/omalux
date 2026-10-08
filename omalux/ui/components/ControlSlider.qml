@@ -136,9 +136,11 @@ Item {
                         width: 4; height: 4; radius: 2
                         color: root.theme.accent
                     }
-                    ModuleIcon {
-                        visible: root.moduleIconKey !== ""
-                        moduleKey: root.moduleIconKey
+                    // Only curated rows carry a module icon; generated rows skip building one.
+                    Loader {
+                        active: root.moduleIconKey !== ""
+                        visible: active
+                        sourceComponent: ModuleIcon { moduleKey: root.moduleIconKey }
                     }
                     Text {
                         id: controlLabel
@@ -212,15 +214,19 @@ Item {
             }
         }
     }
-    DisclosureButton {
-        objectName: "control-details-" + root.control.id
-        visible: root.detailsAvailable
+    // Only rows with details have the chevron; the others do not build one.
+    Loader {
+        active: root.detailsAvailable
+        visible: active
         anchors.right: parent.right
         y: titleRow.y + (titleRow.height - height) / 2
-        theme: root.theme
-        expanded: root.detailsExpanded
-        onClicked: root.detailsRequested()
-        Accessible.name: (root.detailsExpanded ? "Hide details for " : "Details for ") + root.control.label
+        sourceComponent: DisclosureButton {
+            objectName: "control-details-" + root.control.id
+            theme: root.theme
+            expanded: root.detailsExpanded
+            onClicked: root.detailsRequested()
+            Accessible.name: (root.detailsExpanded ? "Hide details for " : "Details for ") + root.control.label
+        }
     }
 
 }
