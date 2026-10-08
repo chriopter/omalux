@@ -22,6 +22,8 @@ Column {
     property string settingsKey: "default"
     // A list under another pane's content (Styles, Crop) starts with a caption instead of a gap.
     property string caption: ""
+    // Modules as compact cards (icon and name) that open on the chevron: the Advanced list.
+    property bool compact: false
     signal changesRequested(string operation, int instance, var changes)
     signal enableRequested(string operation, int instance, bool enabled)
     signal resetRequested(string operation, int instance, var module)
@@ -95,7 +97,7 @@ Column {
         }
         return find(root)
     }
-    function groupOpen(g) { return term !== "" || caption !== "" || (g.id in openGroups ? openGroups[g.id] : !g.quiet) }
+    function groupOpen(g) { return term !== "" || caption !== "" || !!g.fixed || (g.id in openGroups ? openGroups[g.id] : !g.quiet) }
     function expand(operation) {
         const next = Object.assign({}, expandedModules); next[operation] = true; expandedModules = next
     }
@@ -127,12 +129,19 @@ Column {
             readonly property bool open: root.groupOpen(modelData)
             width: root.width
             visible: count > 0
-            spacing: 8
+            spacing: root.compact ? 6 : 8
+            // A fixed group (a pane's "Advanced") is always open: a plain heading as in Filters.
+            Text {
+                visible: !!group.modelData.fixed && root.caption === ""
+                text: group.modelData.label
+                color: root.theme.muted; font: root.theme.settingsFont
+                topPadding: 18; bottomPadding: 2
+            }
             ToolButton {
                 id: groupHeading
                 objectName: "module-group-" + group.modelData.id
                 // Under a caption (Styles, Crop) the few modules read as one flat list.
-                visible: root.caption === ""
+                visible: root.caption === "" && !group.modelData.fixed
                 width: parent.width
                 padding: 0
                 topPadding: 12; bottomPadding: 2
@@ -184,7 +193,7 @@ Column {
                 visible: group.open
                 sourceComponent: Column {
                     width: group.width
-                    spacing: 8
+                    spacing: root.compact ? 6 : 8
                     Repeater {
                         model: group.modelData.modules
                         delegate: Column {
@@ -192,7 +201,7 @@ Column {
                             required property var modelData
                             readonly property var instanceList: (root.catalogModel.instances[modelData.operation] || [0])
                             width: group.width
-                            spacing: 8
+                            spacing: root.compact ? 6 : 8
                             visible: { root.states; return root.catalogModel.moduleShown(modelData) && root.catalogModel.moduleMatches(modelData, root.term) }
                             Repeater {
                                 model: moduleEntry.instanceList
@@ -209,6 +218,7 @@ Column {
                                     overrides: root.overrides
                                     editable: root.editable
                                     term: root.term
+                                    compact: root.compact
                                     expanded: root.term !== "" || !!root.expandedModules[moduleEntry.modelData.operation]
                                     moreOpen: !!root.moreModules[moduleEntry.modelData.operation]
                                     activeControl: root.activeControl

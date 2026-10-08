@@ -503,9 +503,9 @@ Item {
         function test_18_generated_tab() {
             press(Qt.Key_2)
             compare(sidebar.selectedPanel, 5, "3: Tone")
-            compare(order().slice(0, 4), ["module-group:tone", "module:sigmoid/0", "sigmoid/0/middle_grey_contrast", "module:rgbcurve/0"],
-                    "group heading, module heading, primary row, next module")
-            press(Qt.Key_Down); press(Qt.Key_Down); press(Qt.Key_Down)
+            compare(order().slice(0, 2), ["sigmoid/0/middle_grey_contrast", "module:rgbcurve/0"],
+                    "the summary row, then the Advanced cards without rows; sigmoid is not repeated")
+            press(Qt.Key_Down)
             compare(selected(), "sigmoid/0/middle_grey_contrast")
             verify(keyboard.hintText.indexOf("[←/→] contrast") >= 0, keyboard.hintText)
             const contrast = Fixture.modules.find(m => m.operation === "sigmoid").parameters[0]
@@ -521,11 +521,11 @@ Item {
             tryVerify(() => edits().some(e => e[2] === "@enabled" && e[3] === 1), 1500, "E switches the module through its heading")
             press(Qt.Key_R, Qt.ShiftModifier)
             compare(JSON.stringify(top.logged("resetModule")), JSON.stringify([["resetModule", "sigmoid", 0]]), "Shift+R resets the module")
-            // Enter on the heading opens the detail rows.
-            press(Qt.Key_Up)
-            compare(selected(), "module:sigmoid/0")
+            // Enter on the summary row opens the whole module in its place.
             press(Qt.Key_Return)
-            press(Qt.Key_Down); press(Qt.Key_Down)
+            tryVerify(() => order()[0] === "module:sigmoid/0", 1500, "the module heading replaces the row: " + JSON.stringify(order()))
+            keyboard.selectId("sigmoid/0/middle_grey_contrast"); wait(20)
+            press(Qt.Key_Down)
             compare(selected(), "sigmoid/0/contrast_skewness", "the detail rows follow the primary row")
             press(Qt.Key_Left)
             tryVerify(() => edits().some(e => e[2] === "contrast_skewness"), 1500)

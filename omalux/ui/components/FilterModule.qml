@@ -18,6 +18,8 @@ Column {
     property var overrides: ({})
     property bool moreOpen: false
     property string term: ""
+    // Prefix of the object names, so a block shown in another pane's summary stays distinct.
+    property string namePrefix: ""
     signal moreRequested()
     signal parameterChangesRequested(var changes)
     // Edits and actions of further instances of this module (darktable's multi-instance).
@@ -91,7 +93,7 @@ Column {
             spacing: 6
             ToolButton {
                 id: heading
-                objectName: "module-toggle-" + root.section.module
+                objectName: root.namePrefix + "module-toggle-" + root.section.module
                 Layout.fillWidth: true
                 padding: 0
                 enabled: root.editable
@@ -116,7 +118,7 @@ Column {
             }
             InstanceButton {
                 id: instanceButton
-                objectName: "module-instances-" + root.section.module
+                objectName: root.namePrefix + "module-instances-" + root.section.module
                 visible: !root.section.shortcut && !!root.moduleState && root.term === ""
                 theme: root.theme
                 moduleState: root.moduleState
@@ -127,7 +129,7 @@ Column {
             }
         }
         DisclosureButton {
-            objectName: "module-details-" + root.section.module
+            objectName: root.namePrefix + "module-details-" + root.section.module
             visible: root.hasDetails
             anchors.right: parent.right
             anchors.verticalCenter: headerContent.verticalCenter
@@ -142,7 +144,7 @@ Column {
         model: root.section.controls
         delegate: ControlSlider {
             required property var modelData
-            objectName: "filter-control-" + modelData.id + (root.section.module === "colisa" && !root.section.shortcut && modelData.id !== "contrast" ? "-module" : "")
+            objectName: root.namePrefix + "filter-control-" + modelData.id + (root.section.module === "colisa" && !root.section.shortcut && modelData.id !== "contrast" ? "-module" : "")
             readonly property bool secondary: !root.section.primary.includes(modelData.id)
             x: 0
             width: parent.width - x
@@ -152,7 +154,8 @@ Column {
             moduleToggleAvailable: !root.headerVisible
             moduleIconKey: !root.headerVisible ? root.section.module : ""
             qualifyLabel: !root.headerVisible
-            displayLabel: modelData.id === "vibrance" ? "vibrance"
+            displayLabel: !root.headerVisible && root.section.label ? root.section.label
+                : modelData.id === "vibrance" ? "vibrance"
                 : !root.headerVisible && root.section.shortTitle ? root.section.name
                 : root.headerVisible && modelData.section.includes(" · ")
                   ? modelData.section.split(" · ").slice(1).join(" · ") + " · " + modelData.label : ""
@@ -203,7 +206,7 @@ Column {
         implicitHeight: 22
         ToolButton {
             id: moreButton
-            objectName: "module-more-" + root.section.module
+            objectName: root.namePrefix + "module-more-" + root.section.module
             padding: 0
             hoverEnabled: true
             onClicked: root.moreRequested()
@@ -284,7 +287,7 @@ Column {
             model: instancesBox.visible ? root.extraInstances : []
             delegate: GeneratedModule {
                 required property int modelData
-                objectName: "generated-module-" + root.section.module + "-" + modelData
+                objectName: root.namePrefix + "generated-module-" + root.section.module + "-" + modelData
                 width: instancesBox.width
                 theme: root.theme
                 module: root.catalogModel.moduleForInstance(root.extraModule, modelData)

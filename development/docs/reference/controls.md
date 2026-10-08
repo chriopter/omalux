@@ -61,7 +61,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 - **Order.** The selectable items are the `NavTarget`s of the visible sidebar pane, ordered by where they are shown (top to bottom, then left to right). ↑/↓ cross module and group boundaries, stop at the first and last item (no wrap), and skip disabled items. Collapsed parameters, hidden panes and the other filter view are never reached: a hidden pane never receives keys. Only a direct shortcut (`G`, `S`, `M`) opens a collapsed module to select its parameter. Panes without items (Info) scroll with ↑/↓.
 - **Selection.** Each pane remembers its selection; a new pane starts at the item it marks as active (the active control, the current history step, the last applied style). The selection is marked in the accent colour and is scrolled into view at once, by the smallest movement with a small margin, also when a key adjusts it after the wheel moved it away.
 - **Blending and instances.** The rows of the blend section are ordinary stops (sliders, choices, switches, channel chips; the parametric ranges are graphs). The multi-instance button in a heading is not an ↑/↓ stop; the last stop of an open module, **multiple instances**, opens its menu with Enter.
-- **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
+- **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: the summary rows of a pane (←/→ adjust, Enter opens the whole module in their place, `E` switches it, `Shift+R` resets it), group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
 - **Focus.** Clicking a control selects it for the keyboard, then focus returns to the navigator once the mouse button is released (a button that loses focus while pressed drops its click, so the navigator waits for the release); the same happens after menus, the value entry and dialogs close. Text fields keep all keys while typing (no shortcut fires); `Esc` leaves the field, `Enter` or `↓` leave it and select the item below. Popups and dialogs own their keys while open (`Esc` closes them, including the colour popup of a swatch).
@@ -298,7 +298,8 @@ rows. Three inputs feed it:
   enum values, widget, tab/section, condition, action path and source line.
 - `omalux/design/layout-decisions.json` — our own choices only: group membership and order,
   hidden modules, which modules belong to the curated block, rows left out or replaced by a
-  notice, primary and tier overrides, coloured tracks and short notes.
+  notice, primary and tier overrides, coloured tracks, the summary and Advanced order of the
+  module panes (`panes`), display labels and short notes.
 - `omalux/native/engine/controls.h` — rows registered there stay in the curated block and are
   dropped from the generated modules.
 
@@ -335,10 +336,37 @@ unlabelled get an empty label.
 
 ### How the panes use it
 
-The Filters pane keeps the curated block unchanged. Every other module is shown from the layout:
+The Filters pane keeps the curated block unchanged. Every other module is shown from the layout,
+and Tone, Color, Detail and Effects follow the Filters pattern (layout.json `panes`, from the
+decisions' `panes` block):
 
-- **Tone** lists `base` and `tone`, **Color** `color`, **Detail** `correct` plus `technical` as a
-  quiet group that starts collapsed, **Effects** `effect`. Look-like modules (color look up table,
+- **Summary.** Each pane starts with a short list of the controls a photographer reaches for
+  first, drawn like the Filters rows: module icon, a plain short label, the value, a dot while the
+  module is on (a click on the label switches it), coloured tracks where the value has a visual
+  meaning, and a chevron that opens the whole module in place of its rows (closing it brings the
+  rows back). Rows of a curated module open its curated block; the others open the generated
+  module with every instance. **Tone**: exposure, the contrast of the tone mapper the image uses
+  (sigmoid, or filmic rgb / AgX with their white and black point), tone equalizer highlights
+  (−2 EV) and shadows (−4 EV). **Color**: white balance (color calibration's temperature), chroma
+  and saturation (color balance rgb's global chroma and global saturation), velvia, and color
+  contrast's green–magenta and blue–yellow. **Detail**: sharpen, local contrast, denoise, haze
+  removal. **Effects**: grain, vignetting, bloom, soften, graduated filter (graduated density),
+  frame (framing). The labels are short names for darktable's sliders; the expanded modules keep
+  darktable's labels, units and ranges.
+- **Advanced.** Every other module of the pane follows as a compact card (icon, name, instance
+  button, chevron; no rows until opened), most used first in the decisions' order (curves and
+  levels first in Tone, color equalizer and color zones in Color, retouch in Detail). A module
+  with a summary row is not repeated; the other tone mappers stay under Advanced. Modules the
+  order does not name follow in darktable's group order, so none is lost. In **Detail** the
+  `technical` modules form a quiet group that starts collapsed.
+- **Search.** While searching, the summary steps aside and every matching module of the pane
+  opens, grouped as before.
+- **Icons.** Every module has an icon in `assets/icons/module-<operation>.svg` (24 px grid,
+  1.5 px round strokes), shown on the summary rows, cards and module headings.
+- **Tone equalizer bands** are labelled with their params member before darktable's label
+  (`deep blacks -6 EV`); the decisions' `display_labels` block sets such labels, the rows keep
+  darktable's own `label`.
+- Look-like modules (color look up table,
   color mapping, split-toning) sit under the style cards in **Styles**; rotate and perspective
   (the rows the crop pane lacks), orientation and lens correction sit under **Crop & Rotate**.
   Deprecated modules appear in the pane of the group they used to belong to, under
@@ -350,8 +378,8 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   heading stays on screen; closing one keeps the pane where it is (a bottom margin takes up the lost
   height until the pane is scrolled up), so a second click at the same spot reopens it. A value set
   on a row stays shown until the engine reports it, even when updates for earlier edits arrive first.
-- Group headings use darktable's group names, collapse with a click and show the number of
-  modules. Each module uses the curated block's visual language: heading with darktable's
+- Group headings (technical, deprecated, and the groups shown while searching) use darktable's
+  group names, collapse with a click and show the number of modules. Each module uses the curated block's visual language: heading with darktable's
   module name and an accent dot (click toggles the module and the dot follows at once, before the
   engine has rendered; right-click offers enable/disable and reset, hovering shows darktable's
   purpose until the next click), primary rows visible while collapsed (labelled

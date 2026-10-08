@@ -19,6 +19,10 @@ Column {
     property bool moreOpen: false
     property string term: ""
     property string activeControl: ""
+    // A compact card (the Advanced list of a pane): the module icon and name only until it is
+    // opened, like the Advanced cards of the Filters pane.
+    property bool compact: false
+    readonly property bool cardOnly: compact && !expanded && term === ""
     signal expansionRequested()
     signal moreRequested()
     signal changesRequested(var changes)
@@ -49,8 +53,9 @@ Column {
     // (EditorSidebar.changeParameters): {"@instance": action, "@name": name}, {"@drawn": type}.
     function requestInstance(action, name) { root.changesRequested({ "@instance": action, "@name": name }) }
     spacing: 4
-    topPadding: 12
-    bottomPadding: 8
+    // The heading keeps its place when the card opens or closes (a second click hits it again).
+    topPadding: compact ? 0 : 12
+    bottomPadding: cardOnly ? 4 : 8
 
     Item {
         id: moduleHeader
@@ -107,12 +112,26 @@ Column {
                 contentItem: RowLayout {
                     spacing: 7
                     Rectangle { opacity: root.moduleEnabled ? 1 : 0; width: 7; height: 7; radius: 3.5; color: root.theme.ink }
+                    ModuleIcon {
+                        moduleKey: root.module.operation
+                        opacity: root.moduleEnabled ? 1 : .6
+                    }
+                    Text {
+                        text: root.module.name
+                        color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
+                        font: root.theme.moduleHeadingFont
+                    }
+                    // The instance name (often a preset name) in a quieter tone, cut where the
+                    // heading ends, so it never wraps the card.
                     Text {
                         Layout.fillWidth: true
-                        text: root.title
-                        color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
-                        font: root.theme.moduleHeadingFont; wrapMode: Text.WordWrap
+                        visible: root.instanceLabel !== ""
+                        text: "• " + root.instanceLabel
+                        color: root.theme.muted
+                        font: root.theme.textFont
+                        elide: Text.ElideRight
                     }
+                    Item { Layout.fillWidth: true; visible: root.instanceLabel === "" }
                     Text {
                         visible: !!root.module.deprecated
                         text: "deprecated"
@@ -189,6 +208,7 @@ Column {
         overridePrefix: root.module.operation + "/" + root.instance + "/"
         editable: root.editable && !!root.moduleState
         expanded: root.expanded
+        collapsedRows: !root.compact
         moreOpen: root.moreOpen
         term: root.term
         nameMatched: root.nameMatched

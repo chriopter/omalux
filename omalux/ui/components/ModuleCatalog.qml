@@ -229,12 +229,68 @@ QtObject {
         if (deprecated.length) out.push({ id: "deprecated", label: "deprecated", quiet: true, deprecated: true, modules: deprecated })
         return out
     }
+    // The summary and Advanced order of a module pane (layout.json "panes", from
+    // layout-decisions.json): the Filters pattern for Tone, Color, Detail and Effects.
+    readonly property var panes: layout.panes || ({})
+    function moduleUsed(operation) {
+        return (instances[operation] || []).some(i => states[operation + "/" + i] && states[operation + "/" + i].enabled)
+    }
+    // What the summary of a pane depends on besides the layout: which alternative modules the
+    // image uses. Panes rebuild their summary only when this text changes, not on every edit.
+    function pickState(tab) {
+        const spec = panes[tab]
+        if (!spec) return ""
+        return spec.summary.filter(e => e.pick).map(e => e.module + ":" + moduleUsed(e.module)).join(",")
+    }
+    // Summary blocks of a pane: { control, label } for a registered control, or { module, rows }
+    // for neighbouring slider rows of one generated module. Of the alternatives sharing a "pick"
+    // (the tone mappers) only the first module the image uses is kept, the first listed if none.
+    function summaryFor(tab) {
+        const spec = panes[tab]
+        if (!spec) return []
+        const picked = {}
+        for (const e of spec.summary) {
+            if (!e.pick || picked[e.pick] !== undefined) continue
+            const candidates = spec.summary.filter(x => x.pick === e.pick).map(x => x.module)
+            picked[e.pick] = candidates.find(op => moduleUsed(op)) || candidates[0]
+        }
+        const out = []
+        for (const e of spec.summary) {
+            if (e.control) { out.push({ key: "control:" + e.control, control: e.control, label: e.label }); continue }
+            if (e.pick && picked[e.pick] !== e.module) continue
+            const m = modulesByOperation[e.module]
+            if (!m) continue
+            const row = m.rows.find(r => r.field === e.field)
+            if (!row) continue
+            const last = out.length ? out[out.length - 1] : null
+            const entry = { field: e.field, label: e.label, colors: e.colors, row: row }
+            if (last && last.module && last.module.operation === e.module) last.rows.push(entry)
+            else out.push({ key: "module:" + e.module, module: m, rows: [entry] })
+        }
+        return out
+    }
+    // The Advanced list of a pane: every module of the tab in the pane's order (modules the order
+    // does not name follow in darktable's group order), without those `shown` in the summary;
+    // technical and deprecated modules stay in their own collapsed groups.
+    function advancedFor(tab, shown) {
+        const order = (panes[tab] || {}).advanced || []
+        const rank = op => { const i = order.indexOf(op); return i < 0 ? order.length : i }
+        const main = [], rest = []
+        for (const g of groupsForTab(tab)) {
+            if (g.id === "technical" || g.deprecated) { rest.push(g); continue }
+            for (const m of g.modules) if (!shown.includes(m.operation)) main.push(m)
+        }
+        const sorted = main.map((m, i) => ({ m: m, i: i })).sort((a, b) => rank(a.m.operation) - rank(b.m.operation) || a.i - b.i).map(x => x.m)
+        const out = []
+        if (sorted.length) out.push({ id: "advanced", label: "Advanced", fixed: true, quiet: false, modules: sorted })
+        return out.concat(rest)
+    }
     function labelOf(m) { return m.name || m.operation }
     // A search term matches a module by its darktable name or operation, or one of its rows.
     function moduleMatches(m, term) {
         if (!term) return true
         if (labelOf(m).toLowerCase().indexOf(term) >= 0 || m.operation.toLowerCase().indexOf(term) >= 0) return true
-        return m.rows.some(r => (r.label || "").toLowerCase().indexOf(term) >= 0)
+        return m.rows.some(r => ((r.display || "") + " " + (r.label || "")).toLowerCase().indexOf(term) >= 0)
     }
     function moduleNameMatches(m, term) {
         return !term || labelOf(m).toLowerCase().indexOf(term) >= 0 || m.operation.toLowerCase().indexOf(term) >= 0

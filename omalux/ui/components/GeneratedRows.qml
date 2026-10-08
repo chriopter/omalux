@@ -23,6 +23,8 @@ Column {
     property bool editable: true
     property bool expanded: false
     property bool moreOpen: false
+    // Primary rows stay on screen while the module is collapsed; a compact card shows none.
+    property bool collapsedRows: true
     // Curated blocks: every row is secondary and shows only while moreOpen.
     property bool extraMode: false
     property string term: ""
@@ -151,7 +153,7 @@ Column {
         const sa = (r.soft_min !== null ? r.soft_min : r.min) * f + o
         const sb = (r.soft_max !== null ? r.soft_max : r.max) * f + o
         const digits = r.digits !== undefined && r.digits !== null ? r.digits : 2
-        return { id: id, label: r.label || r.field, unit: r.unit || "", colors: r.colors || "",
+        return { id: id, label: r.display || r.label || r.field, unit: r.unit || "", colors: r.colors || "",
                  decimals: digits, step: digits > 0 ? Math.pow(10, -digits) : 1,
                  minimum: Math.min(a, b), maximum: Math.max(a, b),
                  softMinimum: Math.min(sa, sb), softMaximum: Math.max(sa, sb),
@@ -178,7 +180,7 @@ Column {
         const out = []
         const id = r => module.operation + "/" + root.instance + "/" + (r.path || r.field)
         const base = r => ({ row: r, tier: r.tier === "primary" && ["slider", "combobox", "toggle", "text"].indexOf(r.widget) < 0 ? "detail" : r.tier,
-                             tab: r.tab, section: r.section, cond: r.visible_when, labels: [r.label] })
+                             tab: r.tab, section: r.section, cond: r.visible_when, labels: [r.label, r.display || ""] })
         for (const r of module.rows) {
             const path = r.path
             const local = path && path.startsWith("@") && path.indexOf("[") < 0 && localNames[path]
@@ -316,7 +318,7 @@ Column {
         return withSections
     }
     readonly property bool hasAdvanced: items.some(it => it.tier === "advanced")
-    readonly property bool hasDetails: items.some(it => it.tier !== "primary" && it.kind !== "section")
+    readonly property bool hasDetails: items.some(it => (it.tier !== "primary" || !root.collapsedRows) && it.kind !== "section")
     Component.onCompleted: {
         const g = {}
         for (const r of module.rows)
@@ -407,7 +409,7 @@ Column {
             if (searching) ok = root.matches(it)
             else if (root.extraMode) ok = root.moreOpen && (!tabs.length || !it.tab || it.tab === tabs[root.tabIndex])
             else {
-                const tier = it.tier === "primary" || (it.tier === "detail" && root.expanded)
+                const tier = (it.tier === "primary" && (root.expanded || root.collapsedRows)) || (it.tier === "detail" && root.expanded)
                              || (it.tier === "advanced" && root.expanded && root.moreOpen)
                 const tab = !tabs.length || !it.tab || it.tab === tabs[root.tabIndex] || (!root.expanded && it.tier === "primary")
                 ok = tier && tab

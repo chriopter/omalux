@@ -68,7 +68,8 @@ def main():
         # QML component and keyboard tests first: fast, no engine needed.
         for test in sorted((ROOT / 'omalux/tests/components').glob('tst_*.qml')):
             print('Running', test.name, flush=True)
-            env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_CONFIG_HOME=str(work / 'config-qml'))
+            env = dict(os.environ, QT_QPA_PLATFORM='offscreen', XDG_CONFIG_HOME=str(work / 'config-qml'),
+                       QML_XHR_ALLOW_FILE_READ='1')  # tst_panes reads the generated layout
             result = subprocess.run(['/usr/lib/qt6/bin/qmltestrunner', '-input', str(test)], cwd=ROOT, env=env,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=240)
             if result.returncode:

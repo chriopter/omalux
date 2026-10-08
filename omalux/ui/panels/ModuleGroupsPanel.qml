@@ -1,9 +1,14 @@
 import QtQuick
 import QtQuick.Controls
+import QtCore
 import "../components"
 
-// A sidebar pane listing darktable modules by group, built from the generated layout. The
-// Tone, Color, Detail and Effects panes are this pane with their own groups.
+// A module pane built like the Filters pane: on top a short summary of the controls a
+// photographer reaches for first (layout.json "panes", ModuleCatalog.summaryFor), each row with
+// its module icon, a plain label, the value and the chevron that opens the whole module in
+// place; below, "Advanced" lists every other module of the pane as a compact card. The Tone,
+// Color, Detail and Effects panes are this pane with their own tab. While searching, the summary
+// steps aside and every matching module of the pane opens, as before.
 SidebarScrollView {
     id: root
     required property var theme
@@ -14,29 +19,176 @@ SidebarScrollView {
     property bool editable: true
     property string term: ""
     property string activeControl: ""
+    // The registered controls (backend.controls / controlValues) for summary rows of curated
+    // modules, which open as their curated block (FilterModule) as in the Filters pane.
+    property var controls: []
+    property var values: ({})
     signal changesRequested(string operation, int instance, var changes)
     signal enableRequested(string operation, int instance, bool enabled)
     signal resetRequested(string operation, int instance, var module)
     signal interactionChanged(bool active)
     signal controlSelected(string id)
+    signal controlEdited(string id, real value)
+    signal controlReset(string id)
+    signal halationRequested()
 
-    readonly property var groups: catalogModel.groupsForTab(tab)
+    readonly property string shownTerm: visible ? term : ""
+    // Rebuilt only when the layout or the active tone mapper changes: rebuilding on every edit
+    // would recreate the row being dragged.
+    readonly property string summaryState: { root.states; return JSON.stringify(Object.keys(root.catalogModel.panes)) + root.catalogModel.pickState(root.tab) }
+    property var summary: []
+    onSummaryStateChanged: summary = catalogModel.summaryFor(tab)
+    // The modules the summary stands for are not repeated under Advanced.
+    readonly property var summaryModules: summary.map(b => b.module ? b.module.operation : root.moduleOfControl(b.control))
+    readonly property var groups: shownTerm !== "" ? catalogModel.groupsForTab(tab)
+                                                   : catalogModel.advancedFor(tab, summaryModules)
+    function moduleOfControl(id) {
+        const c = root.controls.find(x => x.id === id)
+        return c ? c.module : ""
+    }
+    // The curated block of a module (FiltersPanel.sections), showing one control while closed.
+    function sectionFor(operation, primary, label) {
+        const m = root.catalogModel.modulesByOperation[operation]
+        return { module: operation, key: operation, name: m ? m.name : operation, label: label,
+                 primary: primary ? [primary] : [],
+                 controls: root.controls.filter(c => c.module === operation && !["System", "Curve", "Geometry"].includes(c.group)) }
+    }
+
+    property var expanded: ({})
+    property bool restoring: true
+    Settings {
+        id: preferences
+        category: "PaneSummary-" + root.tab
+        property string expanded: "{}"
+    }
+    Component.onCompleted: {
+        try { expanded = JSON.parse(preferences.expanded) } catch (e) {}
+        restoring = false
+        summary = catalogModel.summaryFor(tab)
+    }
+    onExpandedChanged: if (!restoring) preferences.expanded = JSON.stringify(expanded)
+    function toggle(key) {
+        const next = Object.assign({}, expanded); next[key] = !next[key]; expanded = next
+    }
 
     Column {
         width: root.availableWidth
         padding: 18
         spacing: 0
+        Column {
+            id: summaryColumn
+            objectName: "pane-summary-" + root.tab
+            visible: root.shownTerm === ""
+            width: parent.width - 36
+            spacing: 8
+            Repeater {
+                model: summaryColumn.visible ? root.summary : []
+                delegate: Loader {
+                    id: entry
+                    required property var modelData
+                    readonly property string operation: modelData.module ? modelData.module.operation : root.moduleOfControl(modelData.control)
+                    readonly property bool open: !!root.expanded[operation]
+                    // Registered controls, and opened curated modules, are the curated block.
+                    readonly property bool curated: !!modelData.control || (open && modelData.module.curated)
+                    width: summaryColumn.width
+                    sourceComponent: curated ? curatedBlock : open ? openModule : rowsBlock
+                    Component {
+                        id: curatedBlock
+                        FilterModule {
+                            width: entry.width
+                            namePrefix: "summary-"
+                            theme: root.theme
+                            section: root.sectionFor(entry.operation, entry.modelData.control || "", entry.modelData.label)
+                            values: root.values
+                            editable: root.editable
+                            activeControl: root.activeControl
+                            expanded: entry.open
+                            extraModule: root.catalogModel.modulesByOperation[entry.operation] || null
+                            moduleState: root.states[entry.operation + "/0"]
+                            catalogModel: root.catalogModel
+                            overrides: root.overrides
+                            moreOpen: !!root.expanded[entry.operation + "-more"]
+                            onMoreRequested: root.toggle(entry.operation + "-more")
+                            onExpansionRequested: root.toggle(entry.operation)
+                            onParameterChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
+                            onInstanceChangesRequested: (instance, changes) => root.changesRequested(entry.operation, instance, changes)
+                            onControlSelected: id => root.controlSelected(id)
+                            onInteractionChanged: active => root.interactionChanged(active)
+                            onControlEdited: (id, value) => root.controlEdited(id, value)
+                            onControlReset: id => root.controlReset(id)
+                            onHalationRequested: root.halationRequested()
+                        }
+                    }
+                    Component {
+                        id: rowsBlock
+                        GeneratedSummary {
+                            width: entry.width
+                            theme: root.theme
+                            block: entry.modelData
+                            moduleState: root.states[entry.operation + "/0"]
+                            catalogModel: root.catalogModel
+                            overrides: root.overrides
+                            editable: root.editable
+                            activeControl: root.activeControl
+                            onExpansionRequested: root.toggle(entry.operation)
+                            onChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
+                            onEnableRequested: on => root.enableRequested(entry.operation, 0, on)
+                            onResetRequested: root.resetRequested(entry.operation, 0, entry.modelData.module)
+                            onInteractionChanged: active => root.interactionChanged(active)
+                            onControlSelected: id => root.controlSelected(id)
+                        }
+                    }
+                    // The whole module, every instance, as in the module lists.
+                    Component {
+                        id: openModule
+                        Column {
+                            width: entry.width
+                            spacing: 8
+                            Repeater {
+                                model: root.catalogModel.instances[entry.operation] || [0]
+                                delegate: GeneratedModule {
+                                    required property int modelData
+                                    objectName: "generated-module-" + entry.operation + (modelData ? "-" + modelData : "")
+                                    width: entry.width
+                                    theme: root.theme
+                                    module: root.catalogModel.moduleForInstance(entry.modelData.module, modelData)
+                                    instance: modelData
+                                    moduleState: root.states[entry.operation + "/" + modelData]
+                                    catalogModel: root.catalogModel
+                                    overrides: root.overrides
+                                    editable: root.editable
+                                    compact: true
+                                    // The first instance is what the summary rows opened; further
+                                    // instances open on their own chevron.
+                                    expanded: modelData === 0 || !!root.expanded[entry.operation + "/" + modelData]
+                                    moreOpen: !!root.expanded[entry.operation + "-more"]
+                                    activeControl: root.activeControl
+                                    onExpansionRequested: modelData === 0 ? root.toggle(entry.operation) : root.toggle(entry.operation + "/" + modelData)
+                                    onMoreRequested: root.toggle(entry.operation + "-more")
+                                    onChangesRequested: changes => root.changesRequested(entry.operation, modelData, changes)
+                                    onEnableRequested: on => root.enableRequested(entry.operation, modelData, on)
+                                    onResetRequested: root.resetRequested(entry.operation, modelData, entry.modelData.module)
+                                    onInteractionChanged: active => root.interactionChanged(active)
+                                    onControlSelected: id => root.controlSelected(id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         ModuleList {
             id: list
             width: parent.width - 36
             theme: root.theme
             groups: root.groups
+            compact: true
             catalogModel: root.catalogModel
             states: root.states
             overrides: root.overrides
             editable: root.editable
             // Only the pane on screen opens its matches; the others follow when shown.
-            term: root.visible ? root.term : ""
+            term: root.shownTerm
             activeControl: root.activeControl
             settingsKey: root.tab
             onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)

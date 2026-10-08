@@ -529,6 +529,11 @@ Rectangle {
             onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
             onInteractionChanged: active => root.backend.setInteractive(active)
             onControlSelected: id => root.controlSelected(id)
+            controls: root.backend.controls
+            values: root.backend.controlValues
+            onControlEdited: (id, value) => root.backend.setControl(id, value)
+            onControlReset: id => root.backend.resetControl(id)
+            onHalationRequested: root.backend.applyHalation()
         }
     }
     Component {
@@ -546,6 +551,11 @@ Rectangle {
             onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
             onInteractionChanged: active => root.backend.setInteractive(active)
             onControlSelected: id => root.controlSelected(id)
+            controls: root.backend.controls
+            values: root.backend.controlValues
+            onControlEdited: (id, value) => root.backend.setControl(id, value)
+            onControlReset: id => root.backend.resetControl(id)
+            onHalationRequested: root.backend.applyHalation()
         }
     }
     Component {
@@ -563,6 +573,11 @@ Rectangle {
             onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
             onInteractionChanged: active => root.backend.setInteractive(active)
             onControlSelected: id => root.controlSelected(id)
+            controls: root.backend.controls
+            values: root.backend.controlValues
+            onControlEdited: (id, value) => root.backend.setControl(id, value)
+            onControlReset: id => root.backend.resetControl(id)
+            onHalationRequested: root.backend.applyHalation()
         }
     }
     Component {
@@ -580,6 +595,11 @@ Rectangle {
             onResetRequested: (operation, instance, module) => root.resetModule(operation, instance, module)
             onInteractionChanged: active => root.backend.setInteractive(active)
             onControlSelected: id => root.controlSelected(id)
+            controls: root.backend.controls
+            values: root.backend.controlValues
+            onControlEdited: (id, value) => root.backend.setControl(id, value)
+            onControlReset: id => root.backend.resetControl(id)
+            onHalationRequested: root.backend.applyHalation()
         }
     }
 }

@@ -58,12 +58,54 @@
   "checkPanel": 5
  },
  {
-  "pointerClick": "module-toggle-toneequal"
+  "pointerClick": "module-toggle-basecurve",
+  "expectTop": true
  },
  {
-  "checkItem": "generated-module-toneequal",
+  "checkItem": "generated-module-basecurve",
   "property": "moduleEnabled",
   "value": true
+ },
+ {
+  "checkParameter": {
+   "operation": "basecurve",
+   "path": "@enabled",
+   "value": 1
+  }
+ },
+ {
+  "pointerClick": "module-details-basecurve"
+ },
+ {
+  "checkItem": "module-details-basecurve",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "module-details-basecurve"
+ },
+ {
+  "checkItem": "module-details-basecurve",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "pointerClick": "module-toggle-basecurve"
+ },
+ {
+  "checkParameter": {
+   "operation": "basecurve",
+   "path": "@enabled",
+   "value": 0
+  }
+ },
+ {
+  "pointerClick": "summary-row-toneequal-shadows",
+  "at": [
+   0.2,
+   0.25
+  ],
+  "expectTop": true
  },
  {
   "checkParameter": {
@@ -73,7 +115,12 @@
   }
  },
  {
-  "pointerClick": "module-details-toneequal"
+  "checkItem": "generated-module-toneequal",
+  "visible": false
+ },
+ {
+  "pointerClick": "control-details-toneequal/0/highlights",
+  "expectTop": true
  },
  {
   "checkItem": "module-details-toneequal",
@@ -81,26 +128,19 @@
   "value": true
  },
  {
+  "checkItem": "summary-row-toneequal-shadows",
+  "visible": false
+ },
+ {
   "pointerClick": "module-details-toneequal"
  },
  {
-  "checkItem": "module-details-toneequal",
-  "property": "expanded",
-  "value": false
- },
- {
-  "pointerClick": "module-group-base"
+  "checkItem": "summary-row-toneequal-shadows",
+  "visible": true
  },
  {
   "checkItem": "module-toggle-toneequal",
   "visible": false
- },
- {
-  "pointerClick": "module-group-base"
- },
- {
-  "checkItem": "module-toggle-toneequal",
-  "visible": true
  },
  {
   "pointerClick": "text:+"
@@ -218,7 +258,7 @@
   "pointerClick": "sidebar-tab-8"
  },
  {
-  "pointerClick": "module-details-soften"
+  "pointerClick": "control-details-soften/0/amount"
  },
  {
   "checkItem": "module-details-soften",
