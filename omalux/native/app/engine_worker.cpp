@@ -2,6 +2,7 @@
 #include "engine_worker.h"
 #include "frames.h"
 #include "image_export.h"
+#include "engine/module_instances.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -235,7 +236,21 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
         int result = 0;
         if (edit.kind == ActionKind::ResetModule)
             result = om_engine_reset_module(engine, operation.constData(), edit.instance);
-        else {
+        else if (edit.kind == ActionKind::ModuleInstance) {
+            // New, duplicated, moved, renamed or deleted instances change the module list:
+            // the whole catalog is described again.
+            int kept = edit.instance;
+            result =
+                om_engine_module_instance(engine, operation.constData(), edit.instance,
+                                          edit.values.value("action").toString().toUtf8().constData(),
+                                          edit.values.value("name").toString().toUtf8().constData(), &kept);
+            if (!result) {
+                moduleCatalog.reload(engine);
+                if (!recipes.contains(edit.operation))
+                    recipes.append(edit.operation);
+                continue;
+            }
+        } else {
             const auto values =
                 QJsonDocument(QJsonObject::fromVariantMap(edit.values)).toJson(QJsonDocument::Compact);
             result =
@@ -244,7 +259,11 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
         if (result) {
             if (error.isEmpty())
                 error = QString("Could not %1 %2 (%3)")
-                            .arg(edit.kind == ActionKind::ResetModule ? "reset" : "edit", edit.operation)
+                            .arg(edit.kind == ActionKind::ResetModule ? "reset"
+                                 : edit.kind == ActionKind::ModuleInstance
+                                     ? edit.values.value("action").toString()
+                                     : "edit",
+                                 edit.operation)
                             .arg(result);
             continue;
         }

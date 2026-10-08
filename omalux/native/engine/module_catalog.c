@@ -11,6 +11,7 @@
 #include "engine_internal.h"
 #include "common/introspection.h"
 #include "controls.h"
+#include "blending.h"
 #include <math.h>
 
 // True when the curated panel already offers this parameter under its own name. The raw
@@ -314,6 +315,9 @@ static JsonObject *describe_module(dt_iop_module_t *module, int position) {
     // Displayed conversions ("derived") and runtime-list texts ("labels"), module_values.c.
     if (introspection)
         om_module_describe_values(module, entry);
+    // Multi-instance state and the blend section (module_instances.c, blending.c).
+    om_instance_describe(entry, module);
+    om_blend_describe(entry, module);
     return entry;
 }
 
@@ -494,8 +498,16 @@ static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const ch
     double *derived_values = g_new0(double, count ? count : 1);
     size_t derived = 0;
     int enable = -1, error = 0;
+    // "blend.*" paths edit the blend section (blending.c), validated with the rest; they are
+    // taken before the "@" conversions of module_values.c.
+    OmBlendEdit blend;
+    om_blend_begin(&blend, module);
     for (size_t i = 0; i < count && !error; ++i) {
         const char *text = texts ? texts[i] : NULL;
+        if (om_blend_path(paths[i])) {
+            error = text ? 5 : om_blend_assign(&blend, module, paths[i], values[i]);
+            continue;
+        }
         // "@enabled" is not a parameter of the module but the module itself being in the pipeline.
         if (!strcmp(paths[i], "@enabled")) {
             if (text || !isfinite(values[i]))
@@ -545,6 +557,10 @@ static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const ch
     g_free(derived_values);
     if (error)
         return error;
+    if (blend.touched) {
+        om_blend_commit(module, &blend);
+        changed = TRUE;
+    }
     if (enable >= 0 && module->enabled != enable) {
         module->enabled = enable;
         changed = TRUE;

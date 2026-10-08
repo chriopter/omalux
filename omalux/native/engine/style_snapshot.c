@@ -28,8 +28,12 @@ char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const 
             include = !strcmp(module->op, only_module);
         if (!include)
             continue;
-        if (module->multi_priority != 0 ||
-            (module->blend_params->mask_mode & (DEVELOP_MASK_MASK | DEVELOP_MASK_RASTER)))
+        // Comparison snapshots (only_module set) target the same image: extra instances and a
+        // raster mask taken from another module of the pipe stay meaningful there. A saved
+        // style travels to other images and still rejects them.
+        const gboolean same_image = only_module != NULL;
+        if ((!same_image && module->multi_priority != 0) ||
+            (module->blend_params->mask_mode & (DEVELOP_MASK_MASK | (same_image ? 0 : DEVELOP_MASK_RASTER))))
             goto unsupported;
         // Do not silently export a dependency which this snapshot writer cannot package.
         if (module->enabled && (!strcmp(module->op, "watermark") || !strcmp(module->op, "overlay") ||
@@ -71,10 +75,10 @@ char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const 
             xml,
             "<plugin><num>%d</num><module>%d</module><operation>%s</operation><op_params>%s</"
             "op_params><enabled>%d</enabled><blendop_params>%s</blendop_params><blendop_version>%d</"
-            "blendop_version><multi_priority>0</multi_priority><multi_name>%s</"
-            "multi_name><multi_name_hand_edited>0</multi_name_hand_edited></plugin>",
+            "blendop_version><multi_priority>%d</multi_priority><multi_name>%s</"
+            "multi_name><multi_name_hand_edited>%d</multi_name_hand_edited></plugin>",
             number++, module->version(), module->op, params, module->enabled, blend,
-            dt_develop_blend_version(), multi);
+            dt_develop_blend_version(), module->multi_priority, multi, module->multi_name_hand_edited);
         g_free(copy);
         g_free(params);
         g_free(blend);

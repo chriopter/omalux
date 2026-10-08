@@ -48,3 +48,17 @@ void om_style_baseline_restore(OmEngine *engine) {
         dt_dev_add_history_item_ext(&engine->dev, module, FALSE, FALSE);
     }
 }
+
+// A deleted instance leaves the baseline, so hover previews do not look it up by an
+// (operation, instance) another module now carries.
+void om_style_baseline_forget(OmEngine *engine, const dt_iop_module_t *module) {
+    for (GList *it = engine->style_baseline; it; it = it->next) {
+        OmStyleBaseline *state = it->data;
+        if (state->module == module) {
+            g_free(state->params);
+            g_free(state);
+            engine->style_baseline = g_list_delete_link(engine->style_baseline, it);
+            return;
+        }
+    }
+}

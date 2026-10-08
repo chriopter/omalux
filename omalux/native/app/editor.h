@@ -27,6 +27,7 @@ class Editor : public QObject {
     Q_PROPERTY(bool developerMode READ developerMode CONSTANT)
     Q_PROPERTY(QString displayData READ displayData CONSTANT)
     Q_PROPERTY(QString layoutData READ layoutData CONSTANT)
+    Q_PROPERTY(QString blendLayoutData READ blendLayoutData CONSTANT)
     Q_PROPERTY(QVariantMap controlValues READ controlValues NOTIFY controlsChanged)
   public:
     Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
@@ -50,6 +51,7 @@ class Editor : public QObject {
     bool developerMode() const;
     QString displayData() const;
     QString layoutData() const;
+    QString blendLayoutData() const;
     QVariantMap controlValues() const;
     Q_INVOKABLE void hoverStyle(const QString &id, bool active);
     Q_INVOKABLE void applyStyle(const QString &id);
@@ -76,6 +78,9 @@ class Editor : public QObject {
     // setParameters with its "set" object, which may contain strings.
     Q_INVOKABLE void requestChoices(const QString &operation, int instance, const QString &list,
                                     const QString &query);
+    // darktable's multi-instance menu: "new", "duplicate", "up", "down", "delete" or "rename".
+    Q_INVOKABLE void moduleInstance(const QString &operation, int instance, const QString &action,
+                                    const QString &name = {});
   signals:
     void historyChanged();
     void changed();

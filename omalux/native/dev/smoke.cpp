@@ -42,7 +42,16 @@ static bool catalogValue(const QString &catalog, const QString &operation, int i
             *value = module["labels"].toObject()[path.mid(7)];
             return !value->isUndefined();
         }
-        for (const auto &row : module["parameters"].toArray()) {
+        // The blend section ("blend.opacity", "blend.blendif_parameters[4]") and the instance
+        // fields ("@multi_name") are members of the module entry, not parameter rows.
+        QJsonArray rows = module["parameters"].toArray();
+        rows.append(QJsonObject{{"path", "blend"}, {"value", module["blend"]}});
+        if (path.startsWith("@") && module.contains(path.mid(1))) {
+            const QJsonValue member = module[path.mid(1)];
+            *value = member.isBool() ? QJsonValue(member.toBool() ? 1 : 0) : member;
+            return true;
+        }
+        for (const auto &row : rows) {
             const auto rowPath = row.toObject()["path"].toString();
             if (path != rowPath && !path.startsWith(rowPath + "[") && !path.startsWith(rowPath + "."))
                 continue;
@@ -62,7 +71,7 @@ static bool catalogValue(const QString &catalog, const QString &operation, int i
                 } else
                     return false;
             }
-            *value = current;
+            *value = current.isBool() ? QJsonValue(current.toBool() ? 1 : 0) : current;
             return true;
         }
     }
@@ -406,6 +415,33 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const auto call = step["setParameters"].toObject();
                 editor.setParameters(call["operation"].toString(), call["instance"].toInt(),
                                      call["values"].toObject().toVariantMap());
+            } else if (step.contains("moduleInstance")) {
+                // darktable's multi-instance menu: {operation, instance, action, name}.
+                const auto call = step["moduleInstance"].toObject();
+                editor.moduleInstance(call["operation"].toString(), call["instance"].toInt(),
+                                      call["action"].toString(), call["name"].toString());
+                *waiting = true;
+            } else if (step.contains("checkInstances")) {
+                // The instances of an operation in pipeline order, with their names when given.
+                const auto call = step["checkInstances"].toObject();
+                QJsonArray instances, names;
+                for (const auto &entry : QJsonDocument::fromJson(editor.moduleCatalog().toUtf8()).array())
+                    if (entry.toObject()["operation"].toString() == call["operation"].toString()) {
+                        instances.append(entry.toObject()["instance"]);
+                        names.append(entry.toObject()["multi_name"]);
+                    }
+                if (instances != call["instances"].toArray() ||
+                    (call.contains("names") && names != call["names"].toArray())) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "Unexpected instances" << call << instances << names;
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
+                qInfo() << "Instances" << call["operation"].toString() << instances << names;
             } else if (step.contains("resetModule")) {
                 const auto call = step["resetModule"].toObject();
                 editor.resetModule(call["operation"].toString(), call["instance"].toInt());
