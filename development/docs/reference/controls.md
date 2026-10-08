@@ -63,7 +63,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 - **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
-- **Focus.** Clicking a control selects it for the keyboard, then focus returns to the navigator once the mouse button is released (a button that loses focus while pressed drops its click, so the navigator waits for the release); the same happens after menus, the value entry and dialogs close. Text fields keep all keys while typing (no shortcut fires); `Esc` leaves the field, `Enter` or `↓` leave it and select the item below. Popups and dialogs own their keys while open.
+- **Focus.** Clicking a control selects it for the keyboard, then focus returns to the navigator once the mouse button is released (a button that loses focus while pressed drops its click, so the navigator waits for the release); the same happens after menus, the value entry and dialogs close. Text fields keep all keys while typing (no shortcut fires); `Esc` leaves the field, `Enter` or `↓` leave it and select the item below. Popups and dialogs own their keys while open (`Esc` closes them, including the colour popup of a swatch).
 - **Search.** `/` or `Ctrl+F` focus the global search under the tab strip; it is not one of the ↑/↓ stops. `Esc` clears it and returns the keys; `Enter` or `↓` keep the term and select the pane's first item. The Styles pane keeps its own search as a listed item.
 - **Panes.** `1` … `9` follow the tab strip as shown, like Tab/Shift+Tab, so a number always names the pane at that place in the order above.
 - **Precedence of `Esc` and `Enter`.** A text field first, then an open dialog or menu, then the crop frame (apply/cancel), then photograph fullscreen.
@@ -335,10 +335,15 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   listed again: their remaining rows (for example exposure's mode, color balance rgb's 4 ways
   and masks pages, the denoise all/R/G/B curve) appear inside the curated block when it is
   expanded, behind a quiet `more`.
+- Opening a group, module, "more" or a mask mode scrolls the new rows into view while the clicked
+  heading stays on screen; closing one keeps the pane where it is (a bottom margin takes up the lost
+  height until the pane is scrolled up), so a second click at the same spot reopens it. A value set
+  on a row stays shown until the engine reports it, even when updates for earlier edits arrive first.
 - Group headings use darktable's group names, collapse with a click and show the number of
   modules. Each module uses the curated block's visual language: heading with darktable's
-  module name and an accent dot (click toggles the module, right-click offers enable/disable and
-  reset, hovering shows darktable's purpose), primary rows visible while collapsed (labelled
+  module name and an accent dot (click toggles the module and the dot follows at once, before the
+  engine has rendered; right-click offers enable/disable and reset, hovering shows darktable's
+  purpose until the next click), primary rows visible while collapsed (labelled
   `section · label` where the section caption is hidden), the chevron for detail rows and a
   quiet `more` for advanced rows. Modules with darktable notebook pages show `ModuleTabs`.
   Open groups, expanded modules and `more` are remembered per pane. Additional instances of a

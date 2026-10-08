@@ -7,8 +7,9 @@
 //   {"pointerClick": "sidebar-area-edit", "at": [x, y], "button": "right", "clicks": 2,
 //    "modifiers": "ctrl", "expectTop": true}   expectTop fails when another item covers it
 //   {"pointerDrag": name, "from": [x, y], "to": [x, y], "modifiers": "shift"}
-//   {"pointerHover": name}
-//   {"checkItem": name, "property": "checked", "value": true}  or "visible": false
+//   {"pointerHover": name}, {"waitMs": 1000}; the name "@last" repeats the previous point
+//   {"checkItem": name, "property": "checked", "value": true}  or "visible": false, or
+//   "inWindow": true (shown on screen, not scrolled away)
 #include "smoke_pointer.h"
 #include <QDebug>
 #include <QElapsedTimer>
@@ -42,6 +43,16 @@ bool shown(QQuickItem *item) {
         if (!p->isVisible() || p->opacity() <= 0)
             return false;
     return item->width() > 0 && item->height() > 0;
+}
+
+// The point of the item is on screen: inside the window and every clipping parent.
+bool onScreen(QQuickItem *item, QQuickWindow *window, QPointF scene) {
+    if (!QRectF(0, 0, window->width(), window->height()).contains(scene))
+        return false;
+    for (auto *p = item->parentItem(); p; p = p->parentItem())
+        if (p->clip() && !p->contains(p->mapFromScene(scene)))
+            return false;
+    return true;
 }
 
 QQuickItem *findItem(QQuickItem *root, const QString &name) {
@@ -104,6 +115,12 @@ QPointF fraction(const QJsonValue &value, double x, double y) {
 } // namespace
 
 SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &engine, std::shared_ptr<bool> busy) {
+    if (step.contains("waitMs")) {
+        // Time passes with the pointer at rest (tooltip delays, hover timers).
+        *busy = true;
+        QTimer::singleShot(step["waitMs"].toInt(), qApp, [busy] { *busy = false; });
+        return SmokeResult::Done;
+    }
     const char *keys[] = {"pointerClick", "pointerDrag", "pointerHover", "checkItem"};
     const char *kind = nullptr;
     for (const char *key : keys)
@@ -112,8 +129,13 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
     if (!kind)
         return SmokeResult::NotHandled;
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    // A shown window lays out and draws a frame within milliseconds; offscreen nothing draws
+    // until asked, so positioners may still hold the previous layout. Draw one, as a screen would.
+    window->grabWindow();
     const auto name = step[kind].toString();
-    auto *item = findItem(window->contentItem(), name);
+    // "@last": the window point of the previous gesture again (a second click at the same spot).
+    static QPointF lastPoint;
+    auto *item = name == "@last" ? window->contentItem() : findItem(window->contentItem(), name);
     if (QString(kind) == "checkItem") {
         if (step.contains("visible")) {
             if ((item != nullptr) != step["visible"].toBool()) {
@@ -125,6 +147,15 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
         if (!item) {
             qCritical() << "Missing item" << name;
             return SmokeResult::Fail;
+        }
+        if (step.contains("inWindow")) {
+            // Scrolled into view: its centre lies inside the window and inside every clipping parent.
+            const QPointF centre = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+            if (onScreen(item, window, centre) != step["inWindow"].toBool()) {
+                qCritical() << "Unexpected placement of" << name << centre;
+                return SmokeResult::Fail;
+            }
+            return SmokeResult::Done;
         }
         const auto actual = item->property(step["property"].toString().toUtf8()).toString();
         if (actual != step["value"].toVariant().toString()) {
@@ -140,11 +171,24 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
     const auto modifiers = modifiersOf(step);
     const auto button = step["button"].toString() == "right" ? Qt::RightButton : Qt::LeftButton;
     auto scene = [item](QPointF f) { return item->mapToScene(QPointF(f.x() * item->width(), f.y() * item->height())); };
-    const QPointF start = scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
-    if (!QRectF(0, 0, window->width(), window->height()).contains(start)) {
+    QPointF start = name == "@last" ? lastPoint : scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
+    // Out of view in a scrolled pane: scroll it into view first, as a person would.
+    if (name != "@last" && !onScreen(item, window, start))
+        for (auto *p = item->parentItem(); p; p = p->parentItem())
+            if (p->property("flickableDirection").isValid() && p->property("contentY").isValid()) {
+                auto *content = p->property("contentItem").value<QQuickItem *>();
+                const double y = item->mapToItem(content, QPointF(0, 0)).y();
+                const double target = std::max(0.0, y - p->height() / 3);
+                p->setProperty("contentY", target);
+                start = scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
+                qInfo() << "Scrolled" << p << "to" << target;
+                break;
+            }
+    if (name != "@last" && !onScreen(item, window, start)) {
         qCritical() << "Item outside the window" << name << start;
         return SmokeResult::Fail;
     }
+    lastPoint = start;
     auto *hit = topmost(window->contentItem(), start);
     const bool covered = hit && hit != item && !item->isAncestorOf(hit) && !hit->isAncestorOf(item);
     qInfo() << "Pointer" << kind << name << "at" << start << "hits" << describe(hit);

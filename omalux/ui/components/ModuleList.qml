@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtCore
+import "Scroll.js" as Scroll
 
 // darktable modules under collapsible group headings (darktable's group names). Each module
 // is a GeneratedModule; extra instances follow their base instance. Open groups, expanded
@@ -47,10 +48,41 @@ Column {
     onOpenGroupsChanged: if (!restoring) preferences.groups = JSON.stringify(openGroups)
     onExpandedModulesChanged: if (!restoring) preferences.modules = JSON.stringify(expandedModules)
     onMoreModulesChanged: if (!restoring) preferences.more = JSON.stringify(moreModules)
+    // Opening or closing by click: what closes keeps the pane in place (the next click lands
+    // where the person expects), what opens is scrolled into view.
     function toggle(property, key, fallback) {
         const next = Object.assign({}, root[property])
-        next[key] = !(key in next ? next[key] : fallback)
+        const opening = !(key in next ? next[key] : fallback)
+        next[key] = opening
+        if (settle.release) settle.release()
+        settle.release = opening ? null : Scroll.hold(root)
         root[property] = next
+        settle.key = opening ? property + ":" + key : ""
+        settle.restart()
+    }
+    // Once the columns have their new height: reveal what opened, stop holding what closed.
+    Timer {
+        id: settle
+        interval: 60
+        property var release: null
+        property string key: ""
+        onTriggered: {
+            if (release) { release(); release = null; return }
+            const item = root.openedItem(key)
+            if (item) Scroll.reveal(item, 0, item.height)
+        }
+    }
+    // The heading or module that `key` ("openGroups:id", "expandedModules:operation") opened.
+    function openedItem(key) {
+        const [property, id] = key.split(":")
+        const name = property === "openGroups" ? "module-group-" + id : "generated-module-" + id
+        function find(item) {
+            if (!item) return null
+            if (item.objectName === name && item.visible) return property === "openGroups" ? item.parent : item
+            for (let i = 0; i < item.children.length; ++i) { const f = find(item.children[i]); if (f) return f }
+            return null
+        }
+        return find(root)
     }
     function groupOpen(g) { return term !== "" || caption !== "" || (g.id in openGroups ? openGroups[g.id] : !g.quiet) }
     function expand(operation) {

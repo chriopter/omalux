@@ -61,6 +61,11 @@
   "pointerClick": "module-toggle-toneequal"
  },
  {
+  "checkItem": "generated-module-toneequal",
+  "property": "moduleEnabled",
+  "value": true
+ },
+ {
   "checkParameter": {
    "operation": "toneequal",
    "path": "@enabled",
@@ -180,5 +185,139 @@
  {
   "checkItem": "picker-overlay",
   "visible": false
+ },
+ {
+  "pointerClick": "sidebar-area-styles"
+ },
+ {
+  "property": "moduleSearch",
+  "value": "split-toning"
+ },
+ {
+  "pointerClick": "control-slider-splittoning/0/shadow_hue",
+  "at": [
+   0.5,
+   0.5
+  ]
+ },
+ {
+  "checkParameter": {
+   "operation": "splittoning",
+   "path": "shadow_hue",
+   "value": 0.5
+  }
+ },
+ {
+  "property": "moduleSearch",
+  "value": ""
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "pointerClick": "sidebar-tab-8"
+ },
+ {
+  "pointerClick": "module-details-soften"
+ },
+ {
+  "checkItem": "module-details-soften",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "blend-mask-mode-soften/0"
+ },
+ {
+  "pointerClick": "text:drawn mask"
+ },
+ {
+  "checkParameter": {
+   "operation": "soften",
+   "path": "blend.mask_mode",
+   "value": 3
+  }
+ },
+ {
+  "checkItem": "text:add circle",
+  "inWindow": true
+ },
+ {
+  "checkItem": "blend-mask-mode-soften/0",
+  "inWindow": true
+ },
+ {
+  "pointerClick": "sidebar-tab-5"
+ },
+ {
+  "pointerHover": "module-toggle-colorreconstruct"
+ },
+ {
+  "waitMs": 1200
+ },
+ {
+  "checkItem": "ToolTip",
+  "visible": true
+ },
+ {
+  "pointerClick": "module-toggle-colorreconstruct"
+ },
+ {
+  "waitMs": 1200
+ },
+ {
+  "checkItem": "ToolTip",
+  "visible": false
+ },
+ {
+  "pointerClick": "module-toggle-colorreconstruct"
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "pointerClick": "sidebar-tab-5"
+ },
+ {
+  "key": "End"
+ },
+ {
+  "pointerClick": "module-details-rgbcurve"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "curve-rgbcurve",
+  "inWindow": true
+ },
+ {
+  "checkItem": "module-details-rgbcurve",
+  "inWindow": true
+ },
+ {
+  "pointerClick": "module-details-rgbcurve"
+ },
+ {
+  "pointerClick": "module-details-rgblevels"
+ },
+ {
+  "key": "End"
+ },
+ {
+  "pointerClick": "module-details-rgblevels"
+ },
+ {
+  "checkItem": "module-details-rgblevels",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "pointerClick": "@last"
+ },
+ {
+  "checkItem": "module-details-rgblevels",
+  "property": "expanded",
+  "value": true
  }
 ]

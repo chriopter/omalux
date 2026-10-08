@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "Scroll.js" as Scroll
 
 // darktable's per-module blend section (develop/blend_gui.c) for one module instance:
 // mask mode, blend mode and order, fulcrum, opacity, the drawn, raster and parametric masks
@@ -226,6 +227,7 @@ Column {
 
     Caption { text: "blending" }
     ChoiceRow {
+        id: maskModeRow
         objectName: "blend-mask-mode-" + root.navGroup
         field: "mask_mode"
         // dt_iop_gui_init_blending: drawn and raster need mask support, parametric a Lab or RGB module.
@@ -235,7 +237,15 @@ Column {
                      || (o.value === 7 && root.blend && root.blend.masks && root.blend.parametric)
                      || (o.value === 9 && root.blend && root.blend.masks))
         value: root.maskMode
-        onChosen: v => root.set("mask_mode", v)
+        onChosen: v => { root.set("mask_mode", v); revealRows.target = maskModeRow; revealRows.restart() }
+    }
+    // A new mask mode adds rows below the choice: scroll them into view, keeping the choice
+    // itself on screen, so the choice visibly did something.
+    Timer {
+        id: revealRows
+        property Item target: null
+        interval: 120
+        onTriggered: if (target) Scroll.reveal(root, target.y, root.height)
     }
     // area E: darktable's "display mask and/or color channel" and "temporarily switch off blend
     // mask" toggles beside the mask modes (blend_gui.c:3508-3528), shown for a real mask only
