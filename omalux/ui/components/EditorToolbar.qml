@@ -29,8 +29,8 @@ Rectangle {
         Item {
             Layout.fillWidth: true
         }
-        ToolbarButton { theme: root.theme; hint: "[O]"; text: "OPEN"; onClicked: root.openRequested() }
-        ToolbarButton { theme: root.theme; hint: "[Ctrl+S]"; text: "EXPORT"; onClicked: root.saveRequested() }
+        ToolbarButton { objectName: "toolbar-open"; theme: root.theme; hint: "[O]"; text: "OPEN"; onClicked: root.openRequested() }
+        ToolbarButton { objectName: "toolbar-export"; theme: root.theme; hint: "[Ctrl+S]"; text: "EXPORT"; onClicked: root.saveRequested() }
         Item { implicitWidth: 6 }
         // Zoom: step out, the current level (click or [0] fits the photograph), step in.
         Rectangle {

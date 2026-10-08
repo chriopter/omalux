@@ -1,0 +1,21 @@
+[
+  {"key": "Down"},
+  {"checkRoot": {"activeControl": "brightness"}},
+  {"key": "O"},
+  {"nativeDialog": "open"},
+  {"checkRoot": {"dialogOpen": true}},
+  {"nativeDialog": "key", "key": "Escape"},
+  {"nativeDialog": "closed"},
+  {"waitMs": 300},
+  {"checkRoot": {"dialogOpen": false}},
+  {"logFocus": "after the native dialog"},
+  {"key": "Down"},
+  {"checkRoot": {"activeControl": "contrast"}},
+  {"key": "O"},
+  {"nativeDialog": "open"},
+  {"nativeDialog": "key", "key": "Escape"},
+  {"nativeDialog": "closed"},
+  {"waitMs": 300},
+  {"key": "Up"},
+  {"checkRoot": {"activeControl": "brightness", "dialogOpen": false}}
+]

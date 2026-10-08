@@ -1,0 +1,20 @@
+[
+  {"key": "Down"},
+  {"checkRoot": {"activeControl": "brightness"}},
+  {"key": "O"},
+  {"waitMs": 500},
+  {"checkRoot": {"dialogOpen": true}},
+  {"key": "Escape"},
+  {"waitMs": 300},
+  {"checkRoot": {"dialogOpen": false}},
+  {"logFocus": "after Qt's file dialog"},
+  {"key": "Down"},
+  {"checkRoot": {"activeControl": "contrast"}},
+  {"pointerClick": "toolbar-open"},
+  {"waitMs": 500},
+  {"checkRoot": {"dialogOpen": true}},
+  {"key": "Escape"},
+  {"waitMs": 300},
+  {"key": "Up"},
+  {"checkRoot": {"activeControl": "brightness", "dialogOpen": false}}
+]

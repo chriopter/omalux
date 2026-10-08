@@ -838,8 +838,11 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     return;
                 }
             } else if (step.contains("key") || step.contains("type")) {
-                // "key" sends one combination ("Shift+R", "Down"); "type" types characters.
-                auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+                // "key" sends one combination ("Shift+R", "Down"); "type" types characters. Keys
+                // go to the focused window, as typed keys do (a dialog in a window of its own).
+                QWindow *window = QGuiApplication::focusWindow();
+                if (!window)
+                    window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
                 QList<QPair<QKeyCombination, QString>> keys;
                 if (step.contains("key")) {
                     const auto name = step["key"].toString();

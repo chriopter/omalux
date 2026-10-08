@@ -129,6 +129,14 @@ def main():
             script = work / name
             script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work)))
             scripts.append(script)
+        # Escape on the open dialog and the keys back in the editor: Qt's own file dialog (no
+        # platform theme) and, on a headless GTK display only (broadway, never a visible window),
+        # the GTK file chooser Qt's gtk3 theme opens (Omarchy's QT_QPA_PLATFORMTHEME).
+        scripts.append(ROOT / 'omalux/tests/dialog-quick.json')
+        if os.environ.get('GDK_BACKEND') == 'broadway':
+            scripts.append(ROOT / 'omalux/tests/dialog-native.json')
+        else:
+            print('Skipping dialog-native.json: needs GDK_BACKEND=broadway (headless GTK display)', flush=True)
         values_mailbox = work / 'mailbox-values' / 'controls'
         values_mailbox.parent.mkdir()
         mailbox = work / 'mailbox' / 'controls'
@@ -141,6 +149,8 @@ def main():
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
             env.pop('OMALUX_RECORD_MAILBOX', None)
+            env['QT_QPA_PLATFORMTHEME'] = {'dialog-quick': '', 'dialog-native': 'gtk3'}.get(
+                script.stem, os.environ.get('QT_QPA_PLATFORMTHEME', ''))
             if script.stem == 'module-parameters' and not args.split:
                 env['OMALUX_RECORD_MAILBOX'] = str(mailbox)
             if script.stem == 'module-values' and not args.split:

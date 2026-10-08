@@ -12,6 +12,7 @@
 //   invalidate darktable's pipe cache); {"checkPixels": {"grey": true, "tolerance"}} by the
 //   mean spread between the channels (a mask shown in grey)
 #include "smoke_canvas.h"
+#include "smoke_dialog.h"
 #include <algorithm>
 #include "app/editor.h"
 #include "app/frames.h"
@@ -108,6 +109,9 @@ static Qt::KeyboardModifiers modifiersOf(const QString &text) {
 }
 
 SmokeResult canvasSmokeStep(const QJsonObject &step, Editor &editor, QQmlApplicationEngine &engine) {
+    // The native file dialog (smoke_dialog.cpp), with the same waiting and retries.
+    if (const auto dialog = dialogSmokeStep(step); dialog != SmokeResult::NotHandled)
+        return dialog;
     if (step.contains("canvasModule")) {
         const auto call = step["canvasModule"].toObject();
         editor.setCanvasModule(call["operation"].toString(), call["instance"].toInt());

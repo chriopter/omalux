@@ -65,6 +65,16 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
 - **Focus.** Clicking a control selects it for the keyboard, then focus returns to the navigator once the mouse button is released (a button that loses focus while pressed drops its click, so the navigator waits for the release); the same happens after menus, the value entry and dialogs close. Text fields keep all keys while typing (no shortcut fires); `Esc` leaves the field, `Enter` or `↓` leave it and select the item below. Popups and dialogs own their keys while open (`Esc` closes them, including the colour popup of a swatch).
+- **File dialogs.** Open, export and the style-bundle folder use QtQuick.Dialogs. On Omarchy
+  (`QT_QPA_PLATFORMTHEME=gtk3`) that is Qt's GTK helper: a GtkFileChooserDialog in the
+  process (not xdg-desktop-portal), whose own `Esc` binding cancels it; with no platform
+  theme it is Qt's dialog in a popup window of its own; with `xdgdesktopportal` the portal's.
+  When any of them closes, the editor window asks to be active again and the navigator takes
+  the keys back (`Main.qml`, `dialogOpen`). Verified offscreen by `dialog-quick.json` (Qt's
+  dialog: `Esc` typed into its window, then ↓/↑ move the selection) and `dialog-native.json`
+  (the GTK chooser on the headless broadway display: `Esc` put into GDK's queue as a key event
+  of the dialog window, `smoke_dialog.cpp`). Not verifiable offscreen: that Hyprland gives the
+  GTK window keyboard focus when it opens and the Omalux window focus back when it closes.
 - **Search.** `/` or `Ctrl+F` focus the global search under the tab strip; it is not one of the ↑/↓ stops. `Esc` clears it and returns the keys; `Enter` or `↓` keep the term and select the pane's first item. The Styles pane keeps its own search as a listed item.
 - **Panes.** `1` … `9` follow the tab strip as shown, like Tab/Shift+Tab, so a number always names the pane at that place in the order above.
 - **Precedence of `Esc` and `Enter`.** A text field first, then an open dialog or menu, then the crop frame (apply/cancel), then photograph fullscreen.

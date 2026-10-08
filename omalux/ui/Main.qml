@@ -38,6 +38,8 @@ ApplicationWindow {
     property alias filterSearch: sidebar.filterSearch
     property alias moduleSearch: sidebar.moduleSearch
     property alias keyHints: keyboard.hintText
+    // A file or style dialog is open (native or Qt's own); keys belong to it until it closes.
+    readonly property bool dialogOpen: dialogs.busy
     // The tool drawn on the photo follows the selected control, as darktable shows the
     // overlay of the focused module: a row of vignetting, graduated density, rotate and
     // perspective, liquify, retouch or spot removal, or a drawn-mask row ("op/instance/@shapes").
@@ -168,6 +170,13 @@ ApplicationWindow {
         }
     }
     Connections { target: sidebar.geometry; function onCroppingChanged() { if(sidebar.geometry.cropping) { sidebar.tools.cancel(); viewport.fit() } } }
+    // A dialog in a window of its own (Qt's file dialog, or the platform's) hands the keys back
+    // to the editor when it closes: the window is asked to become active again (offscreen and
+    // some platforms leave the focus on the closed dialog window) and the navigator takes focus.
+    Connections {
+        target: dialogs
+        function onBusyChanged() { if (!dialogs.busy) { window.requestActivate(); Qt.callLater(keyboard.reclaim) } }
+    }
     EditorDialogs {
         id: dialogs
         theme: editorTheme
