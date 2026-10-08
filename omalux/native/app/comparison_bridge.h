@@ -10,6 +10,9 @@ class ComparisonBridge {
     void reset();
     void modules(OmEngine *, const QStringList &, quint64 revision);
     bool history(OmEngine *, quint64 revision);
+    // A deleted or moved instance: a style never removes or reorders modules, so the whole
+    // history travels as an XMP sidecar (area E, comparison_bridge_canvas.cpp).
+    bool instances(OmEngine *engine, quint64 revision) { return sidecar(engine, revision); }
     void publish(const QString &source, quint64 revision, const ControlValues &, const ControlRevisions &);
 
   private:

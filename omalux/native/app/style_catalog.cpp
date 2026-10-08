@@ -90,7 +90,7 @@ QString StyleCatalog::save(OmEngine *engine, const QString &name, const QString 
     char *raw = om_engine_snapshot(engine, name.toUtf8().constData(), relative.toUtf8().constData());
     if (!raw)
         throw std::runtime_error(
-            "This recipe contains masks, instances or external assets that cannot yet be saved portably");
+            "This recipe contains masks or external assets that cannot yet be saved portably");
     const auto snapshot = QJsonDocument::fromJson(raw).object();
     om_engine_free_json(raw);
     bool okay = QDir().mkpath(directory);

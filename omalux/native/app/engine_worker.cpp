@@ -253,7 +253,13 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
                                           edit.values.value("name").toString().toUtf8().constData(), &kept);
             if (!result) {
                 moduleCatalog.reload(engine);
-                if (!recipes.contains(edit.operation))
+                // Deleting or moving an instance cannot travel in a style: the whole history goes
+                // to split mode as an XMP sidecar (area E).
+                const auto action = edit.values.value("action").toString();
+                if (action == "delete" || action == "up" || action == "down") {
+                    if (!bridge.instances(engine, request.ticket.revision))
+                        qWarning() << "Could not synchronize instances of" << edit.operation;
+                } else if (!recipes.contains(edit.operation))
                     recipes.append(edit.operation);
                 continue;
             }

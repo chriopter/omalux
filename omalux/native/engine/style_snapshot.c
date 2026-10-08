@@ -32,12 +32,13 @@ char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const 
             include = !strcmp(module->op, only_module);
         if (!include)
             continue;
-        // Comparison snapshots (only_module set) target the same image: extra instances and a
-        // raster mask taken from another module of the pipe stay meaningful there. A saved
-        // style travels to other images and still rejects them.
+        // Comparison snapshots (only_module set) target the same image: a raster mask taken from
+        // another module of the pipe stays meaningful there; a saved style travels to other
+        // images and still rejects it. Extra instances travel in both with their multi_priority
+        // and multi_name, as darktable's own styles carry them (common/styles.c,
+        // dt_styles_apply_to_image merges them by name and priority).
         const gboolean same_image = only_module != NULL;
-        if ((!same_image && module->multi_priority != 0) ||
-            (module->blend_params->mask_mode & (DEVELOP_MASK_MASK | (same_image ? 0 : DEVELOP_MASK_RASTER))) ||
+        if ((module->blend_params->mask_mode & (DEVELOP_MASK_MASK | (same_image ? 0 : DEVELOP_MASK_RASTER))) ||
             dt_is_valid_maskid(module->blend_params->mask_id))
             goto unsupported;
         // Do not silently export a dependency which this snapshot writer cannot package.

@@ -27,9 +27,16 @@ def check_mailbox(mailbox, operations):
 
 def check_blend_mailbox(mailbox):
     """Blend edits and extra instances reach split mode in the module's snapshot."""
-    lines = {line.split()[3]: line.split()[4] for line in mailbox.read_text().splitlines() if line.startswith('module ')}
+    text = mailbox.read_text()
+    lines = {line.split()[3]: line.split()[4] for line in text.splitlines() if line.startswith('module ')}
+    # Deleting and moving instances sends the whole history as an XMP sidecar (a new epoch), which
+    # then carries the earlier colour balance edits.
+    sidecars = [line.split()[2] for line in text.splitlines() if line.startswith('sidecar ')]
+    if not sidecars:
+        raise RuntimeError('Deleting or moving an instance should send a sidecar')
+    sidecar = (mailbox.parent / (sidecars[-1] + '.xmp')).read_text()
     for operation in ('exposure', 'colorbalancergb'):
-        if operation not in lines:
+        if operation not in lines and f'darktable:operation="{operation}"' not in sidecar:
             raise RuntimeError(f'Mailbox should carry a {operation} snapshot: {sorted(lines)}')
     style = (mailbox.parent / (lines['exposure'] + '.dtstyle')).read_text()
     if '<multi_priority>1</multi_priority>' not in style:
