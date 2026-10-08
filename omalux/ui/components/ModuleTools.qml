@@ -140,6 +140,24 @@ QtObject {
                                        hint: "import the harmony rule and anchor hue currently displayed in the vectorscope." }
         },
         // ---- area E (tools_effects.c) ----
+        // ashift.c:4706-4740 the fit buttons with the variants darktable reaches by ctrl/shift
+        // (_event_fit_*_button_clicked 5323-5466); "auto" chooses detected structure
+        // (_event_structure_auto_clicked), otherwise the lines or rectangle drawn on the photo.
+        ashift: {
+            "@auto": { local: true },
+            "@vertical": { tool: "fit", kind: "button", gui: ["@auto"], report: "message",
+                           hint: "automatically correct for vertical perspective distortion\nctrl+click to only fit rotation\nshift+click to only fit lens shift",
+                           menu: [{ label: "rotation and lens shift", gui: { dir: 19 } }, { label: "only rotation (ctrl)", gui: { dir: 17 } },
+                                  { label: "only lens shift (shift)", gui: { dir: 18 } }] },
+            "@horizontal": { tool: "fit", kind: "button", gui: ["@auto"],
+                             hint: "automatically correct for horizontal perspective distortion\nctrl+click to only fit rotation\nshift+click to only fit lens shift",
+                             menu: [{ label: "rotation and lens shift", gui: { dir: 37 } }, { label: "only rotation (ctrl)", gui: { dir: 33 } },
+                                    { label: "only lens shift (shift)", gui: { dir: 36 } }] },
+            "@both": { tool: "fit", kind: "button", gui: ["@auto"],
+                       hint: "automatically correct for vertical and horizontal perspective distortions, fitting rotation,\nlens shift in both directions, and shear\nctrl+click to only fit rotation\nshift+click to only fit lens shift\nctrl+shift+click to only fit rotation and lens shift",
+                       menu: [{ label: "rotation, lens shift and shear", gui: { dir: 63 } }, { label: "only rotation (ctrl)", gui: { dir: 49 } },
+                              { label: "only lens shift (shift)", gui: { dir: 54 } }, { label: "rotation and lens shift (ctrl+shift)", gui: { dir: 55 } }] }
+        },
         // rasterfile.c:764: the raster mask traced into path shapes (mask_manager.c), which the
         // blend section's "add existing shape" then offers.
         rasterfile: { "@vectorize": { tool: "vectorize", kind: "button", report: "message",

@@ -12,6 +12,7 @@
 #include "common/exif.h"
 #include "common/history.h"
 #include <math.h>
+#include "ashift_fit.h"
 
 gboolean om_space_init(OmEngine *engine, OmSpace *space) {
     if (!engine->loaded)
@@ -421,6 +422,7 @@ static int ashift_edit(OmEngine *engine, const OmSpace *space, dt_iop_module_t *
         if (angle == 0.0f)
             return 0;
         *rotation = CLAMP(*rotation - angle, minimum, maximum);
+        om_ashift_autocrop(&engine->dev, module); // area E: the rotation slider's gui_changed refits the crop
         return om_canvas_commit(engine, module, FALSE);
     }
     float *lines = module->get_p(module->params, "last_drawn_lines");

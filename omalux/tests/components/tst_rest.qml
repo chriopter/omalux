@@ -300,6 +300,11 @@ Item {
             masks.requested("cleanup", {})
             compare(masks.asked[masks.asked.length - 1][0], "cleanup")
         }
+        function test_ashift_fit_specs() {
+            compare(tools.rowTools.ashift["@both"].menu.length, 4)
+            compare(tools.rowTools.ashift["@vertical"].menu[0].gui.dir, 19)   // ASHIFT_FIT_VERTICALLY
+            verify(tools.rowTools.ashift["@auto"].local)
+        }
         function test_lens_and_scale_rows() {
             const s = tools.rowTool("lens", "@use_latest_algorithm")
             compare(s.set.md_version, 1)
