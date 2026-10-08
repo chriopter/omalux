@@ -311,6 +311,9 @@ static JsonObject *describe_module(dt_iop_module_t *module, int position) {
         describe_field(fields, introspection->field, (const char *)module->params, "", module->op);
     }
     json_object_set_array_member(entry, "parameters", fields);
+    // Displayed conversions ("derived") and runtime-list texts ("labels"), module_values.c.
+    if (introspection)
+        om_module_describe_values(module, entry);
     return entry;
 }
 
@@ -470,38 +473,78 @@ static void write_value(const OmTarget *target, double value) {
 typedef struct {
     OmTarget target;
     double value;
+    const char *text;
 } OmAssignment;
 
+// A char array (file name, lens model, ...) takes a string that fits including its terminator.
+static gboolean text_target(const dt_introspection_field_t *field) {
+    return field->header.type == DT_INTROSPECTION_TYPE_ARRAY &&
+           field->Array.type == DT_INTROSPECTION_TYPE_CHAR;
+}
+
 // Validate every assignment first, then write them and record one history item, so a
-// rejected path never leaves the module half-edited.
+// rejected path never leaves the module half-edited. texts[i] (may be NULL) is a string value.
+// Paths starting with "@" other than "@enabled" are darktable's displayed conversions and
+// runtime choices (module_values.c); they are converted after the plain values.
 static int apply_assignments(OmEngine *engine, dt_iop_module_t *module, const char *const *paths,
-                             const double *values, size_t count) {
+                             const double *values, const char *const *texts, size_t count) {
     OmAssignment *assignments = g_new0(OmAssignment, count ? count : 1);
-    int enable = -1;
-    for (size_t i = 0; i < count; ++i) {
-        if (!isfinite(values[i])) {
-            g_free(assignments);
-            return 5;
-        }
+    const char **derived_paths = g_new0(const char *, count ? count : 1);
+    const char **derived_texts = g_new0(const char *, count ? count : 1);
+    double *derived_values = g_new0(double, count ? count : 1);
+    size_t derived = 0;
+    int enable = -1, error = 0;
+    for (size_t i = 0; i < count && !error; ++i) {
+        const char *text = texts ? texts[i] : NULL;
         // "@enabled" is not a parameter of the module but the module itself being in the pipeline.
         if (!strcmp(paths[i], "@enabled")) {
+            if (text || !isfinite(values[i]))
+                error = 5;
             enable = values[i] > 0.5;
             continue;
         }
-        const int error = resolve_path(module, paths[i], &assignments[i].target);
-        if (error || !writable(assignments[i].target.field)) {
-            g_free(assignments);
-            return error ? error : 4;
+        if (paths[i][0] == '@') {
+            derived_paths[derived] = paths[i];
+            derived_texts[derived] = text;
+            derived_values[derived++] = values[i];
+            continue;
         }
+        if ((error = resolve_path(module, paths[i], &assignments[i].target)))
+            break;
+        const dt_introspection_field_t *field = assignments[i].target.field;
+        if (text ? !text_target(field) || strlen(text) >= field->header.size : !writable(field))
+            error = text ? 5 : 4;
+        else if (!text && !isfinite(values[i]))
+            error = 5;
         assignments[i].value = values[i];
+        assignments[i].text = text;
     }
+    void *backup = error ? NULL : g_memdup2(module->params, module->params_size);
     gboolean changed = FALSE;
-    for (size_t i = 0; i < count; ++i)
+    for (size_t i = 0; i < count && !error; ++i)
         if (assignments[i].target.field) {
-            write_value(&assignments[i].target, assignments[i].value);
+            if (assignments[i].text) {
+                memset(assignments[i].target.pointer, 0, assignments[i].target.field->header.size);
+                g_strlcpy(assignments[i].target.pointer, assignments[i].text,
+                          assignments[i].target.field->header.size);
+            } else
+                write_value(&assignments[i].target, assignments[i].value);
             changed = TRUE;
         }
+    if (!error && derived) {
+        error = om_module_set_values(engine, module, derived, derived_paths, derived_values, derived_texts);
+        changed = TRUE;
+    }
+    // A rejected conversion leaves the parameters as they were.
+    if (error && backup)
+        memcpy(module->params, backup, module->params_size);
+    g_free(backup);
     g_free(assignments);
+    g_free(derived_paths);
+    g_free(derived_texts);
+    g_free(derived_values);
+    if (error)
+        return error;
     if (enable >= 0 && module->enabled != enable) {
         module->enabled = enable;
         changed = TRUE;
@@ -528,7 +571,7 @@ int om_engine_set_parameter(OmEngine *engine, const char *operation, int instanc
                             double value) {
     dt_iop_module_t *module = NULL;
     const int error = find_module(engine, operation, instance, &module);
-    return error ? error : apply_assignments(engine, module, &path, &value, 1);
+    return error ? error : apply_assignments(engine, module, &path, &value, NULL, 1);
 }
 
 int om_engine_set_parameters(OmEngine *engine, const char *operation, int instance, const char *json) {
@@ -546,6 +589,7 @@ int om_engine_set_parameters(OmEngine *engine, const char *operation, int instan
     GList *members = json_object_get_members(object);
     const guint count = g_list_length(members);
     const char **paths = g_new0(const char *, count ? count : 1);
+    const char **texts = g_new0(const char *, count ? count : 1);
     double *values = g_new0(double, count ? count : 1);
     guint i = 0;
     for (GList *it = members; it; it = it->next, ++i) {
@@ -556,10 +600,13 @@ int om_engine_set_parameters(OmEngine *engine, const char *operation, int instan
             const GType type = json_node_get_value_type(node);
             if (type == G_TYPE_DOUBLE || type == G_TYPE_INT64 || type == G_TYPE_BOOLEAN)
                 values[i] = type == G_TYPE_BOOLEAN ? json_node_get_boolean(node) : json_node_get_double(node);
+            else if (type == G_TYPE_STRING)
+                texts[i] = json_node_get_string(node);
         }
     }
-    error = apply_assignments(engine, module, paths, values, count);
+    error = apply_assignments(engine, module, paths, values, texts, count);
     g_free(paths);
+    g_free(texts);
     g_free(values);
     g_list_free(members);
     g_object_unref(parser);

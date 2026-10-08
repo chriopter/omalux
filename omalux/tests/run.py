@@ -75,6 +75,12 @@ def main():
                    ROOT / 'omalux/tests/style-hover.json', ROOT / 'omalux/tests/module-parameters.json',
                    ROOT / 'omalux/tests/keyboard.json',
                    work / 'workflow.json']
+        # Displayed conversions, runtime lists and file choices; "{WORK}" names this run's folder.
+        values = work / 'module-values.json'
+        values.write_text((ROOT / 'omalux/tests/module-values.json').read_text().replace('{WORK}', str(work)))
+        scripts.append(values)
+        values_mailbox = work / 'mailbox-values' / 'controls'
+        values_mailbox.parent.mkdir()
         mailbox = work / 'mailbox' / 'controls'
         mailbox.parent.mkdir()
         for script in scripts:
@@ -83,6 +89,8 @@ def main():
             env.pop('OMALUX_RECORD_MAILBOX', None)
             if script.stem == 'module-parameters' and not args.split:
                 env['OMALUX_RECORD_MAILBOX'] = str(mailbox)
+            if script.stem == 'module-values' and not args.split:
+                env['OMALUX_RECORD_MAILBOX'] = str(values_mailbox)
             command = ROOT / ('development/start_split' if args.split else 'development/start')
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
@@ -97,6 +105,8 @@ def main():
                     print(line, flush=True)
         if not args.split:
             check_mailbox(mailbox, {'exposure', 'tonecurve', 'rgbcurve'})
+            check_mailbox(values_mailbox, {'colorbalance', 'channelmixerrgb', 'colorharmonizer', 'splittoning',
+                                           'colorchecker', 'colorin', 'lens', 'lut3d'})
         for name, size in [('full.png', '1536x1024'), ('square.jpg', '1024x1024')]:
             actual = subprocess.check_output(['magick', 'identify', '-format', '%wx%h',
                                               str(work / name)], text=True)

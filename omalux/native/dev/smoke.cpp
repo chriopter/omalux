@@ -33,6 +33,15 @@ static bool catalogValue(const QString &catalog, const QString &operation, int i
             *value = *enabled ? 1 : 0;
             return true;
         }
+        // Displayed conversions ("@" paths) and the texts of runtime-list rows.
+        if (path.startsWith('@') && module["derived"].toObject().contains(path)) {
+            *value = module["derived"].toObject()[path];
+            return true;
+        }
+        if (path.startsWith("labels:")) {
+            *value = module["labels"].toObject()[path.mid(7)];
+            return !value->isUndefined();
+        }
         for (const auto &row : module["parameters"].toArray()) {
             const auto rowPath = row.toObject()["path"].toString();
             if (path != rowPath && !path.startsWith(rowPath + "[") && !path.startsWith(rowPath + "."))
@@ -76,6 +85,13 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     auto historyMarks = std::make_shared<QVariantMap>();
     auto retries = std::make_shared<int>(0);
     auto updatedModules = std::make_shared<QStringList>();
+    // Answers of requestChoices, keyed "operation/instance/list".
+    auto choiceResults = std::make_shared<QVariantMap>();
+    QObject::connect(&editor, &Editor::choicesReady, &app,
+                     [choiceResults](QString operation, int instance, QString list, QString, QString result) {
+                         (*choiceResults)[QString("%1/%2/%3").arg(operation).arg(instance).arg(list)] =
+                             result;
+                     });
     QObject::connect(&editor, &Editor::moduleUpdated, &app,
                      [updatedModules](QString operation, int instance, QString json) {
                          const auto module = QJsonDocument::fromJson(json.toUtf8()).object();
@@ -93,7 +109,8 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
     timer->setInterval(150);
     QObject::connect(
         timer, &QTimer::timeout, &app,
-        [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging, retries, updatedModules] {
+        [&, frames, steps, index, previous, waiting, timer, historyMarks, dragging, retries, updatedModules,
+         choiceResults] {
             if (*dragging)
                 return;
             if (!editor.styleError().isEmpty()) {
@@ -426,10 +443,15 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const bool found =
                     catalogValue(editor.moduleCatalog(), call["operation"].toString(),
                                  call["instance"].toInt(), call["path"].toString(), &value, &enabled);
+                const bool textMatches =
+                    call["value"].isString() && value.isString() &&
+                    (call["contains"].toBool() ? value.toString().contains(call["value"].toString())
+                                               : value.toString() == call["value"].toString());
                 const bool matches =
-                    found && value.isDouble() &&
-                    std::abs(value.toDouble() - call["value"].toDouble()) <=
-                        call["tolerance"].toDouble(1e-4) &&
+                    found &&
+                    (textMatches ||
+                     (value.isDouble() && std::abs(value.toDouble() - call["value"].toDouble()) <=
+                                              call["tolerance"].toDouble(1e-4))) &&
                     (!call.contains("enabled") || enabled == call["enabled"].toBool()) &&
                     (!call["updated"].toBool() || updatedModules->contains(call["operation"].toString()));
                 if (!matches) {
@@ -444,7 +466,60 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 }
                 *retries = 0;
                 qInfo() << "Parameter" << call["operation"].toString() << call["path"].toString()
-                        << value.toDouble();
+                        << value.toVariant();
+            } else if (step.contains("choices")) {
+                // Request a runtime list, check it and optionally choose an item by label.
+                const auto call = step["choices"].toObject();
+                const auto key = QString("%1/%2/%3")
+                                     .arg(call["operation"].toString())
+                                     .arg(call["instance"].toInt())
+                                     .arg(call["list"].toString());
+                if (*retries == 0) {
+                    choiceResults->remove(key);
+                    editor.requestChoices(call["operation"].toString(), call["instance"].toInt(),
+                                          call["list"].toString(), call["query"].toString());
+                }
+                if (!choiceResults->contains(key)) {
+                    if (++*retries < 100) {
+                        --*index;
+                        return;
+                    }
+                    qCritical() << "No answer for list" << key;
+                    app.exit(2);
+                    return;
+                }
+                *retries = 0;
+                const auto result =
+                    QJsonDocument::fromJson((*choiceResults)[key].toString().toUtf8()).object();
+                const auto items = result["items"].toArray();
+                const int current = result["current"].toInt(-1);
+                QStringList labels;
+                for (const auto &item : items)
+                    labels << item.toObject()["label"].toString();
+                qInfo() << "Choices" << key << items.size() << "current" << current
+                        << (current >= 0 ? labels.value(current) : QString()) << labels.mid(0, 8);
+                const auto has = [&](const QString &text) {
+                    for (const auto &label : labels)
+                        if (label.contains(text))
+                            return true;
+                    return false;
+                };
+                if (items.size() < call["min"].toInt(1) ||
+                    (call.contains("contains") && !has(call["contains"].toString())) ||
+                    (call.contains("current") &&
+                     (current < 0 || !labels.value(current).contains(call["current"].toString())))) {
+                    qCritical() << "Unexpected list" << key << labels << current << result["error"];
+                    app.exit(2);
+                    return;
+                }
+                if (call.contains("choose")) {
+                    for (const auto &item : items)
+                        if (item.toObject()["label"].toString().contains(call["choose"].toString())) {
+                            editor.setParameters(call["operation"].toString(), call["instance"].toInt(),
+                                                 item.toObject()["set"].toObject().toVariantMap());
+                            break;
+                        }
+                }
             } else if (step.contains("statusContains")) {
                 if (!editor.status().contains(step["statusContains"].toString())) {
                     if (++*retries < 100) {
@@ -472,8 +547,7 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 const auto call = step["setParameter"].toObject();
                 editor.setParameter(call["operation"].toString(), call["instance"].toInt(),
                                     call["field"].toString(), call["value"].toDouble());
-            }
-            else if (step.contains("property"))
+            } else if (step.contains("property"))
                 engine.rootObjects().first()->setProperty(step["property"].toString().toUtf8().constData(),
                                                           step["value"].toVariant());
             else if (step.contains("filterSearch"))

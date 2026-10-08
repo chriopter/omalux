@@ -41,3 +41,17 @@ void om_style_baseline_restore(OmEngine *engine);
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module);
 
 void om_preview_geometry(const dt_dev_pixelpipe_t *pipe, OmPreviewGeometry *geometry);
+
+// ---- module values and choices (module_values.c, module_choices.c) ----
+// darktable's displayed conversions ("@" paths) and runtime lists. describe adds "derived"
+// {path: value} and "labels" {field: text} to a module's catalog entry; set writes "@" paths
+// (numbers, or texts for file and lens choices) into module->params without a history item
+// and returns 0, 3 unknown path or 5 invalid value.
+void om_module_describe_values(dt_iop_module_t *module, JsonObject *entry);
+void om_module_describe_choices(dt_iop_module_t *module, JsonObject *entry);
+int om_module_set_values(OmEngine *engine, dt_iop_module_t *module, size_t count, const char *const *paths,
+                         const double *values, const char *const *texts);
+// The choice paths (lens, LUT, raster and overlay files); -1 when none of the paths is one.
+int om_module_set_choice(OmEngine *engine, dt_iop_module_t *module, size_t count, const char *const *paths,
+                         const double *values, const char *const *texts);
+void om_wb_list(dt_iop_module_t *module, int *current, JsonArray *items);

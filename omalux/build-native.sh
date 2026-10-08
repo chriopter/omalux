@@ -35,7 +35,7 @@ for source in omalux/native/engine/*.c; do
   cc -O2 -fPIC -D_RELEASE -DHAVE_OPENCL -DCL_TARGET_OPENCL_VERSION=300 -fopenmp \
     -DOMALUX_DT_VERSION="\"$version\"" \
     -I"$headers/src" -I"$headers/src/external" -Idarktable/src/external/OpenCL \
-    $(pkg-config --cflags gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lua librsvg-2.0) \
+    $(pkg-config --cflags gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lua librsvg-2.0 lensfun) \
     -c "$source" -o "$object"
   objects+=("$object")
 done
@@ -57,6 +57,6 @@ for source in omalux/native/main.cpp omalux/native/app/*.cpp omalux/native/dev/*
   objects+=("$object")
 done
 c++ -pthread "${objects[@]}" "$library" \
-  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2 sqlite3) -fopenmp \
+  $(pkg-config --libs Qt6Quick Qt6QuickControls2 gtk+-3.0 json-glib-1.0 lcms2 sqlite3 lensfun) -fopenmp \
   -Wl,-rpath,"$(dirname "$library")" -o omalux/build/omalux
 printf '%s\n' "$library" > omalux/build/library-path

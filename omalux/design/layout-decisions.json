@@ -311,6 +311,9 @@
   "highlights": {
    "mode": "detail",
    "clip": "primary"
+  },
+  "colorchecker": {
+   "patches": "detail"
   }
  },
  "visible_when": {

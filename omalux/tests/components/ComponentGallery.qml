@@ -53,6 +53,17 @@ ApplicationWindow {
     property int zoneChannel: 2
     property var toneEq: [0, 0.2, 0.55, 0.4, 0.1, -0.3, -0.7, -0.5, -0.1]
     property var swatch: [0.86, 0.42, 0.18]
+    property var profiles: [{ label: "standard color matrix", section: "image" }, { label: "sRGB" },
+                            { label: "Adobe RGB (compatible)" }, { label: "linear Rec709 RGB" }, { label: "linear Rec2020 RGB" }]
+    property int profile: 0
+    property string profileQuery: ""
+    property int patch: 2
+    readonly property var checkerColors: {
+        const out = []
+        for (let i = 0; i < 24; ++i) out.push(i < 18 ? [0.3 + 0.4 * ((i * 37) % 7) / 7, 0.25 + 0.5 * ((i * 11) % 5) / 5, 0.2 + 0.6 * ((i * 5) % 3) / 3]
+                                                   : [(i - 18) / 5, (i - 18) / 5, (i - 18) / 5])
+        return out
+    }
     property int tab: 0
     property real mode: 1
     property real preserve: 1
@@ -269,6 +280,37 @@ ApplicationWindow {
                             onNodesEdited: n => window.sampleNodes = n
                         }
                     }
+                }
+            }
+            Caption { text: "ChoiceRow · PatchGrid" }
+            Block {
+                ChoiceRow {
+                    id: profileChoice
+                    Layout.fillWidth: true
+                    theme: editorTheme
+                    label: "input profile"
+                    valueText: window.profiles[window.profile].label
+                    items: window.profiles.filter(p => p.label.toLowerCase().indexOf(window.profileQuery) >= 0)
+                    current: items.findIndex(p => p.label === window.profiles[window.profile].label)
+                    onRequested: q => window.profileQuery = q.toLowerCase()
+                    onChosen: i => window.profile = window.profiles.findIndex(p => p.label === items[i].label)
+                }
+                ChoiceRow {
+                    Layout.fillWidth: true
+                    theme: editorTheme
+                    label: "file"
+                    valueText: "experimental/experimental-cinema/look.cube"
+                    items: [{ label: "look.cube", detail: "experimental/experimental-cinema" }]
+                    fileFilters: ["LUT files (*.cube *.3dl *.png)"]
+                }
+                PatchGrid {
+                    Layout.fillWidth: true
+                    theme: editorTheme
+                    count: 24
+                    colors: window.checkerColors
+                    changed: [false, false, true]
+                    current: window.patch
+                    onPatchSelected: i => window.patch = i
                 }
             }
         }

@@ -25,6 +25,9 @@ class EngineWorker : public QObject {
     // parameter edits of the same module merge while the worker is busy.
     WorkTicket moduleEdit(ModuleEdit edit);
     quint64 hover(QString id);
+    // A runtime list of one module row (profiles, lenses, files ...), answered by choicesReady
+    // without rendering; see om_engine_module_choices.
+    void choices(QString operation, int instance, QString list, QString query);
   signals:
     void initialized(ControlValues values, QVariantMap metadata, QVariantList styles,
                      QVariantList cameraDefaults, QString modules);
@@ -38,8 +41,14 @@ class EngineWorker : public QObject {
     void frameReady(RenderResult result);
     void hoverReady(QImage image, quint64 revision, double aspectRatio, QVector4D textureTransform);
     void failed(WorkTicket ticket, QString message);
+    void choicesReady(QString operation, int instance, QString list, QString query, QString result);
 
   private:
+    struct ChoiceQuery {
+        QString operation;
+        int instance = 0;
+        QString list, query;
+    };
     struct Request {
         ControlValues values{};
         ControlRevisions revisions{};
@@ -49,6 +58,7 @@ class EngineWorker : public QObject {
         bool draft = false;
         QString hoverId;
         quint64 hoverRevision = 0;
+        std::vector<ChoiceQuery> choices;
     };
     bool take(Request &);
     void run();
@@ -70,6 +80,7 @@ class EngineWorker : public QObject {
     WorkTicket ticket;
     EditorAction pendingAction;
     std::vector<ModuleEdit> pendingEdits;
+    std::vector<ChoiceQuery> pendingChoices;
     bool stopping = false, pending = true, dragging = false, hoverPending = false;
     QString hoverId;
     quint64 hoverRevision = 0;

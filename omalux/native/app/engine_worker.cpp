@@ -95,11 +95,28 @@ quint64 EngineWorker::hover(QString id) {
     wake.notify_one();
     return hoverRevision;
 }
+void EngineWorker::choices(QString operation, int instance, QString list, QString query) {
+    std::lock_guard lock(mutex);
+    // A newer query for the same row replaces one that has not started yet.
+    for (auto &queued : pendingChoices)
+        if (queued.operation == operation && queued.instance == instance && queued.list == list) {
+            queued.query = std::move(query);
+            return;
+        }
+    pendingChoices.push_back({std::move(operation), instance, std::move(list), std::move(query)});
+    wake.notify_one();
+}
 bool EngineWorker::take(Request &request) {
     std::unique_lock lock(mutex);
-    wake.wait(lock, [this] { return stopping || pending || hoverPending; });
+    wake.wait(lock, [this] { return stopping || pending || hoverPending || !pendingChoices.empty(); });
     if (stopping)
         return false;
+    // Lists are cheap and do not render; answer them before the next render or hover.
+    if (!pendingChoices.empty()) {
+        request.choices.swap(pendingChoices);
+        pendingChoices.clear();
+        return true;
+    }
     if (pending) {
         request.values = requested;
         request.revisions = revisions;
@@ -150,7 +167,16 @@ void EngineWorker::run() {
         if (!take(request))
             break;
         try {
-            if (!request.hoverId.isEmpty())
+            if (!request.choices.empty()) {
+                for (const auto &query : request.choices) {
+                    char *raw = om_engine_module_choices(engine.get(), query.operation.toUtf8().constData(),
+                                                         query.instance, query.list.toUtf8().constData(),
+                                                         query.query.toUtf8().constData());
+                    const QString result = QString::fromUtf8(raw ? raw : "");
+                    om_engine_free_json(raw);
+                    emit choicesReady(query.operation, query.instance, query.list, query.query, result);
+                }
+            } else if (!request.hoverId.isEmpty())
                 renderHover(engine.get(), request);
             else
                 process(engine.get(), request, processed);

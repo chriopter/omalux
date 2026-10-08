@@ -42,6 +42,11 @@ void Editor::setParameter(const QString &operation, int instance, const QString 
 void Editor::setParameters(const QString &operation, int instance, const QVariantMap &values) {
     QVariantMap finite;
     for (auto it = values.cbegin(); it != values.cend(); ++it) {
+        // Texts (file names, profile files, lens models) pass as strings.
+        if (it.value().typeId() == QMetaType::QString) {
+            finite.insert(it.key(), it.value().toString());
+            continue;
+        }
         bool ok = false;
         const double value = it.value().toDouble(&ok);
         if (ok && std::isfinite(value))
@@ -52,6 +57,12 @@ void Editor::setParameters(const QString &operation, int instance, const QVarian
 }
 void Editor::resetModule(const QString &operation, int instance) {
     queueModuleEdit({ActionKind::ResetModule, operation, instance, {}});
+}
+void Editor::requestChoices(const QString &operation, int instance, const QString &list,
+                            const QString &query) {
+    if (url.isEmpty() || operation.isEmpty() || list.isEmpty())
+        return;
+    worker->choices(operation, instance, list, query);
 }
 void Editor::queueModuleEdit(ModuleEdit edit) {
     if (applying || url.isEmpty() || edit.operation.isEmpty())
@@ -219,6 +230,7 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
         emit modulesChanged();
     });
     connect(worker.get(), &EngineWorker::moduleReady, this, &Editor::moduleUpdated);
+    connect(worker.get(), &EngineWorker::choicesReady, this, &Editor::choicesReady);
     connect(worker.get(), &EngineWorker::historyReady, this, [this](QVariantList rows) {
         if (historyRows != rows) {
             historyRows = rows;

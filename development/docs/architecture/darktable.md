@@ -248,6 +248,40 @@ A separate Qt image provider holds the hover image. Leaving, hiding the pane, cl
 
 `omalux/tests/style-hover.json` checks pointer hover/leave, style-to-style changes, cancellation, unchanged controls and the complete history including future steps, a normal re-render to read back native state, and click application. Before reducing hover resolution, a representative Chromatic comparison had identical active module parameters and dimensions, but separate-context rendered pixels were not byte-identical (mean absolute 8-bit channel difference approximately 0.34, maximum 85). Exact pixel parity is not asserted; the origin of that render-path difference remains unproven. Existing mask/multi-instance and color-management limitations still apply.
 
+## Displayed conversions and runtime lists (2026-10-08)
+
+`native/engine/module_values.c` ports the GUI conversions of darktable 5.6.1 without GTK: color
+calibration's illuminant hue/chroma (`channelmixerrgb.c:3300-3320, 3716-3740, 4097-4107`,
+`common/illuminants.h` `xy_to_CCT`/`CCT_reverse_lookup`), color balance's HSL sliders
+(`colorbalance.c:882-926, 1814-1836`), color harmonizer's RYB hues (`colorharmonizer.c:513-563,
+698-738, 802-812`, `common/color_ryb.h`; the lookup tables are rebuilt in the adapter because the
+plugin's are static), split-toning's colour buttons (`splittoning.c:253-260, 320-350`), color look
+up table's relative/absolute targets (`colorchecker.c:1009-1044, 1131-1264`) and white balance's
+camera presets and finetune (`temperature.c:740-806, 1205-1342, 1782-1915`). Parameters are
+reached through `get_p`/`get_f` introspection, not copied struct layouts. Hue and chroma (or
+saturation) of one control are converted together: darktable's callbacks read both sliders, and
+writing them one after another would lose the hue at zero chroma.
+
+`native/engine/module_choices.c` builds the runtime lists from the same sources as the GTK
+comboboxes and menus: `colorin.c:1919-2028`, `colorout.c:253-276`, `denoiseprofile.c:2655-2733,
+2803-2887, 2987-3000, 3100-3116`, `lens.cc:3602-4180, 4650-4680`, `lut3d.c:1550-1675`,
+`watermark.c:1142-1207`, `rasterfile.c:312-424`, `overlay.c:989-1047`. colorin's matrix tables
+come from `common/colormatrices.c`, included as `colorin.c` does. The lens module keeps its
+lensfun database in plugin-private global data, so the adapter opens its own `lfDatabase` once,
+lazily, the way `init_global` loads it for lensfun before 0.3.95 (`lens.cc:3343-3395`); the
+build links `lensfun`. Choosing a lens recomputes the automatic scale through the lensfun C API
+(`_get_autoscale_lf`, `lens.cc:1000-1043`). The overlay image is imported with
+`dt_film_new`/`dt_image_import` into the session library before `dt_overlay_record`.
+
+`om_engine_set_parameters` accepts strings for `char` arrays and hands `@` paths to these
+files after validating the plain values; the parameters are restored if a conversion fails.
+`om_engine_module_choices` runs on the engine worker as a separate queue that does not
+render. Verification: `omalux/tests/module-values.json` (beach JPEG, real engine, mailbox
+snapshots) and `omalux/tests/components/tst_values.qml`; camera presets, noise profiles,
+image profiles and lens detection were also checked by hand against a Canon EOS 6D raw file.
+Not covered: gmic-compressed LUTs, image pickers and buttons (white balance "from image area",
+lens/camera "find"), and colour calibration's checker workflow.
+
 ## Native module layout (2026-09-09)
 
 `omalux/native/main.cpp` creates Qt, the editor facade, image providers and optional development tools. It contains no engine dispatch or style file operations.

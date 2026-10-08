@@ -41,7 +41,8 @@ QtObject {
         const item = queue[0]
         const paths = Object.keys(item.changes)
         _sentKeys = []
-        if (paths.length > 1 && batchSupported) {
+        // Texts (file names, profiles, lens models) only travel in a batch: setParameter takes numbers.
+        if ((paths.length > 1 || typeof item.changes[paths[0]] === "string") && batchSupported) {
             backend.setParameters(item.operation, item.instance, item.changes)
             _sentKeys = paths.map(p => key(item.operation, item.instance, p))
             queue.shift()

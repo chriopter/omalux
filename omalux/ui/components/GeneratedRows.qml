@@ -5,7 +5,9 @@ import QtQuick.Layouts
 // The rows of one darktable module as described by omalux/design/layout.json, drawn with the
 // same controls as the curated block. Primary rows show while the module is collapsed, detail
 // rows when it is expanded and advanced rows behind "more". Rows that need something Omalux
-// cannot do yet (pickers, drawn shapes, converted values) collapse into one muted notice.
+// cannot do yet (pickers, drawn shapes) collapse into one muted notice. Values darktable shows
+// through a conversion ("@" paths) and runtime lists are read from the engine's catalog entry
+// ("derived", "labels") and its choice lists (catalogModel.requestChoices).
 // The component never writes a parameter: edits leave through changesRequested as
 // { params path: raw value }.
 Column {
@@ -96,7 +98,20 @@ Column {
             const path = r.path
             const local = path && path.startsWith("@") && path.indexOf("[") < 0 && localNames[path]
             let it
-            if (r.widget === "notice") it = Object.assign(base(r), { kind: "notice", text: r.label })
+            // ---- values and lists (area "Werte & Listen") ----
+            const derivedPath = path && path.startsWith("@") && !local
+            if (r.custom && r.custom.kind === "choice")
+                it = Object.assign(base(r), { kind: "choiceList", tier: r.tier === "primary" ? "detail" : r.tier })
+            else if (r.custom && r.custom.kind === "patches")
+                it = Object.assign(base(r), { kind: "patches" })
+            else if (r.widget === "text" && r.custom && r.custom.editable && path)
+                it = Object.assign(base(r), { kind: "textEdit" })
+            else if (r.widget === "slider" && derivedPath)
+                it = Object.assign(base(r), { kind: "slider", derived: true, control: sliderControl(r, id(r)) })
+            else if (r.widget === "color" && derivedPath)
+                it = Object.assign(base(r), { kind: "color", derived: true, paths: [path + "[0]", path + "[1]", path + "[2]"] })
+            // ---- end values and lists ----
+            else if (r.widget === "notice") it = Object.assign(base(r), { kind: "notice", text: r.label })
             else if (local && (r.widget === "combobox" || r.widget === "toggle" || r.widget === "text"))
                 it = Object.assign(base(r), { kind: "local" })
             else if (r.widget === "curve" && r.custom && !r.custom.nodes_field && r.custom.fields.length)
@@ -180,7 +195,7 @@ Column {
         return root.catalogModel.resolve(root.moduleState, p)
     }
     function readable(r) { return raw(r.path) !== undefined }
-    function canWrite(path) { return root.catalogModel.writable(subst(path)) }
+    function canWrite(path) { return root.catalogModel.writable(subst(path), root.moduleState) }
     function valueOrDefault(r) {
         const v = raw(r.path)
         return v !== undefined && typeof v !== "object" ? Number(v) : (r.default !== null && typeof r.default !== "object" ? Number(r.default) : 0)
@@ -196,6 +211,13 @@ Column {
         const v = fieldValue(c.field)
         if (v === undefined || v === null || typeof v === "object") return true
         return c.in.indexOf(Math.round(Number(v))) >= 0
+    }
+    // A displayed conversion whose range depends on the image (white balance finetune: the
+    // camera preset's tuning range, temperature.c:1257-1264) carries "_min"/"_max" values.
+    function derivedControl(it) {
+        const lo = root.raw(it.row.path + "_min"), hi = root.raw(it.row.path + "_max")
+        if (typeof lo !== "number" || typeof hi !== "number") return it.control
+        return Object.assign({}, it.control, { minimum: lo, maximum: hi, softMinimum: lo, softMaximum: hi })
     }
     function edit(path, value) {
         const changes = {}
@@ -228,6 +250,9 @@ Column {
                 const tab = !tabs.length || !it.tab || it.tab === tabs[root.tabIndex] || (!root.expanded && it.tier === "primary")
                 ok = tier && tab
             }
+            // A displayed conversion the engine does not report here (e.g. white balance finetune
+            // without a camera preset with tuning) is not shown, as darktable hides the slider.
+            if (ok && it.derived && it.kind === "slider" && !root.readable(it.row)) ok = false
             return ok && root.condition(it.cond)
         })
         for (let i = 0; i < items.length; ++i) {
@@ -263,7 +288,8 @@ Column {
             property var it: modelData
             sourceComponent: ({ slider: sliderRow, choice: choiceRow, "switch": switchRow, local: localRow, text: textRow,
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
-                                color: colorRow, channels: channelsRow })[modelData.kind] || noticeRow
+                                color: colorRow, channels: channelsRow, choiceList: choiceListRow,
+                                textEdit: textEditRow, patches: patchesRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -304,7 +330,7 @@ Column {
             readonly property bool known: root.readable(r)
             width: root.width
             theme: root.theme
-            control: it.control
+            control: it.derived ? root.derivedControl(it) : it.control
             value: root.valueOrDefault(r) * (r.factor || 1) + (r.offset || 0)
             editable: root.editable && known && root.canWrite(r.path)
             compact: true
@@ -391,7 +417,8 @@ Column {
                     const count = r.custom && r.custom.fields.length
                                   ? Number(root.catalogModel.resolve(root.moduleState, r.custom.fields[0])) || 0 : 0
                     const list = []
-                    for (let i = 0; i < count; ++i) list.push({ value: i, label: String(i + 1) })
+                    for (let i = 0; i < count; ++i)
+                        list.push({ value: i, label: r.path === "@patch" ? "patch #" + i : String(i + 1) })
                     return list
                 }
                 sourceComponent: r.widget === "toggle" ? localSwitch : localChoice
@@ -675,6 +702,152 @@ Column {
                 for (let i = 0; i < 3; ++i) changes[root.subst(it.paths[i])] = d[i]
                 root.changesRequested(changes)
             }
+        }
+    }
+    // ---- values and lists (area "Werte & Listen") ------------------------------------------
+    // A runtime list or file choice (module_choices.c): the current text comes from the
+    // catalog's "labels", the list from catalogModel.requestChoices, a pick is the item's
+    // "set" object as one setParameters batch.
+    Component {
+        id: choiceListRow
+        RowWrapper {
+            id: wrapper
+            readonly property var r: it.row
+            readonly property var c: r.custom
+            readonly property string key: root.catalogModel.choiceKey(root.module.operation, root.instance, c.list || r.field)
+            readonly property var result: root.catalogModel.choiceResults[key] || null
+            readonly property var labels: root.moduleState && root.moduleState.labels ? root.moduleState.labels : ({})
+            width: root.width
+            theme: root.theme
+            label: r.label
+            resetEnabled: false
+            opacity: !root.moduleState ? .45 : root.moduleEnabled ? 1 : .7
+            ChoiceRow {
+                objectName: "choice-" + root.module.operation + "-" + wrapper.r.field
+                width: parent.width
+                theme: root.theme
+                label: wrapper.r.label
+                valueText: wrapper.labels[wrapper.r.field] !== undefined ? wrapper.labels[wrapper.r.field] : ""
+                items: wrapper.result ? wrapper.result.items : []
+                current: wrapper.result ? wrapper.result.current : -1
+                more: wrapper.result ? wrapper.result.more : 0
+                error: wrapper.result ? wrapper.result.error : ""
+                loading: !!wrapper.result && !!wrapper.result.loading
+                listed: !!wrapper.c.list
+                placeholder: wrapper.c.search ? "search" : "filter"
+                fileFilters: wrapper.c.browse ? wrapper.c.filters : []
+                fileTitle: "Choose " + (wrapper.r.label || "a file")
+                editable: root.editable && !!root.moduleState
+                onRequested: query => root.catalogModel.requestChoices(root.module.operation, root.instance,
+                                                                       wrapper.c.list || wrapper.r.field, query)
+                onChosen: index => {
+                    const item = wrapper.result && wrapper.result.items[index]
+                    if (item && item.set) root.changesRequested(Object.assign({}, item.set))
+                }
+                onFileChosen: path => {
+                    const changes = {}
+                    changes[wrapper.c.browse] = path
+                    root.changesRequested(changes)
+                }
+                navTarget.navId: root.navId(wrapper.r)
+                navTarget.group: root.navGroup
+                navTarget.resettable: false
+            }
+        }
+    }
+    // Free text darktable takes from an entry (watermark text and font).
+    Component {
+        id: textEditRow
+        RowWrapper {
+            id: textWrapper
+            readonly property var r: it.row
+            readonly property var stored: root.raw(r.path)
+            width: root.width
+            theme: root.theme
+            label: r.label
+            resetEnabled: root.editable && typeof r.default === "string"
+            onResetRequested: { const ch = {}; ch[r.path] = r.default; root.changesRequested(ch) }
+            implicitHeight: 26
+            RowLayout {
+                width: parent.width
+                height: 26
+                spacing: 8
+                Text {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 8
+                    text: textWrapper.r.label
+                    color: textNav.current ? root.theme.accent : root.theme.ink
+                    font: root.theme.settingsFont
+                    elide: Text.ElideRight
+                }
+                TextField {
+                    id: field
+                    objectName: "text-" + root.module.operation + "-" + textWrapper.r.field
+                    Layout.preferredWidth: parent.width * .6
+                    Layout.rightMargin: 8
+                    text: typeof textWrapper.stored === "string" ? textWrapper.stored : ""
+                    enabled: root.editable && typeof textWrapper.stored === "string"
+                    font: root.theme.textFont
+                    color: root.theme.ink
+                    selectByMouse: true
+                    background: Rectangle { color: root.theme.well; radius: 4; border.color: field.activeFocus ? root.theme.accent : root.theme.line }
+                    onEditingFinished: {
+                        if (text === textWrapper.stored) return
+                        const ch = {}; ch[textWrapper.r.path] = text; root.changesRequested(ch)
+                    }
+                    onPressed: textNav.claim()
+                    NavTarget {
+                        id: textNav
+                        navId: root.navId(textWrapper.r)
+                        label: textWrapper.r.label
+                        kind: "search"
+                        group: root.navGroup
+                        input: field
+                        activateLabel: "EDIT"
+                    }
+                }
+            }
+        }
+    }
+    // The colour checker patches of "color look up table".
+    Component {
+        id: patchesRow
+        PatchGrid {
+            id: grid
+            objectName: "patches-" + root.module.operation
+            readonly property int patchCount: Math.max(0, Number(root.raw("num_patches")) || 0)
+            readonly property var sources: ["source_L", "source_a", "source_b"].map(f => root.raw(f))
+            readonly property var targets: ["target_L", "target_a", "target_b"].map(f => root.raw(f))
+            width: root.width - 28
+            theme: root.theme
+            count: patchCount
+            current: Math.min(root.gui["@patch"] || 0, Math.max(0, patchCount - 1))
+            colors: { const out = []; for (let i = 0; i < patchCount; ++i) out.push([0, 1, 2].map(c => Number(root.raw("@source_rgb[" + i + "][" + c + "]")) || 0)); return out }
+            changed: { const out = []; for (let i = 0; i < patchCount; ++i) out.push(Number(root.raw("@changed[" + i + "]")) > 0); return out }
+            lightness: Array.isArray(sources[0]) ? sources[0].map(Number) : []
+            editable: root.editable && Array.isArray(sources[0]) && root.canWrite("target_L[0]")
+            opacity: root.moduleEnabled ? 1 : .7
+            onPatchSelected: index => root.setGui("@patch", index)
+            onPatchReset: index => {
+                const ch = {}
+                const names = ["L", "a", "b"]
+                for (let k = 0; k < 3; ++k) ch["target_" + names[k] + "[" + index + "]"] = Number(grid.sources[k][index])
+                root.changesRequested(ch)
+            }
+            // darktable moves the following patches up and drops the last one.
+            onPatchRemoved: index => {
+                const ch = {}
+                const fields = ["source_L", "source_a", "source_b", "target_L", "target_a", "target_b"]
+                const all = fields.map(f => root.raw(f))
+                if (!all.every(Array.isArray)) return
+                for (let f = 0; f < fields.length; ++f)
+                    for (let i = index; i < grid.patchCount - 1; ++i) ch[fields[f] + "[" + i + "]"] = Number(all[f][i + 1])
+                ch["num_patches"] = grid.patchCount - 1
+                if ((root.gui["@patch"] || 0) >= grid.patchCount - 1) root.setGui("@patch", Math.max(0, grid.patchCount - 2))
+                root.changesRequested(ch)
+            }
+            navTarget.navId: root.navGroup + "/@patches"
+            navTarget.group: root.navGroup
         }
     }
 }

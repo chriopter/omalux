@@ -71,6 +71,11 @@ class Editor : public QObject {
     Q_INVOKABLE void setParameter(const QString &operation, int instance, const QString &path, double value);
     Q_INVOKABLE void setParameters(const QString &operation, int instance, const QVariantMap &values);
     Q_INVOKABLE void resetModule(const QString &operation, int instance);
+    // A runtime list of one module row (profiles, lenses, LUT files ...): answered by
+    // choicesReady with the JSON of om_engine_module_choices. Choosing an item is
+    // setParameters with its "set" object, which may contain strings.
+    Q_INVOKABLE void requestChoices(const QString &operation, int instance, const QString &list,
+                                    const QString &query);
   signals:
     void historyChanged();
     void changed();
@@ -79,6 +84,7 @@ class Editor : public QObject {
     void modulesChanged();
     // One module's catalog entry (a JSON object as in moduleCatalog) after a generic edit.
     void moduleUpdated(QString operation, int instance, QString moduleJson);
+    void choicesReady(QString operation, int instance, QString list, QString query, QString result);
 
   private:
     bool styleAvailable(const QString &id) const;

@@ -62,6 +62,11 @@ Rectangle {
         catalog: root.backend.moduleCatalog
         layoutText: root.backend.layoutData || "{}"
         onStatesChanged: parameterQueue.acknowledge()
+        // Runtime lists of module rows (profiles, lenses, files): asked here, answered below.
+        onChoicesRequested: (operation, instance, list, query) => {
+            if (typeof root.backend.requestChoices === "function")
+                root.backend.requestChoices(operation, instance, list, query)
+        }
     }
     ParameterQueue {
         id: parameterQueue
@@ -71,6 +76,7 @@ Rectangle {
         target: root.backend
         ignoreUnknownSignals: true
         function onModuleUpdated(operation, instance, moduleJson) { moduleCatalog.updateModule(operation, instance, moduleJson) }
+        function onChoicesReady(operation, instance, list, query, result) { moduleCatalog.receiveChoices(operation, instance, list, query, result) }
     }
     // The engine switches a module on when one of its parameters is edited, as darktable does.
     function changeParameters(operation, instance, changes) {

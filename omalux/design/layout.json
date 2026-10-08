@@ -259,7 +259,7 @@
        "label": "settings",
        "tab": null,
        "section": "settings",
-       "widget": "combobox",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -269,36 +269,18 @@
        "soft_min": null,
        "soft_max": null,
        "default": 4,
-       "values": [
-        {
-         "value": 0,
-         "label": "as shot"
-        },
-        {
-         "value": 1,
-         "label": "from image area"
-        },
-        {
-         "value": 2,
-         "label": "user modified"
-        },
-        {
-         "value": 3,
-         "label": "camera reference"
-        },
-        {
-         "value": 4,
-         "label": "as shot to reference"
-        },
-        {
-         "value": ">=5",
-         "label": "camera-specific presets from wb_presets for this maker/model (dynamic, max 50, under a '<maker> <model>' section)"
-        }
-       ],
+       "values": null,
        "visible_when": null,
        "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "choice",
+        "fields": [],
+        "list": "preset",
+        "search": false,
+        "browse": null,
+        "filters": []
+       },
        "action": "settings/settings"
       },
       {
@@ -9999,7 +9981,7 @@
        "label": "",
        "tab": null,
        "section": null,
-       "widget": "file",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -10014,9 +9996,16 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "file",
+        "kind": "choice",
         "fields": [
          "filepath"
+        ],
+        "list": "filepath",
+        "search": true,
+        "browse": "@lut_file",
+        "filters": [
+         "LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)",
+         "All files (*)"
         ]
        },
        "action": "(folder button)"
@@ -10152,7 +10141,7 @@
        "label": "patches",
        "tab": null,
        "section": null,
-       "widget": "drawn",
+       "widget": "patches",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -10164,10 +10153,10 @@
        "default": null,
        "values": null,
        "visible_when": null,
-       "tier": "advanced",
+       "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "drawn",
+        "kind": "patches",
         "fields": [
          "source_L",
          "source_a",
@@ -10211,7 +10200,7 @@
       },
       {
        "field": "target_L",
-       "path": "target_L[@patch]",
+       "path": "@target_L[@absolute_target][@patch]",
        "label": "lightness",
        "tab": null,
        "section": null,
@@ -10234,7 +10223,7 @@
       },
       {
        "field": "target_a",
-       "path": "target_a[@patch]",
+       "path": "@target_a[@absolute_target][@patch]",
        "label": "green-magenta offset",
        "tab": null,
        "section": null,
@@ -10257,7 +10246,7 @@
       },
       {
        "field": "target_b",
-       "path": "target_b[@patch]",
+       "path": "@target_b[@absolute_target][@patch]",
        "label": "blue-yellow offset",
        "tab": null,
        "section": null,
@@ -10280,7 +10269,7 @@
       },
       {
        "field": "@target_C",
-       "path": "@target_C[@patch]",
+       "path": "@target_C[@absolute_target][@patch]",
        "label": "saturation",
        "tab": null,
        "section": null,
@@ -11190,11 +11179,11 @@
       },
       {
        "field": "camera",
-       "path": null,
+       "path": "camera",
        "label": "camera model",
        "tab": null,
        "section": null,
-       "widget": "button",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11213,7 +11202,14 @@
        },
        "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "choice",
+        "fields": [],
+        "list": "camera",
+        "search": true,
+        "browse": null,
+        "filters": []
+       },
        "action": "camera model"
       },
       {
@@ -11246,11 +11242,11 @@
       },
       {
        "field": "lens",
-       "path": null,
+       "path": "lens",
        "label": "lens model",
        "tab": null,
        "section": null,
-       "widget": "button",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11269,7 +11265,14 @@
        },
        "tier": "detail",
        "colors": "",
-       "custom": null,
+       "custom": {
+        "kind": "choice",
+        "fields": [],
+        "list": "lens",
+        "search": true,
+        "browse": null,
+        "filters": []
+       },
        "action": "lens model"
       },
       {
@@ -11306,7 +11309,7 @@
        "label": "focal length",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11326,11 +11329,14 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "focal"
         ],
-        "dynamic": true
+        "list": "focal",
+        "search": true,
+        "browse": null,
+        "filters": []
        },
        "action": "focal length"
       },
@@ -11340,7 +11346,7 @@
        "label": "aperture",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11360,11 +11366,14 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "aperture"
         ],
-        "dynamic": true
+        "list": "aperture",
+        "search": true,
+        "browse": null,
+        "filters": []
        },
        "action": "aperture"
       },
@@ -11374,7 +11383,7 @@
        "label": "distance",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11394,11 +11403,14 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "distance"
         ],
-        "dynamic": true
+        "list": "distance",
+        "search": true,
+        "browse": null,
+        "filters": []
        },
        "action": "distance"
       },
@@ -11868,7 +11880,7 @@
        "label": "profile",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -11883,12 +11895,15 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "a",
          "b"
         ],
-        "dynamic": true
+        "list": "@profile",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": "profile"
       },
@@ -13351,7 +13366,7 @@
        "label": "file",
        "tab": null,
        "section": null,
-       "widget": "file",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -13366,10 +13381,16 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "file",
+        "kind": "choice",
         "fields": [
          "path",
          "file"
+        ],
+        "list": "file",
+        "search": false,
+        "browse": "@raster_file",
+        "filters": [
+         "raster masks (*.pfm *.PFM *.png *.PNG)"
         ]
        },
        "action": null
@@ -15920,7 +15941,7 @@
        "label": "marker",
        "tab": null,
        "section": null,
-       "widget": "file",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -15935,10 +15956,14 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "file",
+        "kind": "choice",
         "fields": [
          "filename"
-        ]
+        ],
+        "list": "filename",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": null
       },
@@ -15966,7 +15991,8 @@
         "kind": "text",
         "fields": [
          "text"
-        ]
+        ],
+        "editable": true
        },
        "action": "text"
       },
@@ -15994,7 +16020,8 @@
         "kind": "text",
         "fields": [
          "font"
-        ]
+        ],
+        "editable": true
        },
        "action": "font"
       },
@@ -16352,7 +16379,7 @@
        "label": "image id",
        "tab": null,
        "section": null,
-       "widget": "file",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -16367,10 +16394,17 @@
        "tier": "detail",
        "colors": "",
        "custom": {
-        "kind": "file",
+        "kind": "choice",
         "fields": [
          "imgid",
          "filename"
+        ],
+        "list": null,
+        "search": false,
+        "browse": "@overlay_file",
+        "filters": [
+         "images (*.jpg *.jpeg *.JPG *.JPEG *.png *.PNG *.tif *.tiff *.TIF *.TIFF *.exr *.EXR *.webp *.WEBP *.avif *.AVIF *.heic *.HEIC *.jxl *.JXL)",
+         "All files (*)"
         ]
        },
        "action": null
@@ -18174,7 +18208,7 @@
        "label": "input profile",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -18189,12 +18223,15 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "type",
          "filename"
         ],
-        "dynamic": true
+        "list": "type",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": "input profile"
       },
@@ -18204,7 +18241,7 @@
        "label": "working profile",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -18219,12 +18256,15 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "type_work",
          "filename_work"
         ],
-        "dynamic": true
+        "list": "type_work",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": "working profile"
       },
@@ -18331,7 +18371,7 @@
        "label": "export profile",
        "tab": null,
        "section": null,
-       "widget": "text",
+       "widget": "choice",
        "unit": "",
        "factor": 1,
        "offset": 0,
@@ -18346,12 +18386,15 @@
        "tier": "advanced",
        "colors": "",
        "custom": {
-        "kind": "text",
+        "kind": "choice",
         "fields": [
          "type",
          "filename"
         ],
-        "dynamic": true
+        "list": "type",
+        "search": false,
+        "browse": null,
+        "filters": []
        },
        "action": "export profile"
       }

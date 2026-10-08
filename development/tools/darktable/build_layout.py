@@ -35,8 +35,8 @@ FAMILIES = ["tone", "color", "correct", "effects"]
 CONTROLS_H = ROOT / "omalux" / "native" / "engine" / "controls.h"
 GROUP_IDS = ["base", "tone", "color", "correct", "effect", "technical", "deprecated"]
 WIDGETS = {"slider", "combobox", "toggle", "button", "curve", "graph", "color", "picker",
-           "drawn", "text", "file", "notice"}
-CUSTOM_KINDS = {"curve", "graph", "color", "picker", "drawn", "file", "text"}
+           "drawn", "text", "file", "notice", "choice", "patches"}
+CUSTOM_KINDS = {"curve", "graph", "color", "picker", "drawn", "file", "text", "choice", "patches"}
 INTERPOLATIONS = {None, "cubic", "catmull", "monotone", "linear"}
 TIERS = {"primary", "detail", "advanced"}
 COLORS = {"", "light", "saturation", "hue", "temperature", "tint"}
@@ -56,10 +56,12 @@ FIELD_FIXES = {
     ("colorcorrection", "hia/hib/loa/lob"): ("grid", None),
     ("monochrome", "a/b/size"): ("grid", None),
     ("colorchecker", "source_*/target_*"): ("patches", None),
-    ("colorchecker", "target_L[patch]"): ("target_L", "target_L[@patch]"),
-    ("colorchecker", "target_a[patch]"): ("target_a", "target_a[@patch]"),
-    ("colorchecker", "target_b[patch]"): ("target_b", "target_b[@patch]"),
-    ("colorchecker", "@target_C[patch]"): ("@target_C", "@target_C[@patch]"),
+    # The sliders show the target relative to the source patch or absolute, after darktable's
+    # "target color" combobox (colorchecker.c:1009-1044); module_values.c converts both.
+    ("colorchecker", "target_L[patch]"): ("target_L", "@target_L[@absolute_target][@patch]"),
+    ("colorchecker", "target_a[patch]"): ("target_a", "@target_a[@absolute_target][@patch]"),
+    ("colorchecker", "target_b[patch]"): ("target_b", "@target_b[@absolute_target][@patch]"),
+    ("colorchecker", "@target_C[patch]"): ("@target_C", "@target_C[@absolute_target][@patch]"),
     ("channelmixer", "red[destination]"): ("red", "red[@destination]"),
     ("channelmixer", "green[destination]"): ("green", "green[@destination]"),
     ("channelmixer", "blue[destination]"): ("blue", "blue[@destination]"),
@@ -128,8 +130,8 @@ CUSTOM = {
     ("relight", "center"): dict(kind="drawn", fields=["center"]),
     ("colorcorrection", "grid"): dict(kind="drawn", fields=["hia", "hib", "loa", "lob", "saturation"]),
     ("monochrome", "grid"): dict(kind="drawn", fields=["a", "b", "size"]),
-    ("colorchecker", "patches"): dict(kind="drawn", fields=["source_L", "source_a", "source_b",
-        "target_L", "target_a", "target_b", "num_patches"]),
+    ("colorchecker", "patches"): dict(kind="patches", fields=["source_L", "source_a", "source_b",
+        "target_L", "target_a", "target_b", "num_patches"]),  # checker_draw/_button_press, colorchecker.c:1293-1479
     ("negadoctor", "Dmin"): dict(kind="color", fields=["Dmin[0]", "Dmin[1]", "Dmin[2]"]),
     ("negadoctor", "wb_low"): dict(kind="color", fields=["wb_low[0]", "wb_low[1]", "wb_low[2]"]),
     ("negadoctor", "wb_high"): dict(kind="color", fields=["wb_high[0]", "wb_high[1]", "wb_high[2]"]),
@@ -156,6 +158,34 @@ DYNAMIC = {
     ("@blending", "raster_mask"): ("text", ["raster_mask_source", "raster_mask_instance", "raster_mask_id"]),
     ("colorchecker", "@patch"): ("text", ["num_patches"]),      # 'patch #k' for k < num_patches, colorchecker.c
 }
+
+# Rows darktable fills from a runtime list or a file dialog, and how Omalux offers them
+# (module_choices.c): "list" names the list om_engine_module_choices answers, "browse" the
+# "@" path a file from the dialog is written to, "filters" the dialog's name filters.
+# Keyed by (operation, field id); the row's own path becomes the field id where it had none.
+CHOICES = {
+    ("colorin", "type"): dict(list="type"),                       # colorin.c:1919-2028
+    ("colorin", "type_work"): dict(list="type_work"),
+    ("colorout", "type"): dict(list="type"),                      # colorout.c:860
+    ("denoiseprofile", "@profile"): dict(list="@profile"),        # denoiseprofile.c:2719-2733
+    ("lens", "camera"): dict(list="camera", search=True),         # lens.cc:3764-3824
+    ("lens", "lens"): dict(list="lens", search=True),             # lens.cc:4101-4180
+    ("lens", "focal"): dict(list="focal", search=True),           # editable comboboxes, lens.cc:4045-4098
+    ("lens", "aperture"): dict(list="aperture", search=True),
+    ("lens", "distance"): dict(list="distance", search=True),
+    ("lut3d", "filepath"): dict(list="filepath", search=True, browse="@lut_file",   # lut3d.c:1570-1675
+                                filters=["LUT files (*.png *.PNG *.cube *.CUBE *.3dl *.3DL)", "All files (*)"]),
+    ("watermark", "filename"): dict(list="filename"),             # watermark.c:1142-1207
+    ("rasterfile", "file"): dict(list="file", browse="@raster_file",                 # rasterfile.c:322-424
+                                 filters=["raster masks (*.pfm *.PFM *.png *.PNG)"]),
+    ("overlay", "imgid"): dict(list=None, browse="@overlay_file",                    # overlay.c:989-1047
+                               filters=["images (*.jpg *.jpeg *.JPG *.JPEG *.png *.PNG *.tif *.tiff *.TIF *.TIFF "
+                                        "*.exr *.EXR *.webp *.WEBP *.avif *.AVIF *.heic *.HEIC *.jxl *.JXL)",
+                                        "All files (*)"]),
+    ("temperature", "preset"): dict(list="preset"),               # temperature.c:740-806, 1662-1678
+}
+# Free text darktable edits in an entry: written back as the string parameter.
+TEXT_EDIT = {("watermark", "text"), ("watermark", "font")}  # watermark.c _text_callback, _fontsel_callback
 
 # Comboboxes the inventory describes by reference to another one: (operation, field) -> (operation, field).
 VALUES_FROM = {
@@ -375,6 +405,17 @@ def finish_row(op, r, notes):
         if custom.get("dynamic"):
             full["dynamic"] = True
         custom = full
+    if (op, r["field"]) in CHOICES:
+        spec = CHOICES[(op, r["field"])]
+        out["widget"] = "choice"
+        if out["path"] is None and not r["field"].startswith("@"):
+            out["path"] = r["field"]
+        out["values"] = None
+        custom = OrderedDict(kind="choice", fields=(custom or {}).get("fields", []), list=spec.get("list"),
+                             search=spec.get("search", False), browse=spec.get("browse"),
+                             filters=spec.get("filters", []))
+    if (op, r["field"]) in TEXT_EDIT and custom is not None:
+        custom["editable"] = True
     out["custom"] = custom
     out["action"] = c["action"]
     return out

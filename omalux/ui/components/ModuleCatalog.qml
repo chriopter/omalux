@@ -67,8 +67,10 @@ QtObject {
                     if (p.field && values[p.field] === undefined && p.value !== undefined) values[p.field] = p.value
                     if (p.field && !params[p.field]) params[p.field] = p
                 }
+                root.addDerived(m, values)
                 const state = { operation: m.operation, instance: m.instance, label: m.label, enabled: !!m.enabled,
-                                hidden: !!m.hidden, values: values, params: params }
+                                hidden: !!m.hidden, values: values, params: params,
+                                derived: m.derived || ({}), labels: m.labels || ({}) }
                 next[key] = state
                 cache[key] = { signature: signature, state: state }
             }
@@ -93,10 +95,42 @@ QtObject {
             if (p.field && values[p.field] === undefined && p.value !== undefined) values[p.field] = p.value
             if (p.field && !params[p.field]) params[p.field] = p
         }
+        root.addDerived(m, values)
         const next = Object.assign({}, root.states)
         next[key] = { operation: operation, instance: instance, label: m.label, enabled: !!m.enabled,
-                      hidden: !!m.hidden, values: values, params: params }
+                      hidden: !!m.hidden, values: values, params: params,
+                      derived: m.derived || ({}), labels: m.labels || ({}) }
         root.states = next
+    }
+
+    // darktable's displayed conversions ("@" paths such as "@lift_hue" or "@target_C[0][3]",
+    // module_values.c) resolve like parameters.
+    function addDerived(m, values) {
+        const derived = m.derived || {}
+        for (const k in derived) values[k] = derived[k]
+    }
+
+    // Runtime lists of module rows (profiles, lenses, LUT files ...), answered by the engine.
+    // `choiceResults` maps "operation/instance/list" to { query, items, current, more, error }.
+    signal choicesRequested(string operation, int instance, string list, string query)
+    property var choiceResults: ({})
+    function choiceKey(operation, instance, list) { return operation + "/" + instance + "/" + list }
+    function requestChoices(operation, instance, list, query) {
+        const key = choiceKey(operation, instance, list)
+        const next = Object.assign({}, root.choiceResults)
+        next[key] = Object.assign({}, next[key] || { items: [], current: -1, more: 0, error: "" }, { loading: true })
+        root.choiceResults = next
+        root.choicesRequested(operation, instance, list, query || "")
+    }
+    function receiveChoices(operation, instance, list, query, text) {
+        let parsed = null
+        try { parsed = JSON.parse(text || "null") } catch (e) {}
+        const next = Object.assign({}, root.choiceResults)
+        next[choiceKey(operation, instance, list)] = parsed
+            ? { query: query, items: parsed.items || [], current: parsed.current === undefined ? -1 : parsed.current,
+                more: parsed.more || 0, error: parsed.error || "", loading: false }
+            : { query: query, items: [], current: -1, more: 0, error: "the list is not available", loading: false }
+        root.choiceResults = next
     }
 
     // "name", "name[i]", "name[i][j].member" → tokens.
@@ -119,8 +153,11 @@ QtObject {
         for (let i = 1; i < t.length && v !== undefined && v !== null; ++i) v = v[t[i]]
         return v === null ? undefined : v
     }
-    // A params path the engine can write: plain members always, indexed paths once supported.
-    function writable(path) {
+    // A params path the engine can write: plain members always, indexed paths once supported,
+    // displayed conversions ("@" paths) when the engine reports them for this module (state).
+    function writable(path, state) {
+        if (path && path.startsWith("@") && path.indexOf("[@") < 0)
+            return !!state && !!state.derived && state.derived[path] !== undefined
         if (!path || path.startsWith("@") || path.indexOf("@") >= 0) return false
         return root.pathsSupported || /^[A-Za-z_][A-Za-z0-9_]*$/.test(path)
     }

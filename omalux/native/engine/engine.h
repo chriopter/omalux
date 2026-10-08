@@ -42,6 +42,11 @@ int om_engine_set_parameter(OmEngine *engine, const char *operation, int instanc
 int om_engine_set_parameters(OmEngine *engine, const char *operation, int instance, const char *json);
 // darktable's module reset: default parameters and blending, module switched on; one history item.
 int om_engine_reset_module(OmEngine *engine, const char *operation, int instance);
+// A list darktable fills at runtime for one row (profiles, lenses, LUT files, ...), filtered by
+// query: {"items": [{"label", "detail", "section", "set": {path: value}}], "current", "more"}.
+// Choosing an item is om_engine_set_parameters with its "set" object (module_choices.c).
+char *om_engine_module_choices(OmEngine *engine, const char *operation, int instance, const char *list,
+                               const char *query);
 // Import camera presets (.dtpreset) so darktable auto-applies them; call before opening images.
 int om_engine_import_camera_presets(const char *directory);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);

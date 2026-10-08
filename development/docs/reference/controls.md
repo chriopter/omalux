@@ -59,7 +59,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 
 - **Order.** The selectable items are the `NavTarget`s of the visible sidebar pane, ordered by where they are shown (top to bottom, then left to right). ↑/↓ cross module and group boundaries, stop at the first and last item (no wrap), and skip disabled items. Collapsed parameters, hidden panes and the other filter view are never reached: a hidden pane never receives keys. Only a direct shortcut (`G`, `S`, `M`) opens a collapsed module to select its parameter. Panes without items (Info) scroll with ↑/↓.
 - **Selection.** Each pane remembers its selection; a new pane starts at the item it marks as active (the active control, the current history step, the last applied style). The selection is marked in the accent colour and is scrolled into view at once, by the smallest movement with a small margin, also when a key adjusts it after the wheel moved it away.
-- **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), "more", and curves and graphs. Notices and section captions are not stops.
+- **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
 - **Focus.** Clicking a control selects it for the keyboard, then focus returns to the navigator; the same happens after menus, the value entry and dialogs close. Text fields keep all keys while typing (no shortcut fires); `Esc` leaves the field, `Enter` or `↓` leave it and select the item below. Popups and dialogs own their keys while open.
@@ -221,6 +221,16 @@ touched modules.
 - `setParameters(operation, instance, {path: value, …})` sets several values of one module
   and records a single history item. All paths are resolved before anything is written, so
   an unknown path leaves the module untouched.
+- A value may be a string for a `char` array (file names, profile files, lens models, watermark
+  text); it must fit the array including its terminator. Paths starting with `@` (other than
+  `@enabled`) are darktable's displayed conversions and runtime choices, converted by
+  `native/engine/module_values.c` and `module_choices.c` into parameters before the history
+  item is recorded (see "Displayed values and runtime lists" below). A rejected conversion
+  leaves the parameters unchanged.
+- `requestChoices(operation, instance, list, query)` asks for a list darktable fills at runtime;
+  `choicesReady(operation, instance, list, query, json)` answers with
+  `{"items": [{"label", "detail", "section", "set"}], "current", "more", "error"}` without
+  rendering. Choosing an item sends its `set` object through `setParameters`.
 - `resetModule(operation, instance)` is darktable's module reset without its GUI
   (`_gui_reset_callback`, `develop/imageop.c`): image-dependent defaults are reloaded,
   default parameters and blending restored, and the module is switched on, in one history
@@ -248,7 +258,9 @@ the latest state. The curated controls keep their GTK action path. Snapshots rej
 module instances and drawn masks, so edits of an instance other than 0 are not mirrored.
 `python3 omalux/tests/run.py` records the mailbox of `omalux/tests/module-parameters.json`
 (`OMALUX_RECORD_MAILBOX`, no comparison window) and checks it carries one current snapshot
-each for exposure, tonecurve and rgbcurve.
+each for exposure, tonecurve and rgbcurve. `omalux/tests/module-values.json` does the same for
+the displayed conversions and runtime lists (color balance, color calibration, color
+harmonizer, split-toning, color look up table, input profile, lens, LUT 3D).
 
 ## Generated layout of every module
 
@@ -283,8 +295,12 @@ unlabelled get an empty label.
   in the module's notes. A condition may name a curated parameter by its params member.
 - Drawn or on-canvas features (retouch, liquify, spots, the graduated density line, ashift
   structure lines, colour checker calibration) become one `notice` row; plain sliders of the
-  same module are kept. Comboboxes darktable fills at runtime (profiles, lens data, noise
-  profiles) become `text` rows with `custom.dynamic`.
+  same module are kept. Rows darktable fills from a runtime list or a file dialog (profiles,
+  lensfun camera and lens, focal length, aperture, distance, noise profiles, LUT, watermark,
+  raster mask and overlay files, white balance settings; `CHOICES` in `build_layout.py`)
+  become `choice` rows whose `custom` names the engine list (`list`), the `@` path a chosen
+  file goes to (`browse`) and the dialog's name filters. color look up table's patch grid is a
+  `patches` row; its target sliders use `@target_*[@absolute_target][@patch]`.
 - crop, rotate and perspective and orientation are curated by the Geometry pane; only rows
   that pane lacks are listed. Hidden pipeline modules (finalscale, gamma, mask_manager,
   rotatepixels, overexposed, rawoverexposed, the uncompiled useless) are left out.
@@ -319,15 +335,16 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   black/gray/white handles as three sliders (per channel when the channels are independent);
   colour parameters use `ColorSwatch`. GUI-only selectors (`@destination`, `@patch`, `@controls`,
   the active page or channel for `@tab`) are local view state and pick which array element the
-  rows edit. Lens, profile and similar runtime lists show their current value read-only.
+  rows edit. Displayed conversions (`@` paths) are sliders and swatches like any other row;
+  runtime lists and file choices are `ChoiceRow`s; the colour checker patches are a
+  `PatchGrid` (see "Displayed values and runtime lists" below).
 - Shown as a muted notice instead of a control, merged per section: image pickers, buttons
   (auto-tune, lens/camera search, flip rotations, structure-line fitting), drawn features
-  (retouch, liquify, spots, colour checker patches, graduated density line, monochrome and
-  colour correction grids, relight center, zone system), file choices (LUT file, raster masks,
-  watermark and overlay images), darktable's own graphs of filmic rgb/AgX/filmic, and values
-  darktable shows through a conversion we have no adapter for (paths starting with `@`, e.g.
-  colour calibration hue/chroma, color balance HSL, color harmonizer hues, split-toning
-  colour). Right-click on a row resets it to darktable's default; module reset uses
+  (retouch, liquify, spots, graduated density line, monochrome and colour correction grids,
+  relight center, zone system), darktable's own graphs of filmic rgb/AgX/filmic, the picker
+  settings of color calibration's mapping section and exposure's area mode, and the remaining
+  `@` conversions without an adapter (rotate and perspective/clipping `@flip` and `@aspect` of the
+  deprecated crop module). Right-click on a row resets it to darktable's default; module reset uses
   `backend.resetModule`.
 - `ModuleCatalog.qml` parses the catalog once per change into states keyed `operation/instance`
   and keeps the previous object for modules whose entry did not change; `moduleUpdated` updates
@@ -340,6 +357,47 @@ The Filters pane keeps the curated block unchanged. Every other module is shown 
   that has. Escape or × clears it. Keyboard navigation (arrows, `R`) still covers only the
   curated controls; generated rows report selection through `controlSelected` with ids
   `operation/instance/path`.
+
+### Displayed values and runtime lists
+
+darktable stores some parameters in a form its sliders do not show, and fills some
+comboboxes only at runtime. The engine reports both with each catalog entry: `derived`
+(`{"@path": displayed value}`, `native/engine/module_values.c`) and `labels` (`{field: text}`
+of a runtime-list row, `module_choices.c`). `ModuleCatalog` resolves `@` paths like
+parameters; a slider whose `@` path the engine does not report for this image is hidden, as
+darktable hides the widget. Each conversion is darktable 5.6.1's slider callback without GTK:
+
+| Module | Rows | darktable's conversion |
+| --- | --- | --- |
+| color calibration | illuminant hue °, chroma (custom illuminant) | CIE x, y ↔ LCh at L 100 (`gui_changed`, `_illum_xy_callback`); writing also sets the temperature (`xy_to_CCT`, below 3000 K `CCT_reverse_lookup`) |
+| color balance | hue °, saturation % of shadows, mid-tones, highlights | `rgb2hsl`/`hsl2rgb` of the RGB factors ÷ 2 at lightness 0.5 (`set_HSL_sliders`, `HSL_CALLBACK`) |
+| color harmonizer | anchor hue, custom node hues (RYB °) | darktable UCS hue ↔ painter's wheel through the module's 720-entry lookup tables |
+| split-toning | the two colour swatches | `hsl2rgb(hue, saturation, 0.5)`; a picked colour stores `rgb2hsl`'s hue and saturation |
+| color look up table | lightness, green-magenta, blue-yellow, saturation of the selected patch; patch grid | relative to the source patch or absolute after "target color" (`@target_L[mode][patch]`); saturation scales a, b; a, b clamped to ±128 |
+| white balance | settings, finetune (mired) | the five standard entries and the camera's wb presets (`_generate_preset_combo`); choosing applies their coefficients (`_preset_tune_callback`); finetune only for presets with tuning variants, in their range |
+
+Runtime lists (`ChoiceRow`, list name in `custom.list` of the layout row): input and working
+profile (color input profile: the image's own profiles, then darktable's), export profile
+(output color profile), noise profile (denoise: the automatic "found/interpolated ISO" entry and
+the camera's measured profiles), camera and lens (lensfun, searchable; choosing a lens stores
+the model, a prime lens's focal length and darktable's automatic scale), focal length,
+aperture and distance (darktable's steps for the lens; a typed number is offered too), LUT
+file (every `.cube`, `.3dl` and `.png` below the LUT root folder, searchable), watermark
+marker (SVG/PNG in darktable's and the user's `watermarks` folders), raster mask file (PFM/PNG
+in the chosen folder) and white balance settings. File dialogs: LUT file (only below the LUT
+root folder, stored relative to it, as darktable), raster mask file (only below the raster mask
+root folder, default the home folder), overlay image (imported into the session library like an
+opened photo, then recorded as darktable records a dropped image). Watermark text and font are
+text fields. Each choice is one `setParameters` batch: one history item, a single-module style
+in split mode.
+
+Not covered: gmic-compressed LUTs (`.gmz`, darktable's reader is bound to its GUI), the
+"from image area" white balance entry and the lens/camera "find" buttons (image pickers and
+buttons), color calibration's colour checker calibration and mapping picker settings. Own
+styles: lens names, LUT paths (packaged as before), profiles and noise profiles are plain
+parameters; watermark, overlay and raster mask modules that are switched on are rejected, as
+before, because their files are not packaged. colorin and colorout have no enable button and
+are not part of own styles.
 
 The per-module blend section is written separately in the same row format to
 `omalux/design/layout-blending.json` for a later step. Regenerate both after changing the
@@ -375,6 +433,11 @@ properties and reports changes through signals; none of them edits a parameter i
 - `ChannelChooser` — chips that pick which channel or curve is shown; a view choice only.
 - `ColorSwatch` — colour parameter with a hue × saturation, value and hex picker.
 - `ModuleNotice` — one muted line for what cannot be edited here yet.
+- `ChoiceRow` — a value from a list darktable fills at runtime or from a file dialog: shows
+  the current value, opens a list with a search field (sections, details, "n more — refine the
+  search"), reports `requested(query)`, `chosen(index)` and `fileChosen(path)`.
+- `PatchGrid` — the colour checker patches of color look up table as darktable draws them:
+  click selects, double-click resets the patch to its source, right-click removes it.
 - `ControlChoice` and `ControlSwitch` — darktable enums (`[{ value, label }]`) and booleans;
   `labelFont`/`labelColor` let them match slider rows.
 - `GeneratedModule`, `GeneratedRows`, `RowWrapper`, `ModuleList` — the generated modules and
