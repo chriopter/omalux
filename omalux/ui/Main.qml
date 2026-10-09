@@ -103,6 +103,9 @@ ApplicationWindow {
             Layout.fillWidth: true
             theme: editorTheme
             zoom: viewport.zoom
+            minimumZoom: viewport.minimumZoom
+            maximumZoom: viewport.maximumZoom
+            photoReady: editor.preview !== ""
             onOpenRequested: dialogs.openImage()
             onSaveRequested: dialogs.exportImage()
             onZoomRequested: factor => viewport.zoomBy(factor)
@@ -137,6 +140,8 @@ ApplicationWindow {
                 previewAspectRatio: editor.previewAspectRatio
                 textureTransform: editor.previewTextureTransform
                 status: editor.status
+                photoMissing: editor.photoMissing
+                onOpenRequested: dialogs.openImage()
             }
             EditorSidebar {
                 id: sidebar
@@ -177,10 +182,55 @@ ApplicationWindow {
         target: dialogs
         function onBusyChanged() { if (!dialogs.busy) { window.requestActivate(); Qt.callLater(keyboard.reclaim) } }
     }
+    // Opening a photograph, from the dialog or a file dropped on the window: tools on the photo
+    // end, the view fits the new image.
+    function openFile(file) {
+        sidebar.geometry.cancel(); sidebar.tools.blendDisplay = null; sidebar.tools.moduleDisplay = null
+        viewport.fit(); editor.openPhoto(file)
+    }
+    // A file dragged from the file manager opens like one chosen in the dialog.
+    DropArea {
+        id: dropArea
+        objectName: "photo-drop"
+        anchors.fill: parent
+        enabled: !dialogs.busy && !editor.styleBusy
+        function fileOf(drop) {
+            const urls = drop.urls || []
+            for (let i = 0; i < urls.length; ++i)
+                if (String(urls[i]).startsWith("file:")) return urls[i]
+            return ""
+        }
+        onEntered: drag => { drag.accepted = fileOf(drag) !== "" }
+        onDropped: drop => {
+            const file = fileOf(drop)
+            if (file === "") return
+            drop.accept(Qt.CopyAction)
+            window.openFile(file)
+        }
+        Rectangle {
+            objectName: "photo-drop-hint"
+            visible: dropArea.containsDrag
+            parent: viewport
+            anchors.fill: parent
+            anchors.margins: 12
+            z: 10
+            radius: 8
+            color: Qt.rgba(0.12, 0.12, 0.18, 0.82)
+            border.color: editorTheme.accent
+            border.width: 2
+            Text {
+                anchors.centerIn: parent
+                text: "Drop to open the photograph"
+                color: editorTheme.ink
+                font: editorTheme.settingsFont
+            }
+        }
+    }
     EditorDialogs {
         id: dialogs
         theme: editorTheme
-        onOpenRequested: file => { sidebar.geometry.cancel(); sidebar.tools.blendDisplay = null; sidebar.tools.moduleDisplay = null; viewport.fit(); editor.openPhoto(file) }
+        photoPath: String(editor.metadata.path || "")
+        onOpenRequested: file => window.openFile(file)
         onExportRequested: (file, quality) => editor.exportPhoto(file, quality)
         onStyleSaveRequested: name => editor.saveStyle(name)
         onStyleDeleteRequested: id => editor.deleteStyle(id)

@@ -130,6 +130,14 @@ def main():
             script = work / name
             script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work)))
             scripts.append(script)
+        # The shell around the panes: toolbar, search, dialogs, Info, and files that cannot be
+        # opened. shell-empty.json starts with such a file and opens a photograph from there.
+        (work / 'broken.jpg').write_text('not an image\n')
+        for name in ('shell.json',) + (() if args.split else ('shell-empty.json',)):
+            script = work / name
+            script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work))
+                              .replace('{ROOT}', str(ROOT)))
+            scripts.append(script)
         # Escape on the open dialog and the keys back in the editor: Qt's own file dialog (no
         # platform theme) and, on a headless GTK display only (broadway, never a visible window),
         # the GTK file chooser Qt's gtk3 theme opens (Omarchy's QT_QPA_PLATFORMTHEME).
@@ -164,7 +172,8 @@ def main():
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
             with log.open('w') as output:
-                result = subprocess.run([str(command)], cwd=ROOT, env=env, stdout=output,
+                image = [str(work / 'broken.jpg')] if script.stem == 'shell-empty' else []
+                result = subprocess.run([str(command), *image], cwd=ROOT, env=env, stdout=output,
                                         stderr=subprocess.STDOUT, timeout=240)
             text = log.read_text()
             if result.returncode or 'Smoke complete' not in text:

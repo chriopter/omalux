@@ -8,6 +8,9 @@ Rectangle {
     required property real previewAspectRatio
     required property vector4d textureTransform
     required property string status
+    // The photograph could not be read and none is shown (Editor.photoMissing).
+    property bool photoMissing: false
+    signal openRequested()
     property bool cropping: false
     property var crop: ({x:0,y:0,width:1,height:1})
     property real aspectRatio: 0
@@ -36,12 +39,28 @@ Rectangle {
     readonly property real ratio: root.previewAspectRatio > 0 ? root.previewAspectRatio : 1
     readonly property real imageWidth: Math.min(fitWidth, fitHeight * ratio) * zoom
     readonly property real imageHeight: imageWidth / ratio
+    readonly property real minimumZoom: 1
+    readonly property real maximumZoom: 16
     function fit() { zoom = 1; flick.contentX = 0; flick.contentY = 0 }
-    function zoomBy(factor) { zoom = Math.max(1, Math.min(16, zoom * factor)) }
+    // Zoom around a point of the viewport (the pointer for the wheel and a pinch, the centre for
+    // keys and the toolbar): what is under it stays under it.
+    function zoomBy(factor, x, y) { zoomTo(zoom * factor, x, y) }
+    function zoomTo(level, x, y) {
+        const next = Math.max(minimumZoom, Math.min(maximumZoom, level))
+        if (Math.abs(next - zoom) < 1e-6) return
+        const ax = x === undefined ? flick.width / 2 : x, ay = y === undefined ? flick.height / 2 : y
+        const u = (flick.contentX + ax - photo.x) / Math.max(1, photo.width)
+        const v = (flick.contentY + ay - photo.y) / Math.max(1, photo.height)
+        flick.cancelFlick()
+        zoom = Math.abs(next - 1) < .005 ? 1 : next
+        flick.contentX = Math.max(0, Math.min(flick.contentWidth - flick.width, photo.x + u * photo.width - ax))
+        flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, photo.y + v * photo.height - ay))
+    }
     color: "#0b0b0d"
     clip: true
     Flickable {
         id: flick
+        objectName: "photo-flick"
         anchors.fill: parent
         contentWidth: Math.max(width, root.imageWidth + 40)
         contentHeight: Math.max(height, root.imageHeight + 40)
@@ -49,6 +68,7 @@ Rectangle {
         boundsBehavior: Flickable.StopAtBounds
         Image {
             id: photo
+            objectName: "photo-image"
             x: (flick.contentWidth - width) / 2
             y: (flick.contentHeight - height) / 2
             width: root.imageWidth; height: root.imageHeight
@@ -103,13 +123,20 @@ Rectangle {
             onParametersEdited: changes => root.canvasParametersEdited(root.canvasTool.operation, root.canvasTool.instance, changes)
             onInteractionChanged: active => root.canvasInteractionChanged(active)
         }
-        WheelHandler { enabled: !root.cropping; onWheel: event => { root.zoomBy(event.angleDelta.y > 0 ? 1.15 : 1 / 1.15); event.accepted = true } }
+        WheelHandler {
+            enabled: !root.cropping
+            onWheel: event => {
+                if (event.angleDelta.y !== 0)
+                    root.zoomBy(event.angleDelta.y > 0 ? 1.15 : 1 / 1.15, point.position.x - flick.contentX, point.position.y - flick.contentY)
+                event.accepted = true
+            }
+        }
         PinchHandler {
             enabled: !root.cropping
             target: null
             property real startZoom: 1
             onActiveChanged: if (active) startZoom = root.zoom
-            onActiveScaleChanged: root.zoom = Math.max(1, Math.min(16, startZoom * activeScale))
+            onActiveScaleChanged: root.zoomTo(startZoom * activeScale, centroid.position.x - flick.contentX, centroid.position.y - flick.contentY)
         }
     }
     CanvasToolbar {
@@ -121,10 +148,36 @@ Rectangle {
         tools: canvas.tools
         onToolClicked: (key, modifiers) => canvas.toolClicked(key, modifiers)
     }
-    Text {
-        anchors.centerIn: parent; width: parent.width - 40
-        visible: root.preview === ""; text: root.status
-        color: root.theme.muted; font: root.theme.textFont
-        wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
+    // Before the first preview: what the engine is doing, or, when the photograph could not be
+    // read, why not and the way out.
+    Column {
+        objectName: "photo-empty"
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 520)
+        visible: root.preview === ""
+        spacing: 14
+        Text {
+            visible: root.photoMissing
+            width: parent.width
+            text: "No photograph"
+            color: root.theme.ink; font: root.theme.settingsFont
+            horizontalAlignment: Text.AlignHCenter
+        }
+        Text {
+            objectName: "photo-empty-status"
+            width: parent.width
+            text: root.status
+            color: root.theme.muted; font: root.theme.textFont
+            wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
+        }
+        ToolbarButton {
+            objectName: "photo-empty-open"
+            visible: root.photoMissing
+            anchors.horizontalCenter: parent.horizontalCenter
+            theme: root.theme
+            hint: "[O]"; text: "OPEN"
+            tip: "Open a photograph, or drop one on the window"
+            onClicked: root.openRequested()
+        }
     }
 }
