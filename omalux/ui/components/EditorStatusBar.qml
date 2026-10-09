@@ -23,10 +23,21 @@ Rectangle {
             color: root.theme.muted
             font: root.theme.textFont
         }
+        spacing: 16
+        // A long message (the path of an export) is cut in the middle, never pushed out of the
+        // window; resting the pointer on it shows all of it.
         Text {
+            id: statusText
+            objectName: "statusText"
+            Layout.maximumWidth: Math.max(120, root.width * .6)
             text: root.status
+            elide: Text.ElideMiddle
             color: root.theme.ink
             font: root.theme.textFont
+            HoverHandler { id: statusHover }
+            ToolTip.visible: statusHover.hovered && statusText.truncated
+            ToolTip.delay: 500
+            ToolTip.text: root.status
         }
     }
 }
