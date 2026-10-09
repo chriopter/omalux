@@ -3,6 +3,7 @@
 
     python3 tools/darktable/camera_presets.py generate   # write camera/<maker>/<model>.dtpreset from TABLE
     python3 tools/darktable/camera_presets.py list       # show what the files declare
+    python3 tools/darktable/camera_presets.py check      # the files carry their module's blend colour space
 
 A camera preset is a `.dtpreset` file as darktable exports it from
 preferences > presets, with `autoapply` set and `maker`/`model` patterns
@@ -31,6 +32,31 @@ FLOAT_MAX = "340282346638528859811704183484516925440"
 BLEND_VERSION = 14
 BLEND_PARAMS = ("000000000000000018000000000000000000c84200000000000000000000000000000000050000000000000000000000000000000000000001000000000000000000000000000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000803f0000803f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffff00000000")
 FOR_LDR, FOR_RAW, FOR_HDR = 1, 2, 4
+# The blend colour space (blend_cst, the second field of the blending parameters) a preset has to
+# carry: the one darktable gives the module by default (develop/blend.c
+# _blend_default_module_blend_colorspace). A preset stored with 0 (none) still works, because
+# darktable fills the default in when it applies the preset (dt_iop_commit_blend_params); but the
+# module then no longer equals the preset byte for byte, and that comparison is how darktable
+# ticks the preset in the module's menu and names the module and its history step after it
+# (gui/presets.c, develop.c _dev_auto_module_label). Lab modules get 2; rgb levels works in RGB,
+# where the default is 4 (scene-referred) under darktable's default scene-referred workflow and 3
+# (display-referred) otherwise. Modules without blending (lens correction, input color profile)
+# keep 0. No preset uses a mask, so the value has no effect on the rendering.
+BLEND_CS_NONE, BLEND_CS_LAB, BLEND_CS_RGB_SCENE = 0, 2, 4
+BLEND_CST = {"sharpen": BLEND_CS_LAB, "nlmeans": BLEND_CS_LAB, "rgblevels": BLEND_CS_RGB_SCENE,
+             "lens": BLEND_CS_NONE, "colorin": BLEND_CS_NONE}
+
+
+def blend_params(operation):
+    """The default blending parameters with the blend colour space of `operation`."""
+    if operation not in BLEND_CST:
+        raise SystemExit(f"no blend colour space known for '{operation}': add it to BLEND_CST "
+                         "(see _blend_default_module_blend_colorspace in darktable's develop/blend.c)")
+    return BLEND_PARAMS[:8] + struct.pack("<i", BLEND_CST[operation]).hex() + BLEND_PARAMS[16:]
+
+
+def blend_cst(params_hex):
+    return struct.unpack("<i", bytes.fromhex(params_hex[8:16]))[0]
 
 # (maker pattern, model pattern, file name, description, operation, params)
 # Embedded lens metadata: distortion, vignetting and chromatic aberration data the camera
@@ -104,7 +130,7 @@ def preset_xml(name, description, operation, params_hex, version, maker, model, 
               ("op_version", str(version)), ("enabled", "1"), ("autoapply", "1" if autoapply else "0"), ("model", model), ("maker", maker),
               ("lens", "%"), ("iso_min", "0"), ("iso_max", FLOAT_MAX), ("exposure_min", "0"), ("exposure_max", FLOAT_MAX),
               ("aperture_min", "0"), ("aperture_max", FLOAT_MAX), ("focal_length_min", "0"), ("focal_length_max", "1000"),
-              ("blendop_params", BLEND_PARAMS), ("blendop_version", str(BLEND_VERSION)), ("multi_priority", "0"), ("multi_name", multi_name),
+              ("blendop_params", blend_params(operation)), ("blendop_version", str(BLEND_VERSION)), ("multi_priority", "0"), ("multi_name", multi_name),
               ("multi_name_hand_edited", "1" if multi_name else "0"), ("filter", "0"), ("def", "0"), ("format", str(fmt))]
     for tag, value in fields:
         ET.SubElement(p, tag).text = value
@@ -135,7 +161,7 @@ def load():
         out.append(dict(path=path, maker=get("maker"), model=get("model"), operation=get("operation"),
                         params=get("op_params"), version=int(get("op_version") or 0), enabled=get("enabled") == "1",
                         autoapply=get("autoapply") == "1", format=int(get("format") or 0), description=get("description"),
-                        multi_name=get("multi_name")))
+                        multi_name=get("multi_name"), blend=get("blendop_params")))
     return out
 
 
@@ -151,10 +177,24 @@ def matching(presets, maker, model, is_raw=True):
             and (p["format"] & (FOR_RAW if is_raw else FOR_LDR))]
 
 
+def check():
+    """Every shipped preset carries its module's blend colour space (see BLEND_CST)."""
+    presets = load()
+    wrong = [f"{p['path'].relative_to(REPO)}: blend colour space {blend_cst(p['blend'])}, "
+             f"expected {BLEND_CST.get(p['operation'], 'an entry in BLEND_CST')} for {p['operation']}"
+             for p in presets
+             if p["operation"] not in BLEND_CST or p["blend"] != blend_params(p["operation"])]
+    if wrong:
+        raise SystemExit("\n".join(wrong))
+    print(f"{len(presets)} camera presets carry their module's blend colour space")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "list"
     if cmd == "generate":
         generate()
+    elif cmd == "check":
+        check()
     else:
         for p in load():
             print(f"{p['path'].relative_to(REPO)}: {p['maker']} / {p['model']} -> {p['operation']} ({p['description']})")
