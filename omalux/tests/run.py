@@ -159,7 +159,9 @@ def main():
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
             env.pop('OMALUX_RECORD_MAILBOX', None)
-            env['QT_QPA_PLATFORMTHEME'] = {'dialog-quick': '', 'dialog-native': 'gtk3'}.get(
+            # shell.json closes the export file dialog with Escape: Qt's own dialog, as dialog-quick.
+            env['QT_QPA_PLATFORMTHEME'] = {'dialog-quick': '', 'dialog-native': 'gtk3', 'shell': '',
+                                           'shell-empty': ''}.get(
                 script.stem, os.environ.get('QT_QPA_PLATFORMTHEME', ''))
             if script.stem == 'module-parameters' and not args.split:
                 env['OMALUX_RECORD_MAILBOX'] = str(mailbox)
