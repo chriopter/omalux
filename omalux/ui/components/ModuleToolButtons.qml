@@ -24,6 +24,20 @@ Item {
     signal triggered(int index, int choice)
 
     FontMetrics { id: metrics; font: root.theme.textFont }
+    // Buttons share the row evenly when every label fits its share, else in proportion to their
+    // labels; a row that cannot hold its labels at all (color balance's "optimize luma" and
+    // "neutralize colors") stacks them, so no label is cut.
+    function needed(e) {
+        const drawn = ["camera", "wand", "showmask"].indexOf(e.icon || "") >= 0
+        if (e.icon && !drawn) return 30
+        return Math.ceil(metrics.advanceWidth((e.label || "") + (e.menu && e.menu.length ? " ▾" : "")))
+               + (e.kind !== "button" || drawn ? 28 : 14)
+    }
+    readonly property real space: width - 28 - (report !== "" ? metrics.advanceWidth(report) + 6 : 0)
+    readonly property var needs: entries.map(e => needed(e))
+    readonly property real needSum: needs.reduce((a, b) => a + b, 0) + 6 * Math.max(0, entries.length - 1)
+    readonly property bool stacked: entries.length > 1 && entries.length <= 3 && needSum > space
+    readonly property bool even: needs.every(n => n <= (space - 6 * (entries.length - 1)) / Math.max(1, entries.length))
     readonly property real rowHeight: Math.max(28, layout.implicitHeight + 4)
     implicitHeight: rowHeight + (details !== "" ? detailsText.implicitHeight + 6 : 0)
     Text {
@@ -37,12 +51,13 @@ Item {
         font: root.theme.textFont
         wrapMode: Text.WordWrap
     }
-    RowLayout {
+    GridLayout {
         id: layout
         x: 0
         width: root.width - 28
         y: (root.rowHeight - implicitHeight) / 2
-        spacing: 6
+        columnSpacing: 6; rowSpacing: 4
+        columns: root.stacked ? 1 : root.entries.length + 1
         Repeater {
             model: root.entries
             delegate: AbstractButton {
@@ -58,7 +73,7 @@ Item {
                 }
                 objectName: "module-tool-" + root.navPrefix + "-" + index
                 Layout.fillWidth: true
-                Layout.preferredWidth: 1
+                Layout.preferredWidth: root.even || root.stacked ? 1 : root.needs[index]
                 implicitHeight: 26
                 enabled: root.editable && modelData.enabled !== false
                 hoverEnabled: true

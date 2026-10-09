@@ -209,5 +209,37 @@ Item {
             compare(buttons.got[0], [0, -1])
             verify(histogram.visible)
         }
+        // No label is cut at the sidebar's width: a row gives long labels more room, and
+        // stacks the buttons when their labels cannot share one row.
+        function test_button_labels_fit() {
+            function truncated(item) {
+                let n = item.truncated === true && item.visible ? 1 : 0
+                for (const child of item.children) n += truncated(child)
+                return n
+            }
+            function tops() {
+                const ys = []
+                for (let i = 0; i < 3; ++i) {
+                    const b = findChild(fitting, "module-tool-fit-" + i)
+                    if (b) ys.push(Math.round(b.y))
+                }
+                return ys
+            }
+            fitting.entries = [{ label: "validate", kind: "button" }, { label: "recompute", kind: "area" }, { label: "accept", kind: "button" }]
+            waitForRendering(fitting)
+            compare(truncated(fitting), 0, "validate / recompute / accept")
+            compare(tops(), [0, 0, 0], "one row")
+            fitting.entries = [{ label: "optimize luma", kind: "area" }, { label: "neutralize colors", kind: "area" }]
+            waitForRendering(fitting)
+            compare(truncated(fitting), 0, "optimize luma / neutralize colors")
+            verify(tops()[1] > tops()[0], "stacked")
+            fitting.entries = [{ label: "black", kind: "point" }, { label: "gray", kind: "point" }, { label: "white", kind: "point" }]
+            waitForRendering(fitting)
+            compare(tops(), [0, 0, 0])
+            const widths = [0, 1, 2].map(i => Math.round(findChild(fitting, "module-tool-fit-" + i).width))
+            verify(Math.abs(widths[0] - widths[2]) <= 1, "even shares when all fit: " + widths)
+        }
     }
+    // The width of a module row in the 352 px sidebar.
+    ModuleToolButtons { id: fitting; x: 320; y: 420; width: 292; theme: th; navPrefix: "fit" }
 }
