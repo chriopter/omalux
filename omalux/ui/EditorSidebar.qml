@@ -403,6 +403,7 @@ Rectangle {
             onHalationRequested: root.backend.applyHalation()
             activeControl: root.activeControl
             onControlReset: id => root.backend.resetControl(id)
+            controlDefault: typeof root.backend.controlDefault === "function" ? (id => root.backend.controlDefault(id)) : null
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: root.selectedPanel === 0 && root.filterView === 0

@@ -22,9 +22,12 @@ Column {
     // A compact card (the Advanced list of a pane): the module icon and name only until it is
     // opened, like the Advanced cards of the Filters pane.
     property bool compact: false
-    // Opened from a summary row (ModuleGroupsPanel): the heading takes the place of the row's
-    // name, moving up into the gap between the rows, so nothing above it moves.
-    property bool fromRow: false
+    // Unfolded beneath the summary rows of a pane, which stay as its main rows
+    // (ModuleGroupsPanel): no card heading, a strip with the module's name, reset and instances
+    // instead, and every parameter as a sub-row beside a guide line. `linkedPaths` are the
+    // parameters those main rows drive.
+    property bool attached: false
+    property var linkedPaths: []
     readonly property bool cardOnly: compact && !expanded && term === ""
     signal expansionRequested()
     signal moreRequested()
@@ -57,12 +60,13 @@ Column {
     function requestInstance(action, name) { root.changesRequested({ "@instance": action, "@name": name }) }
     spacing: 4
     // The heading keeps its place when the card opens or closes (a second click hits it again).
-    topPadding: fromRow && expanded ? -4 : compact ? 0 : 12
-    bottomPadding: cardOnly ? 4 : expanded ? 10 : 8
+    topPadding: attached || compact ? 0 : 12
+    bottomPadding: attached ? 0 : cardOnly ? 4 : expanded ? 10 : 8
 
-    OpenScroll { target: root; open: root.expanded; active: root.term === "" }
+    OpenScroll { target: root; open: root.expanded; active: root.term === "" && !root.attached }
     ModuleHeader {
         id: moduleHeader
+        visible: !root.attached
         theme: root.theme
         operation: root.module.operation
         name: root.module.name
@@ -75,6 +79,7 @@ Column {
         expanded: root.expanded && root.term === ""
         hasDetails: rows.hasDetails && root.term === ""
         showInstances: root.term === ""
+        instanceCount: root.instance === 0 ? (root.catalogModel.instances[root.module.operation] || []).length : 1
         blockHeight: root.height - moduleHeader.y
         instancesSuffix: root.module.operation + (root.instance ? "-" + root.instance : "")
         navId: "module:" + root.module.operation + "/" + root.instance
@@ -88,28 +93,59 @@ Column {
         id: body
         spacing: 4
         animate: root.term === ""
-        GeneratedRows {
-            id: rows
+        ModuleStrip {
+            id: strip
+            visible: root.attached
             width: parent.width
             theme: root.theme
-            module: root.module
+            operation: root.module.operation
+            name: root.module.name
+            instanceLabel: root.instanceLabel
             moduleState: root.moduleState
-            catalogModel: root.catalogModel
-            instance: root.instance
-            moduleEnabled: root.moduleEnabled
-            overrides: root.overrides
-            overridePrefix: root.module.operation + "/" + root.instance + "/"
-            editable: root.editable && !!root.moduleState
-            expanded: root.expanded
-            collapsedRows: !root.compact
-            moreOpen: root.moreOpen
-            term: root.term
-            nameMatched: root.nameMatched
-            activeControl: root.activeControl
-            onChangesRequested: changes => root.changesRequested(changes)
-            onInteractionChanged: active => root.interactionChanged(active)
-            onControlSelected: id => root.controlSelected(id)
-            onMoreRequested: root.moreRequested()
+            ready: root.editable && !!root.moduleState
+            showInstances: root.term === ""
+            instanceCount: (root.catalogModel.instances[root.module.operation] || []).length
+            navGroup: root.module.operation + "/" + root.instance
+            onResetRequested: root.resetRequested()
+            onInstanceRequested: (action, name) => root.requestInstance(action, name)
+        }
+        Item {
+            width: parent.width
+            implicitHeight: rows.implicitHeight
+            // The guide line: the rows beside it are parts of the summary rows above.
+            Rectangle {
+                visible: root.attached
+                x: 3
+                width: 1; height: Math.max(0, rows.guideEnd - 6)
+                color: root.theme.line
+            }
+                GeneratedRows {
+                    id: rows
+                    x: root.attached ? 16 : 0
+                width: parent.width - x
+                sub: root.attached
+                linkedPaths: root.linkedPaths
+                indent: x
+                    theme: root.theme
+                    module: root.module
+                    moduleState: root.moduleState
+                    catalogModel: root.catalogModel
+                    instance: root.instance
+                    moduleEnabled: root.moduleEnabled
+                    overrides: root.overrides
+                    overridePrefix: root.module.operation + "/" + root.instance + "/"
+                    editable: root.editable && !!root.moduleState
+                    expanded: root.expanded
+                    collapsedRows: !root.compact
+                    moreOpen: root.moreOpen
+                    term: root.term
+                    nameMatched: root.nameMatched
+                    activeControl: root.activeControl
+                    onChangesRequested: changes => root.changesRequested(changes)
+                    onInteractionChanged: active => root.interactionChanged(active)
+                    onControlSelected: id => root.controlSelected(id)
+                    onMoreRequested: root.moreRequested()
+                }
         }
         // The blend section of this instance, under the expanded module (blend_gui.c).
         Loader {
@@ -135,15 +171,6 @@ Column {
                 onInteractionChanged: active => root.interactionChanged(active)
                 onDrawnShapeRequested: shape => root.changesRequested({ "@drawn": shape })
             }
-        }
-        InstanceFooter {
-            visible: root.expanded && root.term === "" && !!root.moduleState
-            width: parent.width
-            theme: root.theme
-            button: moduleHeader.instanceButton
-            count: (root.catalogModel.instances[root.module.operation] || []).length
-            navGroup: root.module.operation + "/" + root.instance
-            active: root.editable
         }
     }
 }

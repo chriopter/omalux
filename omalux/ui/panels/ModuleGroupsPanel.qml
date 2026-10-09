@@ -66,67 +66,112 @@ SidebarScrollView {
             spacing: 8
             Repeater {
                 model: summaryColumn.visible ? root.summary : []
-                delegate: Loader {
+                delegate: Column {
                     id: entry
                     required property var modelData
                     readonly property string operation: modelData.module.operation
                     readonly property bool open: !!root.expanded[operation]
+                    readonly property var instanceList: root.catalogModel.instances[operation] || [0]
                     width: summaryColumn.width
-                    sourceComponent: open ? openModule : rowsBlock
-                    Component {
-                        id: rowsBlock
-                        GeneratedSummary {
+                    spacing: 8
+                    OpenScroll { target: entry; open: entry.open }
+                    // The summary rows stay where they are when the module unfolds; it grows
+                    // downward from them, inside one outlined block.
+                    Column {
+                        id: block
+                        width: entry.width
+                        spacing: 4
+                        bottomPadding: entry.open ? 10 : 0
+                        Item {
+                            width: block.width
+                            implicitHeight: rowsBlock.implicitHeight
+                            Rectangle {
+                                objectName: "module-block-" + entry.operation
+                                visible: entry.open
+                                z: -1
+                                x: -14; y: -7
+                                width: parent.width + 14
+                                height: block.height + 7
+                                color: root.theme.surface
+                                radius: 6
+                                border.width: 1
+                                border.color: root.theme.line
+                            }
+                            GeneratedSummary {
+                                id: rowsBlock
+                                width: block.width
+                                theme: root.theme
+                                block: entry.modelData
+                                moduleState: root.states[entry.operation + "/0"]
+                                catalogModel: root.catalogModel
+                                overrides: root.overrides
+                                editable: root.editable
+                                activeControl: root.activeControl
+                                expanded: entry.open
+                                onExpansionRequested: root.toggle(entry.operation)
+                                onChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
+                                onEnableRequested: on => root.enableRequested(entry.operation, 0, on)
+                                onResetRequested: root.resetRequested(entry.operation, 0, entry.modelData.module)
+                                onInteractionChanged: active => root.interactionChanged(active)
+                                onControlSelected: id => root.controlSelected(id)
+                            }
+                        }
+                        // The whole module beneath its rows, built when it is unfolded.
+                        Loader {
+                            width: block.width
+                            active: entry.open
+                            visible: active
+                            sourceComponent: GeneratedModule {
+                                objectName: "generated-module-" + entry.operation
+                                width: block.width
+                                theme: root.theme
+                                module: root.catalogModel.moduleForInstance(entry.modelData.module, 0)
+                                instance: 0
+                                moduleState: root.states[entry.operation + "/0"]
+                                catalogModel: root.catalogModel
+                                overrides: root.overrides
+                                editable: root.editable
+                                compact: true
+                                attached: true
+                                linkedPaths: entry.modelData.rows.map(e => e.row.path)
+                                expanded: true
+                                moreOpen: !!root.expanded[entry.operation + "-more"]
+                                activeControl: root.activeControl
+                                onExpansionRequested: root.toggle(entry.operation)
+                                onMoreRequested: root.toggle(entry.operation + "-more")
+                                onChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
+                                onEnableRequested: on => root.enableRequested(entry.operation, 0, on)
+                                onResetRequested: root.resetRequested(entry.operation, 0, entry.modelData.module)
+                                onInteractionChanged: active => root.interactionChanged(active)
+                                onControlSelected: id => root.controlSelected(id)
+                            }
+                        }
+                    }
+                    // Further instances, as cards of their own that open on their chevron.
+                    Repeater {
+                        model: entry.open ? entry.instanceList.filter(i => i > 0) : []
+                        delegate: GeneratedModule {
+                            required property int modelData
+                            objectName: "generated-module-" + entry.operation + "-" + modelData
                             width: entry.width
                             theme: root.theme
-                            block: entry.modelData
-                            moduleState: root.states[entry.operation + "/0"]
+                            module: root.catalogModel.moduleForInstance(entry.modelData.module, modelData)
+                            instance: modelData
+                            moduleState: root.states[entry.operation + "/" + modelData]
                             catalogModel: root.catalogModel
                             overrides: root.overrides
                             editable: root.editable
+                            compact: true
+                            expanded: !!root.expanded[entry.operation + "/" + modelData]
+                            moreOpen: !!root.expanded[entry.operation + "-more"]
                             activeControl: root.activeControl
-                            onExpansionRequested: root.toggle(entry.operation)
-                            onChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
-                            onEnableRequested: on => root.enableRequested(entry.operation, 0, on)
-                            onResetRequested: root.resetRequested(entry.operation, 0, entry.modelData.module)
+                            onExpansionRequested: root.toggle(entry.operation + "/" + modelData)
+                            onMoreRequested: root.toggle(entry.operation + "-more")
+                            onChangesRequested: changes => root.changesRequested(entry.operation, modelData, changes)
+                            onEnableRequested: on => root.enableRequested(entry.operation, modelData, on)
+                            onResetRequested: root.resetRequested(entry.operation, modelData, entry.modelData.module)
                             onInteractionChanged: active => root.interactionChanged(active)
                             onControlSelected: id => root.controlSelected(id)
-                        }
-                    }
-                    // The whole module, every instance, as in the module lists.
-                    Component {
-                        id: openModule
-                        Column {
-                            width: entry.width
-                            spacing: 8
-                            Repeater {
-                                model: root.catalogModel.instances[entry.operation] || [0]
-                                delegate: GeneratedModule {
-                                    required property int modelData
-                                    objectName: "generated-module-" + entry.operation + (modelData ? "-" + modelData : "")
-                                    width: entry.width
-                                    theme: root.theme
-                                    module: root.catalogModel.moduleForInstance(entry.modelData.module, modelData)
-                                    instance: modelData
-                                    moduleState: root.states[entry.operation + "/" + modelData]
-                                    catalogModel: root.catalogModel
-                                    overrides: root.overrides
-                                    editable: root.editable
-                                    compact: true
-                                    fromRow: modelData === 0
-                                    // The first instance is what the summary rows opened; further
-                                    // instances open on their own chevron.
-                                    expanded: modelData === 0 || !!root.expanded[entry.operation + "/" + modelData]
-                                    moreOpen: !!root.expanded[entry.operation + "-more"]
-                                    activeControl: root.activeControl
-                                    onExpansionRequested: modelData === 0 ? root.toggle(entry.operation) : root.toggle(entry.operation + "/" + modelData)
-                                    onMoreRequested: root.toggle(entry.operation + "-more")
-                                    onChangesRequested: changes => root.changesRequested(entry.operation, modelData, changes)
-                                    onEnableRequested: on => root.enableRequested(entry.operation, modelData, on)
-                                    onResetRequested: root.resetRequested(entry.operation, modelData, entry.modelData.module)
-                                    onInteractionChanged: active => root.interactionChanged(active)
-                                    onControlSelected: id => root.controlSelected(id)
-                                }
-                            }
                         }
                     }
                 }

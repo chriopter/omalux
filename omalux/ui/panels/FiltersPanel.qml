@@ -19,6 +19,7 @@ SidebarScrollView {
     property var catalogModel: null
     property var states: ({})
     property var overrides: ({})
+    property var controlDefault: null
     // Sidebar search: only matching modules stay, and they open.
     property string term: ""
     // Blocks open for the search only while this pane is on screen; matchCount (the pane's dot
@@ -125,16 +126,19 @@ SidebarScrollView {
                             width: parent.width
                             theme: root.theme; section: modelData; values: root.values
                             editable: root.editable; activeControl: root.activeControl
-                            // A shortcut row opens its module's block and stands in for it
-                            // only while that block is closed.
+                            // A shortcut row opens its module's block (under the module's own
+                            // row) and stays where it is, like every main row; its chevron
+                            // turns with the block.
                             readonly property string detailsKey: modelData.shortcut ? modelData.module : modelData.key
-                            visible: root.shownTerm !== "" ? !modelData.shortcut && root.sectionMatches(modelData)
-                                                      : !(modelData.shortcut && root.expandedDetails[detailsKey])
+                            visible: root.shownTerm === "" || (!modelData.shortcut && root.sectionMatches(modelData))
+                            detailsOpen: root.shownTerm !== "" || !!root.expandedDetails[detailsKey]
+                            linkedIds: root.sections.filter(s => s.module === modelData.module).reduce((all, s) => all.concat(s.primary), [])
                             expanded: !modelData.shortcut && (root.shownTerm !== "" || !!root.expandedDetails[detailsKey])
                             extraModule: root.catalogModel ? root.catalogModel.modulesByOperation[modelData.module] || null : null
                             moduleState: root.states[modelData.module + "/0"]
                             catalogModel: root.catalogModel
                             overrides: root.overrides
+                            controlDefault: root.controlDefault
                             term: root.shownTerm
                             moreOpen: !!root.expandedDetails[detailsKey + "-more"]
                             onMoreRequested: root.setExpanded("expandedDetails", detailsKey + "-more", !root.expandedDetails[detailsKey + "-more"])

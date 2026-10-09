@@ -10,7 +10,7 @@ import QtQuick.Layouts
 // The state mark, icon and name switch the module on and off (a ring while it is off and the
 // module is open). The rest of the heading and the chevron fold and unfold it; the chevron sits
 // in the disclosure column, where the collapsed rows have theirs. Reset is offered while the
-// module is open; the instances button is darktable's multi-instance menu. Right-click offers
+// module is open; ⋯ holds darktable's multi-instance actions, with ×N before it when N instances exist. Right-click offers
 // the same actions. The heading also draws the block behind the module (`blockHeight`): the
 // raised surface, outlined while the module is open.
 Item {
@@ -29,6 +29,7 @@ Item {
     property bool hasDetails: true
     property bool showDisclosure: hasDetails
     property bool showInstances: true
+    property int instanceCount: 1
     // Height of the block behind the module, from the heading's top.
     property real blockHeight: height
     // Object names of the parts ("<prefix>module-toggle-<suffix>" …).
@@ -123,7 +124,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: 8; anchors.rightMargin: 28
         spacing: 4
-        readonly property real reserved: 28 + (resetButton.visible ? 26 : 0) + (instanceButton.visible ? 26 : 0)
+        readonly property real reserved: 28 + (resetButton.visible ? 26 : 0) + (instanceButton.visible ? 26 : 0) + (root.instanceCount > 1 ? 30 : 0)
         ToolButton {
             id: heading
             objectName: root.namePrefix + "module-toggle-" + root.nameSuffix
@@ -199,37 +200,23 @@ Item {
             }
         }
         Item { Layout.fillWidth: true }
-        ToolButton {
+        // More than one instance of the module exists: never hidden behind the menu.
+        Text {
+            objectName: "module-instance-count-" + root.operation
+            visible: root.instanceCount > 1
+            text: "×" + root.instanceCount
+            color: root.theme.muted
+            font: root.theme.textFont
+            rightPadding: 4
+        }
+        ResetButton {
             id: resetButton
             objectName: root.namePrefix + "module-reset-" + root.nameSuffix
             visible: root.expanded
-            implicitWidth: 22; implicitHeight: 20
-            padding: 0
-            hoverEnabled: true
+            theme: root.theme
+            title: root.title
             enabled: root.ready
             onClicked: { headerNav.claim(); root.resetRequested() }
-            Accessible.name: "Reset " + root.title
-            ToolTip.visible: hovered
-            ToolTip.delay: 900
-            ToolTip.text: "reset parameters"
-            // darktable's reset icon: an open circle with an arrow head.
-            contentItem: Canvas {
-                property color stroke: resetButton.hovered ? root.theme.ink : root.theme.muted
-                onStrokeChanged: requestPaint()
-                onPaint: {
-                    const c = getContext("2d")
-                    c.clearRect(0, 0, width, height)
-                    c.strokeStyle = stroke; c.fillStyle = stroke; c.lineWidth = 1.2
-                    const cx = width / 2, cy = height / 2, r = 4.5
-                    c.beginPath(); c.arc(cx, cy, r, -Math.PI * .35, Math.PI * 1.25); c.stroke()
-                    const ax = cx + r * Math.cos(-Math.PI * .35), ay = cy + r * Math.sin(-Math.PI * .35)
-                    c.beginPath(); c.moveTo(ax + 2.6, ay + 1.2); c.lineTo(ax - 2.2, ay + 1.6); c.lineTo(ax + .6, ay - 3); c.closePath(); c.fill()
-                }
-            }
-            background: Rectangle {
-                radius: 3
-                color: resetButton.pressed ? root.theme.active : resetButton.hovered ? root.theme.hover : "transparent"
-            }
         }
         InstanceButton {
             id: instanceButton

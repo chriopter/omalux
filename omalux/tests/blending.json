@@ -65,7 +65,7 @@
   {"setParameters": {"operation": "exposure", "instance": 1, "values": {"exposure": 0.5, "blend.mask_mode": 1, "blend.opacity": 60}}},
   {"checkParameter": {"operation": "exposure", "instance": 1, "path": "blend.opacity", "value": 60}},
   {"panel": 0},
-  {"clickItem": "module-details-exposure"},
+  {"clickItem": "control-details-exposure"},
   {"visibleItem": "blend-section-exposure", "visible": true},
   {"visibleItem": "generated-module-exposure-1", "visible": true},
   {"saveStyle": "Omalux instances"},

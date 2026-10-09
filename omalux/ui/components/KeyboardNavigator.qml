@@ -187,6 +187,14 @@ Item {
         const list = targets(), t = current(list)
         if (t && t.enabled) groupHead(t, list).toggleGroup()
     }
+    // I: the instance menu of the selected item's module (InstanceButton, not a stop itself).
+    function menuGroup() {
+        const t = current()
+        if (!t || !t.enabled || t.group === "") return false
+        const button = shown().find(other => other.navId === t.group + "/@instances-button" && other.enabled)
+        if (button) button.activate()
+        return !!button
+    }
     // Focus the visible pane's search field, if it has one.
     function focusSearch() {
         const t = shown().find(t => t.kind === "search")

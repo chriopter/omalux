@@ -30,6 +30,16 @@ Column {
     property string term: ""
     property bool nameMatched: false
     property string activeControl: ""
+    // The rows unfold under a kept summary row (GeneratedModule.attached): quieter type, and the
+    // rows of `linkedPaths` (the parameters the summary rows drive) are marked as linked. The
+    // rows are indented by `indent`; the "more" section row reaches back over it.
+    property bool sub: false
+    property var linkedPaths: []
+    property real indent: 0
+    readonly property font rowFont: sub ? theme.textFont : theme.settingsFont
+    readonly property color rowInk: sub ? theme.subInk : theme.ink
+    // Where the parameter rows end (the guide line beside them stops there).
+    readonly property real guideEnd: moreRow.visible ? moreRow.y : height
     signal changesRequested(var changes)
     signal interactionChanged(bool active)
     signal controlSelected(string id)
@@ -474,9 +484,11 @@ Column {
         text: "greyed-out values need a newer engine build to be read and edited"
     }
     SectionRow {
+        id: moreRow
         objectName: "module-more-" + root.module.operation
         visible: !root.extraMode && root.expanded && root.hasAdvanced && root.term === ""
-        width: root.width
+        x: -root.indent
+        width: root.width + root.indent
         theme: root.theme
         label: "more"
         open: root.moreOpen
@@ -513,6 +525,13 @@ Column {
             onInteractionChanged: active => root.interactionChanged(active)
             onEdited: v => root.editRaw(r, (v - (r.offset || 0)) / (r.factor || 1))
             onResetRequested: root.edit(r.path, root.defaultOf(r))
+            sub: root.sub
+            linked: root.sub && root.linkedPaths.includes(r.path)
+            defaultValue: {
+                if (!hot || !known) return undefined
+                const d = Number(root.defaultOf(r)) * (r.factor || 1) + (r.offset || 0)
+                return isFinite(d) ? d : undefined
+            }
             navTarget.group: root.navGroup
             // darktable's picker on the slider (its "quad" button), in the free right column.
             Loader {
@@ -555,8 +574,8 @@ Column {
                 width: parent.width
                 theme: root.theme
                 label: it.row.label
-                labelFont: root.theme.settingsFont
-                labelColor: root.theme.ink
+                labelFont: root.rowFont
+                labelColor: root.rowInk
                 options: (it.row.values || []).filter(o => o.label)
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
@@ -581,8 +600,8 @@ Column {
                 width: parent.width
                 theme: root.theme
                 label: it.row.label
-                labelFont: root.theme.settingsFont
-                labelColor: root.theme.ink
+                labelFont: root.rowFont
+                labelColor: root.rowInk
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
                 onEdited: v => root.edit(it.row.path, v)
@@ -621,8 +640,8 @@ Column {
         ControlChoice {
             theme: root.theme
             label: r.label
-            labelFont: root.theme.settingsFont
-            labelColor: root.theme.ink
+            labelFont: root.rowFont
+            labelColor: root.rowInk
             options: choices
             value: root.gui[r.path] || 0
             editable: true
@@ -637,8 +656,8 @@ Column {
         ControlSwitch {
             theme: root.theme
             label: r.label
-            labelFont: root.theme.settingsFont
-            labelColor: root.theme.ink
+            labelFont: root.rowFont
+            labelColor: root.rowInk
             value: root.gui[r.path] || 0
             editable: true
             onEdited: v => { root.setGui(r.path, v); root.guiEdited() }
@@ -1172,6 +1191,8 @@ Column {
             onSelectedRequested: root.controlSelected(it.control.id)
             onEdited: v => { root.setGui(r.field, Math.max(r.min, Math.min(r.max, v))); root.guiEdited() }
             onResetRequested: { root.setGui(r.field, r.default); root.guiEdited() }
+            sub: root.sub
+            defaultValue: r.default !== undefined && r.default !== null ? r.default : undefined
             navTarget.group: root.navGroup
         }
     }

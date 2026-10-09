@@ -570,12 +570,16 @@ Item {
             tryVerify(() => edits().some(e => e[2] === "@enabled" && e[3] === 1), 1500, "E switches the module through its heading")
             press(Qt.Key_R, Qt.ShiftModifier)
             compare(JSON.stringify(top.logged("resetModule")), JSON.stringify([["resetModule", "sigmoid", 0]]), "Shift+R resets the module")
-            // Enter on the summary row opens the whole module in its place.
+            // Enter on the summary row unfolds the module beneath it: the row stays the one stop
+            // of its parameter (the linked sub-row is none), the other parameters follow.
             press(Qt.Key_Return)
-            tryVerify(() => order()[0] === "module:sigmoid/0", 1500, "the module heading replaces the row: " + JSON.stringify(order()))
-            keyboard.selectId("sigmoid/0/middle_grey_contrast"); wait(20)
+            tryVerify(() => order()[1] === "sigmoid/0/contrast_skewness", 1500, "the rows unfold under the kept row: " + JSON.stringify(order()))
+            compare(order()[0], "sigmoid/0/middle_grey_contrast")
+            compare(order().filter(id => id.indexOf("middle_grey_contrast") >= 0).length, 1, "one stop for the linked parameter")
+            verify(order().indexOf("module:sigmoid/0") < 0, "no second heading")
+            compare(selected(), "sigmoid/0/middle_grey_contrast", "the selection stays on the kept row")
             press(Qt.Key_Down)
-            compare(selected(), "sigmoid/0/contrast_skewness", "the detail rows follow the primary row")
+            compare(selected(), "sigmoid/0/contrast_skewness", "the other parameters follow the kept row")
             press(Qt.Key_Left)
             tryVerify(() => edits().some(e => e[2] === "contrast_skewness"), 1500)
             // "more" is a stop too; it opens the advanced rows.

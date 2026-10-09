@@ -9,6 +9,26 @@ Item {
     required property real value
     required property bool editable
     property bool compact: false
+    // A parameter of an unfolded module, under the module's kept main row: quieter type and a
+    // smaller knob, so it reads as a part of that row.
+    property bool sub: false
+    // The sub-row of the very parameter the main row drives: both show one value and move
+    // together. A tick ties it to the guide line of the sub-rows, and it is not a keyboard stop
+    // of its own (the main row is).
+    property bool linked: false
+    readonly property color ink: sub && !linked ? theme.subInk : theme.ink
+    // Every slider row offers its reset while the pointer is on it or it is the keyboard
+    // selection: one parameter back to its default, as R does (on a kept main row too; the
+    // module's reset is in its heading or strip, and on Shift+R). `defaultValue` is that default
+    // in displayed units when the owner knows it: the button stays away while the value is
+    // already there.
+    // The value as the row shows it, with darktable's digits and unit.
+    readonly property string valueText: Number(Math.abs(value) < Math.pow(10, -control.decimals) / 2 ? 0 : value).toFixed(control.decimals) + control.unit
+    property var defaultValue: undefined
+    readonly property bool hot: rowHover.hovered || navTarget.current
+    readonly property bool atDefault: defaultValue !== undefined && defaultValue !== null
+                                      && Math.abs(value - defaultValue) < Math.pow(10, -Math.max(0, control.decimals)) / 2
+    readonly property font labelFont: sub ? theme.textFont : theme.settingsFont
     property bool moduleToggleAvailable: compact
     property string displayLabel: ""
     property bool qualifyLabel: true
@@ -33,7 +53,8 @@ Item {
     readonly property bool marked: selected || navTarget.current
     NavTarget {
         id: navTarget
-        navId: root.control.id
+        navId: root.control.id + (root.linked ? "/@linked" : "")
+        listed: !root.linked
         label: root.displayLabel || root.control.label
         kind: "slider"
         enabled: root.editable
@@ -71,7 +92,7 @@ Item {
         const next = Math.max(low, Math.min(high, root.shown(root.value + delta)))
         if (next !== root.value) root.edited(next)
     }
-    implicitHeight: compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
+    implicitHeight: sub ? Math.max(44, controlLabel.implicitHeight + 28) : compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
     readonly property var colors: {
         switch (control.colors) {
         // Dark to light: exposure, brightness, shadows and highlights, tone zones.
@@ -163,8 +184,8 @@ Item {
                         Layout.fillWidth: true
                         text: root.displayLabel || (root.compact && root.qualifyLabel && ["strength", "amount", "detail", "brightness"].includes(root.control.label) && root.moduleName !== "contrast brightness saturation"
                               ? root.moduleName + " · " + root.control.label : root.control.label)
-                        color: root.marked || labelButton.hovered ? root.theme.accent : root.theme.ink
-                        font: root.theme.settingsFont
+                        color: root.marked || labelButton.hovered ? root.theme.accent : root.ink
+                        font: root.labelFont
                         wrapMode: Text.WordWrap
                         horizontalAlignment: Text.AlignLeft
                     }
@@ -177,14 +198,14 @@ Item {
                 Layout.preferredWidth: root.compact ? Math.max(64, implicitWidth) : implicitWidth
                 horizontalAlignment: Text.AlignRight
                 MouseArea { anchors.fill: parent; onDoubleClicked: numberPopup.get().edit() }
-                text: Number(Math.abs(root.value) < Math.pow(10, -root.control.decimals) / 2 ? 0 : root.value).toFixed(root.control.decimals) + root.control.unit
-                color: root.marked ? root.theme.accent : root.theme.ink
-                font: root.theme.settingsFont
+                text: root.valueText
+                color: root.marked ? root.theme.accent : root.ink
+                font: root.labelFont
             }
         }
         Slider {
             id: slider
-            objectName: "control-slider-" + root.control.id
+            objectName: "control-slider-" + root.control.id + (root.linked ? "/@linked" : "")
             live: true
             wheelEnabled: false
             leftPadding: 0; rightPadding: 0
@@ -222,12 +243,49 @@ Item {
             handle: Rectangle {
                 x: slider.leftPadding + Math.round(slider.visualPosition * (slider.availableWidth - width))
                 y: slider.centerY - height / 2
-                width: root.compact ? 11 : 9; height: width
+                width: root.compact && !root.sub ? 11 : 9; height: width
                 radius: root.compact ? width / 2 : 0
                 border.width: root.compact ? 1 : 0
-                border.color: root.marked ? root.theme.accent : root.theme.ink
+                border.color: root.marked ? root.theme.accent : root.ink
                 color: root.compact ? root.theme.background : (root.marked ? root.theme.accent : root.theme.ink)
             }
+        }
+    }
+    HoverHandler { id: rowHover }
+    // Laid over the free start of the value column, so nothing moves when it appears; clear of
+    // the slider (drag) and of the disclosure column (chevron, picker).
+    Loader {
+        active: root.hot && root.editable && !root.atDefault
+        visible: active
+        x: titleRow.x + valueLabel.x + valueLabel.width - valueLabel.contentWidth - width - 3
+        y: titleRow.y + Math.round((titleRow.height - height) / 2)
+        width: 20; height: 18
+        sourceComponent: ResetButton {
+            objectName: "control-reset-" + root.control.id + (root.linked ? "/@linked" : "")
+            theme: root.theme
+            title: root.control.label
+            ToolTip.text: "reset (R)"
+            // A small raised chip: it stays readable where a long label reaches under it.
+            background: Rectangle {
+                radius: 3
+                color: parent.pressed ? root.theme.active : root.theme.hover
+                border.width: 1
+                border.color: parent.hovered ? root.theme.muted : root.theme.line
+            }
+            onClicked: { navTarget.claim(); root.resetRequested() }
+        }
+    }
+    // A linked sub-row: a tick from the guide line (13 px to the left) towards the label.
+    Loader {
+        active: root.linked
+        visible: active
+        x: -13
+        y: titleRow.y + Math.round(titleRow.height / 2) - 2
+        sourceComponent: Item {
+            objectName: "control-linked-" + root.control.id
+            width: 9; height: 5
+            Rectangle { y: 2; width: 6; height: 1; color: root.theme.ink; opacity: .8 }
+            Rectangle { x: 4; width: 5; height: 5; radius: 2.5; color: root.theme.ink }
         }
     }
     // Only rows with details have the chevron; the others do not build one.

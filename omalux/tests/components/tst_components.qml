@@ -186,6 +186,51 @@ Item {
             fuzzyCompare(s.visualPosition, 0.25, 1e-6)
             vignetting.expanded = false
         }
+        function named(item, name) {
+            if (item.objectName === name) return item
+            for (const child of item.children) { const f = named(child, name); if (f) return f }
+            return null
+        }
+        // Unfolding keeps the main row where and how it was; the parameters come beneath it, the
+        // one it drives marked as linked and showing the same value.
+        function test_kept_main_row() {
+            vignetting.controlDefault = id => id === "vignette" ? -0.5 : 80
+            const main = named(vignetting, "filter-control-vignette")
+            verify(main && main.visible)
+            const before = [main.mapToItem(vignetting.parent, 0, 0).y, main.height, main.valueText, main.navTarget.navId]
+            verify(!named(vignetting, "filter-sub-vignette").visible, "folded: the row alone")
+            vignetting.expanded = true
+            wait(250)
+            compare([main.mapToItem(vignetting.parent, 0, 0).y, main.height, main.valueText, main.navTarget.navId], before, "the row did not move or change")
+            verify(main.detailsExpanded)
+            const linked = named(vignetting, "filter-sub-vignette"), other = named(vignetting, "filter-sub-vignette_scale")
+            verify(linked.visible && other.visible)
+            verify(linked.sub && linked.linked && other.sub && !other.linked)
+            verify(linked.mapToItem(vignetting, 0, 0).x > main.mapToItem(vignetting, 0, 0).x, "sub-rows are indented")
+            verify(!linked.navTarget.listed && other.navTarget.listed && main.navTarget.listed, "one stop per parameter")
+            verify(linked.navTarget.navId !== main.navTarget.navId)
+            compare(linked.valueText, main.valueText)
+            compare(named(vignetting, "module-strip-vignette").text, "vignetting")
+            verify(!named(vignetting, "module-toggle-vignette").visible, "no card heading above a kept row")
+            // One value in two places.
+            vignetting.values = ({ vignette: 0.25, vignette_scale: 80, vignette_enabled: 1 })
+            compare(main.valueText, "0.250"); compare(linked.valueText, "0.250")
+            // The row's reset appears on hover, away from the default only, and asks for that
+            // one parameter; nothing moves when it appears.
+            const y = main.mapToItem(vignetting.parent, 0, 0).y, labelWidth = named(main, "control-slider-vignette").width
+            mouseMove(main, 20, 8)
+            tryVerify(() => !!named(main, "control-reset-vignette"))
+            compare(main.mapToItem(vignetting.parent, 0, 0).y, y)
+            compare(named(main, "control-slider-vignette").width, labelWidth)
+            verify(!main.atDefault)
+            vignetting.values = ({ vignette: -0.5, vignette_scale: 80, vignette_enabled: 1 })
+            verify(main.atDefault)
+            tryVerify(() => !named(main, "control-reset-vignette"), 1000, "at the default: no button")
+            mouseMove(vignetting, 5, vignetting.height + 30)
+            vignetting.expanded = false
+            tryVerify(() => !linked.visible)
+            compare(main.mapToItem(vignetting.parent, 0, 0).y, before[0])
+        }
         // The colour popup takes the keys while open: Escape closes it.
         function test_swatch_escape() {
             sw.openPicker()

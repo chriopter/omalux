@@ -2,7 +2,7 @@ import QtQuick
 
 // The summary rows of one generated module in a pane (ModuleCatalog.summaryFor), drawn like the
 // rows of the Filters pane: module icon, short label, value, a dot while the module is on (a
-// click on the label switches it) and the chevron that opens the whole module in their place.
+// click on the label switches it) and the chevron that unfolds the whole module beneath them.
 // Edits leave as params changes of the first instance, as in GeneratedRows.
 Column {
     id: root
@@ -13,6 +13,8 @@ Column {
     property var overrides: ({})
     property bool editable: true
     property string activeControl: ""
+    // The module is unfolded beneath these rows (ModuleGroupsPanel): they stay, chevrons down.
+    property bool expanded: false
     signal expansionRequested()
     signal changesRequested(var changes)
     signal enableRequested(bool enabled)
@@ -78,7 +80,12 @@ Column {
             onModuleToggleRequested: root.requestEnabled(!root.moduleEnabled)
             selected: root.activeControl === control.id
             detailsAvailable: true
-            detailsExpanded: false
+            detailsExpanded: root.expanded
+            defaultValue: {
+                if (!hot || !known) return undefined
+                const d = Number(root.catalogModel.defaultFor(root.moduleState, r.path, r.default)) * (r.factor || 1) + (r.offset || 0)
+                return isFinite(d) ? d : undefined
+            }
             onDetailsRequested: root.expansionRequested()
             onActivated: root.expansionRequested()
             onSelectedRequested: root.controlSelected(control.id)

@@ -3,6 +3,8 @@ import QtQuick
 QtObject {
     readonly property color ink: "#cdd6f4"
     readonly property color muted: "#7f849c"
+    // Sub-rows of an unfolded module: between ink and muted.
+    readonly property color subInk: "#a9b1cf"
     readonly property color line: "#45475a"
     readonly property color accent: "#89b4fa"
     readonly property color background: "#1e1e2e"

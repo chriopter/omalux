@@ -16,6 +16,8 @@ Column {
     property var moduleState: undefined
     property var catalogModel: null
     property var overrides: ({})
+    // id => the image's own default of a registered control (what its reset sets), or null.
+    property var controlDefault: null
     property bool moreOpen: false
     property string term: ""
     signal moreRequested()
@@ -42,24 +44,80 @@ Column {
     readonly property bool hasDetails: !!section.shortcut || section.controls.some(c => !section.primary.includes(c.id))
                                        || section.name === "denoise (profiled)" || section.name === "diffuse or sharpen" || hasExtra
     spacing: 4
-    // An open single-row module keeps its name where the collapsed row had it: the heading
-    // moves up into the gap between the rows, and the rows above stay where they were.
-    topPadding: !headerVisible ? 0 : section.primary.length !== 1 ? 12 : -4
-    bottomPadding: headerVisible ? (expanded ? 10 : 8) : 0
+    // A module with one main row keeps that row when it is unfolded: same place, name, value and
+    // track; only its chevron turns. The block grows downward from it: a strip with the module's
+    // name, reset and instances, then every parameter as a sub-row. Modules without a main row
+    // (the Advanced cards) have the card heading (ModuleHeader).
+    readonly property bool hasMain: section.primary.length === 1
+    readonly property var mainControl: hasMain ? section.controls.find(c => c.id === section.primary[0]) || null : null
+    // The parameters that a main row of the pane drives: their sub-rows are marked as linked.
+    property var linkedIds: section.primary
+    // A shortcut row turns its chevron with the block of its module.
+    property bool detailsOpen: expanded
+    topPadding: hasMain ? 0 : 12
+    bottomPadding: expanded ? 10 : hasMain ? 0 : 8
 
     function findControl(id) {
+        if (mainControl && mainControl.id === id) return mainRow
         for (let i = 0; i < rows.count; ++i) {
             const item = rows.itemAt(i)
             if (item.control.id === id && item.visible) return item
         }
         return null
     }
-    readonly property bool headerVisible: expanded || section.primary.length !== 1
     function resetModule() { for (const c of section.controls) controlReset(c.id) }
     OpenScroll { target: root; open: root.expanded; active: root.term === "" }
+    Item {
+        id: mainHolder
+        visible: root.hasMain
+        width: parent.width
+        implicitHeight: mainRow.implicitHeight
+        // The block around the kept row and what unfolds beneath it.
+        Rectangle {
+            objectName: "module-block-" + root.section.key
+            visible: root.expanded
+            z: -1
+            x: -14; y: -7
+            width: parent.width + 14
+            height: (instancesBox.visible ? instancesBox.y : root.height) - mainHolder.y + 7
+            color: root.theme.surface
+            radius: 6
+            border.width: 1
+            border.color: root.theme.line
+        }
+        ControlSlider {
+            id: mainRow
+            objectName: "filter-control-" + (root.mainControl ? root.mainControl.id : "")
+            anchors.fill: parent
+            theme: root.theme
+            control: root.mainControl || ({ id: "", label: "", unit: "", decimals: 0, step: 1, softMinimum: 0, softMaximum: 1, section: "", module: "" })
+            value: root.mainControl ? root.values[root.mainControl.id] : 0
+            opacity: moduleEnabled ? 1 : .7
+            compact: true
+            moduleToggleAvailable: true
+            moduleIconKey: root.section.module
+            qualifyLabel: true
+            displayLabel: control.id === "vibrance" ? "vibrance" : root.section.shortTitle ? root.section.name : ""
+            moduleName: control.section
+            moduleEnabled: root.moduleEnabled
+            onModuleToggleRequested: root.controlEdited(root.enableControl, moduleEnabled ? 0 : 1)
+            editable: root.editable; selected: root.activeControl === control.id
+            detailsAvailable: root.hasDetails
+            detailsExpanded: root.detailsOpen
+            onDetailsRequested: root.expansionRequested()
+            onSelectedRequested: root.controlSelected(control.id)
+            onInteractionChanged: active => root.interactionChanged(active)
+            onEdited: value => root.controlEdited(control.id, value)
+            onResetRequested: root.controlReset(control.id)
+            defaultValue: hot && root.controlDefault && root.mainControl ? root.controlDefault(control.id) : undefined
+            navTarget.group: root.section.key
+            onActivated: if (root.hasDetails) root.expansionRequested()
+            onModuleResetRequested: root.resetModule()
+        }
+    }
     ModuleHeader {
         id: moduleHeader
-        visible: root.headerVisible
+        visible: !root.hasMain
         theme: root.theme
         operation: root.section.module
         name: root.section.name
@@ -70,6 +128,7 @@ Column {
         expanded: root.expanded
         hasDetails: root.hasDetails
         showInstances: !root.section.shortcut && root.term === ""
+        instanceCount: root.catalogModel && !root.section.shortcut ? (root.catalogModel.instances[root.section.module] || []).length : 1
         blockHeight: (instancesBox.visible ? instancesBox.y : root.height) - moduleHeader.y
         navId: "module:" + root.section.key
         navGroup: root.section.key
@@ -80,43 +139,75 @@ Column {
     }
     ModuleBody {
         id: body
+        // A folded module with a main row is that row alone.
+        visible: root.expanded || !root.hasMain
         spacing: 4
         animate: root.term === ""
-        Repeater {
-            id: rows
-            model: root.section.controls
-            delegate: ControlSlider {
-                required property var modelData
-                objectName: "filter-control-" + modelData.id + (root.section.module === "colisa" && !root.section.shortcut && modelData.id !== "contrast" ? "-module" : "")
-                readonly property bool secondary: !root.section.primary.includes(modelData.id)
-                x: 0
+        ModuleStrip {
+            id: strip
+            visible: root.hasMain && root.expanded
+            width: parent.width
+            theme: root.theme
+            operation: root.section.module
+            name: root.section.name
+            instanceLabel: root.moduleState && root.moduleState.instanceLabel ? root.moduleState.instanceLabel : ""
+            moduleState: root.moduleState
+            ready: root.editable
+            showInstances: root.term === ""
+            instanceCount: root.catalogModel && !root.section.shortcut ? (root.catalogModel.instances[root.section.module] || []).length : 1
+            navGroup: root.section.key
+            onResetRequested: root.resetModule()
+            onInstanceRequested: (action, name) => root.parameterChangesRequested({ "@instance": action, "@name": name })
+        }
+        Item {
+            id: subRows
+            visible: root.expanded
+            width: parent.width
+            implicitHeight: subColumn.implicitHeight
+            // The guide line: the rows beside it are parts of the main row above.
+            Rectangle {
+                visible: root.hasMain
+                x: 3; y: 0
+                width: 1; height: parent.height - 6
+                color: root.theme.line
+            }
+            Column {
+                id: subColumn
+                x: root.hasMain ? 16 : 0
                 width: parent.width - x
-                opacity: moduleEnabled ? 1 : .7
-                visible: root.expanded || root.section.primary.includes(modelData.id)
-                compact: true
-                moduleToggleAvailable: !root.headerVisible
-                moduleIconKey: !root.headerVisible ? root.section.module : ""
-                qualifyLabel: !root.headerVisible
-                displayLabel: modelData.id === "vibrance" ? "vibrance"
-                    : !root.headerVisible && root.section.shortTitle ? root.section.name
-                    : root.headerVisible && modelData.section.includes(" · ")
-                      ? modelData.section.split(" · ").slice(1).join(" · ") + " · " + modelData.label : ""
-                moduleName: modelData.section
-                moduleEnabled: root.values[modelData.module + "_enabled"] > .5
-                onModuleToggleRequested: root.controlEdited(modelData.module + "_enabled", moduleEnabled ? 0 : 1)
-                theme: root.theme; control: modelData; value: root.values[modelData.id]
-                editable: root.editable; selected: root.activeControl === modelData.id
-                detailsAvailable: !root.headerVisible && root.hasDetails && root.section.primary[0] === modelData.id
-                detailsExpanded: root.expanded
-                onDetailsRequested: root.expansionRequested()
-                onSelectedRequested: root.controlSelected(modelData.id)
-                onInteractionChanged: active => root.interactionChanged(active)
-                onEdited: value => root.controlEdited(modelData.id, value)
-                onResetRequested: root.controlReset(modelData.id)
-                navTarget.group: root.section.key
-                onActivated: if (root.hasDetails) root.expansionRequested()
-                onModuleResetRequested: root.resetModule()
-                onRevealRequested: if (!root.expanded && root.hasDetails) root.expansionRequested()
+                spacing: 4
+                Repeater {
+                    id: rows
+                    model: root.section.controls
+                    delegate: ControlSlider {
+                        required property var modelData
+                        objectName: "filter-sub-" + modelData.id
+                        width: parent.width
+                        opacity: moduleEnabled ? 1 : .7
+                        compact: true
+                        sub: root.hasMain
+                        linked: root.hasMain && root.linkedIds.includes(modelData.id)
+                        moduleToggleAvailable: false
+                        qualifyLabel: false
+                        displayLabel: modelData.id === "vibrance" ? "vibrance"
+                            : modelData.section.includes(" · ")
+                              ? modelData.section.split(" · ").slice(1).join(" · ") + " · " + modelData.label : ""
+                        moduleName: modelData.section
+                        moduleEnabled: root.values[modelData.module + "_enabled"] > .5
+                        onModuleToggleRequested: root.controlEdited(modelData.module + "_enabled", moduleEnabled ? 0 : 1)
+                        theme: root.theme; control: modelData; value: root.values[modelData.id]
+                        editable: root.editable; selected: root.activeControl === modelData.id
+                        onSelectedRequested: root.controlSelected(modelData.id)
+                        onInteractionChanged: active => root.interactionChanged(active)
+                        onEdited: value => root.controlEdited(modelData.id, value)
+                        onResetRequested: root.controlReset(modelData.id)
+                        defaultValue: hot && root.controlDefault ? root.controlDefault(modelData.id) : undefined
+                        navTarget.group: root.section.key
+                        onActivated: if (root.hasDetails) root.expansionRequested()
+                        onModuleResetRequested: root.resetModule()
+                        onRevealRequested: if (!root.expanded && root.hasDetails) root.expansionRequested()
+                    }
+                }
             }
         }
         Button {
@@ -200,15 +291,6 @@ Column {
                 onInteractionChanged: active => root.interactionChanged(active)
                 onDrawnShapeRequested: shape => root.parameterChangesRequested({ "@drawn": shape })
             }
-        }
-        InstanceFooter {
-            visible: root.expanded && !root.section.shortcut && root.term === "" && !!root.moduleState
-            width: parent.width
-            theme: root.theme
-            button: moduleHeader.instanceButton
-            count: root.catalogModel ? (root.catalogModel.instances[root.section.module] || []).length : 0
-            navGroup: root.section.key
-            active: root.editable
         }
     }
     // Further instances are not edited through the curated controls: each is a generated

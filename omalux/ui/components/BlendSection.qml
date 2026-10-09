@@ -204,6 +204,7 @@ Column {
         onEdited: v => root.set(member, Math.max(root.row(field).min, Math.min(root.row(field).max, (v - c.offset) / c.factor)))
         onResetRequested: root.set(member, c.rawDefault)
         navTarget.group: root.navGroup
+        defaultValue: c.rawDefault !== undefined && c.rawDefault !== null ? c.rawDefault * c.factor + c.offset : undefined
     }
     // A small action of the section ("add circle", "reset blend mask settings"): an outlined
     // chip, so it reads as a button among the captions.

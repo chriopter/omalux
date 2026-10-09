@@ -63,6 +63,7 @@ QtObject {
         { section: "Selected item", keys: ["R"], label: "Reset selected parameter to darktable's default", run: () => navigator.reset() },
         { section: "Selected item", keys: ["Shift+R"], label: "Reset every parameter of the selected module", run: () => navigator.resetGroup() },
         { section: "Selected item", keys: ["E"], label: "Switch the selected module on/off", run: () => navigator.toggleGroup() },
+        { section: "Selected item", keys: ["I"], label: "Instances of the selected module: new, duplicate, move, delete, rename", run: () => navigator.menuGroup() },
 
         { section: "Panes", keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9"], label: "Pane in reading order: Edit panes, Styles, History, Info", run: i => { if (i < panelCount) panelRequested(i) } },
         { section: "Panes", keys: ["Tab", "]"], label: "Next pane", run: () => panelStepRequested(1) },

@@ -78,6 +78,8 @@ class Editor : public QObject {
     Q_INVOKABLE void setControls(const QVariantMap &updates);
     Q_INVOKABLE void adjustControl(const QString &id, int steps);
     Q_INVOKABLE void resetControl(const QString &id);
+    // What resetControl would set: the image's own default of a registered control.
+    Q_INVOKABLE double controlDefault(const QString &id);
     QString moduleCatalog() const;
     // Generic module edits through darktable's introspection. A path is relative to the
     // module's params, e.g. "exposure", "tonecurve[0][1].x" or "@enabled".

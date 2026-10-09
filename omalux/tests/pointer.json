@@ -123,24 +123,75 @@
   "expectTop": true
  },
  {
-  "checkItem": "module-details-toneequal",
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-toneequal/0/highlights",
   "property": "expanded",
   "value": true
  },
  {
-  "checkItem": "summary-row-toneequal-shadows",
-  "visible": false
- },
- {
-  "pointerClick": "module-details-toneequal"
+  "checkItem": "summary-row-toneequal-highlights",
+  "inWindow": true
  },
  {
   "checkItem": "summary-row-toneequal-shadows",
   "visible": true
  },
  {
+  "checkItem": "generated-module-toneequal",
+  "visible": true
+ },
+ {
   "checkItem": "module-toggle-toneequal",
   "visible": false
+ },
+ {
+  "checkItem": "control-linked-toneequal/0/highlights",
+  "visible": true
+ },
+ {
+  "pointerClick": "control-slider-toneequal/0/highlights",
+  "at": [
+   0.7,
+   0.5
+  ]
+ },
+ {
+  "pointerHover": "summary-row-toneequal-highlights"
+ },
+ {
+  "checkItem": "control-reset-toneequal/0/highlights",
+  "visible": true
+ },
+ {
+  "pointerClick": "control-reset-toneequal/0/highlights",
+  "expectTop": true
+ },
+ {
+  "checkParameter": {
+   "operation": "toneequal",
+   "path": "highlights",
+   "value": 0
+  }
+ },
+ {
+  "pointerHover": "summary-row-toneequal-highlights"
+ },
+ {
+  "checkItem": "control-reset-toneequal/0/highlights",
+  "visible": false
+ },
+ {
+  "pointerClick": "control-details-toneequal/0/highlights"
+ },
+ {
+  "checkItem": "generated-module-toneequal",
+  "visible": false
+ },
+ {
+  "checkItem": "summary-row-toneequal-shadows",
+  "visible": true
  },
  {
   "pointerClick": "text:+"
@@ -261,7 +312,7 @@
   "pointerClick": "control-details-soften/0/amount"
  },
  {
-  "checkItem": "module-details-soften",
+  "checkItem": "control-details-soften/0/amount",
   "property": "expanded",
   "value": true
  },
@@ -536,13 +587,31 @@
   "waitMs": 300
  },
  {
-  "checkItem": "module-details-vignette",
+  "checkItem": "control-details-vignette",
   "property": "expanded",
   "value": true
  },
  {
-  "checkItem": "control-details-vignette",
+  "checkItem": "filter-control-vignette",
+  "inWindow": true
+ },
+ {
+  "checkItem": "module-toggle-vignette",
   "visible": false
+ },
+ {
+  "checkItem": "filter-sub-vignette",
+  "property": "linked",
+  "value": true
+ },
+ {
+  "checkItem": "control-linked-vignette",
+  "visible": true
+ },
+ {
+  "checkItem": "filter-sub-vignette_scale",
+  "property": "linked",
+  "value": false
  },
  {
   "checkItem": "control-slider-vignette",
@@ -550,30 +619,73 @@
   "value": -1
  },
  {
-  "checkItem": "control-slider-vignette",
+  "checkItem": "control-slider-vignette/@linked",
   "property": "to",
   "value": 1
  },
  {
-  "checkItem": "module-fold-vignette",
-  "inWindow": true
+  "pointerDrag": "control-slider-vignette",
+  "from": [
+   0.25,
+   0.5
+  ],
+  "to": [
+   0.6,
+   0.5
+  ],
+  "hold": true
  },
  {
-  "pointerClick": "module-toggle-vignette",
+  "waitMs": 200
+ },
+ {
+  "checkItem": "filter-control-vignette",
+  "property": "valueText",
+  "value": "0.210"
+ },
+ {
+  "checkItem": "filter-sub-vignette",
+  "property": "valueText",
+  "value": "0.210"
+ },
+ {
+  "pointerRelease": true
+ },
+ {
+  "pointerDrag": "control-slider-vignette/@linked",
+  "from": [
+   0.6,
+   0.5
+  ],
+  "to": [
+   0.25,
+   0.5
+  ],
+  "hold": true
+ },
+ {
+  "waitMs": 200
+ },
+ {
+  "checkItem": "filter-sub-vignette",
+  "property": "valueText",
+  "value": "-0.520"
+ },
+ {
+  "checkItem": "filter-control-vignette",
+  "property": "valueText",
+  "value": "-0.520"
+ },
+ {
+  "pointerRelease": true
+ },
+ {
+  "pointerClick": "filter-control-vignette",
+  "at": [
+   0.2,
+   0.2
+  ],
   "expectTop": true
- },
- {
-  "check": {
-   "vignette_enabled": 1
-  }
- },
- {
-  "checkItem": "module-details-vignette",
-  "property": "expanded",
-  "value": true
- },
- {
-  "pointerClick": "module-toggle-vignette"
  },
  {
   "check": {
@@ -581,8 +693,57 @@
   }
  },
  {
+  "checkItem": "control-details-vignette",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "filter-control-vignette",
+  "at": [
+   0.2,
+   0.2
+  ]
+ },
+ {
+  "check": {
+   "vignette_enabled": 1
+  }
+ },
+ {
+  "control": "vignette",
+  "value": -0.5
+ },
+ {
+  "pointerHover": "filter-control-vignette"
+ },
+ {
+  "checkItem": "control-reset-vignette",
+  "visible": false
+ },
+ {
   "control": "vignette",
   "value": -0.2
+ },
+ {
+  "control": "vignette_scale",
+  "value": 60
+ },
+ {
+  "pointerHover": "filter-control-vignette"
+ },
+ {
+  "checkItem": "control-reset-vignette",
+  "visible": true
+ },
+ {
+  "pointerClick": "control-reset-vignette",
+  "expectTop": true
+ },
+ {
+  "check": {
+   "vignette": -0.5,
+   "vignette_scale": 60
+  }
  },
  {
   "pointerClick": "module-reset-vignette",
@@ -590,8 +751,29 @@
  },
  {
   "check": {
-   "vignette": -0.5
+   "vignette_scale": 80
   }
+ },
+ {
+  "checkItem": "text:multiple instances",
+  "visible": false
+ },
+ {
+  "pointerClick": "module-instances-vignette",
+  "expectTop": true
+ },
+ {
+  "waitMs": 200
+ },
+ {
+  "checkItem": "text:duplicate instance",
+  "visible": true
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "waitMs": 200
  },
  {
   "pointerClick": "module-more-vignette",
@@ -646,37 +828,40 @@
   "visible": false
  },
  {
-  "pointerClick": "module-fold-vignette",
-  "at": [
-   0.6,
-   0.5
-  ],
+  "pointerClick": "control-details-vignette",
   "expectTop": true
  },
  {
   "waitMs": 300
  },
  {
-  "checkItem": "control-details-vignette",
-  "visible": true
- },
- {
-  "checkItem": "module-fold-vignette",
+  "checkItem": "filter-sub-vignette",
   "visible": false
  },
  {
-  "pointerClick": "control-details-vignette"
+  "checkItem": "control-details-vignette",
+  "property": "expanded",
+  "value": false
  },
  {
-  "pointerClick": "module-details-vignette",
+  "control": "bloom_strength",
+  "value": 40
+ },
+ {
+  "pointerHover": "filter-control-bloom_strength"
+ },
+ {
+  "checkItem": "control-reset-bloom_strength",
+  "visible": true
+ },
+ {
+  "pointerClick": "control-reset-bloom_strength",
   "expectTop": true
  },
  {
-  "waitMs": 300
- },
- {
-  "checkItem": "control-details-vignette",
-  "visible": true
+  "check": {
+   "bloom_strength": 25
+  }
  },
  {
   "pointerClick": "module-fold-bilat",
@@ -721,5 +906,25 @@
   "checkItem": "module-details-bilat",
   "property": "expanded",
   "value": false
+ },
+ {
+  "pointerClick": "module-fold-bilat",
+  "at": [
+   0.6,
+   0.5
+  ]
+ },
+ {
+  "key": "I"
+ },
+ {
+  "waitMs": 200
+ },
+ {
+  "checkItem": "text:duplicate instance",
+  "visible": true
+ },
+ {
+  "key": "Escape"
  }
 ]

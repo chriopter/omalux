@@ -235,6 +235,13 @@ void Editor::resetControl(const QString &id) {
         if (id == QLatin1String(om_controls[i].id))
             setControl(id, defaults[i]);
 }
+double Editor::controlDefault(const QString &id) {
+    const ControlValues defaults = worker->controlDefaults();
+    for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i)
+        if (id == QLatin1String(om_controls[i].id))
+            return defaults[i];
+    return 0;
+}
 Editor::Editor(Frames *normal, Frames *hover, Frames *before, QString image, std::vector<QByteArray> arguments)
     : worker(std::make_unique<EngineWorker>(image, std::move(arguments),
                                             qEnvironmentVariable("OMALUX_STYLES_DIR"),

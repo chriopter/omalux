@@ -112,12 +112,23 @@
   "interval": 16
  },
  {
+  "reveal": "control-details-sigmoid/0/middle_grey_contrast"
+ },
+ {
+  "name": "expand sigmoid",
+  "click": "control-details-sigmoid/0/middle_grey_contrast"
+ },
+ {
   "name": "drag generated slider (sigmoid contrast)",
   "drag": "control-slider-sigmoid/0/middle_grey_contrast",
   "from": 0.3,
   "to": 0.7,
   "steps": 60,
   "interval": 16
+ },
+ {
+  "name": "collapse sigmoid",
+  "click": "control-details-sigmoid/0/middle_grey_contrast"
  },
  {
   "name": "keys down x20 (tone)",
