@@ -11,6 +11,10 @@ Rectangle {
     // The photograph could not be read and none is shown (Editor.photoMissing).
     property bool photoMissing: false
     signal openRequested()
+    // The example photograph shipped with the application.
+    property bool exampleAvailable: true
+    signal exampleRequested()
+    property url iconsRoot: Qt.resolvedUrl("../../../assets/icons/")
     // The photograph as opened is shown (before/after); tools on the photo wait.
     property bool comparing: false
     property bool cropping: false
@@ -188,14 +192,43 @@ Rectangle {
             color: root.theme.muted; font: root.theme.textFont
             wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
         }
-        ToolbarButton {
-            objectName: "photo-empty-open"
+        // The ways out, as in the toolbar: a file of one's own, or the example shipped with
+        // the application.
+        Rectangle {
             visible: root.photoMissing
             anchors.horizontalCenter: parent.horizontalCenter
-            theme: root.theme
-            hint: "[O]"; text: "OPEN"
-            tip: "Open a photograph, or drop one on the window"
-            onClicked: root.openRequested()
+            width: emptyActions.implicitWidth + 6; height: 36
+            radius: 7
+            color: root.theme.well
+            border.color: root.theme.line
+            Row {
+                id: emptyActions
+                x: 3; y: 3
+                spacing: 3
+                ToolbarButton {
+                    objectName: "photo-empty-open"
+                    theme: root.theme
+                    iconSource: root.iconsRoot + "open.svg"
+                    text: "Open"
+                    onClicked: root.openRequested()
+                }
+                ToolbarButton {
+                    objectName: "photo-empty-example"
+                    visible: root.exampleAvailable
+                    theme: root.theme
+                    iconSource: root.iconsRoot + "photo.svg"
+                    text: "Example photograph"
+                    onClicked: root.exampleRequested()
+                }
+            }
+        }
+        // No tooltips here: they would cover the reason above the buttons.
+        Text {
+            visible: root.photoMissing
+            width: parent.width
+            text: "or drop a photograph on the window"
+            color: root.theme.muted; font: root.theme.textFont
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

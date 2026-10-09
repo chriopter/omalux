@@ -34,6 +34,16 @@ int main(int argc, char **argv) {
     engine.addImageProvider("before", beforeFrames);
     engine.rootContext()->setContextProperty("editor", &editor);
     engine.rootContext()->setContextProperty("assetsRoot", QUrl::fromLocalFile(args[2] + "/"));
+    // The example photograph ships with the application like its icons and logo: in the assets
+    // folder the launcher or package passes. OMALUX_EXAMPLE_PHOTO names another file; a build
+    // run from the source tree without that folder falls back to the repository's own copy.
+    QString example;
+    for (const auto &candidate :
+         {qEnvironmentVariable("OMALUX_EXAMPLE_PHOTO"), args[2] + "/images/beach-volleyball.jpg",
+          QFileInfo(QStringLiteral(OMALUX_QML)).absolutePath() + "/../../assets/images/beach-volleyball.jpg"})
+        if (example.isEmpty() && !candidate.isEmpty() && QFileInfo(candidate).isFile())
+            example = QUrl::fromLocalFile(QFileInfo(candidate).canonicalFilePath()).toString();
+    engine.rootContext()->setContextProperty("examplePhoto", example);
     engine.load(QUrl::fromLocalFile(QStringLiteral(OMALUX_QML)));
     if (engine.rootObjects().isEmpty())
         return 1;

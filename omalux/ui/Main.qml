@@ -99,7 +99,12 @@ ApplicationWindow {
         // Keys a text field or a clicked control did not use.
         Keys.onPressed: event => keyboard.handleKey(event)
         EditorToolbar {
+            id: toolbar
             visible: !window.photoFullscreen
+            iconsRoot: assetsRoot + "icons/"
+            busy: editor.styleBusy
+            exampleAvailable: window.examplePhotoUrl !== ""
+            onExampleRequested: window.openExample()
             Layout.fillWidth: true
             theme: editorTheme
             zoom: viewport.zoom
@@ -146,6 +151,9 @@ ApplicationWindow {
                 photoMissing: editor.photoMissing
                 comparing: editor.comparing
                 onOpenRequested: dialogs.openImage()
+                iconsRoot: assetsRoot + "icons/"
+                exampleAvailable: window.examplePhotoUrl !== ""
+                onExampleRequested: window.openExample()
             }
             EditorSidebar {
                 id: sidebar
@@ -192,6 +200,10 @@ ApplicationWindow {
         if (editor.comparing) editor.comparing = false
         else if (!sidebar.geometry.cropping) { sidebar.tools.cancel(); editor.comparing = true }
     }
+    // The example photograph shipped with the application ("" when the build carries none):
+    // main.cpp looks for it beside the other assets.
+    readonly property string examplePhotoUrl: typeof examplePhoto === "string" ? examplePhoto : ""
+    function openExample() { if (examplePhotoUrl !== "" && !editor.styleBusy) openFile(examplePhotoUrl) }
     // Opening a photograph, from the dialog or a file dropped on the window: tools on the photo
     // end, the view fits the new image.
     function openFile(file) {
@@ -270,6 +282,7 @@ ApplicationWindow {
         onCropApplyRequested: sidebar.geometry.apply()
         onCropCancelRequested: sidebar.geometry.cancel()
         onOpenRequested: dialogs.openImage()
+        onOpenMenuRequested: toolbar.openMenu()
         onSaveRequested: dialogs.exportImage()
         onHelpRequested: helpDialog.open()
     }

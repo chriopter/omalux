@@ -33,9 +33,10 @@ The sidebar keeps one selection, marked in the accent colour; the bottom bar sho
 | `1` … `9`, `Tab` / `Shift+Tab` (`]` / `[`) | Pane in reading order: Edit (Filters, Tone, Color, Detail, Effects, Crop & Rotate), Looks, Details (History, Info); next / previous pane (Tab also reaches the Modules and Camera panes of Styles) |
 | `/` or `Ctrl+F` | Search modules and controls; `Esc` clears the search and leaves it, `Enter` or `↓` keep it and go to the first result. The look filter is an item in the Looks pane |
 | `G` / `S` / `M`, `A` | Grain strength / coarseness / mid-tones bias (opening grain details), grain details |
-| `+` / `−`, `0`, `F` | Zoom, fit, photograph fullscreen (`F` or `Esc` to leave) |
+| `+` / `−`, `0`, `F` | Zoom around the centre of the view, fit, photograph fullscreen (`F` or `Esc` to leave) |
+| `B` | Before: show the photograph as it was opened; `B`, `Esc` or any edit returns to the result |
 | `Enter` / `Esc` while cropping | Apply / cancel the crop |
-| `O` / `Ctrl+O`, `Ctrl+S`, `?` / `F1` | Open, export, keyboard reference |
+| `O` / `Ctrl+O`, `Shift+O`, `Ctrl+S`, `?` / `F1` | Open, the menu beside Open (example photograph), export, keyboard reference |
 
 Text fields keep every key while you type. Clicking a control selects it for the keyboard without taking the keys away; after a dialog closes, keys work again at once.
 

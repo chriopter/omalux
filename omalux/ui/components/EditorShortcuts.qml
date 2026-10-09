@@ -31,6 +31,7 @@ QtObject {
     signal canvasCancelRequested()
     signal pickerCancelRequested()
     signal openRequested()
+    signal openMenuRequested()
     signal saveRequested()
     signal helpRequested()
 
@@ -79,6 +80,7 @@ QtObject {
         { section: "Photograph", keys: ["F"], label: "Photograph fullscreen", run: () => fullscreenRequested() },
 
         { section: "File", keys: ["O", "Ctrl+O"], label: "Open photograph", run: () => openRequested() },
+        { section: "File", keys: ["Shift+O"], label: "Menu beside Open: the example photograph (↓ and Enter pick it)", run: () => openMenuRequested() },
         { section: "File", keys: ["Ctrl+S"], label: "Export photograph", run: () => saveRequested() },
         { section: "File", scope: "view", keys: ["?", "F1"], label: "This keyboard reference", run: () => helpRequested() },
 

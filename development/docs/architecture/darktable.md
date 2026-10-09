@@ -59,7 +59,7 @@ flowchart LR
     Copy --> Qt[Qt preview]
 ```
 
-`dt_image_import` creates/loads catalogue state; it is not the actual RAW development step. `dt_dev_load_image` loads module instances and history. `dt_dev_process_image_job` obtains decoded pixels through the mipmap cache, with FULL/BLOCKING input when a viewport is provided, and F/BEST_EFFORT for the preview path (`develop.c:630`). Decoding and demosaicing are distinct responsibilities: RAW decoding supplies sensor data; processing modules handle the development operations.
+`dt_image_import` creates/loads catalogue state; it is not the actual RAW development step, and it succeeds for a damaged file with a known extension. The adapter therefore asks the mipmap cache for the decoded FULL buffer before it releases the photograph shown (`native/engine/engine.c`, `om_engine_open` returns 2 when there is none); the buffer stays cached for `dt_dev_load_image`. `dt_dev_load_image` loads module instances and history. `dt_dev_process_image_job` obtains decoded pixels through the mipmap cache, with FULL/BLOCKING input when a viewport is provided, and F/BEST_EFFORT for the preview path (`develop.c:630`). Decoding and demosaicing are distinct responsibilities: RAW decoding supplies sensor data; processing modules handle the development operations.
 
 `dt_imageio_open` first uses file-signature dispatch and then fallbacks including RawSpeed, LibRaw and exotic loaders as applicable (`imageio.c:1626`). The wrapper was reviewed here; this is not an audit of the bundled decoders themselves.
 
@@ -289,7 +289,7 @@ lens/camera "find"), and colour calibration's checker workflow.
 | Directory/module | Responsibility |
 | --- | --- |
 | `app/editor.h/.cpp` | Qt-thread presentation state, input validation and QML actions; accepts copied worker results using revision/epoch checks |
-| `app/engine_worker.h/.cpp` | Typed, coalescing request queue; owns the worker thread, the adapter lifetime and the processing sequence |
+| `app/engine_worker.h/.cpp` | Typed, coalescing request queue; owns the worker thread, the adapter lifetime and the processing sequence. Without a readable photograph it keeps running and accepts only an Open (`Editor.photoMissing`) |
 | `app/work_types.h` | Value-only control snapshots, requests, action enum, tickets and render results crossing the thread boundary |
 | `app/style_catalog.h/.cpp`, `app/styles.h/.cpp` | Discovery, decoded detail formatting and portable bundle save/delete/export, confined to the worker |
 | `app/comparison_bridge.h/.cpp` | Optional one-way mailbox and module/history snapshots; no hover traffic |

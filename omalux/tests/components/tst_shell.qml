@@ -25,6 +25,7 @@ Item {
         minimumZoom: viewport.minimumZoom
         maximumZoom: viewport.maximumZoom
         onOpenRequested: top.log.push(["open"])
+        onExampleRequested: top.log.push(["example"])
         onSaveRequested: top.log.push(["save"])
         onZoomRequested: factor => { top.log.push(["zoom", factor]); viewport.zoomBy(factor) }
         onFitRequested: { top.log.push(["fit"]); viewport.fit() }
@@ -38,6 +39,7 @@ Item {
         textureTransform: Qt.vector4d(1, 1, 0, 0)
         status: "Loading image…"
         onOpenRequested: top.log.push(["open"])
+        onExampleRequested: top.log.push(["example"])
     }
     EditorStatusBar {
         id: statusBar
@@ -78,12 +80,15 @@ Item {
             }
             return null
         }
-        function init() { top.log = []; viewport.fit() }
+        // One frame after a change of size or visibility, as on screen: layouts place their
+        // items on polish, and a click aimed before that lands on the old position.
+        function settle() { wait(60) }
+        function init() { top.log = []; viewport.fit(); toolbar.width = top.width; settle() }
 
         function test_toolbar_states() {
             const zoomOut = find(toolbar, "toolbar-zoom-out"), zoomIn = find(toolbar, "toolbar-zoom-in")
             const fit = find(toolbar, "toolbar-fit"), exportButton = find(toolbar, "toolbar-export")
-            compare(fit.text, "FIT")
+            compare(fit.text, "Fit")
             verify(!zoomOut.enabled, "nothing to zoom out of at fit")
             mouseClick(zoomOut)
             compare(top.log.length, 0, "a disabled button does nothing")
@@ -110,6 +115,74 @@ Item {
             verify(!exportButton.activeFocus)
             const name = find(toolbar, "toolbar-filename")
             verify(name.truncated && name.x + name.width <= toolbar.width, "a long name is cut, not clipped")
+        }
+
+        // Open is a split control: the tile asks for the file dialog, its arrow opens a menu
+        // with the example photograph; one click on the entry asks for it.
+        function test_open_split_and_example() {
+            const open = find(toolbar, "toolbar-open"), more = find(toolbar, "toolbar-open-more")
+            verify(open.x + open.width <= more.x, "the arrow sits beside Open")
+            verify(more.width < open.width, "and is the smaller part")
+            mouseClick(open)
+            compare(JSON.stringify(top.log), JSON.stringify([["open"]]))
+            verify(!toolbar.menuOpen, "the tile opens no menu")
+            mouseClick(more)
+            tryVerify(() => toolbar.menuOpen, 1000, "the arrow opens the menu")
+            verify(more.active, "the arrow shows that its menu is open")
+            const example = find(Overlay.overlay, "toolbar-open-example")
+            verify(example && example.visible && example.enabled)
+            compare(example.text, "Example photograph")
+            tryVerify(() => example.width > 0 && example.height > 0)
+            mouseClick(example)
+            tryVerify(() => !toolbar.menuOpen, 1000, "choosing closes the menu")
+            compare(JSON.stringify(top.log), JSON.stringify([["open"], ["example"]]), "one click loads the example")
+            // From the keyboard: the menu opens, ↓ and Enter pick the example.
+            toolbar.openMenu()
+            tryVerify(() => toolbar.menuOpen)
+            keyClick(Qt.Key_Down); keyClick(Qt.Key_Return)
+            tryVerify(() => !toolbar.menuOpen)
+            compare(top.log.length, 3); compare(top.log[2][0], "example")
+            toolbar.openMenu()
+            tryVerify(() => toolbar.menuOpen)
+            keyClick(Qt.Key_Escape)
+            tryVerify(() => !toolbar.menuOpen, 1000, "Escape closes it without opening anything")
+            compare(top.log.length, 3)
+            // Without the example (a build that carries none) the arrow is off; while something
+            // runs, nothing can be opened.
+            toolbar.exampleAvailable = false
+            verify(!more.enabled && open.enabled)
+            toolbar.openMenu()
+            verify(!toolbar.menuOpen)
+            toolbar.exampleAvailable = true
+            toolbar.busy = true
+            verify(!open.enabled && !more.enabled && !find(toolbar, "toolbar-export").enabled)
+            toolbar.busy = false
+            // The empty state offers the same two ways out.
+            viewport.photoMissing = true
+            const emptyExample = find(viewport, "photo-empty-example")
+            tryVerify(() => emptyExample.visible && emptyExample.width > 0)
+            mouseClick(emptyExample)
+            compare(top.log[top.log.length - 1][0], "example")
+            viewport.exampleAvailable = false
+            verify(!emptyExample.visible)
+            viewport.exampleAvailable = true
+            viewport.photoMissing = false
+        }
+        // Labels are calm words with an icon; the keys are in the tooltip, where O and 0
+        // cannot be confused.
+        function test_toolbar_labels() {
+            const open = find(toolbar, "toolbar-open"), fit = find(toolbar, "toolbar-fit")
+            compare(open.text, "Open"); compare(find(toolbar, "toolbar-export").text, "Export")
+            verify(String(open.icon.source).endsWith("open.svg"))
+            compare(open.ToolTip.text, "Open a photograph  ·  key O")
+            compare(fit.ToolTip.text, "The photograph fits the window  ·  key 0 (zero)")
+            verify(!toolbar.compact)
+            const wide = open.width
+            toolbar.width = 700
+            verify(toolbar.compact, "a narrow bar shows icons only")
+            tryVerify(() => open.width < wide)
+            const name = find(toolbar, "toolbar-filename")
+            tryVerify(() => name.x + name.width <= toolbar.width, 1000, "nothing leaves the bar")
         }
 
         function test_before_button() {
@@ -183,7 +256,7 @@ Item {
             verify(!open.visible, "no way out is offered while the engine starts")
             viewport.photoMissing = true
             verify(open.visible)
-            tryVerify(() => open.width > 0 && open.y > 0)
+            settle()
             mouseClick(open)
             compare(JSON.stringify(top.log), JSON.stringify([["open"]]))
             viewport.photoMissing = false
