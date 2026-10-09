@@ -25,13 +25,37 @@ styles/
     style.json
 ```
 
-Create another folder with `style.dtstyle` and restart `development/start` or `development/start_split`. Each style needs a unique name. Bundles may be grouped in nested folders. Loose `.dtstyle` files still work, but a bundle keeps its preview with its settings. The UI discovers files automatically and provides search. In the separate **Styles** tab (second sidebar icon), compact rows as in v0 show a 96×64 beach preview beside the name; click the thumbnail or name to apply. The separate arrow expands the actual module settings. Neutral and Chromatic stay above the groups. As in v0, Monochrome opens initially, only one group is expanded at a time, series use their folder names, and Experimental sorts last. Search includes group names and reveals matching styles across collapsed groups. Applying first restores the photo’s state captured when it was opened, then applies all of the style’s module settings, including modules without an Omalux control. Earlier session edits to other sliders, white balance, crop or effects do not carry over. Camera/workflow settings and sidecar edits already present at opening remain part of that baseline. Resets are recorded in history so the previous edits remain reachable. No QML button, slider definition or Lua mapping is needed for another style.
+Create another folder with `style.dtstyle` and restart `development/start` or `development/start_split`. Each style needs a unique name. Bundles may be grouped in nested folders; a folder can name itself with a `family.json` (see [Families and their names](#families-and-their-names)). Loose `.dtstyle` files still work, but a bundle keeps its preview with its settings. The UI discovers files automatically and provides search. In the separate **Styles** tab (second sidebar icon), compact rows as in v0 show a 96×64 beach preview beside the name; click the thumbnail or name to apply. The separate arrow expands the actual module settings. Neutral and Chromatic stay above the groups. As in v0, Monochrome opens initially, only one group is expanded at a time, series use their folder names, and Experimental sorts last. Search includes group names and reveals matching styles across collapsed groups. Applying first restores the photo’s state captured when it was opened, then applies all of the style’s module settings, including modules without an Omalux control. Earlier session edits to other sliders, white balance, crop or effects do not carry over. Camera/workflow settings and sidecar edits already present at opening remain part of that baseline. Resets are recorded in history so the previous edits remain reachable. No QML button, slider definition or Lua mapping is needed for another style.
 
 The expanded card reads module names, enabled state and parameter descriptions from the installed engine and values from the actual style blob. It includes stored inactive parameters too. Known controls use darktable's display units; other fields show stored engine values, not guessed GUI conversions. Arrays and structured values are shown in full; untyped data is shown as hex. Blending is currently summarized, not individually editable in the inspector.
 
 Malformed files, duplicate names and unavailable or incompatible module layouts are displayed as unavailable with a reason. The adapter requires matching module versions and parameter sizes; it does not yet migrate old styles. Custom module ordering and styles containing drawn-mask records are rejected rather than partially applied. Complex duplicate module instances and raster-mask dependencies still require separate validation. This is not general compatibility with every exported darktable style.
 
 For an isolated development catalogue, set `OMALUX_STYLES_DIR=/path/to/styles`. Files are read at startup; live reload and saving new styles are not implemented.
+
+## Families and their names
+
+The Looks pane makes one collapsible group per folder above a look: `film/film-chrome/` is in **Film**, `series/movie/…` in **Series · Movie**. A folder's name is its display name, first letter capitalised and hyphens as spaces. Where that is wrong or not enough, the folder carries a `family.json`:
+
+```json
+{ "version": 1, "name": "DHH", "order": 1 }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Required integer version of this file's format, currently `1`. |
+| `name` | Display name of this folder in the pane, the search and the darktable bundle. `dhh/` reads “DHH”, `dhh/black-and-white/` “Black & white”. |
+| `order` | Optional, top-level folders only. Families sort Monochrome first and Experimental last; between them by `order` (default `0`), then by folder. `1` places a family after the project's own. |
+
+The style catalogue reads these files when it lists the looks and hands each look its family's name (`family`) and place (`familyOrder`); folders without the file keep their folder name. The folder stays the look's id, so renaming a family in `family.json` breaks no reference. Under its group a look drops the group's last word from the front of its name: “Kodak Portra 400” reads “Portra 400” under **DHH · Kodak**.
+
+## The DHH family
+
+`catalog/styles/dhh/` holds film looks fitted to target renderings of a preset pack. Each look is one colour lookup table (`look.cube`, applied by `lut3d` after the tone mapper) plus grain fitted to the target; exposure, tone equalizer and color balance rgb are stored neutral, the vignette off. The targets were rendered on a standard camera profile. **The pack's own film camera profiles are not part of these looks**, so a look reproduces the pack's preset on a standard profile, not the preset combined with its camera profile. The names refer to the film stocks the looks imitate; no affiliation with their makers is implied.
+
+The family is split into groups so that it stays navigable: **Black & white** for the monochrome looks, one group per maker (**Agfa**, **Fuji**, **Kodak**, **Polaroid**) for the colour looks named after a maker's film, and **Variants** for the remaining colour looks (pushed and otherwise altered versions with short names such as “400H⁺¹” or “E100VS XP”). A bundle's folder is the name in lower case with `⁺¹` written `-plus-1` and `⁻¹` `-minus-1`: `dhh/variants/400h-plus-1/`.
+
+`development/tools/calibration/install_family.py` writes the family from a directory of finished looks and a name index (see [calibration](../calibration.md#installing-a-family-of-looks)); thumbnails come from `development/style_preview` like every other look's. Each cube is a 33³ text `.cube` of about 1 MB.
 
 ## Updating thumbnails
 

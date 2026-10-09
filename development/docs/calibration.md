@@ -40,6 +40,18 @@ python3 development/tools/calibration/install_style.py <style>      # copy into 
 development/style_preview <group>/<style>                       # refresh the thumbnail
 ```
 
+### Installing a family of looks
+
+`install_family.py` installs many finished looks at once as a new family of the catalogue. It reads, per look id, `style.dtstyle` and `look.cube` from one directory, the display names from an index (`looks`: `id`, `name`, `film`, `family`, `monochrome`, optional `duplicate_of` and `group`), and, with `--results`, takes only looks whose result folder holds `final.done`:
+
+```sh
+python3 development/tools/calibration/install_family.py --looks /path/to/looks --index /path/to/index.json \
+    --results /path/to/results --family dhh --label DHH
+development/style_preview dhh/kodak/kodak-portra-400      # for every bundle it lists as lacking a thumbnail
+```
+
+It writes `catalog/styles/<family>/<group>/<name>/` with the style renamed to the look's name, the `lut3d` path pointing at the new place, a neutral description and `style.json`, plus the `family.json` files that name the family and its groups (`development/docs/reference/styles.md`). Running it again adds the looks that finished meanwhile and leaves the others untouched; a look whose style or cube changed is rewritten and loses its thumbnail. Unfinished looks and duplicates are skipped and listed, looks whose `result.json` carries a flag other than `ok` are listed for a look at full size (`--skip-flagged` leaves them out). `--dry-run` prints the mapping only.
+
 `TUNE_FROM_TUNED=1` continues from a previous tuned result. One pass takes about 20 minutes per style on 16 cores; two styles run side by side with `DT_OMP=8`.
 
 `scene_search.py` builds the same modules without any cube, from a neutral start. It stalls around ΔE 9 where the cube reaches 4: color balance rgb and the tone equalizer cannot express the hue-dependent shifts of the looks, so the cube stays for colour.
