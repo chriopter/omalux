@@ -63,6 +63,7 @@ int om_engine_open(OmEngine *engine, const char *path) {
         om_blend_display_reset(engine);
         om_module_display_reset(engine);
         om_style_baseline_clear(engine);
+        om_camera_presets_clear(engine);
         dt_dev_cleanup(&engine->dev);
         engine->loaded = 0;
     }
@@ -288,6 +289,7 @@ int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width,
 }
 void om_engine_cleanup(OmEngine *engine) {
     om_style_baseline_clear(engine);
+    om_camera_presets_clear(engine);
     if (engine->loaded)
         dt_dev_cleanup(&engine->dev);
     dt_cleanup();

@@ -35,6 +35,9 @@ class EngineWorker : public QObject {
                      QVariantList cameraDefaults, QString modules);
     void controlsReady(ControlValues values, quint64 revision);
     void metadataReady(QString source, QVariantMap metadata, QVariantList cameraDefaults);
+    // What was set up for this camera and every camera preset with its state, whenever an edit
+    // changed either (om_engine_camera_defaults, om_engine_camera_presets).
+    void cameraReady(QVariantList cameraDefaults, QVariantList cameraPresets);
     void modulesReady(QString catalog);
     void moduleReady(QString operation, int instance, QString module);
     // The JSON result of a module tool (picked values, histogram, GUI values), see module_tools.h.
@@ -73,6 +76,8 @@ class EngineWorker : public QObject {
     void renderHover(OmEngine *, const Request &);
     void replaceControls(OmEngine *, Request &, ControlRevisions &);
     void refreshModule(OmEngine *, const QString &operation, int instance);
+    void publishCamera(OmEngine *);
+    QByteArray publishedCamera;
     QString applyModuleEdits(OmEngine *, Request &, ControlRevisions &, QStringList &recipes);
     // On-canvas tools (engine_worker_canvas.cpp); the canvas state belongs to the worker thread.
     static bool mergeCanvasEdit(ModuleEdit &last, const ModuleEdit &edit);

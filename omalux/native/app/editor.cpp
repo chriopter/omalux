@@ -51,6 +51,22 @@ QVariantMap Editor::metadata() const {
 QVariantList Editor::cameraDefaults() const {
     return imageCameraDefaults;
 }
+QVariantList Editor::cameraPresets() const {
+    return imageCameraPresets;
+}
+void Editor::applyCameraPreset(const QString &name, bool on) {
+    for (const auto &entry : imageCameraPresets) {
+        const auto preset = entry.toMap();
+        if (preset["name"].toString() != name)
+            continue;
+        if (preset["available"].toBool())
+            queueModuleEdit({ActionKind::CameraPreset,
+                             preset["operation"].toString(),
+                             0,
+                             {{"name", name}, {"on", on}}});
+        return;
+    }
+}
 QString Editor::moduleCatalog() const {
     return modules;
 }
@@ -283,6 +299,17 @@ Editor::Editor(Frames *normal, Frames *hover, Frames *before, QString image, std
                 imageMetadata = metadata;
                 emit changed();
             });
+    connect(worker.get(), &EngineWorker::cameraReady, this,
+            [this](QVariantList defaults, QVariantList presets) {
+        if (imageCameraDefaults != defaults) {
+            imageCameraDefaults = std::move(defaults);
+            emit changed();
+        }
+        if (imageCameraPresets != presets) {
+            imageCameraPresets = std::move(presets);
+            emit cameraPresetsChanged();
+        }
+    });
     connect(worker.get(), &EngineWorker::modulesReady, this, [this](QString catalog) {
         if (catalog == modules)
             return;

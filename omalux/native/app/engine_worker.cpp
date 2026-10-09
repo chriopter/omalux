@@ -194,6 +194,8 @@ void EngineWorker::run() {
             takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
             (moduleCatalog.reload(engine.get()), moduleCatalog.json()));
         moduleCatalog.takeChanged();
+        publishedCamera.clear();
+        publishCamera(engine.get());
         opened = true;
         return initial;
     };
@@ -279,6 +281,18 @@ void EngineWorker::replaceControls(OmEngine *engine, Request &request, ControlRe
     }
     emit controlsReady(request.values, request.ticket.revision);
 }
+// The camera pane's data follows every edit: a preset is "applied" while its module carries it.
+void EngineWorker::publishCamera(OmEngine *engine) {
+    char *defaults = om_engine_camera_defaults(engine), *presets = om_engine_camera_presets(engine);
+    const QByteArray state =
+        QByteArray(defaults ? defaults : "") + '\n' + QByteArray(presets ? presets : "");
+    const auto entries = takeJson(defaults).object().toVariantMap()["entries"].toList();
+    const auto list = takeJson(presets).array().toVariantList();
+    if (state == publishedCamera)
+        return;
+    publishedCamera = state;
+    emit cameraReady(entries, list);
+}
 void EngineWorker::refreshModule(OmEngine *engine, const QString &operation, int instance) {
     const QString entry = moduleCatalog.update(engine, operation, instance);
     if (!entry.isEmpty())
@@ -301,6 +315,10 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
             result = applyCanvasEdit(engine, edit);
         else if (edit.kind == ActionKind::ResetModule)
             result = om_engine_reset_module(engine, operation.constData(), edit.instance);
+        else if (edit.kind == ActionKind::CameraPreset)
+            result = om_engine_camera_preset(
+                engine, edit.values.value("name").toString().toUtf8().constData(),
+                edit.values.value("on").toBool());
         else if (edit.kind == ActionKind::ModuleInstance) {
             // New, duplicated, moved, renamed or deleted instances change the module list:
             // the whole catalog is described again.
@@ -355,6 +373,7 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
             if (error.isEmpty())
                 error = QString("Could not %1 %2 (%3)")
                             .arg(edit.kind == ActionKind::ResetModule ? "reset"
+                                 : edit.kind == ActionKind::CameraPreset ? "change the camera preset of"
                                  : edit.kind == ActionKind::ModuleInstance
                                      ? edit.values.value("action").toString()
                                      : "edit",
@@ -471,6 +490,8 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     if (!request.draft && moduleCatalog.takeChanged())
         emit modulesReady(moduleCatalog.json());
     bridge.publish(source, revision, values, request.revisions);
+    if (!request.draft)
+        publishCamera(engine);
     emit historyReady(takeJson(om_engine_history(engine)).array().toVariantList());
     QElapsedTimer timer;
     timer.start();

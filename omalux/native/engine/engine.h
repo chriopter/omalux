@@ -52,6 +52,17 @@ char *om_engine_module_choices(OmEngine *engine, const char *operation, int inst
                                const char *query);
 // Import camera presets (.dtpreset) so darktable auto-applies them; call before opening images.
 int om_engine_import_camera_presets(const char *directory);
+// Every imported Omalux camera preset for the open image, as a JSON array of {"name" (the
+// preset's key), "title", "description", "maker", "model" (readable, "" for a whole maker),
+// "operation", "module" (darktable's module name), "matches" (darktable auto-applies it to
+// this image), "makerMatches", "general" (meant for every maker), "applied" (the module
+// carries it now), "available", "reason" (why it cannot be put on this image)}.
+char *om_engine_camera_presets(OmEngine *engine);
+// Put a camera preset on the open image by hand (on) or take it off again, as one history
+// item; applying is darktable's preset menu (camera_presets.c). Returns 0, or 1 no image,
+// 2 no such preset or module, 3 wrong module version, 4 the module cannot run on this image,
+// 5 the preset is not on the image.
+int om_engine_camera_preset(OmEngine *engine, const char *name, int on);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);
 char *om_engine_snapshot(OmEngine *engine, const char *name, const char *prefix);
 char *om_engine_module_snapshot(OmEngine *engine, const char *name, const char *module);

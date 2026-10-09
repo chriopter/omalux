@@ -22,6 +22,9 @@ class Editor : public QObject {
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
     Q_PROPERTY(QVariantList cameraDefaults READ cameraDefaults NOTIFY changed)
+    // Every Omalux camera preset with its state for the open photograph (engine.h,
+    // om_engine_camera_presets).
+    Q_PROPERTY(QVariantList cameraPresets READ cameraPresets NOTIFY cameraPresetsChanged)
     Q_PROPERTY(QString moduleCatalog READ moduleCatalog NOTIFY modulesChanged)
     Q_PROPERTY(QVariantList styles READ styles NOTIFY stylesChanged)
     Q_PROPERTY(bool stylesReady READ stylesReady NOTIFY stylesChanged)
@@ -51,6 +54,9 @@ class Editor : public QObject {
     QVariantList history() const;
     QVariantMap metadata() const;
     QVariantList cameraDefaults() const;
+    QVariantList cameraPresets() const;
+    // Put a camera preset on the photograph by hand (on) or take it off; one history step.
+    Q_INVOKABLE void applyCameraPreset(const QString &name, bool on);
     bool styleBusy() const;
     bool photoMissing() const;
     QString applyingStyle() const;
@@ -106,6 +112,7 @@ class Editor : public QObject {
     Q_INVOKABLE void editCanvas(const QString &operation, int instance, const QVariantMap &gesture);
   signals:
     void historyChanged();
+    void cameraPresetsChanged();
     void changed();
     void controlsChanged();
     void stylesChanged();
@@ -137,7 +144,7 @@ class Editor : public QObject {
     ControlValues values{};
     QVariantList styleCatalog, historyRows;
     QVariantMap imageMetadata;
-    QVariantList imageCameraDefaults;
+    QVariantList imageCameraDefaults, imageCameraPresets;
     QString modules;
     bool catalogReady = false, applying = false, startFailed = false;
     WorkTicket requestedTicket;

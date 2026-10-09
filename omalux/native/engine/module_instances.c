@@ -185,6 +185,7 @@ static int delete_instance(OmEngine *engine, dt_iop_module_t *module, int *resul
         survivor = first;
     }
     om_style_baseline_forget(engine, module);
+    om_camera_presets_forget(engine, module);
     // "don't delete the module, a pipe may still need it"; dt_dev_cleanup frees it.
     dev->alliop = g_list_append(dev->alliop, module);
     dt_dev_pixelpipe_rebuild(dev);

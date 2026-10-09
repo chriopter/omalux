@@ -26,6 +26,8 @@ struct OmEngine {
     float enabled_values[OM_CONTROL_COUNT], integer_values[OM_CONTROL_COUNT];
     int *integer_parameters[OM_CONTROL_COUNT];
     GList *style_baseline;
+    // Module states from before a camera preset was applied by hand (camera_presets.c).
+    GList *camera_preset_undo;
     // Drawn shapes last rendered (canvas.c): their change invalidates the pipe cache.
     guint64 canvas_forms_hash;
 };
@@ -42,6 +44,8 @@ void om_style_baseline_capture(OmEngine *engine);
 void om_style_baseline_restore(OmEngine *engine);
 // Blending and instances (blending.c, module_instances.c).
 void om_style_baseline_forget(OmEngine *engine, const dt_iop_module_t *module);
+void om_camera_presets_clear(OmEngine *engine);
+void om_camera_presets_forget(OmEngine *engine, const dt_iop_module_t *module);
 void om_instance_describe(JsonObject *entry, dt_iop_module_t *module);
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module);
 
