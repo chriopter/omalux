@@ -5,7 +5,7 @@
                     [--results DIR] [--skip-flagged] [--makers A,B,…] [--dry-run]
 
   --looks    DIR/<id>/style.dtstyle and DIR/<id>/look.cube, one folder per look
-  --index    JSON with `looks`: [{id, name, film, family, monochrome, duplicate_of?, group?}]
+  --index    JSON with `looks`: [{id, name, film, family, monochrome, duplicate_of?, group?, film_profile?}]
   --results  DIR/<id>/final.done marks a finished look, DIR/<id>/result.json may carry a
              `flag`; without --results every look that has both files counts as finished
   --family   folder under catalog/styles/, e.g. `dhh`; --label is how the pane names it
@@ -156,6 +156,9 @@ def main():
         manifest_path = bundle / "style.json"
         manifest = json.load(open(manifest_path)) if manifest_path.exists() else {"version": 1}
         manifest["assets"] = [{"path": "look.cube", "role": "lut"}]
+        if e.get("film_profile"):
+            # The film profile (catalog/camera, variant id) this look is meant to sit on.
+            manifest["film"] = e["film_profile"]
         if changed and not new:
             # The stored preview no longer shows this look.
             (bundle / "thumbnail.jpg").unlink(missing_ok=True)

@@ -88,6 +88,7 @@ A film profile is a lookup table for darktable's *LUT 3D* module plus a module p
 catalog/camera/<group>/<film>/film.json        what the film is and which tables it has
 catalog/camera/<group>/<film>/<variant>.png    the lookup table of a variant (HALD image; .cube and .3dl work too)
 catalog/camera/<group>/<film>/<variant>.dtpreset   the LUT 3D preset naming that table; generated
+catalog/camera/<group>/<film>/<variant>.jpg    optional preview: the table applied to the shared beach photograph
 ```
 
 `<group>` is `dhh`, `<film>` the film stock in lower case with `-` between words (`kodak-portra-400`, `portra-800-plus-1`), `<variant>` the variant key in lower case (`c`, `l`).

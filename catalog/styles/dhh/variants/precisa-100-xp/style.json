@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "path": "look.cube",
+      "role": "lut"
+    }
+  ],
+  "film": "film-precisa-100-xp-c",
+  "preview": {
+    "source": "assets/images/beach-volleyball.jpg",
+    "darktable_version": "5.6.1"
+  }
+}
