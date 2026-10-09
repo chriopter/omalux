@@ -8,16 +8,30 @@
 #include <QDebug>
 #include <cmath>
 QString Editor::preview() const {
-    return hoverUrl.isEmpty() ? url : hoverUrl;
+    return comparing() ? beforeUrl : hoverUrl.isEmpty() ? url : hoverUrl;
 }
 double Editor::previewAspectRatio() const {
-    return hoverUrl.isEmpty() ? normalAspectRatio : hoverAspectRatio;
+    return comparing() ? beforeAspectRatio : hoverUrl.isEmpty() ? normalAspectRatio : hoverAspectRatio;
 }
 QVector4D Editor::previewTextureTransform() const {
-    return hoverUrl.isEmpty() ? normalTextureTransform : hoverTextureTransform;
+    return comparing() ? beforeTextureTransform
+                       : hoverUrl.isEmpty() ? normalTextureTransform : hoverTextureTransform;
 }
 QString Editor::status() const {
+    if (comparing())
+        return "Before · the photograph as opened";
     return hoverUrl.isEmpty() ? message : "Style preview · click to apply";
+}
+bool Editor::comparing() const {
+    return showBefore && !beforeUrl.isEmpty();
+}
+void Editor::setComparing(bool on) {
+    if (on == showBefore || (on && (beforeUrl.isEmpty() || applying)))
+        return;
+    if (on)
+        hoverStyle("", false);
+    showBefore = on;
+    emit changed();
 }
 bool Editor::photoMissing() const {
     return startFailed && url.isEmpty();
@@ -221,11 +235,11 @@ void Editor::resetControl(const QString &id) {
         if (id == QLatin1String(om_controls[i].id))
             setControl(id, defaults[i]);
 }
-Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteArray> arguments)
+Editor::Editor(Frames *normal, Frames *hover, Frames *before, QString image, std::vector<QByteArray> arguments)
     : worker(std::make_unique<EngineWorker>(image, std::move(arguments),
                                             qEnvironmentVariable("OMALUX_STYLES_DIR"),
                                             qEnvironmentVariable("OMALUX_COMPARISON_MAILBOX"))),
-      frames(normal), hoverFrames(hover), source(std::move(image)) {
+      frames(normal), hoverFrames(hover), beforeFrames(before), source(std::move(image)) {
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
         values[i] = om_controls[i].initial;
     connect(worker.get(), &EngineWorker::initialized, this,
@@ -250,6 +264,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
     });
     connect(worker.get(), &EngineWorker::metadataReady, this,
             [this](QString image, QVariantMap metadata, QVariantList cameraDefaults) {
+                // Another photograph: its first frame becomes the new "before".
+                captureBefore = true;
+                beforeUrl.clear();
                 imageCameraDefaults = std::move(cameraDefaults);
                 source = image;
                 imageMetadata = metadata;
@@ -316,6 +333,15 @@ void Editor::showFrame(RenderResult result) {
     message = result.status;
     applying = false;
     frames->set(result.image);
+    // Any new frame is the edit again; the first one of a photograph is also its "before".
+    showBefore = false;
+    if (captureBefore) {
+        captureBefore = false;
+        beforeFrames->set(result.image);
+        beforeAspectRatio = result.aspectRatio;
+        beforeTextureTransform = result.textureTransform;
+        beforeUrl = QString("image://before/%1").arg(++beforeSerial);
+    }
     normalAspectRatio = result.aspectRatio;
     normalTextureTransform = result.textureTransform;
     url = QString("image://preview/%1").arg(result.ticket.revision);
@@ -332,6 +358,7 @@ void Editor::hoverStyle(const QString &id, bool active) {
     if (active) {
         if (applying || url.isEmpty() || !styleAvailable(id) || hoverId == id)
             return;
+        showBefore = false;
     } else if (hoverId.isEmpty() || (!id.isEmpty() && hoverId != id))
         return;
     hoverId = active ? id : QString();

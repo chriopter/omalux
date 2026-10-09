@@ -106,6 +106,9 @@ ApplicationWindow {
             minimumZoom: viewport.minimumZoom
             maximumZoom: viewport.maximumZoom
             photoReady: editor.preview !== ""
+            comparing: editor.comparing
+            compareAvailable: !sidebar.geometry.cropping && !editor.styleBusy
+            onCompareRequested: window.toggleCompare()
             onOpenRequested: dialogs.openImage()
             onSaveRequested: dialogs.exportImage()
             onZoomRequested: factor => viewport.zoomBy(factor)
@@ -141,6 +144,7 @@ ApplicationWindow {
                 textureTransform: editor.previewTextureTransform
                 status: editor.status
                 photoMissing: editor.photoMissing
+                comparing: editor.comparing
                 onOpenRequested: dialogs.openImage()
             }
             EditorSidebar {
@@ -165,6 +169,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             theme: editorTheme
             message: editor.gpuWarning
+            suppressed: window.photoFullscreen
         }
         EditorStatusBar {
             visible: !window.photoFullscreen
@@ -181,6 +186,11 @@ ApplicationWindow {
     Connections {
         target: dialogs
         function onBusyChanged() { if (!dialogs.busy) { window.requestActivate(); Qt.callLater(keyboard.reclaim) } }
+    }
+    // Before/after is a view of the photograph as opened; not while the crop frame is edited.
+    function toggleCompare() {
+        if (editor.comparing) editor.comparing = false
+        else if (!sidebar.geometry.cropping) { sidebar.tools.cancel(); editor.comparing = true }
     }
     // Opening a photograph, from the dialog or a file dropped on the window: tools on the photo
     // end, the view fits the new image.
@@ -244,6 +254,8 @@ ApplicationWindow {
         canvasDrawing: viewport.canvasCapturing
         onCanvasCancelRequested: viewport.cancelCanvasTool()
         picking: !!sidebar.tools.active
+        comparing: editor.comparing
+        onCompareRequested: window.toggleCompare()
         onPickerCancelRequested: sidebar.tools.cancel()
         panelCount: sidebar.keyOrder.length
         // Number keys and Tab both follow the tab strip as shown.

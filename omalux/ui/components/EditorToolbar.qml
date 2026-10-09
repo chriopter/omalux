@@ -12,6 +12,10 @@ Rectangle {
     property real maximumZoom: 16
     // Nothing to export or zoom before the first preview.
     property bool photoReady: true
+    // Before/after: the view shows the photograph as opened.
+    property bool comparing: false
+    property bool compareAvailable: true
+    signal compareRequested()
     signal openRequested()
     signal saveRequested()
     signal fitRequested()
@@ -35,6 +39,17 @@ Rectangle {
         }
         ToolbarButton { objectName: "toolbar-open"; theme: root.theme; hint: "[O]"; text: "OPEN"; tip: "Open a photograph"; onClicked: root.openRequested() }
         ToolbarButton { objectName: "toolbar-export"; theme: root.theme; hint: "[Ctrl+S]"; text: "EXPORT"; tip: "Export as JPEG or PNG"; enabled: root.photoReady; onClicked: root.saveRequested() }
+        ToolbarButton {
+            objectName: "toolbar-before"
+            theme: root.theme; hint: "[B]"; text: "BEFORE"
+            tip: root.comparing ? "Back to the edit" : "Show the photograph as it was opened"
+            enabled: root.photoReady && root.compareAvailable
+            active: root.comparing
+            onClicked: root.compareRequested()
+            Accessible.name: "Before and after"
+            Accessible.checkable: true
+            Accessible.checked: root.comparing
+        }
         Item { implicitWidth: 6 }
         // Zoom: step out, the current level (click or [0] fits the photograph), step in.
         Rectangle {

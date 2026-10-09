@@ -52,6 +52,12 @@ Item {
         theme: theme
         metadata: ({})
     }
+    GpuNotice {
+        id: notice
+        y: 580; width: 420
+        theme: theme
+        message: ""
+    }
     EditorDialogs {
         id: dialogs
         theme: theme
@@ -104,6 +110,43 @@ Item {
             verify(!exportButton.activeFocus)
             const name = find(toolbar, "toolbar-filename")
             verify(name.truncated && name.x + name.width <= toolbar.width, "a long name is cut, not clipped")
+        }
+
+        function test_before_button() {
+            const before = find(toolbar, "toolbar-before")
+            let asked = 0
+            const count = () => ++asked
+            toolbar.compareRequested.connect(count)
+            mouseClick(before)
+            compare(asked, 1, "one click asks for the before view")
+            verify(!before.active)
+            toolbar.comparing = true
+            verify(before.active)
+            verify(Qt.colorEqual(before.contentItem.color, theme.accent), "on: the accent")
+            toolbar.comparing = false
+            toolbar.compareAvailable = false
+            verify(!before.enabled, "not while the crop frame is edited")
+            mouseClick(before)
+            compare(asked, 1)
+            toolbar.compareAvailable = true
+            toolbar.compareRequested.disconnect(count)
+            viewport.comparing = true
+            verify(find(viewport, "photo-before-badge").visible)
+            viewport.comparing = false
+        }
+
+        function test_gpu_notice() {
+            verify(!notice.visible, "no warning without a message")
+            notice.message = "GPU acceleration unavailable. Editing continues on the CPU."
+            verify(notice.visible)
+            notice.suppressed = true
+            verify(!notice.visible, "not over the fullscreen photograph")
+            notice.suppressed = false
+            mouseClick(find(notice, "gpu-notice-close"))
+            verify(!notice.visible, "× puts it away")
+            notice.message = "GPU acceleration failed during rendering."
+            verify(notice.visible, "a new message shows again")
+            notice.message = ""
         }
 
         function test_zoom_keeps_the_point() {

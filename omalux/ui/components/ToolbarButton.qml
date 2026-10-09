@@ -10,6 +10,8 @@ AbstractButton {
     property string hint: ""
     property bool grouped: false
     property string tip: ""
+    // A switch that is on (before/after): the accent, as on the chosen tab.
+    property bool active: false
     ToolTip.visible: hovered && !pressed && tip !== ""
     ToolTip.delay: 500
     ToolTip.text: tip
@@ -23,7 +25,7 @@ AbstractButton {
         id: label
         textFormat: Text.StyledText
         text: (root.hint ? "<font color='" + root.theme.muted + "'>" + root.hint + "</font>&nbsp;&nbsp;" : "") + root.text
-        color: root.enabled ? root.theme.ink : root.theme.muted
+        color: !root.enabled ? root.theme.muted : root.active ? root.theme.accent : root.theme.ink
         opacity: root.enabled ? 1 : .55
         font: root.theme.textFont
         horizontalAlignment: Text.AlignHCenter
@@ -31,8 +33,8 @@ AbstractButton {
     }
     background: Rectangle {
         radius: 5
-        color: !root.enabled ? "transparent" : root.pressed ? root.theme.active : root.hovered ? root.theme.hover : "transparent"
+        color: !root.enabled ? "transparent" : root.pressed || root.active ? root.theme.active : root.hovered ? root.theme.hover : "transparent"
         border.width: root.grouped && !root.visualFocus ? 0 : 1
-        border.color: root.visualFocus ? root.theme.accent : root.theme.line
+        border.color: root.visualFocus || root.active ? root.theme.accent : root.theme.line
     }
 }

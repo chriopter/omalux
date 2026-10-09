@@ -14,7 +14,10 @@ QtObject {
     property bool canvasDrawing: false
     // A module colour picker is running on the photo.
     property bool picking: false
+    // The view shows the photograph as opened (before/after).
+    property bool comparing: false
     property int panelCount: 5
+    signal compareRequested()
     signal panelRequested(int index)
     signal panelStepRequested(int direction)
     signal controlRequested(string id)
@@ -39,6 +42,7 @@ QtObject {
         { section: "Photograph", scope: "fullscreen", keys: ["F", "Escape"], label: "Leave photograph fullscreen", run: () => fullscreenExitRequested() },
         { section: "Photograph", scope: "canvas", keys: ["Escape"], label: "Leave the drawing tool on the photo (shape, line or warp being added)", run: () => canvasCancelRequested() },
         { section: "Photograph", scope: "picker", keys: ["Escape"], label: "End the running colour picker", run: () => pickerCancelRequested() },
+        { section: "Photograph", scope: "compare", keys: ["Escape"], label: "Back from “before” to the edit", run: () => compareRequested() },
 
         { section: "Sidebar", keys: ["Up", "K"], label: "Previous item (crosses modules; collapsed parameters are skipped)", run: () => navigator.move(-1) },
         { section: "Sidebar", keys: ["Down", "J"], label: "Next item", run: () => navigator.move(1) },
@@ -71,6 +75,7 @@ QtObject {
         { section: "Photograph", scope: "view", keys: ["+", "=", "Ctrl++", "Ctrl+="], label: "Zoom in", run: () => zoomRequested(1.25) },
         { section: "Photograph", scope: "view", keys: ["-", "Ctrl+-"], label: "Zoom out", run: () => zoomRequested(.8) },
         { section: "Photograph", scope: "view", keys: ["0", "Ctrl+0"], label: "Fit photograph", run: () => fitRequested() },
+        { section: "Photograph", scope: "view", keys: ["B"], label: "Before / after: show the photograph as it was opened; any edit returns to the result", run: () => compareRequested() },
         { section: "Photograph", keys: ["F"], label: "Photograph fullscreen", run: () => fullscreenRequested() },
 
         { section: "File", keys: ["O", "Ctrl+O"], label: "Open photograph", run: () => openRequested() },
@@ -91,6 +96,7 @@ QtObject {
         case "fullscreen": return fullscreen
         case "canvas": return canvasDrawing
         case "picker": return picking
+        case "compare": return comparing
         case "view": return true
         default: return !fullscreen
         }

@@ -14,6 +14,10 @@ class Editor : public QObject {
     Q_PROPERTY(QString gpuWarning READ gpuWarning NOTIFY changed)
     // The photograph given at start (or opened first) could not be read: nothing to edit yet.
     Q_PROPERTY(bool photoMissing READ photoMissing NOTIFY changed)
+    // Before/after: the view shows the photograph as it was opened (camera defaults, no edits)
+    // instead of the current edit. A view only: nothing in the history changes, and the next
+    // frame of an edit, style or history step returns to the edit.
+    Q_PROPERTY(bool comparing READ comparing WRITE setComparing NOTIFY changed)
     Q_PROPERTY(QString filename READ filename NOTIFY changed)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
@@ -34,7 +38,9 @@ class Editor : public QObject {
     // The overlay of the on-canvas tool shown on the photo (JSON, engine/canvas.h).
     Q_PROPERTY(QString canvasOverlay READ canvasOverlay NOTIFY canvasChanged)
   public:
-    Editor(Frames *, Frames *, QString source, std::vector<QByteArray> arguments);
+    Editor(Frames *, Frames *, Frames *before, QString source, std::vector<QByteArray> arguments);
+    bool comparing() const;
+    void setComparing(bool on);
     ~Editor() override;
     QString preview() const;
     double previewAspectRatio() const;
@@ -116,9 +122,14 @@ class Editor : public QObject {
     void queueModuleEdit(ModuleEdit edit);
     void showFrame(RenderResult result);
     std::unique_ptr<EngineWorker> worker;
-    Frames *frames, *hoverFrames;
-    double normalAspectRatio = 1, hoverAspectRatio = 1;
-    QVector4D normalTextureTransform{1, 1, 0, 0}, hoverTextureTransform{1, 1, 0, 0};
+    Frames *frames, *hoverFrames, *beforeFrames;
+    double normalAspectRatio = 1, hoverAspectRatio = 1, beforeAspectRatio = 1;
+    QVector4D normalTextureTransform{1, 1, 0, 0}, hoverTextureTransform{1, 1, 0, 0},
+        beforeTextureTransform{1, 1, 0, 0};
+    // The first frame after a photograph opens is kept as "before".
+    QString beforeUrl;
+    bool captureBefore = true, showBefore = false;
+    quint64 beforeSerial = 0;
     QString source, url, hoverUrl, hoverId, gpuMessage, message = "Loading image…";
     QString errorText, applyingId, styleName;
     ControlValues values{};

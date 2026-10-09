@@ -21,15 +21,17 @@ int main(int argc, char **argv) {
     }
     auto *frames = new Frames;
     auto *hoverFrames = new Frames;
+    auto *beforeFrames = new Frames;
     std::vector<QByteArray> dtargs;
     for (int i = 3; i < args.size(); ++i)
         dtargs.push_back(args[i].toUtf8());
     // Editor joins its worker before QML destroys the image providers.
     QQmlApplicationEngine engine;
     engine.addImportPath(QFileInfo(QStringLiteral(OMALUX_QML)).absolutePath() + QStringLiteral("/style"));
-    Editor editor(frames, hoverFrames, args[1], std::move(dtargs));
+    Editor editor(frames, hoverFrames, beforeFrames, args[1], std::move(dtargs));
     engine.addImageProvider("preview", frames);
     engine.addImageProvider("hover", hoverFrames);
+    engine.addImageProvider("before", beforeFrames);
     engine.rootContext()->setContextProperty("editor", &editor);
     engine.rootContext()->setContextProperty("assetsRoot", QUrl::fromLocalFile(args[2] + "/"));
     engine.load(QUrl::fromLocalFile(QStringLiteral(OMALUX_QML)));
