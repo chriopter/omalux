@@ -93,9 +93,12 @@ Item {
         root._selectedAt = Date.now()
         if (t) {
             t.current = true
-            let remembered = Object.assign({}, root._remembered)
-            remembered[root.pane] = t
-            root._remembered = remembered
+            // The search field is a detour: the pane keeps the item it had before it.
+            if (t.listed) {
+                let remembered = Object.assign({}, root._remembered)
+                remembered[root.pane] = t
+                root._remembered = remembered
+            }
             t.selected()
             if (scroll !== false) ensureVisible(t.owner)
         }
@@ -348,8 +351,16 @@ Item {
         // The global search: Enter or ↓ go to the first item of the pane.
         if (step) moveEdge(false)
     }
+    // The search field is the selection only while it has the keys: once it gives them up
+    // (Escape, its clear button, a click elsewhere) its ring and "[⏎] SEARCH" hint go with them
+    // and the pane's own selection returns.
+    function releaseInput() {
+        const t = root.selection
+        if (!alive(t) || t.listed || !t.input || t.input.activeFocus) return
+        select(null)
+    }
     Connections {
         target: root.Window.window
-        function onActiveFocusItemChanged() { Qt.callLater(root.reclaim) }
+        function onActiveFocusItemChanged() { Qt.callLater(root.reclaim); Qt.callLater(root.releaseInput) }
     }
 }

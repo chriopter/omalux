@@ -339,6 +339,30 @@ Item {
             field.text = ""
         }
 
+        // The search field under the tabs is a detour: once it gives the keys up, its ring and
+        // its "[⏎] SEARCH" hint go, and the pane continues from the item it had before.
+        function test_09b_search_gives_the_selection_back() {
+            press(Qt.Key_1)
+            press(Qt.Key_Home); press(Qt.Key_Down)
+            const before = selected()
+            verify(before !== "" && before !== "search")
+            press(Qt.Key_Slash)
+            const field = find(sidebar, "module-search")
+            tryVerify(() => field.activeFocus, 500, "/ focuses the search")
+            compare(selected(), "search")
+            keyClick("g")
+            compare(field.text, "g")
+            press(Qt.Key_Escape)
+            tryVerify(() => keyboard.activeFocus, 500, "Escape returns the keys")
+            compare(field.text, "", "and clears the search")
+            tryVerify(() => selected() !== "search", 500, "the search is no longer the selection")
+            verify(keyboard.hintText.indexOf("SEARCH") < 0, "nor offered in the hints: " + keyboard.hintText)
+            wait(50)
+            const list = order()
+            press(Qt.Key_Down)
+            compare(selected(), list[list.indexOf(before) + 1], "the pane continues below the item it had")
+        }
+
         function test_10_styles() {
             press(Qt.Key_7)
             const panel = find(sidebar, "stylesPanel")
