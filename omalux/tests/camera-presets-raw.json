@@ -3,6 +3,9 @@
  {"pointerClick": "sidebar-tab-10", "expectTop": true},
  {"checkPanel": 10},
  {"checkItem": "camera-presets-none", "visible": false},
+ {"historyContains": "sharpen", "label": "sharpen • Omalux Every camera: capture sharpening"},
+ {"historyContains": "nlmeans", "label": "astrophoto denoise • Omalux Every camera: colour noise reduction"},
+ {"checkItem": "camera-matched-sharpen", "property": "applied", "value": true},
  {"pointerClick": "camera-maker-Every camera", "ifHidden": "camera-preset-Omalux Every camera: capture sharpening"},
  {"checkItem": "camera-preset-Omalux Every camera: capture sharpening", "property": "applied", "value": true},
  {"checkItem": "camera-preset-note-Omalux Every camera: capture sharpening", "property": "text", "value": "sharpen · matches this camera"},
@@ -11,6 +14,7 @@
  {"checkParameter": {"operation": "sharpen", "path": "@enabled", "value": 0}},
  {"waitMs": 1500},
  {"checkItem": "camera-preset-Omalux Every camera: capture sharpening", "property": "applied", "value": false},
+ {"checkItem": "camera-matched-sharpen", "property": "applied", "value": false},
  {"pointerClick": "camera-preset-Omalux Every camera: capture sharpening", "expectTop": true},
  {"checkParameter": {"operation": "sharpen", "path": "@enabled", "value": 1}},
  {"checkPixels": {"name": "raw-before", "same": true, "tolerance": 0.2}},
@@ -18,9 +22,11 @@
  {"pointerClick": "camera-maker-Canon", "ifHidden": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure"},
  {"pointerClick": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure", "expectTop": true},
  {"checkPixels": {"name": "raw-before", "same": false, "tolerance": 2}},
- {"historyContains": "rgblevels"},
+ {"historyContains": "rgblevels", "label": "rgb levels • Omalux Canon PowerShot SX100 IS: exposure"},
  {"checkItem": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure", "property": "applied", "value": true},
  {"pointerClick": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure", "expectTop": true},
  {"checkPixels": {"name": "raw-before", "same": true, "tolerance": 0.2}},
- {"checkItem": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure", "property": "applied", "value": false}
+ {"checkItem": "camera-preset-Omalux Canon PowerShot SX100 IS: exposure", "property": "applied", "value": false},
+ {"historyContains": "sharpen", "label": "sharpen • Omalux Every camera: capture sharpening"},
+ {"checkItem": "camera-matched-sharpen", "property": "applied", "value": true}
 ]

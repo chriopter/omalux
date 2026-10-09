@@ -907,6 +907,20 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                     app.exit(2);
                     return;
                 }
+                // "label": what the newest step of that operation reads ("module • instance name").
+                if (step.contains("label")) {
+                    QString label;
+                    for (const auto &row : editor.history())
+                        if (row.toMap()["operation"].toString() == operation && row.toMap()["active"].toBool()) {
+                            label = row.toMap()["label"].toString();
+                            break;
+                        }
+                    if (label != step["label"].toString()) {
+                        qCritical() << "Unexpected history label" << label << step;
+                        app.exit(2);
+                        return;
+                    }
+                }
                 int current = 0;
                 for (const auto &row : editor.history())
                     if (row.toMap()["current"].toBool())

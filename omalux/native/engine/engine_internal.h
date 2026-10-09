@@ -46,6 +46,7 @@ void om_style_baseline_restore(OmEngine *engine);
 void om_style_baseline_forget(OmEngine *engine, const dt_iop_module_t *module);
 void om_camera_presets_clear(OmEngine *engine);
 void om_camera_presets_forget(OmEngine *engine, const dt_iop_module_t *module);
+void om_camera_presets_add_matched(OmEngine *engine, JsonArray *rows);
 void om_instance_describe(JsonObject *entry, dt_iop_module_t *module);
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module);
 

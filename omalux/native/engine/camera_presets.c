@@ -22,7 +22,6 @@
 typedef struct {
     dt_iop_module_t *module;
     void *params, *applied;
-    char *preset; // the name of the preset put on
     dt_develop_blend_params_t blend, applied_blend;
     gboolean enabled;
     char multi_name[sizeof(((dt_iop_module_t *)0)->multi_name)];
@@ -32,7 +31,6 @@ typedef struct {
 static void undo_free(OmPresetUndo *undo) {
     g_free(undo->params);
     g_free(undo->applied);
-    g_free(undo->preset);
     g_free(undo);
 }
 
@@ -179,30 +177,44 @@ static const char *unavailable(OmEngine *engine, const OmPreset *preset, dt_iop_
 }
 
 // The tick of darktable's preset menu (gui/presets.c 1746): the module carries the preset's
-// parameters and blending, and both are enabled. One difference: the blending is compared as
-// applying leaves it. A preset stored without a blend colour space gets the module's default
-// one when it is committed (dt_iop_commit_blend_params), which darktable's byte comparison
-// then takes for a difference, so its menu never ticks such a preset.
-static gboolean carries(dt_iop_module_t *module, const OmPreset *preset) {
+// parameters and blending byte for byte, and both are enabled. The catalogue's presets store
+// their module's default blend colour space for this (camera_presets.py BLEND_CST): a preset
+// stored without one gets it filled in when applied and would never compare equal.
+static gboolean carries(const dt_iop_module_t *module, const OmPreset *preset) {
     const gboolean params =
         preset->params_size == 0
             ? !memcmp(module->params, module->default_params, module->params_size)
             : !memcmp(module->params, preset->params, MIN(preset->params_size, module->params_size));
-    if (!params || !module->enabled || !preset->enabled)
-        return FALSE;
-    if (preset->blend_size != sizeof(dt_develop_blend_params_t))
-        return !memcmp(module->blend_params, preset->blend,
-                       MIN((size_t)preset->blend_size, sizeof(dt_develop_blend_params_t)));
-    dt_develop_blend_params_t blend;
-    memcpy(&blend, preset->blend, sizeof(blend));
-    if (blend.blend_cst == DEVELOP_BLEND_CS_NONE)
-        blend.blend_cst = dt_develop_blend_default_module_blend_colorspace(module);
-    return !memcmp(module->blend_params, &blend, sizeof(blend));
+    return params &&
+           !memcmp(module->blend_params, preset->blend,
+                   MIN((size_t)preset->blend_size, sizeof(dt_develop_blend_params_t))) &&
+           module->enabled && preset->enabled;
 }
 
 // The name a preset leaves on its module (dt_presets_get_multi_name).
 static const char *module_label(const OmPreset *preset) {
     return preset->multi_name[0] ? preset->multi_name : preset->name;
+}
+
+// The preset shown as applied. Several presets may hold the same settings (the embedded lens
+// correction of different makers, the same exposure offset for two cameras) and darktable's
+// menu would tick them all: the one the module is named after counts, else those that match
+// the camera.
+static gboolean applied_on(GList *presets, const OmPreset *preset, const dt_iop_module_t *module) {
+    if (!module || !carries(module, preset))
+        return FALSE;
+    if (!strcmp(module->multi_name, module_label(preset)))
+        return TRUE;
+    gboolean matched_twin = FALSE;
+    for (GList *other = presets; other; other = other->next) {
+        const OmPreset *twin = other->data;
+        if (twin == preset || strcmp(twin->operation, preset->operation) || !carries(module, twin))
+            continue;
+        if (!strcmp(module->multi_name, module_label(twin)))
+            return FALSE;
+        matched_twin = matched_twin || twin->matches;
+    }
+    return preset->matches || !matched_twin;
 }
 
 // "Fujifilm X-T10: exposure" → camera "Fujifilm X-T10", title "exposure".
@@ -257,26 +269,7 @@ char *om_engine_camera_presets(OmEngine *engine) {
         const OmPreset *preset = it->data;
         dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, preset->operation, 0);
         const char *reason = unavailable(engine, preset, module);
-        gboolean applied = module && !reason && carries(module, preset);
-        // Several presets may hold the same settings (the embedded lens correction of different
-        // makers, the same exposure offset for two cameras). The module's label cannot tell
-        // them apart (see apply), so the one put on by hand counts, else those that came with
-        // the image.
-        if (applied) {
-            GList *link = undo_link(engine, module);
-            const OmPresetUndo *undo = link && undo_current(link->data) ? link->data : NULL;
-            gboolean matched_twin = FALSE;
-            for (GList *other = presets; other; other = other->next) {
-                const OmPreset *twin = other->data;
-                if (twin != preset && twin->matches && !strcmp(twin->operation, preset->operation) &&
-                    carries(module, twin))
-                    matched_twin = TRUE;
-            }
-            if (undo)
-                applied = !strcmp(undo->preset, preset->name);
-            else if (!preset->matches && matched_twin)
-                applied = FALSE;
-        }
+        const gboolean applied = !reason && applied_on(presets, preset, module);
         const char *title;
         char *camera = camera_of(preset, &title);
         char *key = maker_key(preset);
@@ -315,11 +308,7 @@ char *om_engine_camera_presets(OmEngine *engine) {
 // dt_gui_presets_apply_preset (gui/presets.c 1044) on the module's base instance, without GTK:
 // the preset's parameters (the defaults when their size does not fit), its enabled state, its
 // name as the module's label unless that was typed by hand (dt_iop_update_multi_name), its
-// blending (converted from an older version, or the defaults), then one history item. Writing
-// the item, darktable derives the label again from the presets whose parameters and blending
-// equal the module's byte for byte (develop.c _dev_auto_module_label); a preset stored without a
-// blend colour space never does (see carries), so for the catalogue's presets the label ends
-// up empty, here as in darktable. Left out
+// blending (converted from an older version, or the defaults), then one history item. Left out
 // are the GUI refresh, the "last preset" memory of the menu and DT_SIGNAL_PRESET_APPLIED, whose
 // only listener is demosaic's GUI. dt_dev_add_history_item needs an attached GUI, so the item is
 // written with dt_dev_add_history_item_ext, as everywhere in this adapter.
@@ -361,8 +350,6 @@ static void apply(OmEngine *engine, dt_iop_module_t *module, const OmPreset *pre
     } else
         dt_iop_commit_blend_params(module, module->default_blendop_params);
     g_free(undo->applied);
-    g_free(undo->preset);
-    undo->preset = g_strdup(preset->name);
     undo->applied = g_memdup2(module->params, module->params_size);
     undo->applied_blend = *module->blend_params;
 }
@@ -400,10 +387,47 @@ int om_engine_camera_preset(OmEngine *engine, const char *name, int on) {
         take_off(engine, module);
     else
         result = 5; // not on the image: nothing to take off
+    if (!result) {
+        // The label the edit left on the module: the applied preset's, or the one from before.
+        char wanted[sizeof(module->multi_name)];
+        g_strlcpy(wanted, module->multi_name, sizeof(wanted));
+        dt_dev_add_history_item_ext(&engine->dev, module, FALSE, FALSE);
+        // Writing the item, darktable names the module after the first preset equal to it
+        // (develop.c _dev_auto_module_label); among presets with the same settings that may be
+        // another camera's. The module and its history step keep the name of the right one.
+        dt_dev_history_item_t *last = g_list_nth_data(engine->dev.history, engine->dev.history_end - 1);
+        if (!module->multi_name_hand_edited && module->multi_name[0] && wanted[0] && last &&
+            last->module == module && strcmp(module->multi_name, wanted)) {
+            g_strlcpy(module->multi_name, wanted, sizeof(module->multi_name));
+            g_strlcpy(last->multi_name, wanted, sizeof(last->multi_name));
+        }
+    }
     g_list_free_full(presets, (GDestroyNotify)preset_free);
     if (result)
         return result;
-    dt_dev_add_history_item_ext(&engine->dev, module, FALSE, FALSE);
     engine->dev.full.pipe->changed |= DT_DEV_PIPE_SYNCH;
     return om_engine_bind_controls(engine);
+}
+
+// The "Camera presets" rows of om_engine_camera_defaults: the presets darktable auto-applies to
+// this image; "enabled" is whether the module still carries that preset (not merely is on).
+void om_camera_presets_add_matched(OmEngine *engine, JsonArray *rows) {
+    GList *presets = load_presets(engine, NULL);
+    for (GList *it = presets; it; it = it->next) {
+        const OmPreset *preset = it->data;
+        if (!preset->matches)
+            continue;
+        dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, preset->operation, 0);
+        const char *title;
+        g_free(camera_of(preset, &title));
+        JsonObject *row = json_object_new();
+        json_object_set_string_member(row, "group", "Camera presets");
+        json_object_set_string_member(row, "module", preset->operation);
+        json_object_set_string_member(row, "label", module ? module->name() : preset->operation);
+        json_object_set_string_member(row, "value", title);
+        json_object_set_boolean_member(row, "enabled", applied_on(presets, preset, module));
+        json_object_set_boolean_member(row, "present", module != NULL);
+        json_array_add_object_element(rows, row);
+    }
+    g_list_free_full(presets, (GDestroyNotify)preset_free);
 }

@@ -65,6 +65,10 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='omalux-regression-') as folder:
         work = Path(folder)
+        # The shipped camera presets carry their module's blend colour space; without it darktable
+        # neither ticks them in the preset menu nor names the history step after them.
+        subprocess.run(['python3', str(ROOT / 'development/tools/darktable/camera_presets.py'), 'check'],
+                       cwd=ROOT, check=True)
         # QML component and keyboard tests first: fast, no engine needed.
         for test in sorted((ROOT / 'omalux/tests/components').glob('tst_*.qml')):
             print('Running', test.name, flush=True)

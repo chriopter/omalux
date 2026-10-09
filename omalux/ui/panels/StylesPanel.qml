@@ -220,6 +220,9 @@ SidebarScrollView {
                         model: root.cameraOpen ? root.cameraPresets : []
                         RowLayout {
                             required property var modelData
+                            // The module still carries this preset (not merely is on).
+                            readonly property bool applied: !!modelData.enabled
+                            objectName: "camera-matched-" + modelData.module
                             width: cameraBlock.width
                             spacing: 8
                             opacity: modelData.enabled ? 1 : .55

@@ -149,6 +149,13 @@ Item {
             panel.allCameraPresets = top.matched()
             wait(20)
             verify(!find(panel, "camera-presets-none"), "matched presets stay on top")
+            verify(find(panel, "camera-matched-rgblevels").applied)
+            // Another preset replaced the matched one on rgb levels: the module is still on, the
+            // matched preset is not.
+            panel.cameraDefaults = panel.cameraDefaults.map(e => e.module === "rgblevels" ? Object.assign({}, e, { enabled: false }) : e)
+            wait(20)
+            verify(!find(panel, "camera-matched-rgblevels").applied)
+            verify(find(panel, "camera-matched-lens").applied)
             const list = find(panel, "camera-preset-list")
             compare(list.openMaker, "Fujifilm", "the photograph's maker is open")
             compare(names(panel, "camera-maker-").filter(n => n.indexOf("count-") !== 0)[0], "Fujifilm", "and comes first")
