@@ -52,6 +52,9 @@ Column {
     readonly property var mainControl: hasMain ? section.controls.find(c => c.id === section.primary[0]) || null : null
     // The parameters that a main row of the pane drives: their sub-rows are marked as linked.
     property var linkedIds: section.primary
+    // How far the frame of the open block reaches above the main row: around the shortcut rows
+    // of the same module that stand before it (brightness and contrast above saturation).
+    property real blockLift: 0
     // A shortcut row turns its chevron with the block of its module.
     property bool detailsOpen: expanded
     topPadding: hasMain ? 0 : 12
@@ -77,9 +80,9 @@ Column {
             objectName: "module-block-" + root.section.key
             visible: root.expanded
             z: -1
-            x: -14; y: -7
+            x: -14; y: -7 - root.blockLift
             width: parent.width + 14
-            height: (instancesBox.visible ? instancesBox.y : root.height) - mainHolder.y + 7
+            height: (instancesBox.visible ? instancesBox.y : root.height) - mainHolder.y + 7 + root.blockLift
             color: root.theme.surface
             radius: 6
             border.width: 1

@@ -22,6 +22,8 @@ Item {
     // module's reset is in its heading or strip, and on Shift+R). `defaultValue` is that default
     // in displayed units when the owner knows it: the button stays away while the value is
     // already there.
+    // The name as the row shows it.
+    readonly property string labelText: controlLabel.text
     // The value as the row shows it, with darktable's digits and unit.
     readonly property string valueText: Number(Math.abs(value) < Math.pow(10, -control.decimals) / 2 ? 0 : value).toFixed(control.decimals) + control.unit
     property var defaultValue: undefined

@@ -8,6 +8,8 @@
 //    "modifiers": "ctrl", "expectTop": true}   expectTop fails when another item covers it
 //   {"pointerDrag": name, "from": [x, y], "to": [x, y], "modifiers": "shift"}
 //   {"pointerHover": name}, {"waitMs": 1000}; the name "@last" repeats the previous point
+//   {"rememberItem": name} notes where an item is in the window and how large;
+//   {"checkItemUnmoved": name} fails when it has moved or changed size since
 //   {"pointerDrag": name, ..., "hold": true} keeps the button down at "to" (the state in the
 //   middle of a drag can be checked); {"pointerRelease": true} lets it go there
 //   {"checkItem": name, "property": "checked", "value": true}  or "visible": false, or
@@ -16,6 +18,7 @@
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QGuiApplication>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPointer>
@@ -24,6 +27,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 // Defined in QtGui (qwindowsysteminterface.cpp) and declared by QtTest's qtestmouse.h: delivers
@@ -140,6 +144,31 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
         heldButton = Qt::NoButton;
         return SmokeResult::Done;
     }
+    if (step.contains("rememberItem") || step.contains("checkItemUnmoved")) {
+        static QHash<QString, QRectF> remembered;
+        const bool check = step.contains("checkItemUnmoved");
+        const auto which = step[check ? "checkItemUnmoved" : "rememberItem"].toString();
+        auto *shown = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        shown->grabWindow(); // lay out as a screen would (see below)
+        auto *found = findItem(shown->contentItem(), which);
+        if (!found) {
+            qCritical() << "Missing or hidden item" << which;
+            return SmokeResult::Fail;
+        }
+        const QRectF now(found->mapToScene(QPointF(0, 0)), QSizeF(found->width(), found->height()));
+        if (!check) {
+            remembered[which] = now;
+            return SmokeResult::Done;
+        }
+        const QRectF then = remembered.value(which);
+        if (!remembered.contains(which) || std::abs(then.x() - now.x()) > .01 ||
+            std::abs(then.y() - now.y()) > .01 || std::abs(then.width() - now.width()) > .01 ||
+            std::abs(then.height() - now.height()) > .01) {
+            qCritical() << "Item moved" << which << then << now;
+            return SmokeResult::Fail;
+        }
+        return SmokeResult::Done;
+    }
     const char *keys[] = {"pointerClick", "pointerDrag", "pointerHover", "checkItem"};
     const char *kind = nullptr;
     for (const char *key : keys)
@@ -201,7 +230,11 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
             if (p->property("flickableDirection").isValid() && p->property("contentY").isValid()) {
                 auto *content = p->property("contentItem").value<QQuickItem *>();
                 const double y = item->mapToItem(content, QPointF(0, 0)).y();
-                const double target = std::max(0.0, y - p->height() / 3);
+                // Never past the end of the pane: no wheel gets there, and a pane left beyond its
+                // bounds snaps back at the next change of its content.
+                const double end = std::max(0.0, p->property("contentHeight").toDouble() +
+                                                     p->property("bottomMargin").toDouble() - p->height());
+                const double target = std::min(end, std::max(0.0, y - p->height() / 3));
                 p->setProperty("contentY", target);
                 start = scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
                 qInfo() << "Scrolled" << p << "to" << target;

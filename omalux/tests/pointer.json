@@ -119,6 +119,63 @@
   "visible": false
  },
  {
+  "pointerHover": "control-details-toneequal/0/highlights"
+ },
+ {
+  "rememberItem": "summary-row-toneequal-highlights"
+ },
+ {
+  "rememberItem": "control-details-toneequal/0/highlights"
+ },
+ {
+  "rememberItem": "summary-row-toneequal-shadows"
+ },
+ {
+  "checkItem": "summary-row-toneequal-highlights",
+  "property": "labelText",
+  "value": "equalizer highlights"
+ },
+ {
+  "pointerClick": "control-details-toneequal/0/highlights",
+  "expectTop": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "control-details-toneequal/0/highlights",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItemUnmoved": "summary-row-toneequal-highlights"
+ },
+ {
+  "checkItemUnmoved": "control-details-toneequal/0/highlights"
+ },
+ {
+  "checkItemUnmoved": "summary-row-toneequal-shadows"
+ },
+ {
+  "checkItem": "summary-row-toneequal-highlights",
+  "property": "labelText",
+  "value": "equalizer highlights"
+ },
+ {
+  "pointerClick": "control-details-toneequal/0/highlights"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-toneequal/0/highlights",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "checkItemUnmoved": "summary-row-toneequal-highlights"
+ },
+ {
   "pointerClick": "control-details-toneequal/0/highlights",
   "expectTop": true
  },
@@ -386,6 +443,12 @@
   "key": "End"
  },
  {
+  "pointerHover": "module-details-rgbcurve"
+ },
+ {
+  "rememberItem": "module-details-rgbcurve"
+ },
+ {
   "pointerClick": "module-details-rgbcurve"
  },
  {
@@ -393,11 +456,10 @@
  },
  {
   "checkItem": "curve-rgbcurve",
-  "inWindow": true
+  "visible": true
  },
  {
-  "checkItem": "module-details-rgbcurve",
-  "inWindow": true
+  "checkItemUnmoved": "module-details-rgbcurve"
  },
  {
   "pointerClick": "module-details-rgbcurve"
@@ -568,6 +630,242 @@
  },
  {
   "checkPanel": 0
+ },
+ {
+  "pointerHover": "control-details-brightness"
+ },
+ {
+  "rememberItem": "filter-control-brightness"
+ },
+ {
+  "rememberItem": "control-details-brightness"
+ },
+ {
+  "rememberItem": "filter-control-contrast"
+ },
+ {
+  "rememberItem": "filter-control-saturation"
+ },
+ {
+  "checkItem": "filter-control-brightness",
+  "property": "labelText",
+  "value": "brightness"
+ },
+ {
+  "pointerClick": "control-details-brightness",
+  "expectTop": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "control-details-brightness",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItemUnmoved": "filter-control-brightness"
+ },
+ {
+  "checkItemUnmoved": "control-details-brightness"
+ },
+ {
+  "checkItemUnmoved": "filter-control-contrast"
+ },
+ {
+  "checkItemUnmoved": "filter-control-saturation"
+ },
+ {
+  "checkItem": "filter-control-brightness",
+  "property": "labelText",
+  "value": "brightness"
+ },
+ {
+  "checkItem": "module-strip-colisa",
+  "property": "text",
+  "value": "contrast brightness saturation"
+ },
+ {
+  "checkItem": "control-details-saturation",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItem": "filter-sub-brightness",
+  "property": "linked",
+  "value": true
+ },
+ {
+  "checkItem": "filter-sub-contrast",
+  "property": "linked",
+  "value": true
+ },
+ {
+  "pointerClick": "control-details-brightness"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-brightness",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "checkItemUnmoved": "filter-control-brightness"
+ },
+ {
+  "pointerHover": "control-details-temperature"
+ },
+ {
+  "rememberItem": "filter-control-temperature"
+ },
+ {
+  "rememberItem": "control-details-temperature"
+ },
+ {
+  "checkItem": "filter-control-temperature",
+  "property": "labelText",
+  "value": "temperature"
+ },
+ {
+  "pointerClick": "control-details-temperature",
+  "expectTop": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "control-details-temperature",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItemUnmoved": "filter-control-temperature"
+ },
+ {
+  "checkItemUnmoved": "control-details-temperature"
+ },
+ {
+  "checkItem": "filter-control-temperature",
+  "property": "labelText",
+  "value": "temperature"
+ },
+ {
+  "pointerClick": "control-details-temperature"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-temperature",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "checkItemUnmoved": "filter-control-temperature"
+ },
+ {
+  "pointerHover": "control-details-bloom_strength"
+ },
+ {
+  "rememberItem": "filter-control-bloom_strength"
+ },
+ {
+  "rememberItem": "control-details-bloom_strength"
+ },
+ {
+  "checkItem": "filter-control-bloom_strength",
+  "property": "labelText",
+  "value": "bloom"
+ },
+ {
+  "pointerClick": "control-details-bloom_strength",
+  "expectTop": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "control-details-bloom_strength",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItemUnmoved": "filter-control-bloom_strength"
+ },
+ {
+  "checkItemUnmoved": "control-details-bloom_strength"
+ },
+ {
+  "checkItem": "filter-control-bloom_strength",
+  "property": "labelText",
+  "value": "bloom"
+ },
+ {
+  "pointerClick": "control-details-bloom_strength"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-bloom_strength",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "checkItemUnmoved": "filter-control-bloom_strength"
+ },
+ {
+  "pointerHover": "control-details-vignette"
+ },
+ {
+  "rememberItem": "filter-control-vignette"
+ },
+ {
+  "rememberItem": "control-details-vignette"
+ },
+ {
+  "checkItem": "filter-control-vignette",
+  "property": "labelText",
+  "value": "vignetting"
+ },
+ {
+  "pointerClick": "control-details-vignette",
+  "expectTop": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "control-details-vignette",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItemUnmoved": "filter-control-vignette"
+ },
+ {
+  "checkItemUnmoved": "control-details-vignette"
+ },
+ {
+  "checkItem": "filter-control-vignette",
+  "property": "labelText",
+  "value": "vignetting"
+ },
+ {
+  "pointerClick": "control-details-vignette"
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-vignette",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "checkItemUnmoved": "filter-control-vignette"
  },
  {
   "checkItem": "control-slider-vignette",

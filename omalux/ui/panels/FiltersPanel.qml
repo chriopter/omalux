@@ -46,9 +46,10 @@ SidebarScrollView {
     // Parameters and enablement remain native; colisa also exposes two shortcut rows.
     readonly property var sections: [
         { module: "exposure", name: "exposure", primary: ["exposure"] },
+        // The last of a module's rows owns its block, so the block unfolds beneath all of them.
         { module: "colisa", key: "brightness-shortcut", name: "contrast brightness saturation", primary: ["brightness"], shortcut: true },
-        { module: "colisa", name: "contrast brightness saturation", primary: ["contrast"] },
-        { module: "colisa", key: "saturation-shortcut", name: "contrast brightness saturation", primary: ["saturation"], shortcut: true },
+        { module: "colisa", key: "contrast-shortcut", name: "contrast brightness saturation", primary: ["contrast"], shortcut: true },
+        { module: "colisa", name: "contrast brightness saturation", primary: ["saturation"] },
         { module: "shadhi", name: "shadows and highlights", primary: ["shadows"] },
         { module: "temperature", name: "white balance", primary: ["temperature"] },
         { module: "colorbalancergb", name: "color balance rgb", primary: ["vibrance"] },
@@ -132,6 +133,11 @@ SidebarScrollView {
                             readonly property string detailsKey: modelData.shortcut ? modelData.module : modelData.key
                             visible: root.shownTerm === "" || (!modelData.shortcut && root.sectionMatches(modelData))
                             detailsOpen: root.shownTerm !== "" || !!root.expandedDetails[detailsKey]
+                            // The frame of an open block reaches up around the module's other
+                            // rows (each a row and the gap above this one).
+                            blockLift: modelData.shortcut || root.shownTerm !== "" ? 0
+                                       : root.sections.filter(s => s.shortcut && s.module === modelData.module).length * 56
+                            z: blockLift > 0 ? -1 : 0
                             linkedIds: root.sections.filter(s => s.module === modelData.module).reduce((all, s) => all.concat(s.primary), [])
                             expanded: !modelData.shortcut && (root.shownTerm !== "" || !!root.expandedDetails[detailsKey])
                             extraModule: root.catalogModel ? root.catalogModel.modulesByOperation[modelData.module] || null : null

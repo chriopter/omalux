@@ -70,7 +70,9 @@ Column {
         property string key: ""
         onTriggered: {
             if (release) { release(); release = null; return }
-            revealed = root.openedItem(key)
+            // A module that opens grows downward and stays where it was clicked; a group or
+            // "more" brings its new rows into view.
+            revealed = key.indexOf("expandedModules:") === 0 ? null : root.openedItem(key)
             until = Date.now() + 1500
             if (revealed) { Scroll.reveal(revealed, 0, revealed.height); at = Scroll.position(revealed) }
         }
