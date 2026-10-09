@@ -1,102 +1,193 @@
 import QtQuick
+import "CropMath.js" as Crop
 
+// The crop frame on the photo, with darktable's pointer handling (src/iop/crop.c
+// _gui_get_grab 1467, button_pressed 1872, mouse_moved 1672, _aspect_apply 771):
+//   a band of 30 px inside each edge resizes (the corners both edges); while the frame is the
+//   whole photo the bands reach 45 % in, so a drag from anywhere near a side starts a crop
+//   Shift while resizing keeps the centre and the proportions
+//   inside the bands the frame moves; Shift only vertically, Ctrl only horizontally
+//   a right-click resets the frame to the whole photo
+// The modifiers are read at the press, as darktable does. `crop` is in fractions of the photo,
+// `aspectRatio` the wanted width over height in photo pixels (0: freehand).
 Item {
     id: overlay
     required property var crop
     property real aspectRatio: 0
     signal cropChangedByUser(var rect)
-    readonly property real frameLeft: crop.x * width
-    readonly property real frameTop: crop.y * height
-    readonly property real frameWidth: crop.width * width
-    readonly property real frameHeight: crop.height * height
-    property var startCrop
-    property point startPoint
-    property string handle: "move"
 
-    function begin(handleName, x, y) {
-        handle = handleName
-        startCrop = { x: crop.x, y: crop.y, width: crop.width, height: crop.height }
-        startPoint = Qt.point(x, y)
+    // Whole pixels: fractional edges leave a seam between the dimmed areas.
+    readonly property real frameLeft: Math.round(crop.x * width)
+    readonly property real frameTop: Math.round(crop.y * height)
+    readonly property real frameWidth: Math.round((crop.x + crop.width) * width) - frameLeft
+    readonly property real frameHeight: Math.round((crop.y + crop.height) * height) - frameTop
+    readonly property real minimum: Crop.MINIMUM
+    readonly property real band: 30
+    // _grab_region_t as bits; 0 inside (move), -1 outside the frame.
+    property int hovered: -1
+    property int grabbed: -1
+    property bool pressedInside: false
+    property var previous: null
+    property point down
+    property point handle
+    property bool shiftHold: false
+    property bool ctrlHold: false
+
+    function isFull(c) { return !(c.x || c.y || c.width !== 1 || c.height !== 1) }
+    // _gui_get_grab: which part of the frame is at a point (fractions of the photo).
+    function grabAt(px, py) {
+        const c = crop
+        if (px < c.x || px > c.x + c.width || py < c.y || py > c.y + c.height) return -1
+        let hb = band / Math.max(1, width), vb = band / Math.max(1, height)
+        if (isFull(c)) hb = vb = 0.45
+        let grab = 0
+        if (px >= c.x && px < c.x + hb && px - c.x < 0.5 * c.width) grab |= Crop.LEFT
+        else if (px <= c.x + c.width && px > c.x + c.width - hb) grab |= Crop.RIGHT
+        if (py >= c.y && py < c.y + vb && py - c.y < 0.5 * c.height) grab |= Crop.TOP
+        else if (py <= c.y + c.height && py > c.y + c.height - vb) grab |= Crop.BOTTOM
+        return grab
     }
-    function dragTo(x, y) {
-        if (!startCrop || width <= 0 || height <= 0) return
-        const dx = (x - startPoint.x) / width
-        const dy = (y - startPoint.y) / height
-        const r = startCrop
-        if (handle === "move") {
-            cropChangedByUser({ x: Math.max(0, Math.min(1-r.width, r.x+dx)),
-                y: Math.max(0, Math.min(1-r.height, r.y+dy)), width: r.width, height: r.height })
+    function aspectApply(c, grab) { return Crop.aspectApply(c, grab, aspectRatio, width, height) }
+    // button_pressed: px, py in fractions.
+    function press(px, py, rightButton, modifiers) {
+        if (rightButton) {
+            cropChangedByUser(aspectApply({ x: 0, y: 0, width: 1, height: 1 }, Crop.BOTTOM | Crop.RIGHT))
             return
         }
-        const minW = Math.min(0.05, 24/width), minH = Math.min(0.05, 24/height)
-        let l = r.x, t = r.y, rr = r.x+r.width, b = r.y+r.height
-        const west = handle.includes("w"), east = handle.includes("e")
-        const north = handle.includes("n"), south = handle.includes("s")
-        if (west) l = Math.max(0, Math.min(rr-minW, l+dx))
-        if (east) rr = Math.min(1, Math.max(l+minW, rr+dx))
-        if (north) t = Math.max(0, Math.min(b-minH, t+dy))
-        if (south) b = Math.min(1, Math.max(t+minH, b+dy))
-        if (aspectRatio > 0) {
-            const ratio = aspectRatio * height/width
-            const cx = r.x+r.width/2, cy = r.y+r.height/2
-            let w = rr-l, h = b-t
-            if (west || east) h = w/ratio
-            else w = h*ratio
-            const maxW = west ? r.x+r.width : east ? 1-r.x : 2*Math.min(cx, 1-cx)
-            const maxH = north ? r.y+r.height : south ? 1-r.y : 2*Math.min(cy, 1-cy)
-            w = Math.min(w, maxW, maxH*ratio)
-            h = w/ratio
-            l = west ? r.x+r.width-w : east ? r.x : cx-w/2
-            t = north ? r.y+r.height-h : south ? r.y : cy-h/2
-            rr = l+w; b = t+h
+        const c = crop
+        down = Qt.point(px, py)
+        previous = { x: c.x, y: c.y, width: c.width, height: c.height }
+        shiftHold = !!(modifiers & Qt.ShiftModifier)
+        ctrlHold = !!(modifiers & Qt.ControlModifier)
+        grabbed = grabAt(px, py)
+        pressedInside = grabbed === 0
+        if (grabbed === 0) handle = Qt.point(c.x, c.y)
+        else if (grabbed > 0) {
+            let hx = 0, hy = 0
+            if (grabbed & Crop.LEFT) hx = px - c.x
+            if (grabbed & Crop.TOP) hy = py - c.y
+            if (grabbed & Crop.RIGHT) hx = px - (c.width + c.x)
+            if (grabbed & Crop.BOTTOM) hy = py - (c.height + c.y)
+            handle = Qt.point(hx, hy)
         }
-        cropChangedByUser({x:l, y:t, width:rr-l, height:b-t})
     }
+    // mouse_moved with the primary button down.
+    function moveTo(px, py) {
+        if (grabbed < 0 || !previous) return
+        let x = crop.x, y = crop.y, w = crop.width, h = crop.height
+        if (pressedInside) {
+            if (!shiftHold) x = Math.min(1 - w, Math.max(0, handle.x + px - down.x))
+            if (!ctrlHold) y = Math.min(1 - h, Math.max(0, handle.y + py - down.y))
+            cropChangedByUser({ x: x, y: y, width: w, height: h })
+            return
+        }
+        const p = previous
+        if (shiftHold) {
+            let ratio = 0
+            if (grabbed & (Crop.LEFT | Crop.RIGHT)) {
+                const xx = (grabbed & Crop.LEFT) ? (px - down.x) : (down.x - px)
+                ratio = (p.width - 2 * xx) / p.width
+            }
+            if (grabbed & (Crop.TOP | Crop.BOTTOM)) {
+                const yy = (grabbed & Crop.TOP) ? (py - down.y) : (down.y - py)
+                ratio = Math.max(ratio, (p.height - 2 * yy) / p.height)
+            }
+            if (p.width * ratio < minimum) ratio = minimum / p.width
+            if (p.height * ratio < minimum) ratio = minimum / p.height
+            if (p.width * ratio > 1) ratio = 1 / p.width
+            if (p.height * ratio > 1) ratio = 1 / p.height
+            w = p.width * ratio; h = p.height * ratio
+            x = Math.min(Math.max(p.x - (w - p.width) / 2, 0), 1 - w)
+            y = Math.min(Math.max(p.y - (h - p.height) / 2, 0), 1 - h)
+        } else {
+            if (grabbed & Crop.LEFT) {
+                const old = x
+                x = Math.min(Math.max(0, px - handle.x), x + w - minimum)
+                w = old + w - x
+            }
+            if (grabbed & Crop.TOP) {
+                const old = y
+                y = Math.min(Math.max(0, py - handle.y), y + h - minimum)
+                h = old + h - y
+            }
+            if (grabbed & Crop.RIGHT) w = Math.max(minimum, Math.min(1, px - x - handle.x))
+            if (grabbed & Crop.BOTTOM) h = Math.max(minimum, Math.min(1, py - y - handle.y))
+        }
+        if (x + w > 1) w = 1 - x
+        if (y + h > 1) h = 1 - y
+        cropChangedByUser(aspectApply({ x: x, y: y, width: w, height: h }, grabbed))
+    }
+    function release() { grabbed = -1; pressedInside = false; previous = null; shiftHold = false; ctrlHold = false }
+    function cursorFor(grab) {
+        if (grab < 0) return Qt.ArrowCursor
+        if (grab === 0) return Qt.SizeAllCursor
+        if (grab === Crop.LEFT || grab === Crop.RIGHT) return Qt.SizeHorCursor
+        if (grab === Crop.TOP || grab === Crop.BOTTOM) return Qt.SizeVerCursor
+        return grab === (Crop.TOP | Crop.LEFT) || grab === (Crop.BOTTOM | Crop.RIGHT) ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor
+    }
+    readonly property int shown: grabbed >= 0 && !pressedInside ? grabbed : pressedInside ? 0 : hovered
 
     Rectangle { width: parent.width; height: overlay.frameTop; color: "#99000000" }
     Rectangle { y: overlay.frameTop+overlay.frameHeight; width: parent.width; height: parent.height-y; color: "#99000000" }
     Rectangle { y: overlay.frameTop; width: overlay.frameLeft; height: overlay.frameHeight; color: "#99000000" }
     Rectangle { x: overlay.frameLeft+overlay.frameWidth; y: overlay.frameTop; width: parent.width-x; height: overlay.frameHeight; color: "#99000000" }
-    Rectangle {
+    Item {
+        id: frame
+        objectName: "crop-frame"
         x: overlay.frameLeft; y: overlay.frameTop
         width: overlay.frameWidth; height: overlay.frameHeight
-        color: "transparent"; border.color: "white"; border.width: 1
+        // Thirds, a dark line beside each light one so they read on clouds and on shadows.
         Repeater {
             model: 2
-            Rectangle { required property int index; x: (index+1)*parent.width/3; width: 1; height: parent.height; color: "#90ffffff" }
+            Item {
+                required property int index
+                x: Math.round((index+1)*frame.width/3); width: 2; height: frame.height
+                Rectangle { width: 1; height: parent.height; color: "#b0ffffff" }
+                Rectangle { x: 1; width: 1; height: parent.height; color: "#70000000" }
+            }
         }
         Repeater {
             model: 2
-            Rectangle { required property int index; y: (index+1)*parent.height/3; height: 1; width: parent.width; color: "#90ffffff" }
+            Item {
+                required property int index
+                y: Math.round((index+1)*frame.height/3); height: 2; width: frame.width
+                Rectangle { height: 1; width: parent.width; color: "#b0ffffff" }
+                Rectangle { y: 1; height: 1; width: parent.width; color: "#70000000" }
+            }
         }
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-            preventStealing: true
-            onPressed: mouse => { const p = mapToItem(overlay, mouse.x, mouse.y); overlay.begin("move", p.x, p.y) }
-            onPositionChanged: mouse => { if (pressed) { const p = mapToItem(overlay, mouse.x, mouse.y); overlay.dragTo(p.x, p.y) } }
-        }
+        Rectangle { anchors.fill: parent; anchors.margins: -1; color: "transparent"; border.color: "#90000000"; border.width: 1 }
+        Rectangle { anchors.fill: parent; color: "transparent"; border.color: "white"; border.width: 1 }
+        Rectangle { anchors.fill: parent; anchors.margins: 1; color: "transparent"; border.color: "#70000000"; border.width: 1 }
     }
+    // Marks on the corners and edges; the one under the pointer or being dragged is larger.
     Repeater {
-        model: [ ["nw",0,0], ["n",0.5,0], ["ne",1,0], ["e",1,0.5], ["se",1,1], ["s",0.5,1], ["sw",0,1], ["w",0,0.5] ]
-        Item {
+        model: [ [3,0,0], [2,0.5,0], [6,1,0], [4,1,0.5], [12,1,1], [8,0.5,1], [9,0,1], [1,0,0.5] ]
+        Rectangle {
             required property var modelData
+            readonly property bool hot: overlay.shown === modelData[0]
+            objectName: "crop-handle-" + modelData[0]
+            width: (modelData[1] === 0.5 ? 24 : 9) + (hot ? 4 : 0)
+            height: (modelData[2] === 0.5 ? 24 : 9) + (hot ? 4 : 0)
             x: overlay.frameLeft + modelData[1]*overlay.frameWidth - width/2
             y: overlay.frameTop + modelData[2]*overlay.frameHeight - height/2
-            width: 28; height: 28
-            Rectangle {
-                anchors.centerIn: parent
-                width: modelData[1] === 0.5 ? 22 : 8
-                height: modelData[2] === 0.5 ? 22 : 8
-                radius: 2; color: "white"; border.color: "#88000000"
-            }
-            MouseArea {
-                anchors.fill: parent
-                preventStealing: true
-                cursorShape: modelData[1] === 0.5 ? Qt.SizeVerCursor : modelData[2] === 0.5 ? Qt.SizeHorCursor : modelData[1] === modelData[2] ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor
-                onPressed: mouse => { const p = mapToItem(overlay, mouse.x, mouse.y); overlay.begin(modelData[0], p.x, p.y) }
-                onPositionChanged: mouse => { if (pressed) { const p = mapToItem(overlay, mouse.x, mouse.y); overlay.dragTo(p.x, p.y) } }
-            }
+            radius: 2; color: "white"; border.color: "#c0000000"; border.width: 1
         }
+    }
+    MouseArea {
+        id: area
+        objectName: "crop-area"
+        anchors.fill: parent
+        hoverEnabled: true
+        preventStealing: true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        cursorShape: pressed && overlay.pressedInside ? Qt.ClosedHandCursor : overlay.cursorFor(overlay.shown)
+        onPressed: mouse => overlay.press(mouse.x / width, mouse.y / height, mouse.button === Qt.RightButton, mouse.modifiers)
+        onPositionChanged: mouse => {
+            if (pressed && (mouse.buttons & Qt.LeftButton)) overlay.moveTo(mouse.x / width, mouse.y / height)
+            else overlay.hovered = overlay.grabAt(mouse.x / width, mouse.y / height)
+        }
+        onReleased: mouse => { overlay.release(); overlay.hovered = overlay.grabAt(mouse.x / width, mouse.y / height) }
+        onCanceled: overlay.release()
+        onExited: if (!pressed) overlay.hovered = -1
     }
 }

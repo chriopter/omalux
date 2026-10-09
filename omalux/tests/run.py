@@ -120,6 +120,7 @@ def main():
                    ROOT / 'omalux/tests/keyboard.json', ROOT / 'omalux/tests/pointer.json',
                    ROOT / 'omalux/tests/canvas-engine.json', ROOT / 'omalux/tests/canvas.json',
                    ROOT / 'omalux/tests/canvas-picker.json',
+                   ROOT / 'omalux/tests/crop.json',
                    work / 'workflow.json']
         # Displayed conversions, runtime lists and file choices; "{WORK}" names this run's folder.
         values = work / 'module-values.json'

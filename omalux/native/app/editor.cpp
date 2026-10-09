@@ -220,8 +220,12 @@ void Editor::setControl(const QString &id, double next) {
 void Editor::setControls(const QVariantMap &updates) {
     if (applying || url.isEmpty())
         return;
-    for (auto it = updates.begin(); it != updates.end(); ++it)
-        setControl(it.key(), it.value().toDouble());
+    // A module's switch goes last: editing one of its parameters switches the module on, and the
+    // map is sorted by name ("crop_enabled" before "crop_left"), which left a reset crop enabled.
+    for (const bool switches : {false, true})
+        for (auto it = updates.begin(); it != updates.end(); ++it)
+            if (it.key().endsWith(QLatin1String("_enabled")) == switches)
+                setControl(it.key(), it.value().toDouble());
 }
 void Editor::adjustControl(const QString &id, int steps) {
     for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i)
