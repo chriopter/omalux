@@ -9,3 +9,7 @@ MenuItem 6.0 MenuItem.qml
 MenuItem 2.0 MenuItem.qml
 ToolTip 6.0 ToolTip.qml
 ToolTip 2.0 ToolTip.qml
+Dialog 6.0 Dialog.qml
+Dialog 2.0 Dialog.qml
+DialogButtonBox 6.0 DialogButtonBox.qml
+DialogButtonBox 2.0 DialogButtonBox.qml

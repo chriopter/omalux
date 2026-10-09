@@ -10,10 +10,30 @@ Dialog {
     title: "Keyboard reference"
     modal: true
     standardButtons: Dialog.Close
+    // Enter closes it like Escape; the arrows and Page keys scroll.
+    onOpened: scroll.forceActiveFocus()
     ScrollView {
         id: scroll
         anchors.fill: parent
         contentWidth: availableWidth
+        clip: true
+        Keys.onReturnPressed: root.close()
+        Keys.onEnterPressed: root.close()
+        Keys.onPressed: event => {
+            const flick = scroll.contentItem
+            const limit = Math.max(0, flick.contentHeight - flick.height)
+            let y = flick.contentY
+            if (event.key === Qt.Key_Down || event.key === Qt.Key_J) y += 40
+            else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) y -= 40
+            else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_Space) y += flick.height - 40
+            else if (event.key === Qt.Key_PageUp) y -= flick.height - 40
+            else if (event.key === Qt.Key_Home) y = 0
+            else if (event.key === Qt.Key_End) y = limit
+            else if (event.key === Qt.Key_Question || event.key === Qt.Key_F1) { root.close(); event.accepted = true; return }
+            else return
+            flick.contentY = Math.max(0, Math.min(limit, y))
+            event.accepted = true
+        }
         Column {
             width: scroll.availableWidth
             spacing: 4
