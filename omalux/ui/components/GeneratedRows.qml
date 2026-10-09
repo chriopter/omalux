@@ -228,12 +228,15 @@ Column {
                 it = Object.assign(base(r), { kind: "textEdit" })
             else if (r.widget === "slider" && derivedPath)
                 it = Object.assign(base(r), { kind: "slider", derived: true, control: sliderControl(r, id(r)) })
-            // area E: retouch's wavelet decompose bar (WaveletBar); its preview levels only shape
-            // darktable's darkroom preview of a single scale, which the photo here does not show.
+            // area E: retouch's wavelet decompose bar (WaveletBar). In place of darktable's "preview
+            // single scale" levels bar: its buttons "display masks", "display wavelet scale" and
+            // "temporarily switch off shapes" (retouch.c:2551-2580, module_display.c); the scale shown
+            // is the bar's current one with the stored preview levels.
             else if (module.operation === "retouch" && r.field === "wavelet_decompose")
                 it = Object.assign(base(r), { kind: "waveletbar" })
             else if (module.operation === "retouch" && r.field === "preview_levels")
-                it = Object.assign(base(r), { kind: "notice", text: "preview single scale: darktable shows one wavelet scale in its darkroom preview, which is not drawn here" })
+                it = Object.assign(base(r), { kind: "retouchdisplay", section: "wavelet decompose",
+                                              labels: ["display masks", "display wavelet scale", "switch off shapes"] })
             // area E: zone system's bar edits both its rows (the number of zones by the wheel).
             else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "size") continue
             else if (r.widget === "drawn" && module.operation === "zonesystem" && r.field === "zone")
@@ -474,7 +477,7 @@ Column {
                                 notice: noticeRow, section: sectionRow, curve: curveRow, bars: barsRow, bands: bandsRow,
                                 color: colorRow, channels: channelsRow, choiceList: choiceListRow,
                                 textEdit: textEditRow, patches: patchesRow, tools: toolsRow, localSlider: localSliderRow, localColor: localColorRow,
-                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow, waveletbar: waveletBarRow })[modelData.kind] || noticeRow
+                                histogram: histogramRow, canvas: canvasRow, clusters: clustersRow, vectorscope: vectorscopeRow, colorgrid: colorGridRow, zonebar: zoneBarRow, waveletbar: waveletBarRow, retouchdisplay: retouchDisplayRow })[modelData.kind] || noticeRow
         }
     }
     ModuleNotice {
@@ -1295,6 +1298,28 @@ Column {
             onEdited: changes => root.changesRequested(changes)
             navTarget.navId: root.navGroup + "/@wavelets"
             navTarget.group: root.navGroup
+        }
+    }
+    // retouch's display buttons (retouch.c:2551 "display masks", 2577 "display wavelet scale", 2557
+    // "temporarily switch off shapes"), one at a time, shown on the photo by module_display.c.
+    Component {
+        id: retouchDisplayRow
+        ModuleToolButtons {
+            objectName: "retouch-display-" + root.navGroup
+            readonly property var specs: [{ tool: "display_mask", extra: { type: 1 } }, { tool: "display_mask", extra: { type: 2 } },
+                                          { tool: "display_mask", extra: { type: 4 } }]
+            readonly property bool available: !!root.tools && root.tools.supported["retouch/display_mask"] === true
+            function on(i) { return available && root.tools.displayActive(root.module.operation, root.instance, specs[i]) }
+            visible: available
+            width: root.width
+            theme: root.theme
+            editable: root.editable
+            navPrefix: root.navGroup + "/display"
+            navGroup: root.navGroup
+            entries: [{ label: "masks", kind: "display", icon: "showmask", active: on(0), hint: "display masks" },
+                      { label: "scale", kind: "display", icon: "showmask", active: on(1), hint: "display wavelet scale" },
+                      { label: "shapes off", kind: "display", active: on(2), hint: "temporarily switch off shapes" }]
+            onTriggered: (index, choice) => root.tools.toggleDisplay(root.module.operation, root.instance, specs[index], {})
         }
     }
     // area E: zone system's zone bar (ZoneBar).

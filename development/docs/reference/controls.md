@@ -846,9 +846,8 @@ change, the engine runs darktable's `do_crop` on the full pipe's module input
 (`om_ashift_autocrop`, `module_gui_changed.c`), as ashift's `gui_changed` does.
 
 **Retouch wavelet bar** (`WaveletBar`): darktable's wavelet decompose bar with the number of
-scales, the current scale, merge from scale and cut/paste of a scale's shapes. Darktable's
-"preview single scale" and the preview levels are display modes of the focused module's
-output; they are shown as a notice.
+scales, the current scale, merge from scale and cut/paste of a scale's shapes. Below it sit
+the display buttons described under the mask previews.
 
 **Mask previews inside modules** (`module_display.c`, tool `display_mask`). The toggles with
 darktable's mask button draw the module's own preview on the photo, one module at a time:
@@ -866,9 +865,26 @@ a photo or collapsing the module (darktable: the module loses focus) ends the pr
 zones' own blending is bypassed while its selection is shown. Differences: the checkerboard
 size is in preview pixels (darktable multiplies it by the screen's DPI factor); filmic rgb's
 mask is computed also while highlight reconstruction is off (darktable then shows an
-uninitialised buffer). Not available: retouch's "display masks"/"preview single scale",
-highlight reconstruction's and demosaic's visualisation buttons and lens correction's
-vignetting visualisation (they need darktable's module focus inside the pipe).
+uninitialised buffer).
+
+Four more modules draw their preview with their own unchanged `process`, given a stand-in for
+the GUI data block whose flag their button sets (and, for demosaic and retouch, the module as
+the focused one of an attached GUI for that call): highlight reconstruction's mask buttons on
+"clipping threshold", "combine", "candidating" and "strength" (false colours, raw files),
+demosaic's on "dual threshold", "contrast sensitivity" and "corner boost" (raw files; the
+capture sharpening radius and threshold the module then writes into its parameters are put
+back), lens correction's on the manual vignette "strength" (the correction mask in yellow) and
+retouch's "masks" (display masks), "scale" (display wavelet scale: the bar's current scale
+with the stored preview levels) and "shapes off" (temporarily switch off shapes) below its
+wavelet bar. They do not switch the module on; retouch refuses while the blend mask is shown.
+Differences: retouch's three buttons are one at a time, and its preview levels bar and "auto
+levels" are not built. The struct layouts are the pinned release's and must be checked after a
+darktable update (`module_display.c`).
+
+**Lens correction edits.** darktable corrects with the defaults detected for the image until
+its GUI marks the parameters as set (`has_been_set`, lens.cc `commit_params` 3260, `gui_update`
+4629, `gui_changed` 4326). A generic edit therefore starts from those defaults, applies what
+changed and sets the flag (`module_gui_changed.c`); before, lens edits had no effect.
 
 **Path border handles** (`node-border`; darktable's `point_border_dragging`, path.c
 mouse_moved 2665–2690). A selected path shows one border handle beside each node, where
@@ -878,13 +894,23 @@ projected pointer from the node in input pixels over the shorter input side (bot
 values, no clamp, as darktable). The handle is picked after its node, node by node, as in
 path.c:2780–2805. A path's dashed border line is darktable's own construction (self-
 intersections skipped), computed by `dt_masks_get_points_border` with the full pipe standing
-in for the preview pipe; a brush stroke's border is still drawn as the stroke width along the
-Bézier normal (not darktable's exact construction).
+in for the preview pipe; a brush stroke's border comes from the same call (brush.c draws it as
+one line around the stroke; at most 720 of its points are sent).
 
 **Gradient curvature** (gradient.c). darktable 5.6.1 has no curvature drag: the wheel over a
 gradient bends it (±0.01 per step, −2…2), a double-click straightens it (curvature 0,
 `_gradient_events_button_pressed` 208) and Shift+click switches its transition between linear
-and sigmoidal (`gradient_toggling`, 442); all three are here. darktable's mask manager
-"properties" sliders (curvature, compression, rotation, size, feather, hardness of the
-selected shapes, libs/masks.c) are not built.
+and sigmoidal (`gradient_toggling`, 442); all three are here.
+
+**Mask manager properties** (libs/masks.c:110, `_property_changed` 131; `mask_manager.c` action
+`property`, `MaskManagerView`). Below a module's shape list: size, hardness, feather, rotation,
+curvature and compression, each shown only when a shape has it, for the shape selected on the
+photo or, while none is selected, for all shapes of the group ("all shapes"). A slider shows
+the shapes' mean and changes them through each shape's own `modify_property` (sizes, feathers,
+hardness and compression by the same factor, rotation and curvature by the same amount), in
+per cent with two decimals (rotation in degrees), within the range darktable computes. One
+history item per change (a drag applies on release). Differences: darktable's relative sliders
+have a logarithmic track, here the track covers a quarter to four times the value and typing
+reaches the rest; opacity stays on each shape row; the brush pressure and smoothing
+preferences and the object-mask rows (cleanup, smoothing, refine) are not shown.
 

@@ -281,6 +281,26 @@ QtObject {
                                  hint: "displays a highlights mask, overlaid as a checkerboard\nthe still-visible area of the image (not hidden by the mask) is the area\nthat will be affected by the highlights sliders in the other tabs" }
         },
         retouch: { fill_color: { tool: "fill_color", kind: "point", hint: "pick fill color from image" } },
+        // highlights.c:1289-1320 the showmask quads (type: dt_highlights_mask_t)
+        highlights: {
+            clip: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 4 },
+                    hint: "visualize clipped highlights in a false color representation.\nthe effective clipping level also depends on the reconstruction method." },
+            combine: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 1 },
+                       hint: "visualize the combined segments in a false color representation." },
+            candidating: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 2 },
+                           hint: "visualize segments that are considered to have a good candidate in a false color representation." },
+            strength: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 3 },
+                        hint: "show the effect that is added to already reconstructed data." }
+        },
+        // demosaic.c:1766, 1811, 1818
+        demosaic: {
+            dual_thrs: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 1 }, hint: "toggle mask visualization" },
+            cs_thrs: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 2 }, hint: "visualize sharpened areas" },
+            cs_boost: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 3 }, hint: "visualize the overall radius" }
+        },
+        // lens.cc:4589
+        lens: { v_strength: { tool: "display_mask", kind: "display", icon: "showmask", extra: { type: 1 },
+                              hint: "show applied optical vignette correction mask" } },
         // toneequal.c:3326, 3338: magic-wand buttons on the two mask compensation sliders.
         toneequal: { exposure_boost: { tool: "exposure_boost", kind: "button", icon: "wand", hint: "auto-adjust the average exposure" },
                      contrast_boost: { tool: "contrast_boost", kind: "button", icon: "wand", hint: "auto-adjust the contrast" } }
@@ -367,7 +387,7 @@ QtObject {
         // toneequal, colorzones and colorbalancergb refuse while the blend section shows its mask
         // (toneequal.c:1940, colorzones.c:2379, colorbalancergb.c:1423).
         if (blendDisplayOf(operation, instance) && blendDisplayOf(operation, instance).mask
-                && ["toneequal", "colorzones", "colorbalancergb"].indexOf(operation) >= 0) {
+                && ["toneequal", "colorzones", "colorbalancergb", "retouch"].indexOf(operation) >= 0) {
             message = "cannot display masks when the blending mask is displayed"
             return
         }

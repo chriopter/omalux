@@ -286,11 +286,110 @@ static void colorequal_display(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *pi
     self->gui_data = saved;
 }
 
+// ---- modules that only read a flag of their GUI data ----------------------------------------
+// The module's own process with a stand-in GUI data block of the pinned release's layout that
+// holds the flags its buttons set. `focus` also makes the module the focused one of an attached
+// GUI for the call (dt_iop_has_focus, imageop.c:2378; demosaic's dev->gui_attached test); the
+// worker renders on its own thread, nothing else reads the develop context meanwhile.
+static void process_with_gui(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const float *in, float *out,
+                             const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out, void *gui, gboolean focus) {
+    dt_develop_t *dev = self->dev;
+    void *saved = self->gui_data;
+    const gboolean attached = dev->gui_attached;
+    dt_iop_module_t *focused = dev->gui_module;
+    self->gui_data = gui;
+    if (focus) {
+        dev->gui_attached = TRUE;
+        dev->gui_module = self;
+    }
+    self->so->process_plain(self, piece, in, out, roi_in, roi_out);
+    dev->gui_attached = attached;
+    dev->gui_module = focused;
+    self->gui_data = saved;
+}
+
+// dt_iop_highlights_gui_data_t (highlights.c:124-137); process reads hlr_mask_mode (857-875, 966):
+// state.type is dt_highlights_mask_t (1 combine, 2 candidating, 3 strength, 4 clipped).
+typedef struct {
+    GtkWidget *widgets[10];
+    int hlr_mask_mode;
+} OmHighlightsGui;
+
+// dt_iop_demosaic_gui_data_t (demosaic.c:159-184); process reads the three mask flags with
+// dev->gui_attached (679-696). With GUI data the capture sharpening radius and threshold it
+// computes are also written to the module's parameters (capture.c:787-822, for the sliders to
+// show); the parameters are put back, the pipe keeps the computed values as without a GUI.
+typedef struct {
+    GtkWidget *widgets[15];
+    dt_gui_collapsible_section_t capture;
+    gboolean cs_mask, dual_mask, cs_boost_mask;
+    gboolean autoradius, autothrs;
+    float new_radius, new_thrs;
+} OmDemosaicGui;
+
+// dt_iop_lens_gui_data_t (lens.cc:173-194); process reads vig_masking (3009, 3088).
+typedef struct {
+    GtkWidget *widgets[25];
+    dt_gui_collapsible_section_t fine_tune, vignette;
+    GtkLabel *message;
+    GtkBox *hbox1;
+    int corrections_done;
+    gboolean lensfun_trouble;
+    gboolean vig_masking;
+    const void *camera;
+} OmLensGui;
+
+// dt_iop_retouch_gui_data_t (retouch.c:119-172); process reads the three display flags of the
+// focused module (3779-3823) and stores the first visible scale. state.type: 1 "display masks",
+// 2 "display wavelet scale" (the scale is the module's curr_scale, the levels its
+// preview_levels), 4 "temporarily switch off shapes".
+typedef struct {
+    int copied_scale;
+    gboolean mask_display, suppress_mask, display_wavelet_scale;
+    int displayed_wavelet_scale, preview_auto_levels;
+    float preview_levels[3];
+    int first_scale_visible;
+    void *widgets[40];
+} OmRetouchGui;
+
+static void flag_display(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const float *in, float *out,
+                         const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out) {
+    if (dt_iop_module_is(self, "highlights")) {
+        OmHighlightsGui g = {0};
+        g.hlr_mask_mode = state.type;
+        process_with_gui(self, piece, in, out, roi_in, roi_out, &g, FALSE);
+    } else if (dt_iop_module_is(self, "demosaic")) {
+        OmDemosaicGui g = {0};
+        g.dual_mask = state.type == 1;
+        g.cs_mask = state.type == 2;
+        g.cs_boost_mask = state.type == 3;
+        void *params = g_memdup2(self->params, self->params_size);
+        process_with_gui(self, piece, in, out, roi_in, roi_out, &g, TRUE);
+        memcpy(self->params, params, self->params_size);
+        g_free(params);
+    } else if (dt_iop_module_is(self, "lens")) {
+        OmLensGui g = {0};
+        g.vig_masking = TRUE;
+        process_with_gui(self, piece, in, out, roi_in, roi_out, &g, FALSE);
+    } else {
+        OmRetouchGui g = {0};
+        g.mask_display = (state.type & 1) != 0;
+        g.display_wavelet_scale = (state.type & 2) != 0;
+        g.suppress_mask = (state.type & 4) != 0;
+        process_with_gui(self, piece, in, out, roi_in, roi_out, &g, TRUE);
+    }
+}
+
 // ---- the wrapper ------------------------------------------------------------------------
 static void display_process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const i, void *const o,
                             const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out) {
     if (!is_target(self, piece)) {
         self->so->process_plain(self, piece, i, o, roi_in, roi_out);
+        return;
+    }
+    if (dt_iop_module_is(self, "highlights") || dt_iop_module_is(self, "demosaic") ||
+        dt_iop_module_is(self, "lens") || dt_iop_module_is(self, "retouch")) {
+        flag_display(self, piece, i, o, roi_in, roi_out);
         return;
     }
     if (dt_iop_module_is(self, "toneequal"))
@@ -436,5 +535,11 @@ const OmToolSpec om_tools_module_display[] = {
     {"colorzones", "display_mask", OM_TOOL_BUTTON, -1, 0, display_mask},
     {"colorbalancergb", "display_mask", OM_TOOL_BUTTON, -1, 0, display_mask},
     {"colorequal", "display_mask", OM_TOOL_BUTTON, -1, OM_TOOL_KEEP_OFF, display_mask},
+    // the buttons only redraw (highlights.c _quad_callback 1104, demosaic.c 1627-1668, lens.cc
+    // _visualize_callback 4358, retouch.c rt_showmask_callback 2040)
+    {"highlights", "display_mask", OM_TOOL_BUTTON, -1, OM_TOOL_KEEP_OFF, display_mask},
+    {"demosaic", "display_mask", OM_TOOL_BUTTON, -1, OM_TOOL_KEEP_OFF, display_mask},
+    {"lens", "display_mask", OM_TOOL_BUTTON, -1, OM_TOOL_KEEP_OFF, display_mask},
+    {"retouch", "display_mask", OM_TOOL_BUTTON, -1, OM_TOOL_KEEP_OFF, display_mask},
     {NULL, NULL, 0, 0, 0, NULL},
 };
