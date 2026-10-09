@@ -51,7 +51,8 @@ SidebarScrollView {
         { module: "colisa", key: "contrast-shortcut", name: "contrast brightness saturation", primary: ["contrast"], shortcut: true },
         { module: "colisa", name: "contrast brightness saturation", primary: ["saturation"] },
         { module: "shadhi", name: "shadows and highlights", primary: ["shadows"] },
-        { module: "temperature", name: "white balance", primary: ["temperature"] },
+        // temperature is darktable's conversion of the channel coefficients: they stay in view.
+        { module: "temperature", name: "white balance", primary: ["temperature"], driven: ["red", "green", "blue", "various"] },
         { module: "colorbalancergb", name: "color balance rgb", primary: ["vibrance"] },
         { module: "sharpen", name: "sharpen", primary: ["sharpen_amount"] },
         { module: "grain", name: "grain", primary: ["grain"], shortTitle: true },
@@ -138,7 +139,7 @@ SidebarScrollView {
                             blockLift: modelData.shortcut || root.shownTerm !== "" ? 0
                                        : root.sections.filter(s => s.shortcut && s.module === modelData.module).length * 56
                             z: blockLift > 0 ? -1 : 0
-                            linkedIds: root.sections.filter(s => s.module === modelData.module).reduce((all, s) => all.concat(s.primary), [])
+                            mainIds: root.sections.filter(s => s.module === modelData.module).reduce((all, s) => all.concat(s.primary), [])
                             expanded: !modelData.shortcut && (root.shownTerm !== "" || !!root.expandedDetails[detailsKey])
                             extraModule: root.catalogModel ? root.catalogModel.modulesByOperation[modelData.module] || null : null
                             moduleState: root.states[modelData.module + "/0"]

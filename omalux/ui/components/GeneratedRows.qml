@@ -30,11 +30,17 @@ Column {
     property string term: ""
     property bool nameMatched: false
     property string activeControl: ""
-    // The rows unfold under a kept summary row (GeneratedModule.attached): quieter type, and the
-    // rows of `linkedPaths` (the parameters the summary rows drive) are marked as linked. The
+    // The rows unfold under a kept main row (GeneratedModule.attached, FilterModule): quieter
+    // type. A parameter that is a main row above is not repeated: `skipPaths` are left out. The
     // rows are indented by `indent`; the "more" section row reaches back over it.
     property bool sub: false
-    property var linkedPaths: []
+    property var skipPaths: []
+    // Curated blocks split their remaining rows: `onlyFields` shows just these, at once (the raw
+    // parameters a converting main row drives, each marked with `linked`); `skipFields` leaves
+    // them out of the rows behind "more".
+    property var onlyFields: []
+    property var skipFields: []
+    property bool linked: false
     property real indent: 0
     readonly property font rowFont: sub ? theme.textFont : theme.settingsFont
     readonly property color rowInk: sub ? theme.subInk : theme.ink
@@ -419,13 +425,15 @@ Column {
             if (it.kind === "section") return false
             let ok
             if (searching) ok = root.matches(it)
-            else if (root.extraMode) ok = root.moreOpen && (!tabs.length || !it.tab || it.tab === tabs[root.tabIndex])
+            else if (root.extraMode) ok = (root.moreOpen || root.onlyFields.length > 0) && (!tabs.length || !it.tab || it.tab === tabs[root.tabIndex])
             else {
                 const tier = (it.tier === "primary" && (root.expanded || root.collapsedRows)) || (it.tier === "detail" && root.expanded)
                              || (it.tier === "advanced" && root.expanded && root.moreOpen)
                 const tab = !tabs.length || !it.tab || it.tab === tabs[root.tabIndex] || (!root.expanded && it.tier === "primary")
                 ok = tier && tab
             }
+            if (ok && (root.skipPaths.includes(it.row.path) || root.skipFields.includes(it.row.field)
+                       || (root.onlyFields.length > 0 && !root.onlyFields.includes(it.row.field)))) ok = false
             // A displayed conversion the engine does not report here (e.g. white balance finetune
             // without a camera preset with tuning) is not shown, as darktable hides the slider.
             if (ok && it.derived && (it.kind === "slider" || it.kind === "choice") && !root.readable(it.row)) ok = false
@@ -527,7 +535,8 @@ Column {
             onEdited: v => root.editRaw(r, (v - (r.offset || 0)) / (r.factor || 1))
             onResetRequested: root.edit(r.path, root.defaultOf(r))
             sub: root.sub
-            linked: root.sub && root.linkedPaths.includes(r.path)
+            objectName: "generated-row-" + it.control.id
+            linked: root.linked
             defaultValue: {
                 if (!hot || !known) return undefined
                 const d = Number(root.defaultOf(r)) * (r.factor || 1) + (r.offset || 0)

@@ -133,7 +133,7 @@ SidebarScrollView {
                                 editable: root.editable
                                 compact: true
                                 attached: true
-                                linkedPaths: entry.modelData.rows.map(e => e.row.path)
+                                mainPaths: entry.modelData.rows.map(e => e.row.path)
                                 expanded: true
                                 moreOpen: !!root.expanded[entry.operation + "-more"]
                                 activeControl: root.activeControl

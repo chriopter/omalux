@@ -204,8 +204,8 @@
   "visible": false
  },
  {
-  "checkItem": "control-linked-toneequal/0/highlights",
-  "visible": true
+  "checkItem": "generated-row-toneequal/0/highlights",
+  "visible": false
  },
  {
   "pointerClick": "control-slider-toneequal/0/highlights",
@@ -692,13 +692,19 @@
  },
  {
   "checkItem": "filter-sub-brightness",
-  "property": "linked",
-  "value": true
+  "visible": false
  },
  {
   "checkItem": "filter-sub-contrast",
-  "property": "linked",
-  "value": true
+  "visible": false
+ },
+ {
+  "checkItem": "filter-sub-saturation",
+  "visible": false
+ },
+ {
+  "checkItem": "blend-section-colisa",
+  "visible": true
  },
  {
   "pointerClick": "control-details-brightness"
@@ -750,6 +756,67 @@
   "checkItem": "filter-control-temperature",
   "property": "labelText",
   "value": "temperature"
+ },
+ {
+  "checkItem": "filter-sub-temperature",
+  "visible": false
+ },
+ {
+  "checkItem": "filter-sub-tint",
+  "visible": true
+ },
+ {
+  "checkItem": "generated-row-temperature/0/red",
+  "property": "linked",
+  "value": true
+ },
+ {
+  "checkItem": "generated-row-temperature/0/red",
+  "property": "valueText",
+  "value": "1.000"
+ },
+ {
+  "pointerDrag": "control-slider-temperature",
+  "from": [
+   0.2,
+   0.5
+  ],
+  "to": [
+   0.5,
+   0.5
+  ],
+  "hold": true
+ },
+ {
+  "waitMs": 400
+ },
+ {
+  "checkItem": "filter-control-temperature",
+  "property": "valueText",
+  "value": "13451 K"
+ },
+ {
+  "checkItem": "generated-row-temperature/0/red",
+  "property": "valueText",
+  "value": "1.342"
+ },
+ {
+  "pointerRelease": true
+ },
+ {
+  "pointerClick": "module-reset-temperature",
+  "expectTop": true
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "generated-row-temperature/0/red",
+  "property": "valueText",
+  "value": "1.000"
+ },
+ {
+  "pointerHover": "control-details-temperature"
  },
  {
   "pointerClick": "control-details-temperature"
@@ -899,12 +966,16 @@
  },
  {
   "checkItem": "filter-sub-vignette",
-  "property": "linked",
-  "value": true
+  "visible": false
  },
  {
-  "checkItem": "control-linked-vignette",
+  "checkItem": "filter-sub-vignette_scale",
   "visible": true
+ },
+ {
+  "checkItem": "filter-sub-vignette_scale",
+  "property": "sub",
+  "value": true
  },
  {
   "checkItem": "filter-sub-vignette_scale",
@@ -917,65 +988,9 @@
   "value": -1
  },
  {
-  "checkItem": "control-slider-vignette/@linked",
+  "checkItem": "control-slider-vignette",
   "property": "to",
   "value": 1
- },
- {
-  "pointerDrag": "control-slider-vignette",
-  "from": [
-   0.25,
-   0.5
-  ],
-  "to": [
-   0.6,
-   0.5
-  ],
-  "hold": true
- },
- {
-  "waitMs": 200
- },
- {
-  "checkItem": "filter-control-vignette",
-  "property": "valueText",
-  "value": "0.210"
- },
- {
-  "checkItem": "filter-sub-vignette",
-  "property": "valueText",
-  "value": "0.210"
- },
- {
-  "pointerRelease": true
- },
- {
-  "pointerDrag": "control-slider-vignette/@linked",
-  "from": [
-   0.6,
-   0.5
-  ],
-  "to": [
-   0.25,
-   0.5
-  ],
-  "hold": true
- },
- {
-  "waitMs": 200
- },
- {
-  "checkItem": "filter-sub-vignette",
-  "property": "valueText",
-  "value": "-0.520"
- },
- {
-  "checkItem": "filter-control-vignette",
-  "property": "valueText",
-  "value": "-0.520"
- },
- {
-  "pointerRelease": true
  },
  {
   "pointerClick": "filter-control-vignette",
@@ -987,7 +1002,7 @@
  },
  {
   "check": {
-   "vignette_enabled": 0
+   "vignette_enabled": 1
   }
  },
  {
@@ -1004,7 +1019,7 @@
  },
  {
   "check": {
-   "vignette_enabled": 1
+   "vignette_enabled": 0
   }
  },
  {
@@ -1133,7 +1148,7 @@
   "waitMs": 300
  },
  {
-  "checkItem": "filter-sub-vignette",
+  "checkItem": "filter-sub-vignette_scale",
   "visible": false
  },
  {

@@ -12,9 +12,9 @@ Item {
     // A parameter of an unfolded module, under the module's kept main row: quieter type and a
     // smaller knob, so it reads as a part of that row.
     property bool sub: false
-    // The sub-row of the very parameter the main row drives: both show one value and move
-    // together. A dot before its label marks it, and it is not a keyboard stop
-    // of its own (the main row is).
+    // A sub-row whose parameter the main row above drives through a conversion (the white
+    // balance coefficients under temperature): a small dot before the label and brighter type.
+    // It is a parameter of its own, so an ordinary row and keyboard stop otherwise.
     property bool linked: false
     readonly property color ink: sub && !linked ? theme.subInk : theme.ink
     // Every slider row offers its reset while the pointer is on it or it is the keyboard
@@ -55,8 +55,7 @@ Item {
     readonly property bool marked: selected || navTarget.current
     NavTarget {
         id: navTarget
-        navId: root.control.id + (root.linked ? "/@linked" : "")
-        listed: !root.linked
+        navId: root.control.id
         label: root.displayLabel || root.control.label
         kind: "slider"
         enabled: root.editable
@@ -207,7 +206,7 @@ Item {
         }
         Slider {
             id: slider
-            objectName: "control-slider-" + root.control.id + (root.linked ? "/@linked" : "")
+            objectName: "control-slider-" + root.control.id
             live: true
             wheelEnabled: false
             leftPadding: 0; rightPadding: 0
@@ -263,7 +262,7 @@ Item {
         y: titleRow.y + Math.round((titleRow.height - height) / 2)
         width: 20; height: 18
         sourceComponent: ResetButton {
-            objectName: "control-reset-" + root.control.id + (root.linked ? "/@linked" : "")
+            objectName: "control-reset-" + root.control.id
             theme: root.theme
             title: root.control.label
             ToolTip.text: "reset (R)"
@@ -277,7 +276,7 @@ Item {
             onClicked: { navTarget.claim(); root.resetRequested() }
         }
     }
-    // A linked sub-row (the one the main row above drives): a small dot before the label.
+    // A sub-row the main row drives through a conversion: a small dot before the label.
     Loader {
         active: root.linked
         visible: active

@@ -46,12 +46,15 @@ Column {
     spacing: 4
     // A module with one main row keeps that row when it is unfolded: same place, name, value and
     // track; only its chevron turns. The block grows downward from it: a strip with the module's
-    // name, reset and instances, then every parameter as a sub-row. Modules without a main row
+    // name, reset and instances, then the module's other parameters as sub-rows. Modules without a main row
     // (the Advanced cards) have the card heading (ModuleHeader).
     readonly property bool hasMain: section.primary.length === 1
     readonly property var mainControl: hasMain ? section.controls.find(c => c.id === section.primary[0]) || null : null
-    // The parameters that a main row of the pane drives: their sub-rows are marked as linked.
-    property var linkedIds: section.primary
+    // The parameters shown as main rows of the pane: they are not repeated among the sub-rows.
+    property var mainIds: section.primary
+    // Where the main row is a conversion (white balance temperature), the raw parameters it
+    // drives (layout fields of the module) stay in view as sub-rows and move with it.
+    readonly property var drivenFields: hasMain && section.driven ? section.driven : []
     // How far the frame of the open block reaches above the main row: around the shortcut rows
     // of the same module that stand before it (brightness and contrast above saturation).
     property real blockLift: 0
@@ -164,7 +167,8 @@ Column {
         }
         Item {
             id: subRows
-            visible: root.expanded
+            // Nothing but main rows (contrast brightness saturation): no sub-rows at all.
+            visible: root.expanded && subColumn.implicitHeight > 0
             width: parent.width
             implicitHeight: subColumn.implicitHeight
             Column {
@@ -181,8 +185,8 @@ Column {
                         width: parent.width
                         opacity: moduleEnabled ? 1 : .7
                         compact: true
+                        visible: !(root.hasMain && root.mainIds.includes(modelData.id))
                         sub: root.hasMain
-                        linked: root.hasMain && root.linkedIds.includes(modelData.id)
                         moduleToggleAvailable: false
                         qualifyLabel: false
                         displayLabel: modelData.id === "vibrance" ? "vibrance"
@@ -202,6 +206,33 @@ Column {
                         onActivated: if (root.hasDetails) root.expansionRequested()
                         onModuleResetRequested: root.resetModule()
                         onRevealRequested: if (!root.expanded && root.hasDetails) root.expansionRequested()
+                    }
+                }
+                Loader {
+                    width: parent.width
+                    active: root.drivenFields.length > 0 && root.hasExtra && root.expanded
+                    visible: active
+                    sourceComponent: GeneratedRows {
+                        objectName: "filter-driven-" + root.section.module
+                        theme: root.theme
+                        module: root.extraModule
+                        moduleState: root.moduleState
+                        catalogModel: root.catalogModel
+                        overrides: root.overrides
+                        overridePrefix: root.extraModule.operation + "/0/"
+                        editable: root.editable && !!root.moduleState
+                        moduleEnabled: root.moduleEnabled
+                        expanded: true
+                        extraMode: true
+                        onlyFields: root.drivenFields
+                        sub: true
+                        linked: true
+                        navGroup: root.section.key
+                        term: root.term
+                        activeControl: root.activeControl
+                        onChangesRequested: changes => root.parameterChangesRequested(changes)
+                        onInteractionChanged: active => root.interactionChanged(active)
+                        onControlSelected: id => root.controlSelected(id)
                     }
                 }
             }
@@ -255,6 +286,7 @@ Column {
                 expanded: true
                 moreOpen: true
                 extraMode: true
+                skipFields: root.drivenFields
                 navGroup: root.section.key
                 term: root.term
                 activeControl: root.activeControl

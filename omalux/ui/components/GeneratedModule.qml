@@ -24,10 +24,10 @@ Column {
     property bool compact: false
     // Unfolded beneath the summary rows of a pane, which stay as its main rows
     // (ModuleGroupsPanel): no card heading, a strip with the module's name, reset and instances
-    // instead, and every parameter as an indented sub-row. `linkedPaths` are the
-    // parameters those main rows drive.
+    // instead, and the other parameters as indented sub-rows: `mainPaths`, the parameters
+    // that are main rows above, are not repeated.
     property bool attached: false
-    property var linkedPaths: []
+    property var mainPaths: []
     readonly property bool cardOnly: compact && !expanded && term === ""
     signal expansionRequested()
     signal moreRequested()
@@ -117,7 +117,7 @@ Column {
                     x: root.attached ? 16 : 0
                 width: parent.width - x
                 sub: root.attached
-                linkedPaths: root.linkedPaths
+                skipPaths: root.attached ? root.mainPaths : []
                 indent: x
                     theme: root.theme
                     module: root.module

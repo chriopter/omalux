@@ -584,11 +584,11 @@ Item {
             press(Qt.Key_R, Qt.ShiftModifier)
             compare(JSON.stringify(top.logged("resetModule")), JSON.stringify([["resetModule", "sigmoid", 0]]), "Shift+R resets the module")
             // Enter on the summary row unfolds the module beneath it: the row stays the one stop
-            // of its parameter (the linked sub-row is none), the other parameters follow.
+            // of its parameter (it is not repeated beneath), the other parameters follow.
             press(Qt.Key_Return)
             tryVerify(() => order()[1] === "sigmoid/0/contrast_skewness", 1500, "the rows unfold under the kept row: " + JSON.stringify(order()))
             compare(order()[0], "sigmoid/0/middle_grey_contrast")
-            compare(order().filter(id => id.indexOf("middle_grey_contrast") >= 0).length, 1, "one stop for the linked parameter")
+            compare(order().filter(id => id.indexOf("middle_grey_contrast") >= 0).length, 1, "the main row's parameter is not repeated")
             verify(order().indexOf("module:sigmoid/0") < 0, "no second heading")
             compare(selected(), "sigmoid/0/middle_grey_contrast", "the selection stays on the kept row")
             press(Qt.Key_Down)
