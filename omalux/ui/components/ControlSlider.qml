@@ -47,15 +47,28 @@ Item {
         onSelected: root.selectedRequested()
         onRevealRequested: root.revealRequested()
     }
-    // One keyboard step in darktable's step size, within the hard range; whole steps stay
-    // whole for integer parameters.
+    // darktable's own step for the arrow keys (bauhaus.c, dt_bauhaus_slider_get_step with
+    // bauhaus/zoom_step on, as shipped): about a hundredth of the range the slider shows, as 1 or
+    // 5 of a decade of the displayed value; one native unit once that range reaches 100.
+    readonly property real keyStep: {
+        const f = Math.abs(root.control.factor || 1), o = root.control.offset || 0
+        const a = (slider.from - o) / f, b = (slider.to - o) / f
+        const top = Math.min(b - a, Math.max(Math.abs(a), Math.abs(b)))
+        if (!(top > 0)) return root.control.step
+        if (top >= 100) return f
+        const lg = Math.log10(top * f / 100), whole = Math.floor(lg + .1)
+        return Math.pow(10, whole) * (lg - whole > .5 ? 5 : 1)
+    }
+    // Values are stored as darktable stores them: rounded to the digits it displays.
+    function shown(value) { return Number(Number(value).toFixed(Math.max(0, root.control.decimals))) }
+    // One keyboard step, within the hard range; whole steps stay whole for integer parameters.
     function step(steps) {
         if (!root.editable) return
-        let delta = steps * root.control.step
+        let delta = steps * root.keyStep
         if (root.control.decimals === 0) delta = Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta)))
         const low = root.control.minimum !== undefined ? root.control.minimum : -Infinity
         const high = root.control.maximum !== undefined ? root.control.maximum : Infinity
-        const next = Math.max(low, Math.min(high, root.value + delta))
+        const next = Math.max(low, Math.min(high, root.shown(root.value + delta)))
         if (next !== root.value) root.edited(next)
     }
     implicitHeight: compact ? Math.max(48, controlLabel.implicitHeight + 28) : 52
@@ -80,7 +93,7 @@ Item {
         Popup {
             id: popup
             x: root.width-width; y: 0
-            function edit() { numberInput.text=String(root.value);open();numberInput.forceActiveFocus();numberInput.selectAll() }
+            function edit() { numberInput.text=String(root.shown(root.value));open();numberInput.forceActiveFocus();numberInput.selectAll() }
             TextField {
                 id: numberInput
                 width: 110
@@ -183,7 +196,7 @@ Item {
             value: root.value
             onPressedChanged: { root.interactionChanged(pressed); if (pressed) { navTarget.claim(); root.selectedRequested() } }
             onActiveFocusChanged: if (activeFocus) root.selectedRequested()
-            onMoved: root.edited(value)
+            onMoved: root.edited(root.shown(value))
             Accessible.name: root.control.section + " · " + root.control.label
             // Track and knob share one centre line: both are placed with the same integer
             // rounding, the track 3 px and the knob an odd size, so their centres coincide

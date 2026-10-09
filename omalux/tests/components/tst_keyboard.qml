@@ -165,7 +165,8 @@ Item {
         }
 
         function test_02_adjust_and_reset() {
-            const step = Fixture.controls.find(c => c.id === "exposure").step
+            // darktable's step for the shown -3 … 4 EV (bauhaus.c dt_bauhaus_slider_get_step).
+            const step = 0.05
             press(Qt.Key_Right)
             compare(selected(), "exposure", "the active control is the first selection")
             fuzzyCompare(value("exposure"), step, 1e-6)
@@ -456,7 +457,7 @@ Item {
             compare(selected(), "exposure")
             verify(flick.contentY < 20, "adjusting brings the selection back into view")
             for (let i = 0; i < 5; ++i) press(Qt.Key_Right)          // repeated keys accumulate
-            fuzzyCompare(value("exposure"), 6 * Fixture.controls[0].step, 1e-6)
+            fuzzyCompare(value("exposure"), 6 * 0.05, 1e-6)
         }
 
         function test_15_module_list() {
@@ -537,7 +538,7 @@ Item {
             press(Qt.Key_Right)
             tryVerify(() => edits().length === 1)
             compare(edits()[0][2], "middle_grey_contrast")
-            fuzzyCompare(edits()[0][3], contrast.value + 0.001, 1e-6, "one step of darktable's 3 digits, raw units")
+            fuzzyCompare(edits()[0][3], contrast.value + 0.01, 1e-6, "darktable's step for the shown 0.7 … 3, raw units")
             press(Qt.Key_R)
             tryVerify(() => edits().length === 2, 1500)
             fuzzyCompare(edits()[1][3], 1.5, 1e-6, "R: the row's default")

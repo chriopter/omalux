@@ -43,7 +43,7 @@ Column {
         const sb = (r.soft_max !== null ? r.soft_max : r.max) * f + o
         const digits = r.digits !== undefined && r.digits !== null ? r.digits : 2
         return { id: root.operation + "/0/" + r.path, label: e.label, unit: r.unit || "", colors: e.colors || "",
-                 decimals: digits, step: digits > 0 ? Math.pow(10, -digits) : 1,
+                 decimals: digits, step: digits > 0 ? Math.pow(10, -digits) : 1, factor: f, offset: o,
                  minimum: Math.min(a, b), maximum: Math.max(a, b),
                  softMinimum: Math.min(sa, sb), softMaximum: Math.max(sa, sb),
                  section: root.block.module.name }

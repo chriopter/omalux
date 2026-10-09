@@ -107,8 +107,85 @@ Item {
                   { value: 7, label: "drawn & parametric mask" }]
     }
 
+    // Sliders as darktable steps and stores them, and one range for a row wherever it is shown.
+    property real stepped: NaN
+    ControlSlider {
+        id: evSlider
+        x: 330; y: 60; width: 300
+        theme: th; editable: true; value: 0
+        control: ({ id: "ev", label: "exposure", unit: " EV", colors: "", decimals: 3, step: .01, factor: 1, offset: 0,
+                    minimum: -18, maximum: 18, softMinimum: -3, softMaximum: 4, section: "exposure" })
+        onEdited: v => stepped = v
+    }
+    ControlSlider {
+        id: anySlider
+        x: 330; y: 120; width: 300
+        theme: th; editable: true; value: 0
+        control: ({ id: "any", label: "any", unit: "", colors: "", decimals: 2, step: .01, minimum: 0, maximum: 1,
+                    softMinimum: 0, softMaximum: 1, section: "any" })
+    }
+    FilterModule {
+        id: vignetting
+        x: 330; y: 180; width: 300
+        theme: th; editable: true; activeControl: ""; expanded: false
+        values: ({ vignette: -0.5, vignette_scale: 80, vignette_enabled: 1 })
+        section: ({ module: "vignette", key: "vignette", name: "vignetting", primary: ["vignette"], shortTitle: true, controls: [
+            { id: "vignette", label: "brightness", module: "vignette", unit: "", colors: "light", decimals: 3, step: .01, factor: 1, offset: 0,
+              minimum: -1, maximum: 1, softMinimum: -1, softMaximum: 1, section: "vignetting", initial: -0.5 },
+            { id: "vignette_scale", label: "fall-off start", module: "vignette", unit: "%", colors: "", decimals: 2, step: 1, factor: 1, offset: 0,
+              minimum: 0, maximum: 200, softMinimum: 0, softMaximum: 200, section: "vignetting", initial: 80 }] })
+    }
+
     TestCase {
         name: "widgets"; when: windowShown
+        function slider(item, id) {
+            if (item.objectName === "control-slider-" + id) return item
+            for (const child of item.children) { const f = slider(child, id); if (f) return f }
+            return null
+        }
+        // bauhaus.c dt_bauhaus_slider_get_step: a hundredth of the shown range as 1 or 5 of a
+        // decade of the displayed value, one native unit from a range of 100.
+        function test_darktable_step() {
+            const shown = (lo, hi, factor, offset) => {
+                anySlider.control = Object.assign({}, anySlider.control, { softMinimum: lo, softMaximum: hi, minimum: lo, maximum: hi,
+                                                                             factor: factor, offset: offset })
+                return anySlider.keyStep
+            }
+            fuzzyCompare(evSlider.keyStep, 0.05, 1e-9, "exposure -3 … 4 EV")
+            fuzzyCompare(shown(0.7, 3, 1, 0), 0.01, 1e-9, "sigmoid contrast")
+            fuzzyCompare(shown(-100, 100, 1, 0), 1, 1e-9, "shadows -100 … 100")
+            fuzzyCompare(shown(-10, 10, 1, 0), 0.1, 1e-9, "white point adjustment")
+            fuzzyCompare(shown(1901, 25000, 1, 0), 1, 1e-9, "temperature in K")
+            fuzzyCompare(shown(0, 100, 100, 0), 1, 1e-9, "a 0 … 1 parameter shown in percent")
+            fuzzyCompare(shown(0, 500, 100, 100), 5, 1e-9, "local contrast detail, -1 … 4 shown as 0 … 500 %")
+            fuzzyCompare(shown(20, 6400, 213.2, 0), 50, 1e-9, "grain coarseness in ISO")
+            fuzzyCompare(shown(-0.1, 0.1, 1, 0), 0.001, 1e-12, "black level correction")
+        }
+        // A drag stores what darktable would: the value rounded to the digits it shows.
+        function test_slider_stores_shown_digits() {
+            const s = slider(evSlider, "ev")
+            stepped = NaN
+            mousePress(s, 100, s.height / 2); mouseMove(s, 137, s.height / 2); mouseMove(s, 171.3, s.height / 2)
+            mouseRelease(s, 171.3, s.height / 2)
+            verify(!isNaN(stepped), "the drag edits")
+            compare(stepped, Number(stepped.toFixed(3)), "three digits, as displayed")
+            evSlider.value = 0.2
+            evSlider.step(1)
+            compare(stepped, 0.25, "one key step")
+            evSlider.step(-0.1)
+            compare(stepped, 0.195, "a tenth step")
+            evSlider.value = 0
+        }
+        // The same value puts the knob at the same place collapsed and unfolded.
+        function test_same_range_collapsed_and_unfolded() {
+            const s = slider(vignetting, "vignette")
+            const collapsed = [s.from, s.to, s.visualPosition]
+            vignetting.expanded = true
+            compare([s.from, s.to, s.visualPosition], collapsed)
+            compare([s.from, s.to], [-1, 1], "darktable's range")
+            fuzzyCompare(s.visualPosition, 0.25, 1e-6)
+            vignetting.expanded = false
+        }
         // The colour popup takes the keys while open: Escape closes it.
         function test_swatch_escape() {
             sw.openPicker()

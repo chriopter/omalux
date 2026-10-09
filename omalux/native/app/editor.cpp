@@ -166,6 +166,9 @@ QVariantList Editor::controls() const {
                                   {"softMinimum", softLow},
                                   {"softMaximum", softHigh},
                                   {"step", c.step},
+                                  // Displayed = native * factor + offset, as in display.json.
+                                  {"factor", 1.0 / c.scale},
+                                  {"offset", -c.offset / c.scale},
                                   {"unit", unit},
                                   {"decimals", c.decimals},
                                   {"group", c.group},

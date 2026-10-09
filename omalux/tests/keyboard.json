@@ -14,7 +14,7 @@
  },
  {
   "check": {
-   "exposure": 0.3
+   "exposure": 0.7
   }
  },
  {
@@ -55,7 +55,7 @@
  },
  {
   "check": {
-   "grain_size": 1620
+   "grain_size": 1650
   }
  },
  {
@@ -69,7 +69,7 @@
  },
  {
   "check": {
-   "grain_size": 1620
+   "grain_size": 1650
   }
  },
  {
@@ -117,7 +117,7 @@
  },
  {
   "check": {
-   "rotation": 0.05
+   "rotation": 0.5
   }
  },
  {
@@ -165,7 +165,7 @@
   "checkParameter": {
    "operation": "sigmoid",
    "path": "middle_grey_contrast",
-   "value": 1.51,
+   "value": 1.6,
    "tolerance": 0.0005
   }
  },
