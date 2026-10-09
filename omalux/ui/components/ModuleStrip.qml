@@ -23,9 +23,12 @@ Item {
     readonly property string title: name + (instanceLabel !== "" ? " • " + instanceLabel : "")
     signal resetRequested()
     signal instanceRequested(string action, string name)
-    implicitHeight: 24
+    implicitHeight: 30
+    // One rule parts the main row from the module's rows, as the section rows below are parted.
+    Rectangle { x: -8; y: 2; width: parent.width + 8; height: 1; color: root.theme.line; opacity: .55 }
     RowLayout {
         anchors.fill: parent
+        anchors.topMargin: 6
         anchors.rightMargin: 28
         spacing: 2
         Text {

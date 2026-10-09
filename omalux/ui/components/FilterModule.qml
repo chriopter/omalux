@@ -167,13 +167,6 @@ Column {
             visible: root.expanded
             width: parent.width
             implicitHeight: subColumn.implicitHeight
-            // The guide line: the rows beside it are parts of the main row above.
-            Rectangle {
-                visible: root.hasMain
-                x: 3; y: 0
-                width: 1; height: parent.height - 6
-                color: root.theme.line
-            }
             Column {
                 id: subColumn
                 x: root.hasMain ? 16 : 0

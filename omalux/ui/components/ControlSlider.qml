@@ -13,7 +13,7 @@ Item {
     // smaller knob, so it reads as a part of that row.
     property bool sub: false
     // The sub-row of the very parameter the main row drives: both show one value and move
-    // together. A tick ties it to the guide line of the sub-rows, and it is not a keyboard stop
+    // together. A dot before its label marks it, and it is not a keyboard stop
     // of its own (the main row is).
     property bool linked: false
     readonly property color ink: sub && !linked ? theme.subInk : theme.ink
@@ -277,7 +277,7 @@ Item {
             onClicked: { navTarget.claim(); root.resetRequested() }
         }
     }
-    // A linked sub-row: a tick from the guide line (13 px to the left) towards the label.
+    // A linked sub-row (the one the main row above drives): a small dot before the label.
     Loader {
         active: root.linked
         visible: active
@@ -286,8 +286,7 @@ Item {
         sourceComponent: Item {
             objectName: "control-linked-" + root.control.id
             width: 9; height: 5
-            Rectangle { y: 2; width: 6; height: 1; color: root.theme.ink; opacity: .8 }
-            Rectangle { x: 4; width: 5; height: 5; radius: 2.5; color: root.theme.ink }
+            Rectangle { x: 4; width: 5; height: 5; radius: 2.5; color: root.theme.ink; opacity: .8 }
         }
     }
     // Only rows with details have the chevron; the others do not build one.

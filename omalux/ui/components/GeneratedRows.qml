@@ -38,8 +38,6 @@ Column {
     property real indent: 0
     readonly property font rowFont: sub ? theme.textFont : theme.settingsFont
     readonly property color rowInk: sub ? theme.subInk : theme.ink
-    // Where the parameter rows end (the guide line beside them stops there).
-    readonly property real guideEnd: moreRow.visible ? moreRow.y : height
     signal changesRequested(var changes)
     signal interactionChanged(bool active)
     signal controlSelected(string id)

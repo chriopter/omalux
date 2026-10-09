@@ -24,7 +24,7 @@ Column {
     property bool compact: false
     // Unfolded beneath the summary rows of a pane, which stay as its main rows
     // (ModuleGroupsPanel): no card heading, a strip with the module's name, reset and instances
-    // instead, and every parameter as a sub-row beside a guide line. `linkedPaths` are the
+    // instead, and every parameter as an indented sub-row. `linkedPaths` are the
     // parameters those main rows drive.
     property bool attached: false
     property var linkedPaths: []
@@ -112,13 +112,6 @@ Column {
         Item {
             width: parent.width
             implicitHeight: rows.implicitHeight
-            // The guide line: the rows beside it are parts of the summary rows above.
-            Rectangle {
-                visible: root.attached
-                x: 3
-                width: 1; height: Math.max(0, rows.guideEnd - 6)
-                color: root.theme.line
-            }
                 GeneratedRows {
                     id: rows
                     x: root.attached ? 16 : 0
