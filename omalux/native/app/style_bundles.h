@@ -8,5 +8,8 @@ struct StyleFile {
     // ({"version": 1, "name": "DHH", "order": 1}); empty when the folder names say it all.
     QString family;
     int familyOrder = 0;
+    // The film profile this look belongs with (style.json "film": a film's id or name), if any.
+    // The look does not apply it; the Looks pane offers it.
+    QString film;
 };
 std::vector<StyleFile> discoverStyles(const QString &directory);

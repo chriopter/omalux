@@ -336,13 +336,22 @@ static char *take_json(JsonNode *node) {
     return result;
 }
 
+// The LUT 3D instance that carries the film profile is marked: it is chosen in the Camera pane
+// and the module panes leave it out, so their LUT 3D stays the look's (film_profiles.c).
+static JsonObject *describe_module_for(OmEngine *engine, dt_iop_module_t *module, int position) {
+    JsonObject *entry = describe_module(module, position);
+    if (module == om_film_module(engine))
+        json_object_set_boolean_member(entry, "film_profile", TRUE);
+    return entry;
+}
+
 char *om_engine_modules(OmEngine *engine) {
     if (!engine->loaded)
         return NULL;
     JsonArray *modules = json_array_new();
     int position = 0;
     for (GList *it = engine->dev.iop; it; it = it->next)
-        json_array_add_object_element(modules, describe_module(it->data, position++));
+        json_array_add_object_element(modules, describe_module_for(engine, it->data, position++));
     JsonNode *node = json_node_new(JSON_NODE_ARRAY);
     json_node_take_array(node, modules);
     return take_json(node);
@@ -367,7 +376,7 @@ char *om_engine_module_at(OmEngine *engine, int position) {
     if (!module)
         return NULL;
     JsonNode *node = json_node_new(JSON_NODE_OBJECT);
-    json_node_take_object(node, describe_module(module, position));
+    json_node_take_object(node, describe_module_for(engine, module, position));
     return take_json(node);
 }
 

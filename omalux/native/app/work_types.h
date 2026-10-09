@@ -28,7 +28,8 @@ enum class ActionKind {
     ModuleInstance,
     // A darktable picker or module button (engine/module_tools.h); values hold the request.
     ModuleTool,
-    // A camera preset put on the image by hand or taken off; values carry "name" and "on".
+    // A camera preset put on the image by hand or taken off; values carry "name", "on" and
+    // "film" (a film profile, which has its own LUT 3D instance).
     CameraPreset,
     // Drawing on the image (engine/canvas.h): one gesture, or which module's tool is shown.
     CanvasEdit,

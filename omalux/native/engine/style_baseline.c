@@ -29,6 +29,9 @@ void om_style_baseline_capture(OmEngine *engine) {
 void om_style_baseline_restore(OmEngine *engine) {
     for (GList *it = engine->dev.iop; it; it = it->next) {
         dt_iop_module_t *module = it->data;
+        // The film profile is a base under the looks, not part of one (film_profiles.c).
+        if (module == engine->film_module)
+            continue;
         OmStyleBaseline *state = NULL;
         for (GList *saved = engine->style_baseline; saved; saved = saved->next)
             if (((OmStyleBaseline *)saved->data)->module == module) {

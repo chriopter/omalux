@@ -797,6 +797,27 @@ static gchar *below(const char *root, const char *path) {
                 *c = '/';
     return out;
 }
+// The LUT root may hold links to the folders with the files (Omalux's own root links the style
+// and camera catalogues, omalux/style_assets.py): a file chosen in such a folder by its real
+// path is below the root through that link.
+static gchar *below_links(const char *root, const char *path) {
+    gchar *out = below(root, path);
+    GDir *dir = !out && root && root[0] ? g_dir_open(root, 0, NULL) : NULL;
+    const gchar *name;
+    while (dir && !out && (name = g_dir_read_name(dir))) {
+        gchar *entry = g_build_filename(root, name, NULL);
+        gchar *target = g_file_test(entry, G_FILE_TEST_IS_SYMLINK) ? realpath(entry, NULL) : NULL;
+        gchar *inside = target ? below(target, path) : NULL;
+        if (inside)
+            out = g_strdup_printf("%s/%s", name, inside);
+        g_free(inside);
+        free(target);
+        g_free(entry);
+    }
+    if (dir)
+        g_dir_close(dir);
+    return out;
+}
 static int write_text(dt_iop_module_t *module, const char *name, const char *value) {
     char *target = param(module, name);
     const dt_introspection_field_t *f = module->get_f ? module->get_f(name) : NULL;
@@ -810,7 +831,7 @@ static int write_text(dt_iop_module_t *module, const char *name, const char *val
 // relative to it (_button_clicked, lut3d.c:1655-1667, then _filepath_callback).
 static int set_lut_file(dt_iop_module_t *module, const char *path) {
     gchar *root = dt_conf_get_string("plugins/darkroom/lut3d/def_path");
-    gchar *rel = below(root, path);
+    gchar *rel = below_links(root, path);
     g_free(root);
     int error = rel && has_extension(rel, lut_extensions) ? write_text(module, "filepath", rel) : 5;
     // a .gmz keeps the LUT name and is read after the edit (lut3d_gmz_params.c)

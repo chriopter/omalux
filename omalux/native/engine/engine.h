@@ -56,12 +56,16 @@ int om_engine_import_camera_presets(const char *directory);
 // preset's key), "title", "description", "maker", "model" (readable, "" for a whole maker),
 // "operation", "module" (darktable's module name), "matches" (darktable auto-applies it to
 // this image), "makerMatches", "general" (meant for every maker), "applied" (the module
-// carries it now), "available", "reason" (why it cannot be put on this image)}.
+// carries it now), "available", "reason" (why it cannot be put on this image)}. Film profiles
+// (presets for LUT 3D) follow with "film": true and {"name", "title" (the film's name as its
+// history step shows it), "description", "group", "brand", "stock", "variant", "id",
+// "operation", "module", "applied", "available", "reason"}.
 char *om_engine_camera_presets(OmEngine *engine);
 // Put a camera preset on the open image by hand (on) or take it off again, as one history
 // item; applying is darktable's preset menu (camera_presets.c). Returns 0, or 1 no image,
 // 2 no such preset or module, 3 wrong module version, 4 the module cannot run on this image,
-// 5 the preset is not on the image.
+// 5 the preset is not on the image, 6 a film's lookup table is missing. A film profile goes on
+// a LUT 3D instance of its own before the base one, one film at a time (film_profiles.c).
 int om_engine_camera_preset(OmEngine *engine, const char *name, int on);
 int om_engine_export(OmEngine *engine, const char *filename, const char *format_name, int quality);
 char *om_engine_snapshot(OmEngine *engine, const char *name, const char *prefix);

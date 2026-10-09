@@ -315,10 +315,20 @@ QString EngineWorker::applyModuleEdits(OmEngine *engine, Request &request, Contr
             result = applyCanvasEdit(engine, edit);
         else if (edit.kind == ActionKind::ResetModule)
             result = om_engine_reset_module(engine, operation.constData(), edit.instance);
-        else if (edit.kind == ActionKind::CameraPreset)
+        else if (edit.kind == ActionKind::CameraPreset) {
             result = om_engine_camera_preset(
                 engine, edit.values.value("name").toString().toUtf8().constData(),
                 edit.values.value("on").toBool());
+            // A film profile has a LUT 3D instance of its own before the base one: the module
+            // list may have grown, and an instance's place cannot travel in a style, so split
+            // mode gets the whole history as an XMP sidecar, as for moved instances.
+            if (!result && edit.values.value("film").toBool()) {
+                moduleCatalog.reload(engine);
+                if (!bridge.instances(engine, request.ticket.revision))
+                    qWarning() << "Could not synchronize the film profile";
+                continue;
+            }
+        }
         else if (edit.kind == ActionKind::ModuleInstance) {
             // New, duplicated, moved, renamed or deleted instances change the module list:
             // the whole catalog is described again.

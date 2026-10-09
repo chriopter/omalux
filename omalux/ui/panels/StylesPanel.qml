@@ -53,6 +53,16 @@ SidebarScrollView {
         return modules.length ? [{ id: "looks", label: "Look modules", fixed: true, quiet: false, modules: modules }] : []
     }
     readonly property var cameraPresets: (cameraDefaults || []).filter(e => e.group === "Camera presets")
+    // A look may name the film profile it belongs with (style.json "film": the film's id or
+    // name). While that look is applied and no film is on, the Looks pane offers the film; it
+    // is never put on by itself.
+    readonly property var lookFilm: {
+        const style = (root.styles || []).find(s => s.name === root.appliedStyle)
+        if (!style || !style.film) return null
+        const films = (root.allCameraPresets || []).filter(p => !!p.film)
+        if (films.some(p => p.applied)) return null
+        return films.find(p => p.available && (p.id === style.film || p.title === style.film || p.name === style.film)) || null
+    }
     // The looks as a thumbnail grid: favourites (and the basic looks) on top, then one
     // collapsible group per family of the catalogue (catalog/styles/<family>/…, series by their
     // sub-folder; named by the folders, or by the `family` a look carries from a family.json in
@@ -302,6 +312,40 @@ SidebarScrollView {
                     ToolTip.delay: 500
                     ToolTip.text: "Save the current edit as a look"
                     NavTarget { id: saveNav; navId: "save"; label: "save current look"; enabled: saveButton.enabled; onActivate: root.saveRequested() }
+                }
+            }
+            AbstractButton {
+                id: filmOffer
+                objectName: "style-film-offer"
+                visible: root.looksView && !!root.lookFilm
+                width: parent.width
+                height: 26
+                padding: 0
+                hoverEnabled: true
+                enabled: root.photoReady && !root.busy
+                onClicked: { filmOfferNav.claim(); root.cameraPresetRequested(root.lookFilm.name, true) }
+                Accessible.name: root.lookFilm ? "Put the look's film on: " + root.lookFilm.title : ""
+                NavTarget {
+                    id: filmOfferNav
+                    navId: "style-film-offer"
+                    label: "with its film"
+                    enabled: filmOffer.visible && filmOffer.enabled
+                    activateLabel: "APPLY FILM"
+                    onActivate: if (root.lookFilm) root.cameraPresetRequested(root.lookFilm.name, true)
+                }
+                background: Rectangle {
+                    radius: 4
+                    color: filmOffer.pressed ? root.theme.active : filmOffer.hovered ? root.theme.hover : "transparent"
+                    border.width: filmOfferNav.current || filmOffer.visualFocus ? 1 : 0
+                    border.color: root.theme.accent
+                }
+                contentItem: Text {
+                    leftPadding: 4
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                    text: root.lookFilm ? "with its film: " + root.lookFilm.title + " ›" : ""
+                    color: filmOffer.hovered || filmOfferNav.current ? root.theme.accent : root.theme.muted
+                    font: root.theme.textFont
                 }
             }
             Text {

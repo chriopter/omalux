@@ -13,7 +13,8 @@ import QtQuick.Layouts
 // One maker is open at a time; the photograph's maker is opened when it is known. A click on
 // a row puts the preset on, a click on an applied one takes it off again. A preset that
 // cannot work on this photograph is greyed and says why. `presets` is the engine's list
-// (Editor.cameraPresets); the choice leaves as presetRequested(name, on).
+// (Editor.cameraPresets); the choice leaves as presetRequested(name, on). The film profiles in
+// that list follow the makers as groups of their own (FilmProfileList).
 Column {
     id: root
     required property var theme
@@ -28,6 +29,7 @@ Column {
     readonly property var makers: {
         const groups = []
         for (const preset of root.presets || []) {
+            if (preset.film) continue      // film profiles have their own list below
             let group = groups.find(g => g.maker === preset.maker)
             if (!group) groups.push(group = { maker: preset.maker, presets: [], applied: 0, mine: false, general: !!preset.general })
             group.presets.push(preset)
@@ -216,5 +218,13 @@ Column {
                 }
             }
         }
+    }
+    FilmProfileList {
+        objectName: "film-profile-list"
+        width: root.width
+        theme: root.theme
+        films: (root.presets || []).filter(p => !!p.film)
+        ready: root.ready
+        onPresetRequested: (name, on) => root.presetRequested(name, on)
     }
 }

@@ -173,8 +173,9 @@ int om_engine_apply_style(OmEngine *engine, const char *path, const char *name, 
         }
     }
     om_style_baseline_restore(engine);
-    GList *used = NULL;
     dt_ioppr_update_for_style_items(&engine->dev, items, FALSE);
+    // A film profile keeps its own LUT 3D instance; the look's goes to the base one.
+    GList *used = om_film_style_items(&engine->dev, om_film_module(engine), items);
     for (GList *it = items; it; it = it->next)
         dt_styles_apply_style_item(&engine->dev, it->data, &used, FALSE);
     g_list_free(used);

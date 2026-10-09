@@ -30,7 +30,9 @@ char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const 
                 include = TRUE;
         if (only_module && strcmp(only_module, "*"))
             include = !strcmp(module->op, only_module);
-        if (!include)
+        // A saved look does not take the film profile along: the film is chosen separately and
+        // lies under whichever look is applied. Comparison snapshots carry it.
+        if (!include || (!only_module && module == om_film_module(engine)))
             continue;
         // Comparison snapshots (only_module set) target the same image: a raster mask taken from
         // another module of the pipe stays meaningful there; a saved style travels to other

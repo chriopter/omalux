@@ -56,6 +56,28 @@ def prepare_camera_profiles(camera_root, configs):
     return copied
 
 
+def prepare_lut_root(styles, camera_root, folder):
+    """Build darktable's one LUT root folder for a session and return it.
+
+    Looks name their lookup table relative to the style catalogue (film/film-chrome/look.cube),
+    film profiles relative to the camera catalogue as camera/<group>/<film>/<file>. darktable
+    has a single root (plugins/darkroom/lut3d/def_path), so the session's root links every
+    entry of the style catalogue and the camera catalogue as `camera`. `my-styles` is linked
+    before it exists: looks saved during the session are stored there."""
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    styles = Path(styles)
+    names = {entry.name for entry in styles.iterdir()} | {'my-styles'}
+    if camera_root and Path(camera_root).is_dir():
+        if 'camera' in names:
+            raise ValueError('The style catalogue has an entry named "camera", which the LUT root '
+                             'reserves for the camera catalogue')
+        (folder / 'camera').symlink_to(Path(camera_root).resolve(), target_is_directory=True)
+    for name in sorted(names):
+        (folder / name).symlink_to(styles / name)
+    return folder
+
+
 def prepare_assets(catalogue, configs):
     """Return per-style errors; validate all destinations before copying any."""
     errors, plans, owners = {}, {}, {}

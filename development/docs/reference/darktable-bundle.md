@@ -23,7 +23,7 @@ Styles reference their LUT by the catalogue-relative path (for example `film/fil
 
 ## Camera presets
 
-Camera presets live in `catalog/camera/<maker>/<model>.dtpreset`; a preset that selects an input profile keeps the profile beside it as `catalog/camera/<maker>/<model>.icc`. Omalux imports these presets into its own session and copies the profiles into darktable's `color/in`, so the app shows the same base as a darktable user who installed the bundle. A preset file is what darktable itself writes from preferences → presets → export:
+Camera presets live in `catalog/camera/<maker>/<model>.dtpreset` (film profiles, which are presets too, have their own section below); a preset that selects an input profile keeps the profile beside it as `catalog/camera/<maker>/<model>.icc`. Omalux imports these presets into its own session and copies the profiles into darktable's `color/in`, so the app shows the same base as a darktable user who installed the bundle. A preset file is what darktable itself writes from preferences → presets → export:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,6 +77,81 @@ It reads the camera's colour matrix from rawspeed's `data/cameras.xml` in the da
 Adobe DCP files must be converted first (for example with DCamProf), and only profiles whose licence allows redistribution belong in the repository.
 
 The calibration renderer applies the same presets to RAW inputs by camera (`DT_CAMERA_PRESETS=0` disables that), so the looks are fitted on the base a darktable user with the presets installed will see.
+
+## Film profiles
+
+A film profile is a lookup table for darktable's *LUT 3D* module plus a module preset that names it. The catalogue ships the film profiles of the DHH set, converted to lookup tables: 89 film stocks, most in the two variants of the set (`C` and `L`), 176 tables. They are independent of the camera and work on RAW and JPEG files. Each table maps sRGB to sRGB and belongs where a look's lookup table sits, after the tone mapping; that is where darktable places LUT 3D.
+
+### Layout
+
+```
+catalog/camera/<group>/<film>/film.json        what the film is and which tables it has
+catalog/camera/<group>/<film>/<variant>.png    the lookup table of a variant (HALD image; .cube and .3dl work too)
+catalog/camera/<group>/<film>/<variant>.dtpreset   the LUT 3D preset naming that table; generated
+```
+
+`<group>` is `dhh`, `<film>` the film stock in lower case with `-` between words (`kodak-portra-400`, `portra-800-plus-1`), `<variant>` the variant key in lower case (`c`, `l`).
+
+`film.json`:
+
+```json
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Portra 400",
+  "colorspace": "srgb",
+  "interpolation": "tetrahedral",
+  "variants": [
+    {"key": "C", "name": "Kodak Portra 400 2C", "lut": "c.png", "id": "film-kodak-portra-400-2c"},
+    {"key": "L", "name": "Kodak Portra 400 L", "lut": "l.png", "id": "film-kodak-portra-400-l"}
+  ]
+}
+```
+
+- `group` is the heading in Omalux, written as it should read (`DHH`); `brand` the sub-heading; `name` the film stock, one row.
+- `colorspace` is LUT 3D's *application color space*: `srgb`, `adobergb`, `rec709`, `linear-rec709`, `linear-rec2020` or `linear-prophoto`; `interpolation` is `tetrahedral`, `trilinear` or `pyramid`.
+- A variant has the `key` shown on its chip, the `name` of the film as the set writes it (shown in History and in tooltips), its `lut` file beside `film.json`, and an `id` by which a look can name its film (`"film"` in the look's `style.json`).
+- None of these texts may contain ` · `, which separates them in the preset.
+
+The preset (`<variant>.dtpreset`) is an ordinary darktable preset file as above, with:
+
+| field | value |
+| --- | --- |
+| `name` | `Omalux <group>: <variant name>` (`Omalux DHH: Kodak Portra 400 2C`); unique |
+| `description` | `<group> · <brand> · <film> · <key> · <id>`; Omalux reads group, brand, film stock, variant and id from it |
+| `operation`, `op_version` | `lut3d`, 3 |
+| `op_params` | `dt_iop_lut3d_params_t`: `filepath` = `camera/<group>/<film>/<lut>`, colour space, interpolation, no compressed table. Written in darktable's compressed form (`gz…`), because the parameters are 13 kB of mostly zeros |
+| `blendop_params` | default blending with blend colour space 4 (RGB, scene-referred), as for every preset here |
+| `multi_name`, `multi_name_hand_edited` | the variant name, 0: the module instance and its history step are named after the film, and another film renames it |
+| `autoapply`, `maker`, `model`, `format`, `filter` | 0, `%`, `%`, 0, 0: never applied automatically, offered for every image |
+
+`development/tools/darktable/film_profiles.py` writes and checks all of this:
+
+```sh
+python3 development/tools/darktable/film_profiles.py install <converted films> [catalog/camera] [--cube]
+python3 development/tools/darktable/film_profiles.py generate    # film.json + tables -> .dtpreset
+python3 development/tools/darktable/film_profiles.py check       # presets agree with film.json; the regression suite runs it
+```
+
+`install` takes a folder with one sub-folder per converted film, each holding `look.cube`, a `style.json` with `name` (the film as the set writes it, variant included), `group`, `family` (the variant key) and `kind: "film"`, and optionally a `style.dtstyle` whose `lut3d` item gives colour space and interpolation. The sub-folder's name becomes the variant's `id`. Variants of one film are found by their name without the trailing key (`… - C`, `… C`, `… 2C`, `… L`); the brand comes from the name's first words. The catalogue folder of each installed film is rewritten.
+
+### HALD images instead of cubes
+
+A 33-node cube as text is about 950 kB; `install` stores each table as a 16-bit HALD image of level 6 (36 nodes per axis, 216 × 216 pixels, about 190 kB, 36 MB for the set), which LUT 3D reads directly. The cube is resampled at the 36 nodes with tetrahedral interpolation, the way LUT 3D reads a cube by default. Rendered with the Omalux engine on the beach photograph, three films (Kodak Portra 400, Fuji Velvia 50, Kodak TRI-X 400) differed between HALD image and cube by 0.04 to 0.07 of 255 on average. `--cube` keeps the cube files.
+
+### The LUT root folder
+
+darktable has one *3D LUT root folder* (`plugins/darkroom/lut3d/def_path`), and every LUT 3D file name is relative to it. Looks name their table relative to the style catalogue (`film/film-chrome/look.cube`), film profiles as `camera/<group>/<film>/<lut>`. The root therefore has to hold the style catalogue's folders and the camera catalogue as `camera`:
+
+- **Omalux** builds that folder per session (`omalux/style_assets.py`, `prepare_lut_root`): links to every entry of `catalog/styles/` (and to `my-styles`, where saved looks go) plus `camera` → `catalog/camera/`. A style family must not be called `camera`.
+- **The darktable bundle** has it as `luts/`: the looks' tables in the catalogue layout and the films' tables under `luts/camera/dhh/…`. A darktable user sets *preferences → processing → 3D LUT root folder* to the bundle's `luts/` folder once; looks and films both resolve from it.
+
+In plain darktable a film is a preset of LUT 3D (preset menu of the module). To use a film together with a look there, create a second instance of LUT 3D, move it before the first, and apply the film preset to it; the look's style then lands on the other instance. Omalux does this by itself (see `controls.md`, Film profiles).
+
+### Placeholder films for tests
+
+`omalux/tests/camera/dhh/` holds three made-up films in this layout (`film_profiles.py placeholders omalux/tests/camera`); the regression suite adds them to a copy of the camera catalogue. They are not catalogue content.
 
 ## What the bundle does not do
 

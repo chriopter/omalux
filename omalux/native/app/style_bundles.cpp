@@ -106,6 +106,9 @@ std::vector<StyleFile> discoverStyles(const QString &directory) {
             else if (!foundName || !foundStyle)
                 style.error = "Style name or settings missing";
         }
+        QFile manifest(entry.dir().filePath("style.json"));
+        if (manifest.open(QIODevice::ReadOnly))
+            style.film = QJsonDocument::fromJson(manifest.readAll()).object()["film"].toString();
         if (assetErrors.contains(style.id))
             style.error = assetErrors.value(style.id).toString();
         result.push_back(style);

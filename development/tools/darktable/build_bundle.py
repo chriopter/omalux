@@ -11,6 +11,8 @@ Output layout:
       luts/<catalogue path>.cube      the LUT files the styles reference (unless embedded)
       camera/<maker>/<model>.dtpreset automatically applied camera presets
       camera/<maker>/<model>.icc      input profiles those presets select, if any
+      camera/<group>/<film>/<variant>.dtpreset  film profiles: LUT 3D presets
+      luts/camera/<group>/<film>/<variant>.png  the lookup tables those presets name
       README.md                       how to install in darktable
 
 Styles keep the catalogue-relative LUT path, so darktable's LUT root
@@ -129,7 +131,9 @@ def convert_style(bundle: Path, out_styles: Path, out_luts: Path, embed: bool, e
     return name, lut_note
 
 
-def copy_camera(out: Path):
+def copy_camera(out: Path, luts: Path):
+    """Copy the presets, the input profiles beside them and, for film profiles (LUT 3D presets),
+    their lookup tables to luts/camera/…, the path the presets name below the LUT root."""
     if not CAMERA.is_dir():
         return 0
     count = 0
@@ -140,6 +144,12 @@ def copy_camera(out: Path):
         icc = style.with_suffix(".icc")
         if icc.exists():
             shutil.copy(icc, (out / rel).with_suffix(".icc"))
+        for suffix in (".png", ".cube", ".3dl"):
+            lut = style.with_suffix(suffix)
+            if lut.exists():
+                dest = luts / "camera" / rel.with_suffix(suffix)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(lut, dest)
         count += 1
     return count
 
@@ -160,6 +170,11 @@ README = """# Omalux looks and camera presets for darktable
    Each preset is applied automatically to RAW files of its camera model and selects that profile
    (for the current set: embedded lens correction). Looks stay independent of it.
 
+3. Film profiles (`camera/dhh/…`) are presets of the *LUT 3D* module: import them the same way and
+   choose one in that module's preset menu. Their lookup tables are in `luts/camera/`, so the
+   *3D LUT root folder* has to be this bundle's `luts/` folder, as for the looks. To combine a film
+   with a look, give the film its own instance of *LUT 3D* placed before the look's.
+
 {camera_note}
 """
 
@@ -178,7 +193,7 @@ def main():
         for bundle in sorted(p.parent for p in STYLES.rglob("style.dtstyle")):
             name, note = convert_style(bundle, styles, luts, a.embed_luts, a.error, Path(td))
             print(f"{name}{note}")
-    n = copy_camera(camera)
+    n = copy_camera(camera, luts)
     lut_step = ("Nothing else: the LUT data is stored inside each style." if a.embed_luts else
                 "darktable → preferences → *processing* → *3D LUT root folder*: choose the `luts/` folder from this bundle. "
                 "The styles reference their LUT files relative to it.")

@@ -46,6 +46,7 @@ QVariantList StyleCatalog::reload(OmEngine *engine) {
                           {"error", style.error},
                           {"family", style.family},
                           {"familyOrder", style.familyOrder},
+                          {"film", style.film},
                           {"modules", QVariantList{}}};
         if (style.error.isEmpty()) {
             char *raw = om_engine_style_details(engine, style.path.toUtf8().constData(),

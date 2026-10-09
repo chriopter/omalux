@@ -85,7 +85,7 @@ QtObject {
                 }
                 root.addDerived(m, values)
                 const state = { operation: m.operation, instance: m.instance, label: m.label, enabled: !!m.enabled,
-                                hidden: !!m.hidden, values: values, params: params,
+                                hidden: !!m.hidden, filmProfile: !!m.film_profile, values: values, params: params,
                                 derived: m.derived || ({}), labels: m.labels || ({}) }
                 Object.assign(state, root.extras(m))
                 cached = { state: state, paths: m.parameters.some(p => p.path !== undefined) }
@@ -95,6 +95,9 @@ QtObject {
             next[key] = state
             cache[entry.signature] = cached
             if (cached.paths) paths = true
+            // The film profile's LUT 3D instance belongs to the Camera pane: the module panes
+            // list the other instances only, so their LUT 3D card stays the look's.
+            if (state.filmProfile) continue
             if (!inst[state.operation]) inst[state.operation] = []
             inst[state.operation].push(state.instance)
         }

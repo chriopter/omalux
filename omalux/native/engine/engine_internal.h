@@ -28,6 +28,9 @@ struct OmEngine {
     GList *style_baseline;
     // Module states from before a camera preset was applied by hand (camera_presets.c).
     GList *camera_preset_undo;
+    // The LUT 3D instance that carries the film profile (film_profiles.c); read it through
+    // om_film_module.
+    dt_iop_module_t *film_module;
     // Drawn shapes last rendered (canvas.c): their change invalidates the pipe cache.
     guint64 canvas_forms_hash;
 };
@@ -47,6 +50,20 @@ void om_style_baseline_forget(OmEngine *engine, const dt_iop_module_t *module);
 void om_camera_presets_clear(OmEngine *engine);
 void om_camera_presets_forget(OmEngine *engine, const dt_iop_module_t *module);
 void om_camera_presets_add_matched(OmEngine *engine, JsonArray *rows);
+// Film profiles (film_profiles.c): a lut3d preset on an instance of its own before the base
+// one. om_film_module is that instance of the editor's context or NULL; om_film_create adds it
+// to a develop context; om_film_unavailable says why a film's parameters cannot run (NULL when
+// they can); om_film_write puts parameters, blending and name on it, switched on, without a
+// history item. om_film_style_items keeps a style's lut3d items on the base instance and
+// returns the `modules_used` list to start dt_styles_apply_style_item with; om_film_mirror
+// gives a scratch context the editor's film.
+dt_iop_module_t *om_film_module(OmEngine *engine);
+dt_iop_module_t *om_film_create(dt_develop_t *dev);
+const char *om_film_unavailable(const dt_iop_module_t *base, const void *params, int params_size);
+void om_film_write(dt_iop_module_t *film, const void *params, const dt_develop_blend_params_t *blend,
+                   const char *label);
+GList *om_film_style_items(dt_develop_t *dev, dt_iop_module_t *film, GList *items);
+dt_iop_module_t *om_film_mirror(OmEngine *engine, dt_develop_t *scratch);
 void om_instance_describe(JsonObject *entry, dt_iop_module_t *module);
 char *om_snapshot(OmEngine *engine, const char *name, const char *prefix, const char *only_module);
 

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Test Mute 800",
+  "colorspace": "srgb",
+  "interpolation": "tetrahedral",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Test Mute 800 C",
+      "lut": "c.png",
+      "id": "film-fuji-test-mute-800-c"
+    }
+  ]
+}

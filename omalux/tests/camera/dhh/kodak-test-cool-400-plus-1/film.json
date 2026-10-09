@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Test Cool 400⁺¹",
+  "colorspace": "srgb",
+  "interpolation": "tetrahedral",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Test Cool 400⁺¹ 2C",
+      "lut": "c.png",
+      "id": "film-kodak-test-cool-400-plus-1-2c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Test Cool 400⁺¹ L",
+      "lut": "l.png",
+      "id": "film-kodak-test-cool-400-plus-1-l"
+    }
+  ]
+}

@@ -44,7 +44,9 @@ FOR_LDR, FOR_RAW, FOR_HDR = 1, 2, 4
 # keep 0. No preset uses a mask, so the value has no effect on the rendering.
 BLEND_CS_NONE, BLEND_CS_LAB, BLEND_CS_RGB_SCENE = 0, 2, 4
 BLEND_CST = {"sharpen": BLEND_CS_LAB, "nlmeans": BLEND_CS_LAB, "rgblevels": BLEND_CS_RGB_SCENE,
-             "lens": BLEND_CS_NONE, "colorin": BLEND_CS_NONE}
+             "lens": BLEND_CS_NONE, "colorin": BLEND_CS_NONE,
+             # LUT 3D works in RGB like rgb levels; its presets are the film profiles (film_profiles.py).
+             "lut3d": BLEND_CS_RGB_SCENE}
 
 
 def blend_params(operation):
@@ -123,7 +125,10 @@ TABLE = [
 
 
 def preset_xml(name, description, operation, params_hex, version, maker, model, fmt=FOR_RAW,
-               autoapply=True, multi_name=""):
+               autoapply=True, multi_name="", hand_edited=None):
+    # hand_edited: whether the instance name counts as typed by hand (darktable then keeps it
+    # when another preset is applied); by default it does whenever a name is given.
+    hand_edited = bool(multi_name) if hand_edited is None else hand_edited
     root = ET.Element("darktable_preset", version="1.0")
     p = ET.SubElement(root, "preset")
     fields = [("name", name), ("description", description), ("operation", operation), ("op_params", params_hex),
@@ -131,7 +136,7 @@ def preset_xml(name, description, operation, params_hex, version, maker, model, 
               ("lens", "%"), ("iso_min", "0"), ("iso_max", FLOAT_MAX), ("exposure_min", "0"), ("exposure_max", FLOAT_MAX),
               ("aperture_min", "0"), ("aperture_max", FLOAT_MAX), ("focal_length_min", "0"), ("focal_length_max", "1000"),
               ("blendop_params", blend_params(operation)), ("blendop_version", str(BLEND_VERSION)), ("multi_priority", "0"), ("multi_name", multi_name),
-              ("multi_name_hand_edited", "1" if multi_name else "0"), ("filter", "0"), ("def", "0"), ("format", str(fmt))]
+              ("multi_name_hand_edited", "1" if hand_edited else "0"), ("filter", "0"), ("def", "0"), ("format", str(fmt))]
     for tag, value in fields:
         ET.SubElement(p, tag).text = value
     ET.indent(root)

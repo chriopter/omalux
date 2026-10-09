@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Other",
+  "name": "Test Warm 100",
+  "colorspace": "srgb",
+  "interpolation": "tetrahedral",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Test Warm 100 - C",
+      "lut": "c.png",
+      "id": "film-test-warm-100-c"
+    },
+    {
+      "key": "L",
+      "name": "Test Warm 100 - L",
+      "lut": "l.png",
+      "id": "film-test-warm-100-l"
+    }
+  ]
+}

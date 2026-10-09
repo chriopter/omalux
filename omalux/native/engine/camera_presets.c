@@ -10,6 +10,10 @@
 //
 // Applying follows dt_gui_presets_apply_preset (gui/presets.c, 1044) without its GTK calls; see
 // om_engine_camera_preset.
+//
+// Film profiles are the catalogue's presets for LUT 3D ("Omalux <group>: <film name>").
+// They are listed apart, one at a time is on, and they go to an instance of their own before
+// the base one instead of the base instance (film_profiles.c).
 #include "engine_internal.h"
 #include "common/database.h"
 #include "common/debug.h"
@@ -37,6 +41,7 @@ static void undo_free(OmPresetUndo *undo) {
 void om_camera_presets_clear(OmEngine *engine) {
     g_list_free_full(engine->camera_preset_undo, (GDestroyNotify)undo_free);
     engine->camera_preset_undo = NULL;
+    engine->film_module = NULL;
 }
 
 static GList *undo_link(OmEngine *engine, const dt_iop_module_t *module) {
@@ -47,6 +52,8 @@ static GList *undo_link(OmEngine *engine, const dt_iop_module_t *module) {
 }
 
 void om_camera_presets_forget(OmEngine *engine, const dt_iop_module_t *module) {
+    if (engine->film_module == module)
+        engine->film_module = NULL;
     GList *link = undo_link(engine, module);
     if (!link)
         return;
@@ -66,7 +73,7 @@ typedef struct {
     int version, enabled, multi_name_hand_edited, blend_version;
     void *params, *blend;
     int params_size, blend_size;
-    gboolean matches, maker_matches;
+    gboolean matches, maker_matches, film;
 } OmPreset;
 
 static void preset_free(OmPreset *preset) {
@@ -109,10 +116,12 @@ static GList *load_presets(OmEngine *engine, const char *only) {
         "        AND ?8 BETWEEN aperture_min AND aperture_max"
         "        AND ?9 BETWEEN focal_length_min AND focal_length_max"
         "        AND (format = 0 OR (format&?10 != 0 AND ~format&?11 != 0))),"
-        "       (maker != '%' AND ((?2 != '' AND ?2 LIKE maker) OR (?4 != '' AND ?4 LIKE maker)))"
+        "       (maker != '%' AND ((?2 != '' AND ?2 LIKE maker) OR (?4 != '' AND ?4 LIKE maker))),"
+        "       operation = 'lut3d'"
         " FROM data.presets"
         " WHERE name LIKE 'Omalux %' AND (?12 = '' OR name = ?12)"
-        " ORDER BY LOWER(REPLACE(maker, '%', '')), LENGTH(model), LOWER(description)",
+        " ORDER BY operation = 'lut3d', LOWER(REPLACE(maker, '%', '')), LENGTH(model), LOWER(description),"
+        "          name",
         -1, &stmt, NULL);
     DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 1, image->exif_model, -1, SQLITE_TRANSIENT);
     DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 2, image->exif_maker, -1, SQLITE_TRANSIENT);
@@ -147,6 +156,7 @@ static GList *load_presets(OmEngine *engine, const char *only) {
         preset->model = column_text(stmt, 11);
         preset->matches = sqlite3_column_int(stmt, 12);
         preset->maker_matches = sqlite3_column_int(stmt, 13);
+        preset->film = sqlite3_column_int(stmt, 14);
         presets = g_list_prepend(presets, preset);
     }
     sqlite3_finalize(stmt);
@@ -260,13 +270,73 @@ static char *maker_label(GList *presets, const char *key) {
     return shared ? shared : g_strdup(*key ? key : "Every camera");
 }
 
+// A film preset describes itself as "<group> · <brand> · <film> · <variant> · <id>"
+// (development/tools/darktable/film_profiles.py); the fields in that order, "" where missing.
+static char **film_fields(const OmPreset *preset) {
+    char **parts = g_strsplit(preset->description, " \xc2\xb7 ", 5);
+    char **fields = g_new0(char *, 6);
+    const guint count = g_strv_length(parts);
+    for (guint i = 0; i < 5; ++i)
+        fields[i] = g_strdup(i < count ? parts[i] : "");
+    g_strfreev(parts);
+    return fields;
+}
+
+// A film that came with the image's stored history (written by an export of this session) is
+// found again by what it carries: an extra LUT 3D instance holding a film profile.
+static void film_adopt(OmEngine *engine, GList *presets) {
+    if (om_film_module(engine))
+        return;
+    for (GList *it = engine->dev.iop; it; it = it->next) {
+        dt_iop_module_t *module = it->data;
+        if (strcmp(module->op, "lut3d") || module->multi_priority == 0)
+            continue;
+        for (GList *p = presets; p; p = p->next)
+            if (((OmPreset *)p->data)->film && carries(module, p->data)) {
+                engine->film_module = module;
+                return;
+            }
+    }
+}
+
+static JsonObject *film_row(OmEngine *engine, const OmPreset *preset) {
+    dt_iop_module_t *base = dt_iop_get_module_by_op_priority(engine->dev.iop, "lut3d", 0);
+    dt_iop_module_t *film = om_film_module(engine);
+    const char *reason = base && preset->version != base->version()
+                             ? "wrong module version"
+                             : om_film_unavailable(base, preset->params, preset->params_size);
+    char **fields = film_fields(preset);
+    JsonObject *row = json_object_new();
+    json_object_set_string_member(row, "name", preset->name);
+    json_object_set_string_member(row, "title", module_label(preset));
+    json_object_set_string_member(row, "description", preset->description);
+    json_object_set_boolean_member(row, "film", TRUE);
+    json_object_set_string_member(row, "group", fields[0][0] ? fields[0] : "Film");
+    json_object_set_string_member(row, "brand", fields[1]);
+    json_object_set_string_member(row, "stock", fields[2][0] ? fields[2] : module_label(preset));
+    json_object_set_string_member(row, "variant", fields[3]);
+    json_object_set_string_member(row, "id", fields[4]);
+    json_object_set_string_member(row, "operation", preset->operation);
+    json_object_set_string_member(row, "module", base ? base->name() : preset->operation);
+    json_object_set_boolean_member(row, "applied", !reason && film && carries(film, preset));
+    json_object_set_boolean_member(row, "available", reason == NULL);
+    json_object_set_string_member(row, "reason", reason ? reason : "");
+    g_strfreev(fields);
+    return row;
+}
+
 char *om_engine_camera_presets(OmEngine *engine) {
     if (!engine->loaded)
         return NULL;
     GList *presets = load_presets(engine, NULL);
+    film_adopt(engine, presets);
     JsonArray *rows = json_array_new();
     for (GList *it = presets; it; it = it->next) {
         const OmPreset *preset = it->data;
+        if (preset->film) {
+            json_array_add_object_element(rows, film_row(engine, preset));
+            continue;
+        }
         dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, preset->operation, 0);
         const char *reason = unavailable(engine, preset, module);
         const gboolean applied = !reason && applied_on(presets, preset, module);
@@ -370,6 +440,43 @@ static void take_off(OmEngine *engine, dt_iop_module_t *module) {
     om_camera_presets_forget(engine, module);
 }
 
+// A film goes on its own LUT 3D instance, created before the base one when first needed and
+// kept from then on: another film replaces what it carries, taking the film off switches the
+// instance off. Deleting it instead would take its history steps along (dt_dev_module_remove),
+// and with them the way back.
+static int film_change(OmEngine *engine, const OmPreset *preset, int on, dt_iop_module_t **changed) {
+    dt_develop_t *dev = &engine->dev;
+    dt_iop_module_t *base = dt_iop_get_module_by_op_priority(dev->iop, "lut3d", 0);
+    if (!base)
+        return 2;
+    if (preset->version != base->version())
+        return 3;
+    if (om_film_unavailable(base, preset->params, preset->params_size))
+        return 6;
+    dt_iop_module_t *film = om_film_module(engine);
+    if (!on) {
+        if (!film || !carries(film, preset))
+            return 5;
+        film->enabled = FALSE;
+        *changed = film;
+        return 0;
+    }
+    if (!film) {
+        if (!(film = om_film_create(dev)))
+            return 4;
+        engine->film_module = film;
+        dt_dev_pixelpipe_rebuild(dev);
+    }
+    const dt_develop_blend_params_t *blend = preset->blend &&
+                                                     preset->blend_version == dt_develop_blend_version() &&
+                                                     preset->blend_size == sizeof(dt_develop_blend_params_t)
+                                                 ? preset->blend
+                                                 : NULL;
+    om_film_write(film, preset->params, blend, module_label(preset));
+    *changed = film;
+    return 0;
+}
+
 int om_engine_camera_preset(OmEngine *engine, const char *name, int on) {
     if (!engine->loaded)
         return 1;
@@ -379,7 +486,9 @@ int om_engine_camera_preset(OmEngine *engine, const char *name, int on) {
     const OmPreset *preset = presets->data;
     dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, preset->operation, 0);
     int result = 0;
-    if (unavailable(engine, preset, module))
+    if (preset->film)
+        result = film_change(engine, preset, on, &module);
+    else if (unavailable(engine, preset, module))
         result = !module ? 2 : preset->version != module->version() ? 3 : 4;
     else if (on)
         apply(engine, module, preset);
@@ -415,7 +524,7 @@ void om_camera_presets_add_matched(OmEngine *engine, JsonArray *rows) {
     GList *presets = load_presets(engine, NULL);
     for (GList *it = presets; it; it = it->next) {
         const OmPreset *preset = it->data;
-        if (!preset->matches)
+        if (!preset->matches || preset->film)
             continue;
         dt_iop_module_t *module = dt_iop_get_module_by_op_priority(engine->dev.iop, preset->operation, 0);
         const char *title;

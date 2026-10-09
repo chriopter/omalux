@@ -284,6 +284,11 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             } else if (step.contains("style")) {
                 editor.applyStyle(step["style"].toString());
                 *waiting = true;
+            } else if (step.contains("cameraPreset")) {
+                // {"cameraPreset": name, "on": false}: a camera preset or film profile by its
+                // key, as a click on its row puts it on or takes it off.
+                editor.applyCameraPreset(step["cameraPreset"].toString(), step["on"].toBool(true));
+                *waiting = true;
             } else if (step.contains("open")) {
                 // "fails": text of the expected error; the file cannot be opened and the
                 // photograph shown stays, so no new preview is waited for.

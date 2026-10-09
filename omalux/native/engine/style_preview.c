@@ -47,8 +47,10 @@ int om_engine_preview_style(OmEngine *engine, const char *path, const char *name
         if (!module || module->version() != item->module_version || module->params_size != item->params_size)
             goto cleanup;
     }
-    GList *used = NULL;
+    // The film profile lies under every look, in the preview as on the photograph.
+    dt_iop_module_t *film = om_film_mirror(engine, &scratch);
     dt_ioppr_update_for_style_items(&scratch, items, FALSE);
+    GList *used = om_film_style_items(&scratch, film, items);
     for (GList *it = items; it; it = it->next)
         dt_styles_apply_style_item(&scratch, it->data, &used, FALSE);
     g_list_free(used);

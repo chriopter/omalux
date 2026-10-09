@@ -63,7 +63,7 @@ void Editor::applyCameraPreset(const QString &name, bool on) {
             queueModuleEdit({ActionKind::CameraPreset,
                              preset["operation"].toString(),
                              0,
-                             {{"name", name}, {"on", on}}});
+                             {{"name", name}, {"on", on}, {"film", preset["film"].toBool()}}});
         return;
     }
 }

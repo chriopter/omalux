@@ -2,7 +2,7 @@
 """Build and run the native Qt/darktable prototype in a private session."""
 import argparse
 import json
-from style_assets import prepare_assets, prepare_camera_profiles
+from style_assets import prepare_assets, prepare_camera_profiles, prepare_lut_root
 import os
 from pathlib import Path
 import shutil
@@ -84,7 +84,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix='omalux-dev-') as folder:
         session = Path(folder)
         dt = os.environ.get('DARKTABLE_BIN', '/usr/bin/darktable')
-        lut_config = 'plugins/darkroom/lut3d/def_path=' + str(Path(os.environ['OMALUX_STYLES_DIR']).resolve())
+        # One LUT root for looks (style catalogue) and film profiles (camera catalogue).
+        lut_config = 'plugins/darkroom/lut3d/def_path=' + str(prepare_lut_root(
+            Path(os.environ['OMALUX_STYLES_DIR']).resolve(), os.environ.get('OMALUX_CAMERA_DIR'),
+            session / 'luts'))
         performance_args = [
             '--conf', 'opencl_fast=false',
             '--conf', 'resourcelevel=' + os.environ.get('OMALUX_RESOURCES', 'default'),

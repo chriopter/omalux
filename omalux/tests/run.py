@@ -87,9 +87,18 @@ def main():
         subprocess.run(['gmic', '-v', '-1', '/usr/share/gmic/gmic_cluts.gmz', 'k[0,1]', '-o',
                         str(work / 'styles' / 'two-luts.gmz')], check=True, env=gmic_env,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # The shipped film profiles agree with their film.json; the scripts then run on the camera
+        # presets with the made-up test films (omalux/tests/camera) in place of the shipped ones,
+        # so they do not depend on which films the catalogue holds.
+        subprocess.run(['python3', str(ROOT / 'development/tools/darktable/film_profiles.py'), 'check'],
+                       cwd=ROOT, check=True)
+        shutil.copytree(ROOT / 'catalog/camera', work / 'camera', ignore=shutil.ignore_patterns('dhh'))
+        shutil.copytree(ROOT / 'omalux/tests/camera', work / 'camera', dirs_exist_ok=True)
+        subprocess.run(['python3', str(ROOT / 'development/tools/darktable/film_profiles.py'), 'check',
+                        str(work / 'camera')], cwd=ROOT, check=True)
         env = os.environ.copy()
         env.update(QT_QPA_PLATFORM='offscreen', QT_FORCE_STDERR_LOGGING='1',
-                   OMALUX_STYLES_DIR=str(work / 'styles'))
+                   OMALUX_STYLES_DIR=str(work / 'styles'), OMALUX_CAMERA_DIR=str(work / 'camera'))
         for key in ('OMALUX_CAPTURE', 'OMALUX_PREVIEW_DIR', 'OMALUX_FLUSH_PREVIEW_CACHE'):
             env.pop(key, None)
         workflow = [
@@ -132,7 +141,10 @@ def main():
         values.write_text((ROOT / 'omalux/tests/module-values.json').read_text().replace('{WORK}', str(work)))
         scripts.append(values)
         # Area E: the remaining pickers, tone equalizer, color mapping across two images ...
-        for name in ('module-tools-rest.json', 'module-tools-rest-ui.json', 'module-display.json'):
+        # A film profile under the looks: its own LUT 3D instance, kept through look changes,
+        # history jumps and export (film-profiles.json).
+        for name in ('module-tools-rest.json', 'module-tools-rest-ui.json', 'module-display.json',
+                     'film-profiles.json'):
             script = work / name
             script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work)))
             scripts.append(script)
@@ -218,6 +230,14 @@ def main():
                                               str(work / name)], text=True)
             if actual != size:
                 raise RuntimeError(f'{name}: expected {size}, got {actual}')
+        # The export with a film and a look holds both: it differs from the export of either alone.
+        for other in ('film-look-only.png', 'film-only.png'):
+            difference = float(subprocess.run(
+                ['magick', 'compare', '-metric', 'MAE', str(work / 'film-both.png'), str(work / other), 'null:'],
+                stderr=subprocess.PIPE, text=True).stderr.split()[0])
+            if difference < 300:  # of 65535
+                raise RuntimeError(f'film-both.png does not differ from {other}: {difference}')
+            print(f'Export with film and look differs from {other}: MAE {difference:.0f} of 65535', flush=True)
         manifests = list((work / 'bundle').rglob('style.json'))
         if len(manifests) != 1:
             raise RuntimeError('Exported style bundle missing')
