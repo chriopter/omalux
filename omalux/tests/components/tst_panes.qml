@@ -22,7 +22,7 @@ Item {
         name: "panes"
         readonly property var tabs: ["tone", "color", "detail", "effects"]
         function moduleOf(block) {
-            return block.module ? block.module.operation : top.registry.find(c => c.id === block.control).module
+            return block.module.operation
         }
         function test_summary_is_short_and_plain() {
             for (const tab of tabs) {
@@ -31,7 +31,7 @@ Item {
                 verify(rows >= 3 && rows <= 10, tab + ": " + rows + " summary rows")
                 for (const b of blocks)
                     for (const label of b.rows ? b.rows.map(r => r.label) : [b.label])
-                        verify(label && !/^[-+−]?\d/.test(label) && label.length <= 18, tab + ": plain short label " + label)
+                        verify(label && !/^[-+−]?\d/.test(label) && label.length <= 20, tab + ": plain short label " + label)
             }
         }
         function test_every_module_reachable() {
@@ -49,6 +49,29 @@ Item {
                 }
             }
         }
+        // Filters is the home of the basics: its modules appear in no other pane, and no summary
+        // label repeats a Filters name or another pane's label, so one name is one control.
+        function test_no_duplicates_of_filters() {
+            const filters = cat.panes.filters_labels.map(l => l.toLowerCase())
+            verify(filters.indexOf("saturation") >= 0 && filters.indexOf("grain") >= 0)
+            const curated = top.registry.map(c => c.module)
+            const seen = {}
+            for (const tab of tabs) {
+                const shown = cat.summaryFor(tab).map(b => moduleOf(b))
+                for (const b of cat.summaryFor(tab)) {
+                    verify(!b.module.curated && curated.indexOf(b.module.operation) < 0, tab + ": " + b.module.operation + " lives in Filters only")
+                    for (const r of b.rows) {
+                        const label = r.label.toLowerCase()
+                        verify(filters.indexOf(label) < 0, tab + ": '" + r.label + "' is a Filters name")
+                        verify(!seen[label], "'" + r.label + "' names one control only (" + tab + ", " + seen[label] + ")")
+                        seen[label] = tab
+                    }
+                }
+                for (const g of cat.advancedFor(tab, shown))
+                    for (const m of g.modules)
+                        verify(!m.curated, tab + ": the Filters module " + m.operation + " is not listed again")
+            }
+        }
         function test_icons() {
             for (const g of cat.layout.groups)
                 for (const m of g.modules)
@@ -63,10 +86,10 @@ Item {
             const labels = () => cat.summaryFor("tone").filter(b => b.module && b.module.operation !== "toneequal")
                                                      .map(b => b.module.operation + ":" + b.rows.map(r => r.label).join("/"))
             cat.catalog = "[]"
-            compare(labels(), ["sigmoid:contrast"], "sigmoid when the image uses no tone mapper")
+            compare(labels(), ["sigmoid:sigmoid contrast/sigmoid skew"], "sigmoid when the image uses no tone mapper")
             cat.catalog = JSON.stringify([{ operation: "filmicrgb", instance: 0, label: "filmic rgb", enabled: true, hidden: false,
                                             parameters: [{ name: "contrast", path: "contrast", value: 1 }] }])
-            compare(labels(), ["filmicrgb:contrast/white point/black point"], "the tone mapper the image uses")
+            compare(labels(), ["filmicrgb:filmic contrast/filmic white point/filmic black point"], "the tone mapper the image uses")
             const shown = cat.summaryFor("tone").map(b => moduleOf(b))
             const advanced = cat.advancedFor("tone", shown)[0].modules.map(m => m.operation)
             verify(advanced.includes("sigmoid") && !advanced.includes("filmicrgb"), JSON.stringify(advanced))

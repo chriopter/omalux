@@ -24922,68 +24922,77 @@
   "tone": {
    "summary": [
     {
-     "control": "exposure",
-     "label": "exposure"
+     "module": "sigmoid",
+     "field": "middle_grey_contrast",
+     "label": "sigmoid contrast",
+     "colors": "",
+     "pick": "tone mapper"
     },
     {
      "module": "sigmoid",
-     "field": "middle_grey_contrast",
-     "label": "contrast",
+     "field": "contrast_skewness",
+     "label": "sigmoid skew",
      "colors": "",
      "pick": "tone mapper"
     },
     {
      "module": "filmicrgb",
      "field": "contrast",
-     "label": "contrast",
+     "label": "filmic contrast",
      "colors": "",
      "pick": "tone mapper"
     },
     {
      "module": "agx",
      "field": "curve_contrast_around_pivot",
-     "label": "contrast",
+     "label": "AgX contrast",
      "colors": "",
      "pick": "tone mapper"
     },
     {
      "module": "filmicrgb",
      "field": "white_point_source",
-     "label": "white point",
+     "label": "filmic white point",
      "colors": "light",
      "pick": "tone mapper"
     },
     {
      "module": "agx",
      "field": "range_white_relative_ev",
-     "label": "white point",
+     "label": "AgX white point",
      "colors": "light",
      "pick": "tone mapper"
     },
     {
      "module": "filmicrgb",
      "field": "black_point_source",
-     "label": "black point",
+     "label": "filmic black point",
      "colors": "light",
      "pick": "tone mapper"
     },
     {
      "module": "agx",
      "field": "range_black_relative_ev",
-     "label": "black point",
+     "label": "AgX black point",
      "colors": "light",
      "pick": "tone mapper"
     },
     {
      "module": "toneequal",
      "field": "highlights",
-     "label": "highlights",
+     "label": "equalizer highlights",
+     "colors": "light"
+    },
+    {
+     "module": "toneequal",
+     "field": "midtones",
+     "label": "equalizer mid-tones",
      "colors": "light"
     },
     {
      "module": "toneequal",
      "field": "shadows",
-     "label": "shadows",
+     "label": "equalizer shadows",
      "colors": "light"
     }
    ],
@@ -25005,20 +25014,8 @@
     {
      "module": "channelmixerrgb",
      "field": "temperature",
-     "label": "white balance",
+     "label": "light source",
      "colors": "temperature"
-    },
-    {
-     "module": "colorbalancergb",
-     "field": "chroma_global",
-     "label": "chroma",
-     "colors": "saturation"
-    },
-    {
-     "module": "colorbalancergb",
-     "field": "saturation_global",
-     "label": "saturation",
-     "colors": "saturation"
     },
     {
      "module": "velvia",
@@ -25056,28 +25053,40 @@
   "detail": {
    "summary": [
     {
-     "control": "sharpen_amount",
-     "label": "sharpen"
-    },
-    {
-     "control": "detail",
-     "label": "local contrast"
-    },
-    {
-     "control": "denoise_strength",
-     "label": "denoise"
-    },
-    {
      "module": "hazeremoval",
      "field": "strength",
      "label": "haze removal",
+     "colors": ""
+    },
+    {
+     "module": "cacorrectrgb",
+     "field": "strength",
+     "label": "color fringes",
+     "colors": ""
+    },
+    {
+     "module": "defringe",
+     "field": "thresh",
+     "label": "defringe",
+     "colors": ""
+    },
+    {
+     "module": "bilateral",
+     "field": "radius",
+     "label": "surface blur",
+     "colors": ""
+    },
+    {
+     "module": "nlmeans",
+     "field": "strength",
+     "label": "astro denoise",
      "colors": ""
     }
    ],
    "advanced": [
     "retouch",
-    "cacorrectrgb",
     "atrous",
+    "cacorrectrgb",
     "defringe",
     "hazeremoval",
     "nlmeans",
@@ -25089,18 +25098,6 @@
   },
   "effects": {
    "summary": [
-    {
-     "control": "grain",
-     "label": "grain"
-    },
-    {
-     "control": "vignette",
-     "label": "vignetting"
-    },
-    {
-     "control": "bloom_strength",
-     "label": "bloom"
-    },
     {
      "module": "soften",
      "field": "amount",
@@ -25118,12 +25115,18 @@
      "field": "size",
      "label": "frame",
      "colors": ""
+    },
+    {
+     "module": "blurs",
+     "field": "radius",
+     "label": "lens blur",
+     "colors": ""
     }
    ],
    "advanced": [
+    "colorize",
     "graduatednd",
     "soften",
-    "colorize",
     "blurs",
     "borders",
     "lowlight",
@@ -25134,6 +25137,25 @@
     "overlay",
     "censorize"
    ]
-  }
+  },
+  "filters_labels": [
+   "exposure",
+   "brightness",
+   "contrast",
+   "saturation",
+   "shadows",
+   "temperature",
+   "vibrance",
+   "sharpen",
+   "grain",
+   "bloom",
+   "vignetting",
+   "local contrast",
+   "denoise",
+   "diffuse or sharpen",
+   "LUT 3D",
+   "highlights",
+   "white balance"
+  ]
  }
 }

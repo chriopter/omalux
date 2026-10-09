@@ -851,11 +851,13 @@ def validate_rows(where, rows, primary=(), curated_refs=()):
 def build_panes(dec, layout, errors):
     """The summary and the Advanced order of the Tone, Color, Detail and Effects panes.
 
-    A summary entry is either a registered control ({"control": id}, shown as the curated
-    block of its module) or a slider row of the generated layout ({"module", "field"}). Entries
-    with the same "pick" key belong to alternative modules (the tone mappers): the pane shows
-    the rows of the first of them the image uses. The display labels of rows ("display_labels")
-    are applied here too.
+    A summary entry is a slider row of the generated layout ({"module", "field"}). The Filters
+    pane is the home of the curated modules: none of them may appear in another pane, and no
+    summary label may repeat a Filters name ("filters_labels") or another summary label (the
+    alternatives of one "pick" aside), so one name never means two controls. Entries with the
+    same "pick" key belong to alternative modules (the tone mappers): the pane shows the rows of
+    the first of them the image uses. The display labels of rows ("display_labels") are applied
+    here too.
     """
     modules = {m["operation"]: m for g in layout["groups"] for m in g["modules"]}
     for op, labels in dec.get("display_labels", {}).items():
@@ -867,21 +869,23 @@ def build_panes(dec, layout, errors):
                 errors.append(f"display_labels: {op}.{field} is not a row")
                 continue
             hit[0]["display"] = text
-    registry = set(re.findall(r'^\s*\{"([^"]+)",', CONTROLS_H.read_text(), re.M))
     panes = OrderedDict()
+    taken = {text.lower(): "Filters" for text in dec.get("panes", {}).get("filters_labels", [])}
     for pane, spec in dec.get("panes", {}).items():
-        if pane == "note":
+        if pane in ("note", "filters_labels"):
             continue
         summary = []
         for e in spec["summary"]:
             if not e.get("label"):
                 errors.append(f"panes.{pane}: summary entry without a label: {e}")
-            if "control" in e:
-                if e["control"] not in registry:
-                    errors.append(f"panes.{pane}: {e['control']} is not a registered control")
-                summary.append(OrderedDict(control=e["control"], label=e["label"]))
-                continue
             m = modules.get(e.get("module"))
+            if m and m["curated"]:
+                errors.append(f"panes.{pane}: {e['module']} is curated; its home is the Filters pane")
+            where = f"{pane}.{e.get('module')}.{e.get('field')}"
+            key = str(e.get("label", "")).lower()
+            if key in taken and taken[key] != where:
+                errors.append(f"panes.{pane}: the label '{e.get('label')}' is already used by {taken[key]}")
+            taken[key] = where
             row = next((r for r in m["rows"] if r["field"] == e.get("field")), None) if m else None
             if not row or row["widget"] != "slider" or not row["path"]:
                 errors.append(f"panes.{pane}: {e.get('module')}.{e.get('field')} is not a slider row")
@@ -901,6 +905,7 @@ def build_panes(dec, layout, errors):
         if len(set(spec["advanced"])) != len(spec["advanced"]):
             errors.append(f"panes.{pane}: advanced lists a module twice")
         panes[pane] = OrderedDict(summary=summary, advanced=spec["advanced"])
+    panes["filters_labels"] = dec.get("panes", {}).get("filters_labels", [])
     return panes
 
 

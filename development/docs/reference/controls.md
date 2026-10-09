@@ -356,15 +356,24 @@ decisions' `panes` block):
   first, drawn like the Filters rows: module icon, a plain short label, the value, a dot while the
   module is on (a click on the label switches it), coloured tracks where the value has a visual
   meaning, and a chevron that opens the whole module in place of its rows (closing it brings the
-  rows back). Rows of a curated module open its curated block; the others open the generated
-  module with every instance. **Tone**: exposure, the contrast of the tone mapper the image uses
-  (sigmoid, or filmic rgb / AgX with their white and black point), tone equalizer highlights
-  (−2 EV) and shadows (−4 EV). **Color**: white balance (color calibration's temperature), chroma
-  and saturation (color balance rgb's global chroma and global saturation), velvia, and color
-  contrast's green–magenta and blue–yellow. **Detail**: sharpen, local contrast, denoise, haze
-  removal. **Effects**: grain, vignetting, bloom, soften, graduated filter (graduated density),
-  frame (framing). The labels are short names for darktable's sliders; the expanded modules keep
-  darktable's labels, units and ranges.
+  rows back), with every instance.
+- **One home per control.** The Filters pane is the home of the basics. A module curated there
+  (exposure, contrast brightness saturation, shadows and highlights, white balance, color balance
+  rgb, sharpen, grain, bloom, vignetting, local contrast, denoise (profiled), diffuse or sharpen,
+  LUT 3D) appears in no other pane, neither as a summary row nor as a card: its Filters row opens
+  the whole module and the search finds it. No summary label repeats a Filters name or another
+  summary label, so one name never means two controls; a different control of a similar kind is
+  named after the module it belongs to. `build_layout.py` rejects a layout that breaks either rule
+  (`panes.filters_labels` in the decisions lists the Filters names).
+- **The summaries.** **Tone**: sigmoid contrast and sigmoid skew (or, when the image uses them,
+  filmic / AgX contrast, white point and black point), then equalizer highlights (tone equalizer
+  −2 EV), equalizer mid-tones (−3 EV) and equalizer shadows (−4 EV). **Color**: light source
+  (color calibration's illuminant temperature), velvia, and color contrast's green–magenta and
+  blue–yellow. **Detail**: haze removal, color fringes (chromatic aberrations' strength), defringe
+  (its threshold), surface blur (its radius), astro denoise (astrophoto denoise's strength).
+  **Effects**: soften (its mix), graduated filter (graduated density's density), frame (framing's
+  border size), lens blur (blurs' radius). The labels are short names for darktable's sliders;
+  the expanded modules keep darktable's labels, units and ranges.
 - **Advanced.** Every other module of the pane follows as a compact card (icon, name, instance
   button, chevron; no rows until opened), most used first in the decisions' order (curves and
   levels first in Tone, color equalizer and color zones in Color, retouch in Detail). A module

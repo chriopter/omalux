@@ -242,8 +242,8 @@ QtObject {
         if (!spec) return ""
         return spec.summary.filter(e => e.pick).map(e => e.module + ":" + moduleUsed(e.module)).join(",")
     }
-    // Summary blocks of a pane: { control, label } for a registered control, or { module, rows }
-    // for neighbouring slider rows of one generated module. Of the alternatives sharing a "pick"
+    // Summary blocks of a pane: { module, rows } for the slider rows of one generated module
+    // (never a module curated in Filters). Of the alternatives sharing a "pick"
     // (the tone mappers) only the first module the image uses is kept, the first listed if none.
     function summaryFor(tab) {
         const spec = panes[tab]
@@ -256,15 +256,14 @@ QtObject {
         }
         const out = []
         for (const e of spec.summary) {
-            if (e.control) { out.push({ key: "control:" + e.control, control: e.control, label: e.label }); continue }
             if (e.pick && picked[e.pick] !== e.module) continue
             const m = modulesByOperation[e.module]
-            if (!m) continue
+            if (!m || m.curated) continue
             const row = m.rows.find(r => r.field === e.field)
             if (!row) continue
-            const last = out.length ? out[out.length - 1] : null
             const entry = { field: e.field, label: e.label, colors: e.colors, row: row }
-            if (last && last.module && last.module.operation === e.module) last.rows.push(entry)
+            const same = out.find(b => b.module.operation === e.module)
+            if (same) same.rows.push(entry)
             else out.push({ key: "module:" + e.module, module: m, rows: [entry] })
         }
         return out

@@ -7,8 +7,9 @@ import "../components"
 // photographer reaches for first (layout.json "panes", ModuleCatalog.summaryFor), each row with
 // its module icon, a plain label, the value and the chevron that opens the whole module in
 // place; below, "Advanced" lists every other module of the pane as a compact card. The Tone,
-// Color, Detail and Effects panes are this pane with their own tab. While searching, the summary
-// steps aside and every matching module of the pane opens, as before.
+// Color, Detail and Effects panes are this pane with their own tab. Modules curated in the
+// Filters pane live there only and are not shown here. While searching, the summary steps aside
+// and every matching module of the pane opens, as before.
 SidebarScrollView {
     id: root
     required property var theme
@@ -19,18 +20,11 @@ SidebarScrollView {
     property bool editable: true
     property string term: ""
     property string activeControl: ""
-    // The registered controls (backend.controls / controlValues) for summary rows of curated
-    // modules, which open as their curated block (FilterModule) as in the Filters pane.
-    property var controls: []
-    property var values: ({})
     signal changesRequested(string operation, int instance, var changes)
     signal enableRequested(string operation, int instance, bool enabled)
     signal resetRequested(string operation, int instance, var module)
     signal interactionChanged(bool active)
     signal controlSelected(string id)
-    signal controlEdited(string id, real value)
-    signal controlReset(string id)
-    signal halationRequested()
 
     readonly property string shownTerm: visible ? term : ""
     // Rebuilt only when the layout or the active tone mapper changes: rebuilding on every edit
@@ -39,20 +33,9 @@ SidebarScrollView {
     property var summary: []
     onSummaryStateChanged: summary = catalogModel.summaryFor(tab)
     // The modules the summary stands for are not repeated under Advanced.
-    readonly property var summaryModules: summary.map(b => b.module ? b.module.operation : root.moduleOfControl(b.control))
+    readonly property var summaryModules: summary.map(b => b.module.operation)
     readonly property var groups: shownTerm !== "" ? catalogModel.groupsForTab(tab)
                                                    : catalogModel.advancedFor(tab, summaryModules)
-    function moduleOfControl(id) {
-        const c = root.controls.find(x => x.id === id)
-        return c ? c.module : ""
-    }
-    // The curated block of a module (FiltersPanel.sections), showing one control while closed.
-    function sectionFor(operation, primary, label) {
-        const m = root.catalogModel.modulesByOperation[operation]
-        return { module: operation, key: operation, name: m ? m.name : operation, label: label,
-                 primary: primary ? [primary] : [],
-                 controls: root.controls.filter(c => c.module === operation && !["System", "Curve", "Geometry"].includes(c.group)) }
-    }
 
     property var expanded: ({})
     property bool restoring: true
@@ -86,39 +69,10 @@ SidebarScrollView {
                 delegate: Loader {
                     id: entry
                     required property var modelData
-                    readonly property string operation: modelData.module ? modelData.module.operation : root.moduleOfControl(modelData.control)
+                    readonly property string operation: modelData.module.operation
                     readonly property bool open: !!root.expanded[operation]
-                    // Registered controls, and opened curated modules, are the curated block.
-                    readonly property bool curated: !!modelData.control || (open && modelData.module.curated)
                     width: summaryColumn.width
-                    sourceComponent: curated ? curatedBlock : open ? openModule : rowsBlock
-                    Component {
-                        id: curatedBlock
-                        FilterModule {
-                            width: entry.width
-                            namePrefix: "summary-"
-                            theme: root.theme
-                            section: root.sectionFor(entry.operation, entry.modelData.control || "", entry.modelData.label)
-                            values: root.values
-                            editable: root.editable
-                            activeControl: root.activeControl
-                            expanded: entry.open
-                            extraModule: root.catalogModel.modulesByOperation[entry.operation] || null
-                            moduleState: root.states[entry.operation + "/0"]
-                            catalogModel: root.catalogModel
-                            overrides: root.overrides
-                            moreOpen: !!root.expanded[entry.operation + "-more"]
-                            onMoreRequested: root.toggle(entry.operation + "-more")
-                            onExpansionRequested: root.toggle(entry.operation)
-                            onParameterChangesRequested: changes => root.changesRequested(entry.operation, 0, changes)
-                            onInstanceChangesRequested: (instance, changes) => root.changesRequested(entry.operation, instance, changes)
-                            onControlSelected: id => root.controlSelected(id)
-                            onInteractionChanged: active => root.interactionChanged(active)
-                            onControlEdited: (id, value) => root.controlEdited(id, value)
-                            onControlReset: id => root.controlReset(id)
-                            onHalationRequested: root.halationRequested()
-                        }
-                    }
+                    sourceComponent: open ? openModule : rowsBlock
                     Component {
                         id: rowsBlock
                         GeneratedSummary {
