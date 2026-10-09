@@ -21,7 +21,14 @@ Item {
                 const name = (f === "series/late-summer" ? "Late Summer " : "") + "Look " + String(i + 1).padStart(2, "0")
                 out.push({ id: f + "/" + f.replace("/", "-") + "-" + i + "/style.dtstyle", name: name })
             }
-        return out.map(s => Object.assign({ description: "", previewUrl: "", error: "", modules: [] }, s))
+        // A family named in the catalogue (family.json): the backend hands its display name and
+        // place with every look, because "Dhh" from the folder would be wrong.
+        const declared = { "dhh/black-and-white": ["DHH · Black & white", 25], "dhh/kodak": ["DHH · Kodak", 21], "dhh/fuji": ["DHH · Fuji", 44] }
+        for (const f in declared)
+            for (let i = 0; i < declared[f][1]; ++i)
+                out.push({ id: f + "/" + f.replace("/", "-") + "-" + i + "/style.dtstyle", family: declared[f][0], familyOrder: 1,
+                           name: (f === "dhh/kodak" ? "Kodak Portra " : f === "dhh/fuji" ? "Fuji Superia " : "Ilford HP") + (i + 1) })
+        return out.map(s => Object.assign({ description: "", previewUrl: "", error: "", modules: [], family: "", familyOrder: 0 }, s))
     }
     property var applied: []
     StylesPanel {
@@ -59,10 +66,12 @@ Item {
         }
         function init() { panel.favourites = []; panel.styleQuery = ""; panel.showAll = ({}); panel.expandedStyleGroup = "film"; wait(20) }
         function test_families() {
-            compare(top.looks.length, 120)
+            compare(top.looks.length, 210)
             compare(JSON.stringify(panel.families.map(f => f.name)),
-                    JSON.stringify(["Monochrome", "Film", "Portrait", "Series · Late summer", "Series · Movie", "Experimental"]),
-                    "families from the folders (series by their sub-folder), monochrome first, experimental last")
+                    JSON.stringify(["Monochrome", "Film", "Portrait", "Series · Late summer", "Series · Movie",
+                                    "DHH · Black & white", "DHH · Fuji", "DHH · Kodak", "Experimental"]),
+                    "families from the folders (series by their sub-folder), monochrome first, experimental last; "
+                    + "a declared family carries its own name and comes after the undeclared ones")
             compare(panel.topSections[0].name, "Basics")
         }
         function test_lazy_grid() {
@@ -87,6 +96,28 @@ Item {
             compare(top.applied[top.applied.length - 1], id, "a click on the favourite applies it")
             mouseClick(find(panel, "favourite:style-favourite-" + id))
             compare(panel.favourites.length, 0)
+        }
+        function test_declared_family() {
+            const heading = find(panel, "style-group-dhh/kodak")
+            verify(heading, "the folder stays the id")
+            compare(heading.Accessible.name, "DHH · Kodak", "the heading reads the declared name, not “Dhh · Kodak”")
+            mouseClick(heading)
+            tryVerify(() => tiles(panel) === 2 + 12, 1000, "the first 12 of 21")
+            const tile = find(panel, "style-apply-dhh/kodak/dhh-kodak-0/style.dtstyle").parent
+            compare(tile.shortName, "Portra 1", "the last word of the declared name is dropped: Kodak Portra 1")
+            mouseClick(find(panel, "style-group-dhh/fuji"))
+            tryVerify(() => !!find(panel, "style-show-all-dhh/fuji"), 1000)
+            wait(300)  // the grid settles before the button below it is where a click lands
+            mouseClick(find(panel, "style-show-all-dhh/fuji"))
+            tryVerify(() => tiles(panel) === 2 + 44, 1000, "show all of a large group")
+            panel.styleQuery = "dhh"
+            wait(20)
+            compare(JSON.stringify(panel.families.map(f => f.id)), JSON.stringify(["dhh/black-and-white", "dhh/fuji", "dhh/kodak"]),
+                    "the declared name is searchable")
+            compare(tiles(panel), 90, "every look of the family, all groups open")
+            panel.styleQuery = "black & white"
+            wait(20)
+            compare(tiles(panel), 25)
         }
         function test_filter_and_names() {
             panel.styleQuery = "summer"

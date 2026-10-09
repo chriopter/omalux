@@ -6,7 +6,8 @@
 Output layout:
 
     dist/darktable/
-      styles/<group>/<name>.dtstyle   one style per look, named "Omalux|<Group>|<Name>"
+      styles/<group>/<name>.dtstyle   one style per look, named "Omalux|<Group>|<Name>"; a family
+                                      named by a family.json keeps its folders ("Omalux|DHH|Kodak|<Name>")
       luts/<catalogue path>.cube      the LUT files the styles reference (unless embedded)
       camera/<maker>/<model>.dtpreset automatically applied camera presets
       camera/<maker>/<model>.icc      input profiles those presets select, if any
@@ -40,9 +41,30 @@ LUT3D_KEYPOINT_BYTES = 2048 * 2 * 3
 MAX_KEYPOINTS = 2048
 
 
+def declared_group(rel: str):
+    """Names from family.json files above a look ("DHH|Kodak" for dhh/kodak), or None."""
+    labels, declared, folder = [], False, STYLES
+    for part in rel.split("/"):
+        folder = folder / part
+        meta = folder / "family.json"
+        name = json.loads(meta.read_text()).get("name", "").strip() if meta.is_file() else ""
+        declared = declared or bool(name)
+        labels.append(name or part.replace("-", " ").capitalize())
+    return "|".join(labels) if declared else None
+
+
 def group_of(bundle: Path):
     rel = bundle.relative_to(STYLES).parent.as_posix()
-    return GROUP_NAMES.get(rel, rel.replace("/", " ").title() if rel != "." else "")
+    if rel == ".":
+        return ""
+    return GROUP_NAMES.get(rel) or declared_group(rel) or rel.replace("/", " ").title()
+
+
+def group_folder(bundle: Path):
+    """Where the bundle keeps the group's styles; a declared family keeps its catalogue folders."""
+    rel = bundle.relative_to(STYLES).parent.as_posix()
+    group = group_of(bundle)
+    return rel if "|" in group or declared_group(rel) else group.lower().replace(" ", "-") if group else "."
 
 
 def style_name(bundle: Path, original: str):
@@ -101,8 +123,7 @@ def convert_style(bundle: Path, out_styles: Path, out_luts: Path, embed: bool, e
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(cube, dest)
             lut_note = f" (LUT {p['path']})"
-    group = group_of(bundle)
-    dest = out_styles / (group.lower().replace(" ", "-") if group else ".") / f"{original}.dtstyle"
+    dest = out_styles / group_folder(bundle) / f"{original}.dtstyle"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(text)
     return name, lut_note

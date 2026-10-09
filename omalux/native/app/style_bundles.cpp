@@ -10,6 +10,33 @@
 #include <QXmlStreamReader>
 #include <vector>
 
+// The name a folder would get from its own name: "late-summer" reads "Late summer".
+static QString folderLabel(QString folder) {
+    folder.replace('-', ' ');
+    return folder.isEmpty() ? folder : folder.at(0).toUpper() + folder.mid(1);
+}
+// "DHH · Black & white" for dhh/black-and-white/<look>/style.dtstyle: every folder above the
+// look's own is named by its family.json, or by its folder name when it has none.
+static void readFamily(const QDir &root, StyleFile &style) {
+    const auto parts = style.id.split('/');
+    QStringList labels;
+    bool declared = false;
+    QString folder;
+    for (int i = 0; i + 2 < parts.size(); ++i) {
+        folder += (i ? "/" : "") + parts[i];
+        QFile file(root.filePath(folder + "/family.json"));
+        const auto meta =
+            file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
+        const auto name = meta["name"].toString().trimmed();
+        declared = declared || !name.isEmpty();
+        labels << (name.isEmpty() ? folderLabel(parts[i]) : name);
+        if (i == 0)
+            style.familyOrder = meta["order"].toInt();
+    }
+    if (declared)
+        style.family = labels.join(" · ");
+}
+
 std::vector<StyleFile> discoverStyles(const QString &directory) {
     std::vector<StyleFile> result;
     QDir dir(directory);
@@ -24,7 +51,10 @@ std::vector<StyleFile> discoverStyles(const QString &directory) {
                           entry.completeBaseName(),
                           {},
                           {},
-                          {}};
+                          {},
+                          {},
+                          0};
+        readFamily(dir, style);
         const QFileInfo thumbnail(entry.dir().filePath("thumbnail.jpg"));
         if (thumbnail.isFile())
             style.previewUrl = QUrl::fromLocalFile(thumbnail.absoluteFilePath()).toString();

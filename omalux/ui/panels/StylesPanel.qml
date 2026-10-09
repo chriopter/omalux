@@ -55,7 +55,8 @@ SidebarScrollView {
     readonly property var cameraPresets: (cameraDefaults || []).filter(e => e.group === "Camera presets")
     // The looks as a thumbnail grid: favourites (and the basic looks) on top, then one
     // collapsible group per family of the catalogue (catalog/styles/<family>/…, series by their
-    // sub-folder), one family open at a time, each showing its first `limit` looks until "show
+    // sub-folder; named by the folders, or by the `family` a look carries from a family.json in
+    // the catalogue, as "DHH" for dhh/), one family open at a time, each showing its first `limit` looks until "show
     // all". A filter (this pane's field, or the sidebar search) opens every family with a match.
     // Favourites and the open family are remembered in the app settings.
     Settings {
@@ -96,9 +97,16 @@ SidebarScrollView {
     }
     // Under its family a look drops the family's words its name starts with: "Late Summer
     // Contrast" reads "Contrast" under "Series · Late summer".
+    // A family's display name: declared in the catalogue (style.family), else from its folders.
+    readonly property var familyNames: {
+        const names = {}
+        for (const style of root.styles) if (style.family) names[styleGroup(style.id)] = style.family
+        return names
+    }
+    function familyName(id) { return familyNames[id] || groupName(id) }
     function shortName(style, section) {
         if (section === "top") return ""
-        const last = groupName(section).split(" · ").pop().toLowerCase()
+        const last = familyName(section).split(" · ").pop().toLowerCase()
         const name = style.name
         return name.toLowerCase().startsWith(last + " ") && name.length > last.length + 1 ? name.slice(last.length + 1) : ""
     }
@@ -111,7 +119,7 @@ SidebarScrollView {
         details = (family === "" ? "top" : family) + "|" + id
     }
     function matches(style, q) {
-        return !q || (style.name + " " + style.description + " " + groupName(styleGroup(style.id))).toLowerCase().indexOf(q) >= 0
+        return !q || (style.name + " " + style.description + " " + familyName(styleGroup(style.id))).toLowerCase().indexOf(q) >= 0
     }
     // Looks matching the sidebar search (its dot on the Styles tab).
     function matchCount(q) { return q ? root.styles.filter(s => matches(s, q)).length : 0 }
@@ -127,7 +135,7 @@ SidebarScrollView {
             const key = styleGroup(style.id)
             if (key === "") continue
             let family = families.find(g => g.id === key)
-            if (!family) families.push(family = { id: key, name: groupName(key), styles: [], collapsible: true })
+            if (!family) families.push(family = { id: key, name: familyName(key), order: style.familyOrder || 0, styles: [], collapsible: true })
             family.styles.push(style)
         }
         function rank(id) {
@@ -136,7 +144,8 @@ SidebarScrollView {
             if (id === "experimental") return 4
             return 3
         }
-        families.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id))
+        // Between Monochrome and Experimental: by the order a family declares, then by folder.
+        families.sort((a, b) => rank(a.id) - rank(b.id) || a.order - b.order || a.id.localeCompare(b.id))
         for (const family of families) family.styles.sort(byName)
         return families
     }
