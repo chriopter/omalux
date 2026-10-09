@@ -154,6 +154,7 @@ def main():
         blend_mailbox.parent.mkdir()
         canvas_mailbox = work / 'canvas-mailbox' / 'controls'
         canvas_mailbox.parent.mkdir()
+        used_opencl = False
         for script in scripts:
             env['XDG_CONFIG_HOME'] = str(work / ('config-' + script.stem))
             env['OMALUX_SMOKE_SCRIPT'] = str(script)
@@ -178,11 +179,18 @@ def main():
             text = log.read_text()
             if result.returncode or 'Smoke complete' not in text:
                 raise RuntimeError(text[-12000:])
+            used_opencl = used_opencl or 'OpenCL auto' in text
             for line in text.splitlines():
                 if 'Drag draft frames' in line or 'Smoke complete' in line or line.startswith('Parameter ') \
                         or line.startswith('Instances ') or 'Rejected as expected' in line \
                         or line.startswith('Pixels '):
                     print(line, flush=True)
+        # The launcher keeps the compiled OpenCL kernels between launches (omalux/dev.py): after a
+        # run on a GPU the store holds them, so the next start does not compile again.
+        store = Path(env.get('OMALUX_KERNEL_CACHE') or Path(env.get('XDG_CACHE_HOME') or Path.home() / '.cache')
+                     / 'omalux' / 'opencl-kernels')
+        if used_opencl and not any('kernels_for_' in entry.name for entry in store.iterdir()):
+            raise RuntimeError(f'No OpenCL kernels kept in {store}')
         if not args.split:
             check_mailbox(mailbox, {'exposure', 'tonecurve', 'rgbcurve'})
             check_mailbox(values_mailbox, {'colorbalance', 'channelmixerrgb', 'colorharmonizer', 'splittoning',

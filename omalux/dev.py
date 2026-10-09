@@ -5,10 +5,55 @@ import json
 from style_assets import prepare_assets, prepare_camera_profiles
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def kernel_store():
+    """Where compiled OpenCL kernels are kept between launches."""
+    base = os.environ.get('OMALUX_KERNEL_CACHE') or os.path.join(
+        os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache'), 'omalux', 'opencl-kernels')
+    return Path(base)
+
+
+def link_kernels(cache):
+    """Offer the kept kernel folders to a session's private cache directory.
+
+    darktable compiles its OpenCL programs on first use and keeps the binaries in the cache
+    directory, one folder per device and driver version. A fresh cache directory per launch
+    made every start compile them again: about six seconds before the first image, against
+    under one with the binaries. Only these folders are shared; everything else in the cache
+    stays private to the session."""
+    cache.mkdir(parents=True, exist_ok=True)
+    store = kernel_store()
+    try:
+        store.mkdir(parents=True, exist_ok=True)
+        for folder in store.iterdir():
+            if folder.is_dir() and 'kernels_for_' in folder.name and not (cache / folder.name).exists():
+                (cache / folder.name).symlink_to(folder, target_is_directory=True)
+    except OSError as error:
+        print(f'OpenCL kernel cache unavailable ({error}); kernels are compiled for this session')
+
+
+def keep_kernels(cache):
+    """Keep the kernel folders a session compiled for a device seen for the first time."""
+    store = kernel_store()
+    try:
+        for folder in cache.iterdir():
+            if folder.is_dir() and not folder.is_symlink() and 'kernels_for_' in folder.name \
+                    and not (store / folder.name).exists():
+                # Copy, then rename into place: another session may keep the same folder.
+                staged = store / f'.{folder.name}.{os.getpid()}'
+                shutil.copytree(folder, staged, symlinks=True)
+                try:
+                    staged.rename(store / folder.name)
+                except OSError:
+                    shutil.rmtree(staged, ignore_errors=True)
+    except OSError:
+        pass
 
 
 def main():
@@ -52,9 +97,13 @@ def main():
                   '--conf', 'ui/show_welcome_screen=false', *performance_args]
         (session / 'config').mkdir()
         configs = [session / 'config']
+        caches = [session / 'cache']
         if args.split:
             configs.append(session / 'comparison')
             configs[-1].mkdir()
+            caches.append(session / 'comparison' / 'cache')
+        for cache in caches:
+            link_kernels(cache)
         asset_errors = prepare_assets(Path(os.environ['OMALUX_STYLES_DIR']).resolve(), configs)
         prepare_camera_profiles(os.environ.get('OMALUX_CAMERA_DIR'), configs)
         ui_env = os.environ.copy()
@@ -86,6 +135,8 @@ def main():
                         child.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         child.kill(); child.wait()
+            for cache in caches:
+                keep_kernels(cache)
 
 
 if __name__ == '__main__':
