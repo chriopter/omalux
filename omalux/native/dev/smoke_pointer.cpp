@@ -8,6 +8,8 @@
 //    "modifiers": "ctrl", "expectTop": true}   expectTop fails when another item covers it
 //   {"pointerDrag": name, "from": [x, y], "to": [x, y], "modifiers": "shift"}
 //   {"pointerHover": name}, {"waitMs": 1000}; the name "@last" repeats the previous point
+//   {"pointerDrag": name, ..., "hold": true} keeps the button down at "to" (the state in the
+//   middle of a drag can be checked); {"pointerRelease": true} lets it go there
 //   {"checkItem": name, "property": "checked", "value": true}  or "visible": false, or
 //   "inWindow": true (shown on screen, not scrolled away)
 #include "smoke_pointer.h"
@@ -61,7 +63,8 @@ QQuickItem *findItem(QQuickItem *root, const QString &name) {
     std::function<QQuickItem *(QQuickItem *)> walk = [&](QQuickItem *item) -> QQuickItem * {
         if (!item->isVisible())
             return nullptr;
-        const bool match = byText ? item->property("text").toString() == wanted : item->objectName() == wanted;
+        const bool match =
+            byText ? item->property("text").toString() == wanted : item->objectName() == wanted;
         if (match && shown(item))
             return item;
         for (auto *child : item->childItems())
@@ -103,9 +106,10 @@ QString describe(QQuickItem *item) {
 
 Qt::KeyboardModifiers modifiersOf(const QJsonObject &step) {
     const auto name = step["modifiers"].toString();
-    return name == "ctrl" ? Qt::ControlModifier : name == "shift" ? Qt::ShiftModifier
-                                              : name == "alt"     ? Qt::AltModifier
-                                                                  : Qt::NoModifier;
+    return name == "ctrl"    ? Qt::ControlModifier
+           : name == "shift" ? Qt::ShiftModifier
+           : name == "alt"   ? Qt::AltModifier
+                             : Qt::NoModifier;
 }
 
 QPointF fraction(const QJsonValue &value, double x, double y) {
@@ -114,11 +118,26 @@ QPointF fraction(const QJsonValue &value, double x, double y) {
 }
 } // namespace
 
-SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &engine, std::shared_ptr<bool> busy) {
+SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &engine,
+                             std::shared_ptr<bool> busy) {
     if (step.contains("waitMs")) {
         // Time passes with the pointer at rest (tooltip delays, hover timers).
         *busy = true;
         QTimer::singleShot(step["waitMs"].toInt(), qApp, [busy] { *busy = false; });
+        return SmokeResult::Done;
+    }
+    // The point and button of a drag that is still held ("hold").
+    static QPointF heldPoint;
+    static Qt::MouseButton heldButton = Qt::NoButton;
+    if (step.contains("pointerRelease")) {
+        auto *held = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        if (heldButton == Qt::NoButton) {
+            qCritical() << "No held drag to release";
+            return SmokeResult::Fail;
+        }
+        qt_handleMouseEvent(held, heldPoint, held->mapToGlobal(heldPoint), Qt::NoButton, heldButton,
+                            QEvent::MouseButtonRelease, Qt::NoModifier, stamp(60));
+        heldButton = Qt::NoButton;
         return SmokeResult::Done;
     }
     const char *keys[] = {"pointerClick", "pointerDrag", "pointerHover", "checkItem"};
@@ -170,8 +189,12 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
     }
     const auto modifiers = modifiersOf(step);
     const auto button = step["button"].toString() == "right" ? Qt::RightButton : Qt::LeftButton;
-    auto scene = [item](QPointF f) { return item->mapToScene(QPointF(f.x() * item->width(), f.y() * item->height())); };
-    QPointF start = name == "@last" ? lastPoint : scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
+    auto scene = [item](QPointF f) {
+        return item->mapToScene(QPointF(f.x() * item->width(), f.y() * item->height()));
+    };
+    QPointF start = name == "@last"
+                        ? lastPoint
+                        : scene(fraction(step[QString(kind) == "pointerDrag" ? "from" : "at"], .5, .5));
     // Out of view in a scrolled pane: scroll it into view first, as a person would.
     if (name != "@last" && !onScreen(item, window, start))
         for (auto *p = item->parentItem(); p; p = p->parentItem())
@@ -210,8 +233,8 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
         qApp->installEventFilter(trace);
     }
     QPointer<QQuickWindow> target(window);
-    auto send = [target, modifiers](QPointF point, Qt::MouseButtons state, Qt::MouseButton changed, QEvent::Type type,
-                                    int advance) {
+    auto send = [target, modifiers](QPointF point, Qt::MouseButtons state, Qt::MouseButton changed,
+                                    QEvent::Type type, int advance) {
         if (target)
             qt_handleMouseEvent(target, point, target->mapToGlobal(point), state, changed, type, modifiers,
                                 stamp(advance));
@@ -241,7 +264,11 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
         events.append({start, button, QEvent::MouseButtonPress, 30});
         for (int i = 1; i <= 12; ++i)
             events.append({start + (end - start) * i / 12.0, button, QEvent::MouseMove, 16});
-        events.append({end, Qt::NoButton, QEvent::MouseButtonRelease, 60});
+        if (step["hold"].toBool()) {
+            heldPoint = end;
+            heldButton = button;
+        } else
+            events.append({end, Qt::NoButton, QEvent::MouseButtonRelease, 60});
     }
     auto queue = std::make_shared<QList<Event>>(events);
     auto next = std::make_shared<std::function<void()>>();
