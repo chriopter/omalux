@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Max 800",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Max 800 - C",
+      "lut": "c.png",
+      "id": "film-kodak-max-800-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Max 800 - L",
+      "lut": "l.png",
+      "id": "film-kodak-max-800-l"
+    }
+  ]
+}

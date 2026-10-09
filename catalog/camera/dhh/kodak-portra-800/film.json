@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Portra 800",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Portra 800 2C",
+      "lut": "c.png",
+      "id": "film-kodak-portra-800-2c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Portra 800 L",
+      "lut": "l.png",
+      "id": "film-kodak-portra-800-l"
+    }
+  ]
+}

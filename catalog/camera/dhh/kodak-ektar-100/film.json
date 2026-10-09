@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Ektar 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Ektar 100 - C",
+      "lut": "c.png",
+      "id": "film-kodak-ektar-100-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Ektar 100 - L",
+      "lut": "l.png",
+      "id": "film-kodak-ektar-100-l"
+    }
+  ]
+}

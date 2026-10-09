@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak T-MAX 3200",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak T-MAX 3200 2C",
+      "lut": "c.png",
+      "id": "film-kodak-t-max-3200-2c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak T-MAX 3200 L",
+      "lut": "l.png",
+      "id": "film-kodak-t-max-3200-l"
+    }
+  ]
+}

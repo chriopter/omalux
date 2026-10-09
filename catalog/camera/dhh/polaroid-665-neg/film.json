@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "Polaroid 665 Neg",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Polaroid 665 Neg C",
+      "lut": "c.png",
+      "id": "film-polaroid-665-neg-c"
+    },
+    {
+      "key": "L",
+      "name": "Polaroid 665 Neg L",
+      "lut": "l.png",
+      "id": "film-polaroid-665-neg-l"
+    }
+  ]
+}

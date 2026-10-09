@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "TRI-X⁻¹",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "TRI-X⁻¹ - C",
+      "lut": "c.png",
+      "id": "film-tri-x1-c"
+    },
+    {
+      "key": "L",
+      "name": "TRI-X⁻¹ - L",
+      "lut": "l.png",
+      "id": "film-tri-x1-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "PX-70",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "PX-70 C",
+      "lut": "c.png",
+      "id": "film-px-70-c"
+    },
+    {
+      "key": "L",
+      "name": "PX-70 L",
+      "lut": "l.png",
+      "id": "film-px-70-l"
+    }
+  ]
+}

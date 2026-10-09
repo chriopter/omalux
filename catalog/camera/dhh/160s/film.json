@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "160S",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "160S - C",
+      "lut": "c.png",
+      "id": "film-160s-c"
+    },
+    {
+      "key": "L",
+      "name": "160S - L",
+      "lut": "l.png",
+      "id": "film-160s-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Provia 400X XP",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Provia 400X XP - C",
+      "lut": "c.png",
+      "id": "film-provia-400x-xp-c"
+    },
+    {
+      "key": "L",
+      "name": "Provia 400X XP - L",
+      "lut": "l.png",
+      "id": "film-provia-400x-xp-l"
+    }
+  ]
+}

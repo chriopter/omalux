@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "Polaroid 669",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Polaroid 669 C",
+      "lut": "c.png",
+      "id": "film-polaroid-669-c"
+    },
+    {
+      "key": "L",
+      "name": "Polaroid 669 L",
+      "lut": "l.png",
+      "id": "film-polaroid-669-l"
+    }
+  ]
+}

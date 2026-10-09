@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak UM 800",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak UM 800 - C",
+      "lut": "c.png",
+      "id": "film-kodak-um-800-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak UM 800 - L",
+      "lut": "l.png",
+      "id": "film-kodak-um-800-l"
+    }
+  ]
+}

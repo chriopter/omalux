@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji 160C",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji 160C 2C",
+      "lut": "c.png",
+      "id": "film-fuji-160c-2c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji 160C L",
+      "lut": "l.png",
+      "id": "film-fuji-160c-l"
+    }
+  ]
+}

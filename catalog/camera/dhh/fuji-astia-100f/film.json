@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Astia 100F",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Astia 100F - C",
+      "lut": "c.png",
+      "id": "film-fuji-astia-100f-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Astia 100F - L",
+      "lut": "l.png",
+      "id": "film-fuji-astia-100f-l"
+    }
+  ]
+}

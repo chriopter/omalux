@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "Polaroid 690",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Polaroid 690 C",
+      "lut": "c.png",
+      "id": "film-polaroid-690-c"
+    },
+    {
+      "key": "L",
+      "name": "Polaroid 690 L",
+      "lut": "l.png",
+      "id": "film-polaroid-690-l"
+    }
+  ]
+}

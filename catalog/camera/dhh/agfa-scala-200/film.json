@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Agfa Scala 200",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Agfa Scala 200 - C",
+      "lut": "c.png",
+      "id": "film-agfa-scala-200-c"
+    },
+    {
+      "key": "L",
+      "name": "Agfa Scala 200 - L",
+      "lut": "l.png",
+      "id": "film-agfa-scala-200-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Superia 800",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Superia 800 C",
+      "lut": "c.png",
+      "id": "film-fuji-superia-800-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Superia 800 L",
+      "lut": "l.png",
+      "id": "film-fuji-superia-800-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Provia 100F",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Provia 100F - C",
+      "lut": "c.png",
+      "id": "film-fuji-provia-100f-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Provia 100F - L",
+      "lut": "l.png",
+      "id": "film-fuji-provia-100f-l"
+    }
+  ]
+}

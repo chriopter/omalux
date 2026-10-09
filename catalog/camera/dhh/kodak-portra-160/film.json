@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Portra 160",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Portra 160 2C",
+      "lut": "c.png",
+      "id": "film-kodak-portra-160-2c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Portra 160 L",
+      "lut": "l.png",
+      "id": "film-kodak-portra-160-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Portra 400 NC",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Portra 400 NC C",
+      "lut": "c.png",
+      "id": "film-kodak-portra-400-nc-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Portra 400 NC L",
+      "lut": "l.png",
+      "id": "film-kodak-portra-400-nc-l"
+    }
+  ]
+}

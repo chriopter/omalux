@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Precisa 100 XP",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Precisa 100 XP - C",
+      "lut": "c.png",
+      "id": "film-precisa-100-xp-c"
+    },
+    {
+      "key": "L",
+      "name": "Precisa 100 XP - L",
+      "lut": "l.png",
+      "id": "film-precisa-100-xp-l"
+    }
+  ]
+}

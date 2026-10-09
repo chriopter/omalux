@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Royal 400",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Royal 400 - C",
+      "lut": "c.png",
+      "id": "film-kodak-royal-400-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Royal 400 - L",
+      "lut": "l.png",
+      "id": "film-kodak-royal-400-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "E100VS XP",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "E100VS XP - C",
+      "lut": "c.png",
+      "id": "film-e100vs-xp-c"
+    },
+    {
+      "key": "L",
+      "name": "E100VS XP - L",
+      "lut": "l.png",
+      "id": "film-e100vs-xp-l"
+    }
+  ]
+}

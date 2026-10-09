@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Plus-X 125",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Plus-X 125 - C",
+      "lut": "c.png",
+      "id": "film-plus-x-125-c"
+    },
+    {
+      "key": "L",
+      "name": "Plus-X 125 - L",
+      "lut": "l.png",
+      "id": "film-plus-x-125-l"
+    }
+  ]
+}

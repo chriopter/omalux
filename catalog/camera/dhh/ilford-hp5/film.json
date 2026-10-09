@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Ilford",
+  "name": "Ilford HP5",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Ilford HP5 2C",
+      "lut": "c.png",
+      "id": "film-ilford-hp5-2c"
+    },
+    {
+      "key": "L",
+      "name": "Ilford HP5 L",
+      "lut": "l.png",
+      "id": "film-ilford-hp5-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "400H⁺¹",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "400H⁺¹ - C",
+      "lut": "c.png",
+      "id": "film-400h-plus-1-c"
+    },
+    {
+      "key": "L",
+      "name": "400H⁺¹ - L",
+      "lut": "l.png",
+      "id": "film-400h-plus-1-l"
+    }
+  ]
+}

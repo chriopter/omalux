@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Portra 100T",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Portra 100T - C",
+      "lut": "c.png",
+      "id": "film-portra-100t-c"
+    },
+    {
+      "key": "L",
+      "name": "Portra 100T - L",
+      "lut": "l.png",
+      "id": "film-portra-100t-l"
+    }
+  ]
+}

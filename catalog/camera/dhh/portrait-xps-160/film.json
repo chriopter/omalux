@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Portrait XPS 160",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Portrait XPS 160 - C",
+      "lut": "c.png",
+      "id": "film-portrait-xps-160-c"
+    },
+    {
+      "key": "L",
+      "name": "Portrait XPS 160 - L",
+      "lut": "l.png",
+      "id": "film-portrait-xps-160-l"
+    }
+  ]
+}

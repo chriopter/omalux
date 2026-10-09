@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "Time-Zero Polaroid",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Time-Zero Polaroid C",
+      "lut": "c.png",
+      "id": "film-time-zero-polaroid-c"
+    },
+    {
+      "key": "L",
+      "name": "Time-Zero Polaroid L",
+      "lut": "l.png",
+      "id": "film-time-zero-polaroid-l"
+    }
+  ]
+}

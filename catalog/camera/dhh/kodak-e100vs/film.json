@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak E100VS",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak E100VS - C",
+      "lut": "c.png",
+      "id": "film-kodak-e100vs-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak E100VS - L",
+      "lut": "l.png",
+      "id": "film-kodak-e100vs-l"
+    }
+  ]
+}

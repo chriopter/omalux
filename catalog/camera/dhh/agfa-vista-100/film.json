@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Agfa Vista 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Agfa Vista 100 - C",
+      "lut": "c.png",
+      "id": "film-agfa-vista-100-c"
+    },
+    {
+      "key": "L",
+      "name": "Agfa Vista 100 - L",
+      "lut": "l.png",
+      "id": "film-agfa-vista-100-l"
+    }
+  ]
+}

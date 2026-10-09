@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "PX-680",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "PX-680 C",
+      "lut": "c.png",
+      "id": "film-px-680-c"
+    },
+    {
+      "key": "L",
+      "name": "PX-680 L",
+      "lut": "l.png",
+      "id": "film-px-680-l"
+    }
+  ]
+}

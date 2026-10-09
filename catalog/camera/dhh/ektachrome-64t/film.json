@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Ektachrome 64T",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Ektachrome 64T - C",
+      "lut": "c.png",
+      "id": "film-ektachrome-64t-c"
+    },
+    {
+      "key": "L",
+      "name": "Ektachrome 64T - L",
+      "lut": "l.png",
+      "id": "film-ektachrome-64t-l"
+    }
+  ]
+}

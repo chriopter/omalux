@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Gold 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Gold 100 - C",
+      "lut": "c.png",
+      "id": "film-kodak-gold-100-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Gold 100 - L",
+      "lut": "l.png",
+      "id": "film-kodak-gold-100-l"
+    }
+  ]
+}

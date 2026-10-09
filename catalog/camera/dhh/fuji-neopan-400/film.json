@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Neopan 400",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Neopan 400 - C",
+      "lut": "c.png",
+      "id": "film-fuji-neopan-400-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Neopan 400 - L",
+      "lut": "l.png",
+      "id": "film-fuji-neopan-400-l"
+    }
+  ]
+}

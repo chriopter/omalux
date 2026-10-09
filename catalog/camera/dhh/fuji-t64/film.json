@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji T64",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji T64 - C",
+      "lut": "c.png",
+      "id": "film-fuji-t64-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji T64 - L",
+      "lut": "l.png",
+      "id": "film-fuji-t64-l"
+    }
+  ]
+}

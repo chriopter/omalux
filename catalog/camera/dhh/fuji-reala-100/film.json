@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Reala 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Reala 100 C",
+      "lut": "c.png",
+      "id": "film-fuji-reala-100-c"
+    }
+  ]
+}

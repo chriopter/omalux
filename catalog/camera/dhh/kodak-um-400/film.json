@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak UM 400",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak UM 400 - C",
+      "lut": "c.png",
+      "id": "film-kodak-um-400-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak UM 400 - L",
+      "lut": "l.png",
+      "id": "film-kodak-um-400-l"
+    }
+  ]
+}

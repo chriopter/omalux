@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak Gold 200",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak Gold 200 - C",
+      "lut": "c.png",
+      "id": "film-kodak-gold-200-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak Gold 200 - L",
+      "lut": "l.png",
+      "id": "film-kodak-gold-200-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Ilford",
+  "name": "Pan F Plus 50",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Pan F Plus 50 - C",
+      "lut": "c.png",
+      "id": "film-pan-f-plus-50-c"
+    },
+    {
+      "key": "L",
+      "name": "Pan F Plus 50 - L",
+      "lut": "l.png",
+      "id": "film-pan-f-plus-50-l"
+    }
+  ]
+}

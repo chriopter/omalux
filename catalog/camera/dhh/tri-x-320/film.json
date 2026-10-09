@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Tri-X 320",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Tri-X 320 - C",
+      "lut": "c.png",
+      "id": "film-tri-x-320-c"
+    },
+    {
+      "key": "L",
+      "name": "Tri-X 320 - L",
+      "lut": "l.png",
+      "id": "film-tri-x-320-l"
+    }
+  ]
+}

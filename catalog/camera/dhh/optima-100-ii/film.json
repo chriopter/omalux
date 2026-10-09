@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Optima 100 II",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Optima 100 II - C",
+      "lut": "c.png",
+      "id": "film-optima-100-ii-c"
+    },
+    {
+      "key": "L",
+      "name": "Optima 100 II - L",
+      "lut": "l.png",
+      "id": "film-optima-100-ii-l"
+    }
+  ]
+}

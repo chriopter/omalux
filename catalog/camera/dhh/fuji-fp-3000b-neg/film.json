@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji FP-3000b Neg",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji FP-3000b Neg C",
+      "lut": "c.png",
+      "id": "film-fuji-fp-3000b-neg-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji FP-3000b Neg L",
+      "lut": "l.png",
+      "id": "film-fuji-fp-3000b-neg-l"
+    }
+  ]
+}

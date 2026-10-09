@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Sensia 100 XP",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Sensia 100 XP - C",
+      "lut": "c.png",
+      "id": "film-sensia-100-xp-c"
+    },
+    {
+      "key": "L",
+      "name": "Sensia 100 XP - L",
+      "lut": "l.png",
+      "id": "film-sensia-100-xp-l"
+    }
+  ]
+}

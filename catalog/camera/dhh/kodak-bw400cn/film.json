@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak BW400CN",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak BW400CN - C",
+      "lut": "c.png",
+      "id": "film-kodak-bw400cn-c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak BW400CN - L",
+      "lut": "l.png",
+      "id": "film-kodak-bw400cn-l"
+    }
+  ]
+}

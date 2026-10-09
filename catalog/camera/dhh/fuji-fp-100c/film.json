@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji FP-100c",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji FP-100c C",
+      "lut": "c.png",
+      "id": "film-fuji-fp-100c-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji FP-100c L",
+      "lut": "l.png",
+      "id": "film-fuji-fp-100c-l"
+    }
+  ]
+}

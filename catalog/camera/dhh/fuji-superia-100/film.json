@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Superia 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "L",
+      "name": "Fuji Superia 100 L",
+      "lut": "l.png",
+      "id": "film-fuji-superia-100-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Superia 1600",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Superia 1600 C",
+      "lut": "c.png",
+      "id": "film-fuji-superia-1600-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Superia 1600 L",
+      "lut": "l.png",
+      "id": "film-fuji-superia-1600-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Provia 400X",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Provia 400X - C",
+      "lut": "c.png",
+      "id": "film-fuji-provia-400x-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Provia 400X - L",
+      "lut": "l.png",
+      "id": "film-fuji-provia-400x-l"
+    }
+  ]
+}

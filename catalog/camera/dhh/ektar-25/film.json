@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Ektar 25",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Ektar 25 - C",
+      "lut": "c.png",
+      "id": "film-ektar-25-c"
+    },
+    {
+      "key": "L",
+      "name": "Ektar 25 - L",
+      "lut": "l.png",
+      "id": "film-ektar-25-l"
+    }
+  ]
+}

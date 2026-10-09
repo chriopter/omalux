@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Ilford",
+  "name": "Ilford Delta 3200",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Ilford Delta 3200 C",
+      "lut": "c.png",
+      "id": "film-ilford-delta-3200-c"
+    },
+    {
+      "key": "L",
+      "name": "Ilford Delta 3200 L",
+      "lut": "l.png",
+      "id": "film-ilford-delta-3200-l"
+    }
+  ]
+}

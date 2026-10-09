@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Superia 400",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Superia 400 C",
+      "lut": "c.png",
+      "id": "film-fuji-superia-400-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Superia 400 L",
+      "lut": "l.png",
+      "id": "film-fuji-superia-400-l"
+    }
+  ]
+}

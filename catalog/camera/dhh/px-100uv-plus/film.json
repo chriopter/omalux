@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Polaroid",
+  "name": "PX-100UV+",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "PX-100UV+ C",
+      "lut": "c.png",
+      "id": "film-px-100uv-plus-c"
+    },
+    {
+      "key": "L",
+      "name": "PX-100UV+ L",
+      "lut": "l.png",
+      "id": "film-px-100uv-plus-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Kodak TRI-X 400 +",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Kodak TRI-X 400 + 2C",
+      "lut": "c.png",
+      "id": "film-kodak-tri-x-400-plus-2c"
+    },
+    {
+      "key": "L",
+      "name": "Kodak TRI-X 400 + L",
+      "lut": "l.png",
+      "id": "film-kodak-tri-x-400-plus-l"
+    }
+  ]
+}

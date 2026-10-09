@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji 400H",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji 400H 2C",
+      "lut": "c.png",
+      "id": "film-fuji-400h-2c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji 400H L",
+      "lut": "l.png",
+      "id": "film-fuji-400h-l"
+    }
+  ]
+}

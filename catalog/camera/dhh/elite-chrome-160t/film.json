@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Kodak",
+  "name": "Elite Chrome 160T",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Elite Chrome 160T - C",
+      "lut": "c.png",
+      "id": "film-elite-chrome-160t-c"
+    },
+    {
+      "key": "L",
+      "name": "Elite Chrome 160T - L",
+      "lut": "l.png",
+      "id": "film-elite-chrome-160t-l"
+    }
+  ]
+}

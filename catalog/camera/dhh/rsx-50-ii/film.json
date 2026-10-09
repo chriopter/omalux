@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "RSX 50 II",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "RSX 50 II - C",
+      "lut": "c.png",
+      "id": "film-rsx-50-ii-c"
+    },
+    {
+      "key": "L",
+      "name": "RSX 50 II - L",
+      "lut": "l.png",
+      "id": "film-rsx-50-ii-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Agfa Vista 800",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Agfa Vista 800 - C",
+      "lut": "c.png",
+      "id": "film-agfa-vista-800-c"
+    },
+    {
+      "key": "L",
+      "name": "Agfa Vista 800 - L",
+      "lut": "l.png",
+      "id": "film-agfa-vista-800-l"
+    }
+  ]
+}

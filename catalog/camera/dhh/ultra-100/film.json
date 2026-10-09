@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Agfa",
+  "name": "Ultra 100",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Ultra 100 - C",
+      "lut": "c.png",
+      "id": "film-ultra-100-c"
+    },
+    {
+      "key": "L",
+      "name": "Ultra 100 - L",
+      "lut": "l.png",
+      "id": "film-ultra-100-l"
+    }
+  ]
+}

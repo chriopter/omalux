@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji Fortia SP",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji Fortia SP - C",
+      "lut": "c.png",
+      "id": "film-fuji-fortia-sp-c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji Fortia SP - L",
+      "lut": "l.png",
+      "id": "film-fuji-fortia-sp-l"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "group": "DHH",
+  "brand": "Fuji",
+  "name": "Fuji 800Z",
+  "colorspace": "srgb",
+  "interpolation": "trilinear",
+  "variants": [
+    {
+      "key": "C",
+      "name": "Fuji 800Z 2C",
+      "lut": "c.png",
+      "id": "film-fuji-800z-2c"
+    },
+    {
+      "key": "L",
+      "name": "Fuji 800Z L",
+      "lut": "l.png",
+      "id": "film-fuji-800z-l"
+    }
+  ]
+}
