@@ -767,6 +767,18 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
         elif row["tier"] == "primary":
             row["tier"] = "detail"
 
+    # conditions on a params member that is not a row (layout-decisions "visible_params"): retouch
+    # shows the fill and blur rows by its `algorithm`, which the tool on the photo sets
+    param_refs = set()
+    for f, cond in dec.get("visible_params", {}).get(op, {}).items():
+        hit = [row for row in out_rows if row["field"] == f]
+        if not hit:
+            fail(f"layout-decisions: visible_params {op}.{f} matches no row")
+        hit[0]["visible_when"] = cond
+        param_refs.update(c["field"] for c in cond.get("all", [cond]))
+        label = hit[0]["label"] or hit[0]["field"]
+        notes[:] = [n for n in notes if not (n.startswith(label + ": shown when") and "not machine-readable" in n)]
+
     if not out_rows and not curated:
         fail(f"{op} has no rows")
     used_tabs = [t for t in tabs if any(row["tab"] == t for row in out_rows)]
@@ -792,7 +804,7 @@ def build_module(op, inv, dec, curated_pairs, curated_modules, report):
     module["primary"] = primary
     module["rows"] = out_rows
     module["notes"] = " ".join(n if n.endswith(".") else n + "." for n in dict.fromkeys(notes))
-    module["_curated_refs"] = {r["path"] or r["field"] for r in curated_rows}
+    module["_curated_refs"] = {r["path"] or r["field"] for r in curated_rows} | param_refs
     if curated:
         # A further instance of a curated module is not edited through controls.h: it gets
         # every row, as an uncurated module would (instance_rows, instance_primary, instance_tabs).

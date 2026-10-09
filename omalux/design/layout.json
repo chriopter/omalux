@@ -16565,7 +16565,7 @@
       {
        "field": "@canvas",
        "path": null,
-       "label": "shapes",
+       "label": "retouch tools",
        "tab": null,
        "section": null,
        "widget": "canvas",
@@ -16585,7 +16585,7 @@
        "custom": {
         "kind": "canvas",
         "tool": "shapes",
-        "hint": "click a shape, then the photo; drag shapes, their source or edges; wheel resizes"
+        "hint": "pick a shape and an algorithm, then click or draw on the photo; drag shapes, their source or edges; wheel resizes"
        },
        "action": null
       },
@@ -16641,7 +16641,12 @@
          "label": "color"
         }
        ],
-       "visible_when": null,
+       "visible_when": {
+        "field": "algorithm",
+        "in": [
+         4
+        ]
+       },
        "tier": "detail",
        "colors": "",
        "custom": null,
@@ -16669,9 +16674,19 @@
        ],
        "values": null,
        "visible_when": {
-        "field": "fill_mode",
-        "in": [
-         1
+        "all": [
+         {
+          "field": "algorithm",
+          "in": [
+           4
+          ]
+         },
+         {
+          "field": "fill_mode",
+          "in": [
+           1
+          ]
+         }
         ]
        },
        "tier": "detail",
@@ -16701,7 +16716,12 @@
        "soft_max": 1,
        "default": 0,
        "values": null,
-       "visible_when": null,
+       "visible_when": {
+        "field": "algorithm",
+        "in": [
+         4
+        ]
+       },
        "tier": "detail",
        "colors": "light",
        "custom": null,
@@ -16733,7 +16753,12 @@
          "label": "bilateral"
         }
        ],
-       "visible_when": null,
+       "visible_when": {
+        "field": "algorithm",
+        "in": [
+         3
+        ]
+       },
        "tier": "detail",
        "colors": "",
        "custom": null,
@@ -16756,7 +16781,12 @@
        "soft_max": 200,
        "default": 10,
        "values": null,
-       "visible_when": null,
+       "visible_when": {
+        "field": "algorithm",
+        "in": [
+         3
+        ]
+       },
        "tier": "detail",
        "colors": "",
        "custom": null,
@@ -16791,7 +16821,7 @@
        "action": null
       }
      ],
-     "notes": "fill mode: shown when selected tool/shape algorithm == fill (not machine-readable). fill color: shown when algorithm == fill (not machine-readable). brightness: shown when algorithm == fill (not machine-readable). blur type: shown when algorithm == blur (not machine-readable). blur radius: shown when algorithm == blur (not machine-readable). adjust preview levels: shown when display wavelet scale is on (not machine-readable)."
+     "notes": "adjust preview levels: shown when display wavelet scale is on (not machine-readable)."
     },
     {
      "operation": "liquify",

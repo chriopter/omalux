@@ -333,7 +333,12 @@ unlabelled get an empty label.
   `null` marks GUI-only state and actions (buttons, pickers, notices).
 - `visible_when` is `{field, in}` or `{all: [...]}`. Conditions on the sensor, the image file
   or darktable preferences cannot be expressed this way and stay `null`, with the condition
-  in the module's notes. A condition may name a curated parameter by its params member.
+  in the module's notes. A condition may name a curated parameter by its params member, and
+  the decisions' `visible_params` block gives a row a condition on a params member that has no
+  row of its own: retouch shows its fill rows while `algorithm` is fill and its blur rows while
+  it is blur, as `rt_show_hide_controls` does (the tool on the photo sets the algorithm, also
+  when a shape is selected). retouch's tool row is named "retouch tools" like darktable's
+  section; "shapes" is the section of the selected shape's rows.
 - On-image tools (retouch and spot removal shapes, liquify warps, the graduated density line,
   rotate and perspective's structure, the vignetting ellipse) become one `canvas` row from the
   decisions' `canvas` block (`custom.tool`, `custom.hint`); the rows it replaces are left out.

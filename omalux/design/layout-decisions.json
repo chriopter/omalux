@@ -203,9 +203,9 @@
  "canvas": {
   "note": "Rows that open a module's tool on the photograph (PhotoViewport): a row with a button replaces the rows darktable draws on the image. Selecting any row of the module shows the tool too.",
   "retouch": {
-   "label": "shapes",
+   "label": "retouch tools",
    "tool": "shapes",
-   "hint": "click a shape, then the photo; drag shapes, their source or edges; wheel resizes",
+   "hint": "pick a shape and an algorithm, then click or draw on the photo; drag shapes, their source or edges; wheel resizes",
    "replaces": [
     "algorithm",
     "@shapes"
@@ -314,6 +314,16 @@
    "match": "show_sliders",
    "value": null,
    "why": "darktable shows the 24 colour sliders only with the show_sliders preference; Omalux always shows them as rows"
+  }
+ },
+ "visible_params": {
+  "note": "Conditions on a params member that has no row of its own. retouch shows the fill rows while its algorithm is fill (4) and the blur rows while it is blur (3), as rt_show_hide_controls does (retouch.c:444); the tool on the photo sets the algorithm, also when a shape is selected.",
+  "retouch": {
+   "fill_mode": {"field": "algorithm", "in": [4]},
+   "fill_color": {"all": [{"field": "algorithm", "in": [4]}, {"field": "fill_mode", "in": [1]}]},
+   "fill_brightness": {"field": "algorithm", "in": [4]},
+   "blur_type": {"field": "algorithm", "in": [3]},
+   "blur_radius": {"field": "algorithm", "in": [3]}
   }
  },
  "colors": {
