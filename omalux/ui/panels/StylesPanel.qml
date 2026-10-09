@@ -33,9 +33,12 @@ SidebarScrollView {
     signal moduleResetRequested(string operation, int instance, var module)
     signal moduleInteractionChanged(bool active)
     signal controlSelected(string id)
-    // What darktable set up for this camera (backend.cameraDefaults); this pane shows the
-    // Omalux camera presets among it, read-only.
+    // What darktable set up for this camera (backend.cameraDefaults); the Camera pane shows the
+    // Omalux camera presets among it, and below them every camera preset (backend.cameraPresets)
+    // to put on the photograph by hand.
     property var cameraDefaults: []
+    property var allCameraPresets: []
+    signal cameraPresetRequested(string name, bool on)
     property string camera: ""
     property bool cameraOpen: true
     // The Styles area has three panes, all this component: "looks" (the library grid), "modules"
@@ -207,7 +210,10 @@ SidebarScrollView {
                     Text {
                         visible: root.cameraOpen && root.cameraPresets.length === 0
                         width: parent.width
-                        text: "No Omalux camera preset matches this camera."
+                        objectName: "camera-presets-none"
+                        text: (root.allCameraPresets || []).length > 0
+                              ? "No Omalux camera preset matched this camera automatically. Choose one below."
+                              : "No Omalux camera preset matches this camera."
                         color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
                     }
                     Repeater {
@@ -231,6 +237,18 @@ SidebarScrollView {
                             }
                         }
                     }
+                }
+            }
+            Loader {
+                active: root.photoReady && root.view === "camera" && (root.allCameraPresets || []).length > 0
+                visible: active
+                width: parent.width
+                sourceComponent: CameraPresetList {
+                    objectName: "camera-preset-list"
+                    theme: root.theme
+                    presets: root.allCameraPresets
+                    ready: !root.busy
+                    onPresetRequested: (name, on) => root.cameraPresetRequested(name, on)
                 }
             }
             Text {

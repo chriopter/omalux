@@ -121,6 +121,7 @@ def main():
                    ROOT / 'omalux/tests/canvas-engine.json', ROOT / 'omalux/tests/canvas.json',
                    ROOT / 'omalux/tests/canvas-picker.json',
                    ROOT / 'omalux/tests/crop.json',
+                   ROOT / 'omalux/tests/camera-presets.json',
                    work / 'workflow.json']
         # Displayed conversions, runtime lists and file choices; "{WORK}" names this run's folder.
         values = work / 'module-values.json'
@@ -139,6 +140,13 @@ def main():
             script.write_text((ROOT / 'omalux/tests' / name).read_text().replace('{WORK}', str(work))
                               .replace('{ROOT}', str(ROOT)))
             scripts.append(script)
+        # Camera presets on a RAW file (auto-applied ones taken off and put back, another one by
+        # hand). No RAW file is in the repository: name one in OMALUX_TEST_RAW to run it.
+        raw = os.environ.get('OMALUX_TEST_RAW')
+        if raw and Path(raw).is_file():
+            scripts.append(ROOT / 'omalux/tests/camera-presets-raw.json')
+        else:
+            print('Skipping camera-presets-raw.json: set OMALUX_TEST_RAW to a RAW file', flush=True)
         # Escape on the open dialog and the keys back in the editor: Qt's own file dialog (no
         # platform theme) and, on a headless GTK display only (broadway, never a visible window),
         # the GTK file chooser Qt's gtk3 theme opens (Omarchy's QT_QPA_PLATFORMTHEME).
@@ -176,7 +184,8 @@ def main():
             log = work / (script.stem + '.log')
             print('Running', script.name, flush=True)
             with log.open('w') as output:
-                image = [str(work / 'broken.jpg')] if script.stem == 'shell-empty' else []
+                image = ([str(work / 'broken.jpg')] if script.stem == 'shell-empty'
+                         else [raw] if script.stem == 'camera-presets-raw' else [])
                 result = subprocess.run([str(command), *image], cwd=ROOT, env=env, stdout=output,
                                         stderr=subprocess.STDOUT, timeout=240)
             text = log.read_text()

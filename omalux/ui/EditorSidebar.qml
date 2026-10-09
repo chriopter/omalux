@@ -461,6 +461,8 @@ Rectangle {
             errorMessage: root.backend.styleError
             onApplyRequested: id => root.backend.applyStyle(id)
             cameraDefaults: root.backend.cameraDefaults
+            allCameraPresets: root.backend.cameraPresets || []
+            onCameraPresetRequested: (name, on) => root.backend.applyCameraPreset(name, on)
             camera: { const c = String(root.backend.metadata.camera || "").replace(/\(null\)/g, "").trim(); return c }
             catalogModel: moduleCatalog
             states: moduleCatalog.states

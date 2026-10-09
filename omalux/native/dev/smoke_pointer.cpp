@@ -6,6 +6,8 @@
 // wins. Positions are fractions of the item ("at", default the centre).
 //   {"pointerClick": "sidebar-area-edit", "at": [x, y], "button": "right", "clicks": 2,
 //    "modifiers": "ctrl", "expectTop": true}   expectTop fails when another item covers it
+//   {"pointerClick": name, "ifHidden": other} clicks only while `other` is not shown (opening a
+//   group that may already be open)
 //   {"pointerDrag": name, "from": [x, y], "to": [x, y], "modifiers": "shift"}
 //   {"pointerHover": name}, {"waitMs": 1000}; the name "@last" repeats the previous point
 //   {"rememberItem": name} notes where an item is in the window and how large;
@@ -181,6 +183,8 @@ SmokeResult pointerSmokeStep(const QJsonObject &step, QQmlApplicationEngine &eng
     // until asked, so positioners may still hold the previous layout. Draw one, as a screen would.
     window->grabWindow();
     const auto name = step[kind].toString();
+    if (step.contains("ifHidden") && findItem(window->contentItem(), step["ifHidden"].toString()))
+        return SmokeResult::Done;
     // "@last": the window point of the previous gesture again (a second click at the same spot).
     static QPointF lastPoint;
     auto *item = name == "@last" ? window->contentItem() : findItem(window->contentItem(), name);
