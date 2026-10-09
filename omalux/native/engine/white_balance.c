@@ -133,7 +133,9 @@ static void _XYZ_to_temperature(cmsCIEXYZ XYZ, float *TempK, float *tint) {
     double maxtemp = DT_IOP_HIGHEST_TEMPERATURE, mintemp = DT_IOP_LOWEST_TEMPERATURE;
     cmsCIEXYZ _xyz;
 
-    for (*TempK = (maxtemp + mintemp) / 2.0; (maxtemp - mintemp) > 1.0; *TempK = (maxtemp + mintemp) / 2.0) {
+    // darktable stops at 1 K, since its slider keeps the value the user set. Here the reading
+    // is the value shown after every edit, so it is refined until a 1 K step reads back as 1 K.
+    for (*TempK = (maxtemp + mintemp) / 2.0; (maxtemp - mintemp) > 0.01; *TempK = (maxtemp + mintemp) / 2.0) {
         _xyz = _temperature_to_XYZ(*TempK);
         if (_xyz.Z / _xyz.X > XYZ.Z / XYZ.X)
             maxtemp = *TempK;

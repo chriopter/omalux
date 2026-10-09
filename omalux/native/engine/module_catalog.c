@@ -260,14 +260,17 @@ static JsonObject *describe_item(const dt_introspection_field_t *element) {
     return item;
 }
 
+// `d` points at the same field in the module's default_params: what darktable's reset restores
+// for this image (white balance coefficients, exposure of a raw ...), which the static
+// introspection default does not know.
 static void describe_field(JsonArray *out, const dt_introspection_field_t *field, const char *p,
-                           const char *path, const char *operation) {
+                           const char *d, const char *path, const char *operation) {
     if (is_compound(field)) {
         for (dt_introspection_field_t **child = children_of(field); child && *child; ++child) {
             char *child_path = *path ? g_strdup_printf("%s.%s", path, (*child)->header.field_name)
                                      : g_strdup((*child)->header.field_name);
-            describe_field(out, *child, p + ((*child)->header.offset - field->header.offset), child_path,
-                           operation);
+            const size_t shift = (*child)->header.offset - field->header.offset;
+            describe_field(out, *child, p + shift, d ? d + shift : NULL, child_path, operation);
             g_free(child_path);
         }
         return;
@@ -283,6 +286,9 @@ static void describe_field(JsonArray *out, const dt_introspection_field_t *field
     if (field->header.type != DT_INTROSPECTION_TYPE_OPAQUE)
         json_object_set_member(row, "value", value_node(field, p));
     describe_limits(row, field);
+    double own_default = 0;
+    if (d && read_scalar(field, d, &own_default) && isfinite(own_default))
+        json_object_set_double_member(row, "reset", own_default);
     if (field->header.type == DT_INTROSPECTION_TYPE_ARRAY) {
         json_object_set_int_member(row, "count", (int)field->Array.count);
         json_object_set_string_member(row, "element", type_name(field->Array.type));
@@ -311,7 +317,8 @@ static JsonObject *describe_module(dt_iop_module_t *module, int position) {
     JsonArray *fields = json_array_new();
     if (introspection && introspection->field) {
         json_object_set_int_member(entry, "params_version", introspection->params_version);
-        describe_field(fields, introspection->field, (const char *)module->params, "", module->op);
+        describe_field(fields, introspection->field, (const char *)module->params,
+                       (const char *)module->default_params, "", module->op);
     }
     json_object_set_array_member(entry, "parameters", fields);
     // Displayed conversions ("derived") and runtime-list texts ("labels"), module_values.c.

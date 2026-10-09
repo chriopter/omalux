@@ -84,7 +84,7 @@ Column {
             onSelectedRequested: root.controlSelected(control.id)
             onInteractionChanged: active => root.interactionChanged(active)
             onEdited: value => root.edit(r, (value - (r.offset || 0)) / (r.factor || 1))
-            onResetRequested: root.changesRequested({ [r.path]: r.default })
+            onResetRequested: root.changesRequested({ [r.path]: root.catalogModel.defaultFor(root.moduleState, r.path, r.default) })
             onModuleResetRequested: root.resetRequested()
             navTarget.group: root.operation + "/0"
         }

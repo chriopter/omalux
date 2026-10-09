@@ -373,6 +373,7 @@ Column {
         changes[subst(path)] = value
         root.changesRequested(changes)
     }
+    function defaultOf(r) { return root.catalogModel.defaultFor(root.moduleState, subst(r.path), r.default) }
     function editRaw(r, value) {
         root.edit(r.path, Math.max(r.min !== null ? r.min : -Infinity, Math.min(r.max !== null ? r.max : Infinity, value)))
     }
@@ -511,7 +512,7 @@ Column {
             onSelectedRequested: root.controlSelected(it.control.id)
             onInteractionChanged: active => root.interactionChanged(active)
             onEdited: v => root.editRaw(r, (v - (r.offset || 0)) / (r.factor || 1))
-            onResetRequested: root.edit(r.path, r.default)
+            onResetRequested: root.edit(r.path, root.defaultOf(r))
             navTarget.group: root.navGroup
             // darktable's picker on the slider (its "quad" button), in the free right column.
             Loader {
@@ -548,7 +549,7 @@ Column {
             theme: root.theme
             label: it.row.label
             resetEnabled: root.editable && known && root.canWrite(it.row.path)
-            onResetRequested: root.edit(it.row.path, it.row.default)
+            onResetRequested: root.edit(it.row.path, root.defaultOf(it.row))
             opacity: !known ? .45 : root.moduleEnabled ? 1 : .7
             ControlChoice {
                 width: parent.width
@@ -560,7 +561,7 @@ Column {
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
                 onEdited: v => root.edit(it.row.path, v)
-                onResetRequested: root.edit(it.row.path, it.row.default)
+                onResetRequested: root.edit(it.row.path, root.defaultOf(it.row))
                 navTarget.navId: root.navId(it.row)
                 navTarget.group: root.navGroup
             }
@@ -574,7 +575,7 @@ Column {
             theme: root.theme
             label: it.row.label
             resetEnabled: root.editable && known && root.canWrite(it.row.path)
-            onResetRequested: root.edit(it.row.path, it.row.default)
+            onResetRequested: root.edit(it.row.path, root.defaultOf(it.row))
             opacity: !known ? .45 : root.moduleEnabled ? 1 : .7
             ControlSwitch {
                 width: parent.width
@@ -585,7 +586,7 @@ Column {
                 value: root.valueOrDefault(it.row)
                 editable: root.editable && root.readable(it.row) && root.canWrite(it.row.path)
                 onEdited: v => root.edit(it.row.path, v)
-                onResetRequested: root.edit(it.row.path, it.row.default)
+                onResetRequested: root.edit(it.row.path, root.defaultOf(it.row))
                 navTarget.navId: root.navId(it.row)
                 navTarget.group: root.navGroup
             }
@@ -914,7 +915,7 @@ Column {
             navTarget.group: root.navGroup
             onResetRequested: {
                 const changes = {}
-                for (const x of bandRows) changes[x.path] = x.default
+                for (const x of bandRows) changes[x.path] = root.defaultOf(x)
                 root.changesRequested(changes)
             }
         }

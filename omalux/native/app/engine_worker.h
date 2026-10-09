@@ -19,6 +19,8 @@ class EngineWorker : public QObject {
     ~EngineWorker() override;
     void start();
     WorkTicket controls(const ControlValues &, int index);
+    // What each control resets to for the open image (om_engine_default_controls).
+    ControlValues controlDefaults();
     WorkTicket interactive(bool active);
     WorkTicket action(EditorAction action);
     // Generic module edits queue in order and coalesce like slider values: consecutive
@@ -86,6 +88,7 @@ class EngineWorker : public QObject {
     std::condition_variable wake;
     std::thread thread;
     ControlValues requested{};
+    ControlValues defaults{};
     ControlRevisions revisions{};
     WorkTicket ticket;
     EditorAction pendingAction;

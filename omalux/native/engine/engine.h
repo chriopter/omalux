@@ -16,6 +16,9 @@ int om_engine_apply_style(OmEngine *engine, const char *path, const char *name, 
 char *om_engine_style_details(OmEngine *engine, const char *path, const char *name);
 void om_engine_free_json(char *value);
 void om_engine_read_controls(OmEngine *engine, float *values);
+// The displayed value each control resets to for the open image: its module's default_params
+// (what darktable's reset restores), the registry value where a control has no such parameter.
+void om_engine_default_controls(OmEngine *engine, float *values);
 int om_engine_update_controls(OmEngine *engine, const float *values, const unsigned char *changed);
 int om_engine_render(OmEngine *engine, const unsigned char **pixels, int *width, int *height, int interactive,
                      OmPreviewGeometry *geometry);

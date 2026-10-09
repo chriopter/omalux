@@ -104,8 +104,16 @@ int om_engine_bind_controls(OmEngine *engine) {
                     engine->parameters[i] = &engine->enabled_values[i];
                 } else if (!strcmp(om_controls[i].parameter, "@temperature") ||
                            !strcmp(om_controls[i].parameter, "@tint")) {
-                    if (!om_wb_read(module, module->params, &engine->wb_temperature, &engine->wb_tint))
-                        return 2;
+                    // Coefficients without a temperature (a channel set to 0 in the module's own
+                    // rows) keep the last reading: the binding must stay complete.
+                    float kelvin = 0, tint = 0;
+                    if (om_wb_read(module, module->params, &kelvin, &tint)) {
+                        engine->wb_temperature = kelvin;
+                        engine->wb_tint = tint;
+                    } else if (!(engine->wb_temperature > 0)) {
+                        engine->wb_temperature = 5000;
+                        engine->wb_tint = 1;
+                    }
                     engine->parameters[i] = !strcmp(om_controls[i].parameter, "@temperature")
                                                 ? &engine->wb_temperature
                                                 : &engine->wb_tint;
@@ -175,6 +183,27 @@ void om_engine_free_json(char *value) {
 void om_engine_read_controls(OmEngine *engine, float *values) {
     for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i)
         values[i] = (*engine->parameters[i] - om_controls[i].offset) / om_controls[i].scale;
+}
+void om_engine_default_controls(OmEngine *engine, float *values) {
+    for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i) {
+        values[i] = om_controls[i].initial;
+        dt_iop_module_t *module = engine->modules[i];
+        const char *parameter = om_controls[i].parameter;
+        if (!module || !module->default_params)
+            continue;
+        if (!strcmp(parameter, "@temperature") || !strcmp(parameter, "@tint")) {
+            float kelvin = 0, tint = 0;
+            if (om_wb_read(module, module->default_params, &kelvin, &tint))
+                values[i] = !strcmp(parameter, "@temperature") ? kelvin : tint;
+        } else if (parameter[0] != '@') {
+            const dt_introspection_field_t *field = module->get_f(parameter);
+            if (field && field->header.type == DT_INTROSPECTION_TYPE_FLOAT && field->header.size == sizeof(float)) {
+                const float native = *(const float *)module->get_p(module->default_params, parameter);
+                if (isfinite(native))
+                    values[i] = (native - om_controls[i].offset) / om_controls[i].scale;
+            }
+        }
+    }
 }
 int om_engine_update_controls(OmEngine *engine, const float *values, const unsigned char *changed) {
     if (!engine->loaded)

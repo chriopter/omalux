@@ -24,7 +24,7 @@ EngineWorker::EngineWorker(QString image, std::vector<QByteArray> args, QString 
     : source(std::move(image)), arguments(std::move(args)), catalog(std::move(styles)),
       bridge(std::move(mailbox)) {
     for (unsigned i = 0; i < OM_CONTROL_COUNT; ++i)
-        requested[i] = om_controls[i].initial;
+        requested[i] = defaults[i] = om_controls[i].initial;
     qRegisterMetaType<ControlValues>();
     qRegisterMetaType<WorkTicket>();
     qRegisterMetaType<RenderResult>();
@@ -166,11 +166,13 @@ void EngineWorker::run() {
         emit failed({}, "Could not open image with darktable");
         return;
     }
-    ControlValues initial;
+    ControlValues initial, resets;
     om_engine_read_controls(engine.get(), initial.data());
+    om_engine_default_controls(engine.get(), resets.data());
     {
         std::lock_guard lock(mutex);
         requested = initial;
+        defaults = resets;
     }
     emit initialized(
         initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
@@ -220,6 +222,10 @@ void EngineWorker::renderHover(OmEngine *engine, const Request &request) {
     om_engine_free_preview(pixels);
     emit hoverReady(image, request.hoverRevision, geometry.aspect_ratio,
                     QVector4D(geometry.scale_x, geometry.scale_y, geometry.offset_x, geometry.offset_y));
+}
+ControlValues EngineWorker::controlDefaults() {
+    std::lock_guard lock(mutex);
+    return defaults;
 }
 void EngineWorker::replaceControls(OmEngine *engine, Request &request, ControlRevisions &processed) {
     om_engine_read_controls(engine, request.values.data());
@@ -396,6 +402,12 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
         source = action.value;
         bridge.reset();
         replaceControls(engine, request, processed);
+        {
+            ControlValues resets;
+            om_engine_default_controls(engine, resets.data());
+            std::lock_guard lock(mutex);
+            defaults = resets;
+        }
         emit metadataReady(
             source, takeJson(om_engine_metadata(engine)).object().toVariantMap(),
             takeJson(om_engine_camera_defaults(engine)).object().toVariantMap()["entries"].toList());

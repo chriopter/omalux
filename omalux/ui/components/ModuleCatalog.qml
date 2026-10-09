@@ -202,6 +202,12 @@ QtObject {
         for (let i = 1; i < t.length && v !== undefined && v !== null; ++i) v = v[t[i]]
         return v === null ? undefined : v
     }
+    // What resetting a row restores: the module's own default for this image where the engine
+    // reports one (default_params, as darktable's reset), else the layout's static default.
+    function defaultFor(state, path, fallback) {
+        const p = state && state.params && path ? state.params[path] : null
+        return p && p.reset !== undefined && p.reset !== null ? p.reset : fallback
+    }
     // A params path the engine can write: plain members always, indexed paths once supported,
     // displayed conversions ("@" paths) when the engine reports them for this module (state).
     function writable(path, state) {

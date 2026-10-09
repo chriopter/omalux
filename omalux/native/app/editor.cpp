@@ -212,9 +212,11 @@ void Editor::adjustControl(const QString &id, int steps) {
             setControl(id, values[i] + steps * om_controls[i].step);
 }
 void Editor::resetControl(const QString &id) {
-    for (const auto &c : om_controls)
-        if (id == c.id)
-            setControl(id, c.initial);
+    // The image's own default (white balance of this photo, exposure of a raw), as in darktable.
+    const ControlValues defaults = worker->controlDefaults();
+    for (unsigned int i = 0; i < OM_CONTROL_COUNT; ++i)
+        if (id == QLatin1String(om_controls[i].id))
+            setControl(id, defaults[i]);
 }
 Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteArray> arguments)
     : worker(std::make_unique<EngineWorker>(image, std::move(arguments),

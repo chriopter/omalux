@@ -69,7 +69,7 @@ Item {
     ModuleCatalog {
         id: cat
         catalog: JSON.stringify([{ operation: "demo", instance: 0, label: "demo", enabled: true, hidden: false,
-            parameters: [{ name: "gain", path: "gain", value: 0.5 }, { name: "mode", path: "mode", value: 1 },
+            parameters: [{ name: "gain", path: "gain", value: 0.5, default: 0, reset: 0.25 }, { name: "mode", path: "mode", value: 1 },
                          { name: "mix", path: "mix", value: [0.1, 0.2, 0.3] }] }])
     }
     property var demoChanges: null
@@ -263,6 +263,9 @@ Item {
             compare(rows.raw("mix[@sel]"), 0.3)
             rows.edit("mix[@sel]", 0.9)
             compare(demoChanges["mix[2]"], 0.9)
+            // Reset restores the module's own default for this image, where the engine has one.
+            compare(rows.defaultOf(rows.module.rows[0]), 0.25)
+            compare(rows.defaultOf(rows.module.rows[1]), 0, "the layout's default otherwise")
             rows.term = "gai"
             compare(rows.visibility.filter(v => v).length, 1)
             rows.term = ""

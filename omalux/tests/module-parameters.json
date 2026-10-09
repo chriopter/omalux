@@ -35,5 +35,16 @@
   {"setParameter": {"operation": "exposure", "instance": 0, "field": "no_such[0].path", "value": 1}},
   {"statusContains": "Could not edit exposure"},
   {"checkParameter": {"operation": "exposure", "path": "exposure", "value": 0}},
-  {"refresh": true}
+  {"refresh": true},
+  {"setParameters": {"operation": "temperature", "instance": 0, "values": {"red": 0, "green": 0, "blue": 0}}},
+  {"checkParameter": {"operation": "temperature", "path": "blue", "value": 0}},
+  {"control": "temperature", "value": 4000},
+  {"checkParameter": {"operation": "temperature", "path": "blue", "minimum": 1.2}},
+  {"resetControl": "temperature"},
+  {"resetControl": "tint"},
+  {"checkParameter": {"operation": "temperature", "path": "red", "value": 1, "tolerance": 0.01}},
+  {"checkParameter": {"operation": "temperature", "path": "blue", "value": 1, "tolerance": 0.01}},
+  {"control": "exposure", "value": 1.2},
+  {"resetControl": "exposure"},
+  {"check": {"exposure": 0}}
 ]

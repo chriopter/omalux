@@ -600,6 +600,9 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 }
                 *retries = 0;
                 qInfo() << "Instances" << call["operation"].toString() << instances << names;
+            } else if (step.contains("resetControl")) {
+                // What R and the row's reset menu do for a registered control.
+                editor.resetControl(step["resetControl"].toString());
             } else if (step.contains("resetModule")) {
                 const auto call = step["resetModule"].toObject();
                 editor.resetModule(call["operation"].toString(), call["instance"].toInt());
