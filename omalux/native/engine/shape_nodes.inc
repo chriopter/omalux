@@ -70,14 +70,16 @@ static gboolean pointer_input(const OmSpace *space, const float *at, float *out)
     return TRUE;
 }
 
-// darktable's own points of a path (_path_get_pts_border, reached through
-// dt_masks_get_points_border, which uses dev->preview_pipe: the full pipe stands in for it, as
-// for every canvas tool here), in output pixels: the border line as darktable draws it
-// (post_expose 2908-2927, skipping the self-intersections it marks) and each node's border
-// handle (border[k * 6], the anchor darktable draws for point_border_selected).
-static gboolean path_dt_border(const OmSpace *space, dt_masks_form_t *form, OmPoly *line, float *handles) {
-    if (!(form->type & DT_MASKS_PATH))
+// darktable's own points of a path or brush stroke (_path_get_pts_border, _brush_get_pts_border,
+// reached through dt_masks_get_points_border, which uses dev->preview_pipe: the full pipe stands
+// in for it, as for every canvas tool here), in output pixels: the border line as darktable
+// draws it (path.c post_expose 2908-2927, skipping the self-intersections it marks; brush.c
+// 2682-2694, one line around the stroke) and each path node's border handle (border[k * 6],
+// the anchor darktable draws for point_border_selected).
+static gboolean form_dt_border(const OmSpace *space, dt_masks_form_t *form, OmPoly *line, float *handles) {
+    if (!(form->type & (DT_MASKS_PATH | DT_MASKS_BRUSH)))
         return FALSE;
+    const gboolean path = (form->type & DT_MASKS_PATH) != 0;
     const int nb = g_list_length(form->points);
     dt_develop_t *dev = space->dev;
     dt_dev_pixelpipe_t *saved = dev->preview_pipe;
@@ -86,25 +88,39 @@ static gboolean path_dt_border(const OmSpace *space, dt_masks_form_t *form, OmPo
     int points_count = 0, border_count = 0;
     const int ok = dt_masks_get_points_border(dev, form, &points, &points_count, &border, &border_count, FALSE, NULL);
     dev->preview_pipe = saved;
-    const gboolean valid = ok && border && border_count > nb * 3 + 6;
+    const gboolean valid = ok && border && border_count > nb * 3 + (path ? 6 : 2);
     if (valid) {
-        for (int k = 0; k < nb && handles; ++k) {
+        for (int k = 0; path && k < nb && handles; ++k) {
             handles[2 * k] = border[k * 6];
             handles[2 * k + 1] = border[k * 6 + 1];
         }
         for (int i = nb * 3; line && i < border_count; i++) {
-            if (border[i * 2] == DT_INVALID_COORDINATE) {
+            if (path && border[i * 2] == DT_INVALID_COORDINATE) {
                 if (border[i * 2 + 1] == DT_INVALID_COORDINATE)
                     break;
                 i = border[i * 2 + 1] - 1;
                 continue;
             }
+            if (!isfinite(border[i * 2]) || !isfinite(border[i * 2 + 1]))
+                continue;
             poly_add(line, border[i * 2], border[i * 2 + 1]);
+        }
+        // A brush border has a point per pixel of its length; a few hundred draw the same line.
+        if (line && !path && line->count > 720) {
+            const int step = (line->count + 719) / 720, last = line->count - 1;
+            int kept = 0;
+            for (int i = 0; i < last; i += step, ++kept) {
+                line->xy[2 * kept] = line->xy[2 * i];
+                line->xy[2 * kept + 1] = line->xy[2 * i + 1];
+            }
+            line->xy[2 * kept] = line->xy[2 * last];
+            line->xy[2 * kept + 1] = line->xy[2 * last + 1];
+            line->count = kept + 1;
         }
     }
     dt_free_align(points);
     dt_free_align(border);
-    return valid;
+    return valid && (!line || line->count > 2);
 }
 
 static void shape_nodes_overlay(const OmSpace *space, dt_masks_form_t *form, JsonBuilder *builder) {
@@ -112,7 +128,7 @@ static void shape_nodes_overlay(const OmSpace *space, dt_masks_form_t *form, Jso
         return;
     const gboolean brush = (form->type & DT_MASKS_BRUSH) != 0;
     float *borders = brush ? NULL : g_new0(float, 2 * g_list_length(form->points));
-    const gboolean have_borders = borders && path_dt_border(space, form, NULL, borders);
+    const gboolean have_borders = borders && form_dt_border(space, form, NULL, borders);
     json_builder_set_member_name(builder, "nodes");
     json_builder_begin_array(builder);
     const int n = g_list_length(form->points);
@@ -290,7 +306,7 @@ static int shape_nodes_edit(const OmSpace *space, dt_masks_form_t *form, const c
         if (!path || !om_gesture_point(gesture, "to", to))
             return 5;
         float *handles = g_new0(float, 2 * n);
-        const gboolean have = path_dt_border(space, form, NULL, handles);
+        const gboolean have = form_dt_border(space, form, NULL, handles);
         float c[2] = {node.corner[0] * iwidth, node.corner[1] * iheight};
         const float hx = handles[2 * index], hy = handles[2 * index + 1];
         g_free(handles);

@@ -18,6 +18,9 @@ QtObject {
     id: root
     // JSON array of {operation, tool} the engine implements (backend.moduleTools()).
     property string available: "[]"
+    // What the engine draws on the photo for the shown module (backend.canvasOverlay): it changes
+    // when a shape is selected or edited there, which the mask manager's properties follow.
+    property string shapesRevision: ""
     readonly property var supported: {
         const out = {}
         try { for (const t of JSON.parse(available || "[]")) out[t.operation + "/" + t.tool] = true } catch (e) {}

@@ -318,8 +318,8 @@ static void bezier_point(const dt_masks_form_t *form, const void *data, OmBezier
 }
 
 // The Bézier spine of a path (closed) or brush stroke (open) and, beside it, the feather
-// (path) or stroke width (brush) as offset lines; a guide for the eye, darktable's exact
-// border construction (_path_get_pts_border) is not reproduced.
+// (path) or stroke width (brush) as offset lines: the fallback when darktable's own border
+// (form_dt_border, shape_nodes.inc) cannot be computed.
 static void spline_outline(const OmSpace *space, const dt_masks_form_t *form, OmPoly *line, OmPoly *border) {
     const int n = g_list_length(form->points);
     if (n < 2)
@@ -555,8 +555,8 @@ static void shape_overlay(OmEngine *engine, const OmSpace *space, dt_iop_module_
         }
     } else if (form->type & (DT_MASKS_PATH | DT_MASKS_BRUSH)) {
         spline_outline(space, form, &line, &border);
-        // a path's border exactly as darktable draws it (shape_nodes.inc), already in output pixels
-        if (path_dt_border(space, form, &dt_border, NULL)) {
+        // the border exactly as darktable draws it (shape_nodes.inc), already in output pixels
+        if (form_dt_border(space, form, &dt_border, NULL)) {
             g_free(border.xy);
             border = (OmPoly){0};
         }

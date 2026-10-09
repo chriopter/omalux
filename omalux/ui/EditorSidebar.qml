@@ -120,6 +120,7 @@ Rectangle {
     ModuleTools {
         id: moduleTools
         available: typeof root.backend.moduleTools === "function" ? root.backend.moduleTools() : "[]"
+        shapesRevision: root.backend.canvasOverlay || ""
         onRunRequested: (operation, instance, request) => root.backend.runModuleTool(operation, instance, request)
     }
     Connections {

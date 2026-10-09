@@ -401,6 +401,10 @@ Column {
             function refresh() { if (visible && root.moduleState) root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null, { action: "list" }) }
             onShapesChanged: refresh()
             onVisibleChanged: refresh()
+            // A shape selected, moved or resized on the photo: the properties follow.
+            readonly property string shapesRevision: visible && root.tools ? root.tools.shapesRevision : ""
+            onShapesRevisionChanged: if (visible) followShapes.restart()
+            Timer { id: followShapes; interval: 200; onTriggered: maskManager.refresh() }
             onRequested: (action, args) => root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null,
                                                            Object.assign({ action: action }, args))
         }

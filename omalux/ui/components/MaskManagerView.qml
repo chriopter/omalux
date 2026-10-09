@@ -104,6 +104,60 @@ Column {
             }
         }
     }
+    // darktable's "properties" of the mask manager (libs/masks.c:110, 1930): size, feather,
+    // hardness, rotation, curvature and compression of the shape selected on the photo, or of
+    // every shape while none is selected; each slider shows the shapes' mean and moves them
+    // together (sizes, feathers and compressions by the same factor). As in darktable the values
+    // are in per cent with two decimals and a size slider is relative: its track covers a
+    // quarter to four times the value (darktable: a logarithmic track); typing reaches the rest.
+    Text {
+        visible: properties.count > 0
+        topPadding: 6
+        text: "properties" + (root.report && root.report.selected ? "" : (root.report && root.report.group.length > 1 ? "  ·  all shapes" : ""))
+        color: root.theme.muted; font: root.theme.textFont
+    }
+    property var pending: ({})
+    Repeater {
+        id: properties
+        model: root.report && root.report.properties ? root.report.properties : []
+        ControlSlider {
+            id: property
+            required property var modelData
+            readonly property real factor: modelData.unit === "%" ? 100 : 1
+            readonly property real pendingValue: root.pending[modelData.key] !== undefined ? root.pending[modelData.key] : modelData.value * factor
+            property bool dragging: false
+            objectName: "mask-property-" + modelData.key
+            // A compact slider keeps a column for a chevron on its right; these rows have none.
+            width: root.width + 28
+            compact: true
+            moduleToggleAvailable: false
+            qualifyLabel: false
+            theme: root.theme
+            editable: root.editable
+            control: ({ id: root.navGroup + "/blend/property/" + modelData.key, label: modelData.key, section: "properties",
+                        minimum: modelData.min * factor, maximum: modelData.max * factor,
+                        softMinimum: modelData.relative ? Math.max(modelData.min, modelData.value / 4) * factor : modelData.min * factor,
+                        softMaximum: modelData.relative ? Math.min(modelData.max, modelData.value * 4) * factor : modelData.max * factor,
+                        step: modelData.unit === "%" ? 0.1 : 1, decimals: 2, unit: modelData.unit, colors: "" })
+            value: pendingValue
+            navTarget.group: root.navGroup
+            function send(value) {
+                const v = Math.max(control.minimum, Math.min(control.maximum, value))
+                root.requested("property", { property: modelData.key, old: modelData.value, value: v / factor })
+            }
+            onInteractionChanged: active => {
+                dragging = active
+                if (active || root.pending[modelData.key] === undefined) return
+                const v = root.pending[modelData.key]
+                const next = Object.assign({}, root.pending); delete next[modelData.key]; root.pending = next
+                send(v)
+            }
+            onEdited: value => {
+                if (!dragging) { send(value); return }
+                const next = Object.assign({}, root.pending); next[modelData.key] = value; root.pending = next
+            }
+        }
+    }
     // Outlined chips like the shape buttons above (BlendSection); they wrap when both do not
     // fit the module's width.
     component Chip: Rectangle {

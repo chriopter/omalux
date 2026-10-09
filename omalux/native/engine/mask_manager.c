@@ -11,7 +11,9 @@
 //               dt_masks_form_move) · remove (remove from group: the shape stays) · opacity ·
 //               rename (the shape's name) · duplicate (duplicate this shape, a copy that no group
 //               uses) · delete (delete this shape from every group and the image) · cleanup
-//               (delete unused shapes, dt_masks_cleanup_unused)
+//               (delete unused shapes, dt_masks_cleanup_unused) · property (a "properties"
+//               slider: property size, hardness, feather, rotation, curvature or compression
+//               moved from old to value; the result lists them as "properties")
 //   "vectorize" (rasterfile) the raster mask file traced into path shapes (ras2forms, threshold
 //               0.6) registered with the image (dt_masks_register_forms), ready to be added.
 // darktable's own helpers write darktable.develop, the GUI's develop context; the group lists are
@@ -86,6 +88,73 @@ static const char *type_name(const dt_masks_form_t *form) {
     return "shape";
 }
 
+// The mask manager's "properties" sliders (libs/masks.c _masks_properties 110, without opacity,
+// which each shape row has, and the brush and object-mask preferences): they change the shape
+// selected on the photo, or every shape of the group while none is selected.
+static const struct {
+    dt_masks_property_t property;
+    const char *key, *unit;
+    float min, max;
+    gboolean relative;
+} om_mask_properties[] = {
+    {DT_MASKS_PROPERTY_SIZE, "size", "%", 0.0001f, 1, TRUE},
+    {DT_MASKS_PROPERTY_HARDNESS, "hardness", "%", 0.0001f, 1, TRUE},
+    {DT_MASKS_PROPERTY_FEATHER, "feather", "%", 0.0001f, 1, TRUE},
+    {DT_MASKS_PROPERTY_ROTATION, "rotation", "°", 0, 360, FALSE},
+    {DT_MASKS_PROPERTY_CURVATURE, "curvature", "%", -1, 1, FALSE},
+    {DT_MASKS_PROPERTY_COMPRESSION, "compression", "%", 0.0001f, 1, TRUE},
+};
+
+// _property_changed (libs/masks.c:131-250), the branch for a group: every shape (or the selected
+// one) takes the slider's change from old to value through its own modify_property, and the
+// slider shows their mean within the range all of them allow. old == value only reads.
+// Returns the number of shapes that have the property.
+static int mask_property(dt_develop_t *dev, dt_masks_form_t *group, int index, float old, float value, float *mean,
+                         float *low, float *high) {
+    float min = om_mask_properties[index].min, max = om_mask_properties[index].max, sum = 0;
+    int count = 0;
+    if (om_mask_properties[index].relative) {
+        max /= min;
+        min /= om_mask_properties[index].max;
+    } else {
+        max -= min;
+        min -= om_mask_properties[index].max;
+    }
+    // brush.c _brush_modify_property (3210) asks the GUI whether a stroke is being painted and
+    // which node is selected: none here, so the whole stroke changes.
+    dt_masks_form_gui_t gui = {0};
+    gui.point_selected = -1;
+    dt_masks_form_gui_t *saved = darktable.develop ? darktable.develop->form_gui : NULL;
+    for (GList *it = group ? group->points : NULL; it; it = it->next) {
+        const dt_masks_point_group_t *pt = it->data;
+        dt_masks_form_t *sel = dt_masks_get_from_id(dev, pt->formid);
+        if (!sel || (dev->mask_form_selected_id && dev->mask_form_selected_id != sel->formid))
+            continue;
+        if (!sel->functions || !sel->functions->modify_property)
+            continue;
+        if ((sel->type & DT_MASKS_BRUSH) && !darktable.develop)
+            continue;
+        if (darktable.develop)
+            darktable.develop->form_gui = &gui;
+        sel->functions->modify_property(sel, om_mask_properties[index].property, old, value, &sum, &count, &min, &max);
+        if (darktable.develop)
+            darktable.develop->form_gui = saved;
+    }
+    if (!count)
+        return 0;
+    *mean = sum / count;
+    if (om_mask_properties[index].relative) {
+        max *= *mean;
+        min *= *mean;
+    } else {
+        max += *mean;
+        min += *mean;
+    }
+    *low = isnan(min) ? om_mask_properties[index].min : min;
+    *high = isnan(max) ? om_mask_properties[index].max : max;
+    return count;
+}
+
 static void report(OmToolContext *ctx) {
     dt_develop_t *dev = ctx->dev;
     dt_iop_module_t *module = ctx->module;
@@ -113,6 +182,31 @@ static void report(OmToolContext *ctx) {
         json_builder_add_double_value(b, pt->opacity);
         json_builder_set_member_name(b, "first");
         json_builder_add_boolean_value(b, it == group->points);
+        json_builder_end_object(b);
+    }
+    json_builder_end_array(b);
+    // the properties of the selected shape, or of all shapes (libs/masks.c _update_all_properties)
+    json_builder_set_member_name(b, "selected");
+    json_builder_add_int_value(b, member_of(group, dev->mask_form_selected_id) ? dev->mask_form_selected_id : 0);
+    json_builder_set_member_name(b, "properties");
+    json_builder_begin_array(b);
+    for (int i = 0; i < (int)G_N_ELEMENTS(om_mask_properties); ++i) {
+        float mean = 0, low = 0, high = 0;
+        if (!mask_property(dev, group, i, 1.0f, 1.0f, &mean, &low, &high))
+            continue;
+        json_builder_begin_object(b);
+        json_builder_set_member_name(b, "key");
+        json_builder_add_string_value(b, om_mask_properties[i].key);
+        json_builder_set_member_name(b, "unit");
+        json_builder_add_string_value(b, om_mask_properties[i].unit);
+        json_builder_set_member_name(b, "relative");
+        json_builder_add_boolean_value(b, om_mask_properties[i].relative);
+        json_builder_set_member_name(b, "value");
+        json_builder_add_double_value(b, mean);
+        json_builder_set_member_name(b, "min");
+        json_builder_add_double_value(b, low);
+        json_builder_set_member_name(b, "max");
+        json_builder_add_double_value(b, high);
         json_builder_end_object(b);
     }
     json_builder_end_array(b);
@@ -222,6 +316,19 @@ static int masks_tool(OmToolContext *ctx) {
     } else if (!strcmp(action, "cleanup")) {
         dt_masks_cleanup_unused(dev);
         json_object_set_boolean_member(ctx->extra, "forms_changed", TRUE);
+    } else if (!strcmp(action, "property")) {
+        // a "properties" slider moved from "old" to "value" (both as darktable's slider holds them)
+        const char *key = gui_string(ctx, "property");
+        int index = -1;
+        for (int i = 0; key && i < (int)G_N_ELEMENTS(om_mask_properties); ++i)
+            if (!strcmp(key, om_mask_properties[i].key))
+                index = i;
+        const float old = om_tool_gui(ctx, "old", 0), value = om_tool_gui(ctx, "value", 0);
+        float mean = 0, low = 0, high = 0;
+        if (index < 0 || !group || !mask_property(dev, group, index, old, value, &mean, &low, &high))
+            return 5;
+        if (value != old)
+            error = commit(ctx, module);
     } else if (!strcmp(action, "rename")) {
         const char *name = gui_string(ctx, "name");
         if (!form || !name || !name[0])
