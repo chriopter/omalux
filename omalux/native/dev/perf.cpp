@@ -186,7 +186,7 @@ struct Perf : QObject {
             if (!quiet())
                 return;
             if (index >= steps.size()) {
-                qInfo() << "Perf complete";
+                qInfo().noquote() << "Perf complete" + (skipped ? QString(", %1 steps skipped (missing items)").arg(skipped) : QString());
                 poll.stop();
                 QTimer::singleShot(0, &app, [this] { app.quit(); });
                 return;
@@ -294,9 +294,13 @@ struct Perf : QObject {
             phase = Phase::WaitIdle;
         }
     }
+    // A script names items of panes that keep changing: a missing one is reported and skipped,
+    // so the remaining steps are still measured.
+    int skipped = 0;
     void missing() {
-        qCritical() << "Perf missing item" << step;
-        app.exit(2);
+        qWarning() << "Perf missing item, step skipped" << step;
+        ++skipped;
+        phase = Phase::WaitIdle;
     }
     void finish() {
         sequenceEnd = now();
