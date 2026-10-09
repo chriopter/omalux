@@ -55,7 +55,7 @@ Rectangle {
         if (!term) return 0
         switch (index) {
         case 0: return filtersPanel.matchCount
-        case 1: return moduleCatalog.matchCount("styles", term)
+        case 1: return moduleCatalog.matchCount("styles", term) + stylesPanel.matchCount(term)
         case 2: return moduleCatalog.matchCount("geometry", term)
         case 5: return moduleCatalog.matchCount("tone", term)
         case 6: return moduleCatalog.matchCount("color", term)

@@ -75,7 +75,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
   (the GTK chooser on the headless broadway display: `Esc` put into GDK's queue as a key event
   of the dialog window, `smoke_dialog.cpp`). Not verifiable offscreen: that Hyprland gives the
   GTK window keyboard focus when it opens and the Omalux window focus back when it closes.
-- **Search.** `/` or `Ctrl+F` focus the global search under the tab strip; it is not one of the ↑/↓ stops. `Esc` clears it and returns the keys; `Enter` or `↓` keep the term and select the pane's first item. The Styles pane keeps its own search as a listed item.
+- **Search.** `/` or `Ctrl+F` focus the global search under the tab strip; it is not one of the ↑/↓ stops. `Esc` clears it and returns the keys; `Enter` or `↓` keep the term and select the pane's first item. The Styles pane keeps its own filter field as a listed item; the sidebar search filters the looks too.
 - **Panes.** `1` … `9` follow the tab strip as shown, like Tab/Shift+Tab, so a number always names the pane at that place in the order above.
 - **Precedence of `Esc` and `Enter`.** A text field first, then an open dialog or menu, then the crop frame (apply/cancel), then photograph fullscreen.
 - **Bottom bar.** Shows the keys of the current selection, e.g. `[↑/↓] SELECT   [←/→] exposure   [R] RESET VALUE`.
@@ -119,9 +119,21 @@ Scrolling reference: [Omawrite 0.5.0, Main.qml](https://github.com/omacom/omawri
 
 - Denoise is available only in the expandable Advanced section. The collapsed vignetting brightness slider focuses on darkening (−1 to 0); expanding its details restores the full darktable range. Existing positive brightness values remain visible and are never changed by collapsing. Names, units and the default −0.5 are unchanged.
 
+### The Styles pane
+
+The looks are a grid of thumbnails with their names, three to a row, built to stay clear with well over a hundred looks:
+
+- **Families.** Each folder below `catalog/styles/` is a family (`film`, `monochrome`, …; a series is its sub-folder, shown as `Series · Movie`), listed as a collapsible heading with its number of looks. One family is open at a time and shows its first 12 looks; **show all N** lists the rest. Under its family a look drops the family's words from its name (`Late Summer Contrast` reads `Contrast`; the tooltip has the full name). My styles and monochrome come first, experimental last.
+- **Top section.** Above the families sit the favourites (in the order they were marked) and the basic looks outside any family (Neutral, Chromatic). The section is headed `★ Favourites` once there is one.
+- **Tiles.** A click applies the look and hovering previews it; the applied look has an accent frame and name. The star in the corner of a tile (always on favourites, on hover otherwise) marks or unmarks a favourite. Right-click offers favourite, **Show settings** (the look's description and the settings it applies, shown under its family's grid), **Export bundle…** and **Delete…** (own looks only).
+- **Filter.** The field above the grid filters by look name, description and family; the sidebar search does the same. While filtering, every family with a match is open with all its matches. **Save look…** beside the field stores the current edit as a look.
+- **Keyboard.** Tiles are stops in reading order; Enter applies, →/← show and hide the settings, `E` marks a favourite. Enter or ↓ in the filter field go to the first result.
+- **Stored state.** Favourites and the open family are kept in the app settings (`Styles`). Only the open family's tiles exist, and thumbnails load asynchronously at their shown size.
+- The look modules (color look up table, split-toning, color mapping) follow as compact cards.
+
 ### Style hover
 
-Hover over a style's thumbnail/name to preview it on the open photograph. Leaving the card or the Styles pane restores the current edited image immediately. Hover does not change controls or history, including any future history after a backward jump. Click to apply the style through the normal history path. Unsupported styles remain unavailable. The preview starts after a short hover delay and uses a separate temporary engine context.
+Hover over a style's thumbnail/name to preview it on the open photograph. Leaving the tile or the Styles pane restores the current edited image immediately. Hover does not change controls or history, including any future history after a backward jump. Click to apply the style through the normal history path. Unsupported styles remain unavailable. The preview starts after a short hover delay and uses a separate temporary engine context.
 
 ### Native regression checks
 
@@ -367,7 +379,7 @@ decisions' `panes` block):
   (`deep blacks -6 EV`); the decisions' `display_labels` block sets such labels, the rows keep
   darktable's own `label`.
 - Look-like modules (color look up table,
-  color mapping, split-toning) sit under the style cards in **Styles**; rotate and perspective
+  color mapping, split-toning) sit under the look grid in **Styles**; rotate and perspective
   (the rows the crop pane lacks), orientation and lens correction sit under **Crop & Rotate**.
   Deprecated modules appear in the pane of the group they used to belong to, under
   `deprecated`, and only while the current image has them switched on. Curated modules are not

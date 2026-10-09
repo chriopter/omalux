@@ -330,7 +330,21 @@ Item {
         const t = shown().find(t => t.input === field)
         root.forceActiveFocus()
         if (!t) return
-        if (t.listed) { select(t); if (step) move(step); return }
+        if (t.listed) {
+            select(t)
+            if (!step) return
+            move(step)
+            // Going on from a field means its results: skip what sits beside it on its row
+            // (the Styles filter's Save button).
+            const row = field.mapToItem(null, 0, 0)
+            const beside = s => {
+                if (!alive(s) || !s.owner) return false
+                const p = s.owner.mapToItem(null, 0, s.owner.height / 2)
+                return p.y >= row.y && p.y <= row.y + field.height
+            }
+            for (let n = 0; n < 4 && step > 0 && beside(root.selection); ++n) move(step)
+            return
+        }
         // The global search: Enter or ↓ go to the first item of the pane.
         if (step) moveEdge(false)
     }

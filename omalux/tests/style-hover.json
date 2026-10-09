@@ -110,7 +110,7 @@
     "checkHoverFull": true
   },
   {
-    "clickItem": "style-apply-chromatic/style.dtstyle"
+    "pointerClick": "style-apply-chromatic/style.dtstyle"
   },
   {
     "checkHover": false

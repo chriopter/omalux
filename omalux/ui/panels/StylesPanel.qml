@@ -1,11 +1,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCore
 
 import "../components"
 
 SidebarScrollView {
     id: root
+    objectName: "stylesPanel"
     required property var theme
     required property var styles
     required property bool stylesReady
@@ -37,63 +39,105 @@ SidebarScrollView {
     property string camera: ""
     property bool cameraOpen: false
     readonly property var cameraPresets: (cameraDefaults || []).filter(e => e.group === "Camera presets")
+    // The looks as a thumbnail grid: favourites (and the basic looks) on top, then one
+    // collapsible group per family of the catalogue (catalog/styles/<family>/…, series by their
+    // sub-folder), one family open at a time, each showing its first `limit` looks until "show
+    // all". A filter (this pane's field, or the sidebar search) opens every family with a match.
+    // Favourites and the open family are remembered in the app settings.
+    Settings {
+        id: preferences
+        category: "Styles"
+        property string favourites: "[]"
+        property string openFamily: "film"
+    }
+    property var favourites: []
+    property string expandedStyleGroup: "film"
+    property bool restoring: true
+    Component.onCompleted: {
+        try { favourites = JSON.parse(preferences.favourites) } catch (e) {}
+        expandedStyleGroup = preferences.openFamily
+        restoring = false
+    }
+    onFavouritesChanged: if (!restoring) preferences.favourites = JSON.stringify(favourites)
+    onExpandedStyleGroupChanged: if (!restoring) preferences.openFamily = expandedStyleGroup
+    function isFavourite(id) { return favourites.indexOf(id) >= 0 }
+    function toggleFavourite(id) {
+        favourites = isFavourite(id) ? favourites.filter(f => f !== id) : favourites.concat([id])
+    }
+    readonly property int limit: 12
+    property var showAll: ({})
+    function toggleShowAll(id) { const next = Object.assign({}, showAll); next[id] = !next[id]; showAll = next }
     property string styleQuery: ""
-    property string expandedStyleGroup: "monochrome"
-    property var expandedStyleDetails: ({})
+    readonly property string query: (styleQuery.trim() || (visible ? term : "")).toLowerCase()
+    // The look whose settings are shown, and the section it was opened in ("key|id").
+    property string details: ""
+    function toggleStyleDetails(section, id) { details = details === section + "|" + id ? "" : section + "|" + id }
 
     function styleGroup(id) {
         let parts = id.split("/")
         return parts.length > 2 ? parts.slice(0, -2).join("/") : ""
     }
-    function groupName(id) { return id.replace(/\//g, " · ").replace(/-/g, " ") }
-    function groupOpen(id) { return id === "" || styleQuery.trim() !== "" || expandedStyleGroup === id }
+    function groupName(id) {
+        return id.split("/").map(p => p.replace(/-/g, " ")).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" · ")
+    }
+    // Under its family a look drops the family's words its name starts with: "Late Summer
+    // Contrast" reads "Contrast" under "Series · Late summer".
+    function shortName(style, section) {
+        if (section === "top") return ""
+        const last = groupName(section).split(" · ").pop().toLowerCase()
+        const name = style.name
+        return name.toLowerCase().startsWith(last + " ") && name.length > last.length + 1 ? name.slice(last.length + 1) : ""
+    }
+    function groupOpen(id) { return query !== "" || expandedStyleGroup === id }
     function toggleGroup(id) { expandedStyleGroup = expandedStyleGroup === id ? "" : id }
-    function toggleStyleDetails(id) {
-        let next = Object.assign({}, expandedStyleDetails)
-        next[id] = !next[id]
-        expandedStyleDetails = next
-    }
     function showDetails(id) {
-        expandedStyleGroup = styleGroup(id)
-        let next = Object.assign({}, expandedStyleDetails)
-        next[id] = true
-        expandedStyleDetails = next
+        styleQuery = ""
+        const family = styleGroup(id)
+        if (family !== "") expandedStyleGroup = family
+        details = (family === "" ? "top" : family) + "|" + id
     }
-    readonly property var visibleStyles: root.styles.filter(function(p) {
-        return (p.name + " " + p.description + " " + root.groupName(root.styleGroup(p.id))).toLowerCase().indexOf(styleQuery.trim().toLowerCase()) !== -1
-    })
-    readonly property var styleGroups: {
-        let result = []
-        for (let style of visibleStyles) {
-            let key = styleGroup(style.id)
-            let group = result.find(g => g.id === key)
-            if (!group) {
-                group = { id: key, name: groupName(key), styles: [] }
-                result.push(group)
-            }
-            group.styles.push(style)
+    function matches(style, q) {
+        return !q || (style.name + " " + style.description + " " + groupName(styleGroup(style.id))).toLowerCase().indexOf(q) >= 0
+    }
+    // Looks matching the sidebar search (its dot on the Styles tab).
+    function matchCount(q) { return q ? root.styles.filter(s => matches(s, q)).length : 0 }
+    readonly property var visibleStyles: root.styles.filter(s => matches(s, query))
+    function byName(a, b) {
+        return a.id === "neutral/style.dtstyle" ? -1 : b.id === "neutral/style.dtstyle" ? 1 : a.name.localeCompare(b.name)
+    }
+    // The families [{ id, name, styles, collapsible }], independent of the favourites, so marking
+    // one does not rebuild the grids (nor reload their thumbnails).
+    readonly property var families: {
+        const families = []
+        for (const style of visibleStyles) {
+            const key = styleGroup(style.id)
+            if (key === "") continue
+            let family = families.find(g => g.id === key)
+            if (!family) families.push(family = { id: key, name: groupName(key), styles: [], collapsible: true })
+            family.styles.push(style)
         }
         function rank(id) {
-            if (id === "") return 0
             if (id === "my-styles") return 1
             if (id === "monochrome") return 2
             if (id === "experimental") return 4
             return 3
         }
-        result.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id))
-        for (let group of result)
-            group.styles.sort((a, b) => a.id === "neutral/style.dtstyle" ? -1 : b.id === "neutral/style.dtstyle" ? 1 : a.name.localeCompare(b.name))
-        return result
+        families.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id))
+        for (const family of families) family.styles.sort(byName)
+        return families
+    }
+    // The section above the families: the favourites, then the basic looks (Neutral …).
+    readonly property var topSections: {
+        const basics = visibleStyles.filter(s => styleGroup(s.id) === "").sort(byName)
+        const favs = query ? [] : favourites.map(id => root.styles.find(s => s.id === id)).filter(s => !!s)
+        const top = favs.concat(basics.filter(s => !isFavourite(s.id) || query))
+        return top.length ? [{ id: "top", name: favs.length ? "★ Favourites" : "Basics", styles: top, collapsible: false,
+                               favouriteCount: favs.length }] : []
     }
     Column {
         width: root.availableWidth; padding: 10
         Column {
             width: parent.width - 20; spacing: 10
-            RowLayout {
-                width: parent.width
-                Text { text: "STYLES"; color: root.theme.ink; font.bold: true; font.letterSpacing: 2; Layout.fillWidth: true }
-                Text { text: root.styles.length; color: root.theme.muted; font: root.theme.textFont }
-            }
             // Camera presets darktable applied automatically, before any style.
             Rectangle {
                 objectName: "camera-presets"
@@ -178,77 +222,171 @@ SidebarScrollView {
                     }
                 }
             }
-            Button {
-                id: saveButton
-                text: "Save current look…"; enabled: root.photoReady && !root.busy; onClicked: root.saveRequested()
-                highlighted: saveNav.current
-                NavTarget { id: saveNav; navId: "save"; label: "save current look"; enabled: saveButton.enabled; onActivate: root.saveRequested() }
-            }
-            TextField {
-                id: styleSearch
-                objectName: "styleSearch"
-                width: parent.width; height: 32
-                placeholderText: "Search styles"; color: root.theme.ink
-                placeholderTextColor: root.theme.muted; font: root.theme.textFont
-                onTextChanged: root.styleQuery = text
-                NavTarget { id: searchNav; navId: "style-search"; kind: "search"; label: "search styles"; input: styleSearch; onActivate: styleSearch.forceActiveFocus() }
-                background: Rectangle { color: "#181825"; border.color: parent.activeFocus || searchNav.current ? root.theme.accent : root.theme.line; radius: 3 }
-                Accessible.name: "Search styles"
+            RowLayout {
+                width: parent.width
+                spacing: 8
+                TextField {
+                    id: styleSearch
+                    objectName: "styleSearch"
+                    Layout.fillWidth: true
+                    implicitHeight: 30
+                    leftPadding: 10
+                    placeholderText: "Filter " + root.styles.length + " looks"
+                    color: root.theme.ink
+                    placeholderTextColor: root.theme.muted; font: root.theme.textFont
+                    selectByMouse: true
+                    onTextChanged: root.styleQuery = text
+                    Keys.onEscapePressed: { text = ""; focus = false }
+                    NavTarget { id: searchNav; navId: "style-search"; kind: "search"; label: "filter looks"; input: styleSearch; onActivate: styleSearch.forceActiveFocus() }
+                    background: Rectangle { color: root.theme.well; border.color: styleSearch.activeFocus || searchNav.current ? root.theme.accent : root.theme.line; radius: 5 }
+                    Accessible.name: "Filter looks"
+                }
+                Button {
+                    id: saveButton
+                    objectName: "style-save"
+                    text: "Save look…"
+                    implicitHeight: 30
+                    font: root.theme.textFont
+                    enabled: root.photoReady && !root.busy
+                    onClicked: { saveNav.claim(); root.saveRequested() }
+                    highlighted: saveNav.current
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
+                    ToolTip.text: "Save the current edit as a look"
+                    NavTarget { id: saveNav; navId: "save"; label: "save current look"; enabled: saveButton.enabled; onActivate: root.saveRequested() }
+                }
             }
             Text {
                 width: parent.width; visible: !root.stylesReady || root.visibleStyles.length === 0
-                text: !root.stylesReady ? "Loading styles…" : root.styles.length === 0 ? "No styles in styles/." : "No matching styles."
+                text: !root.stylesReady ? "Loading styles…" : root.styles.length === 0 ? "No styles in styles/." : "No look matches “" + root.query + "”."
                 color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
             }
-            Repeater {
-                model: root.styleGroups
-                delegate: Column {
-                    id: groupSection
+            Repeater { model: root.topSections; delegate: sectionDelegate }
+            Repeater { model: root.families; delegate: sectionDelegate }
+            Component {
+                id: sectionDelegate
+                Column {
+                    id: section
                     required property var modelData
-                    width: parent.width; spacing: 2
-                    Button {
-                        id: groupButton
-                        objectName: "style-group-" + groupSection.modelData.id
-                        width: parent.width; height: 36; padding: 0
-                        visible: groupSection.modelData.id !== ""
-                        onClicked: { groupNav.claim(); root.toggleGroup(groupSection.modelData.id) }
+                    readonly property bool open: !modelData.collapsible || root.groupOpen(modelData.id)
+                    readonly property bool all: root.query !== "" || !!root.showAll[modelData.id]
+                    readonly property var shown: !open ? [] : all ? modelData.styles : modelData.styles.slice(0, root.limit)
+                    readonly property string detailsId: root.details.startsWith(modelData.id + "|") ? root.details.slice(modelData.id.length + 1) : ""
+                    readonly property var detailsStyle: detailsId ? modelData.styles.find(s => s.id === detailsId) || null : null
+                    width: parent.width
+                    spacing: 6
+                    // Family heading: a click opens it (and closes the open one).
+                    ToolButton {
+                        id: heading
+                        objectName: "style-group-" + section.modelData.id
+                        width: parent.width
+                        height: 30
+                        padding: 0
+                        hoverEnabled: true
+                        enabled: section.modelData.collapsible
+                        onClicked: { groupNav.claim(); root.toggleGroup(section.modelData.id) }
                         NavTarget {
                             id: groupNav
-                            navId: "group:" + groupSection.modelData.id
-                            label: groupSection.modelData.name
+                            navId: "group:" + section.modelData.id
+                            label: section.modelData.name
                             kind: "group"
-                            group: groupSection.modelData.id
-                            activateLabel: root.groupOpen(groupSection.modelData.id) ? "COLLAPSE" : "EXPAND"
-                            onActivate: root.toggleGroup(groupSection.modelData.id)
-                            onAdjust: steps => { if ((steps > 0) !== root.groupOpen(groupSection.modelData.id)) root.toggleGroup(groupSection.modelData.id) }
+                            group: section.modelData.id
+                            enabled: section.modelData.collapsible
+                            listed: section.modelData.collapsible
+                            activateLabel: section.open ? "COLLAPSE" : "EXPAND"
+                            onActivate: root.toggleGroup(section.modelData.id)
+                            onAdjust: steps => { if ((steps > 0) !== section.open) root.toggleGroup(section.modelData.id) }
                         }
-                        Accessible.name: groupSection.modelData.name
-                        Accessible.description: root.groupOpen(groupSection.modelData.id) ? "Collapse group" : "Expand group"
-                        background: Rectangle { color: parent.hovered ? "#313244" : "transparent"; border.color: parent.activeFocus || groupNav.current ? root.theme.accent : "transparent"; radius: 3 }
+                        Accessible.name: section.modelData.name
+                        Accessible.description: section.open ? "Collapse group" : "Expand group"
+                        background: Rectangle { color: "transparent"; border.color: heading.visualFocus || groupNav.current ? root.theme.accent : "transparent"; radius: 3 }
                         contentItem: RowLayout {
-                            spacing: 12
-                            Text { Layout.preferredWidth: 14; text: root.groupOpen(groupSection.modelData.id) ? "▾" : "▸"; color: root.theme.muted; font: root.theme.textFont }
-                            Text { Layout.fillWidth: true; text: groupSection.modelData.name.toUpperCase(); color: root.theme.ink; font.family: root.theme.textFont.family; font.pixelSize: root.theme.textFont.pixelSize; font.bold: true }
-                            Text { text: groupSection.modelData.styles.length; color: root.theme.muted; font: root.theme.textFont }
+                            spacing: 6
+                            Text {
+                                visible: section.modelData.collapsible
+                                Layout.preferredWidth: 12
+                                text: section.open ? "▾" : "▸"
+                                color: root.theme.muted; font: root.theme.textFont
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: section.modelData.name
+                                color: heading.hovered || groupNav.current ? root.theme.ink
+                                     : section.open ? root.theme.ink : root.theme.muted
+                                font: root.theme.settingsFont
+                            }
+                            Text {
+                                text: section.modelData.favouriteCount !== undefined ? section.modelData.favouriteCount || "" : section.modelData.styles.length
+                                color: root.theme.muted; font: root.theme.textFont
+                                opacity: .75
+                            }
                         }
                     }
-                    Repeater {
-                        model: root.groupOpen(groupSection.modelData.id) ? groupSection.modelData.styles : []
-                        delegate: StyleCard {
-                            required property var modelData
+                    Grid {
+                        id: grid
+                        visible: section.open
+                        width: parent.width
+                        columns: 3
+                        columnSpacing: 6; rowSpacing: 8
+                        readonly property real tileWidth: Math.floor((width - 2 * columnSpacing) / 3)
+                        Repeater {
+                            model: section.shown
+                            delegate: StyleTile {
+                                required property var modelData
+                                width: grid.tileWidth
+                                theme: root.theme
+                                style: modelData
+                                shortName: root.shortName(modelData, section.modelData.id)
+                                keyPrefix: section.modelData.id === "top" && root.isFavourite(modelData.id) && root.styleGroup(modelData.id) !== "" ? "favourite:" : ""
+                                photoReady: root.photoReady
+                                busy: root.busy
+                                appliedStyle: root.appliedStyle
+                                applyingStyle: root.applyingStyle
+                                favourite: root.isFavourite(modelData.id)
+                                detailsOpen: section.detailsId === modelData.id
+                                onPreviewRequested: active => root.previewRequested(modelData.id, active)
+                                onApplyRequested: root.applyRequested(modelData.id)
+                                onFavouriteToggled: root.toggleFavourite(modelData.id)
+                                onDetailsToggleRequested: root.toggleStyleDetails(section.modelData.id, modelData.id)
+                                onExportRequested: root.exportRequested(modelData.id)
+                                onDeleteRequested: root.deleteRequested(modelData.id, modelData.name)
+                                navTarget.group: section.modelData.id
+                            }
+                        }
+                    }
+                    ToolButton {
+                        id: moreButton
+                        objectName: "style-show-all-" + section.modelData.id
+                        visible: section.open && root.query === "" && section.modelData.styles.length > root.limit
+                        anchors.right: parent.right
+                        padding: 0
+                        hoverEnabled: true
+                        onClicked: { moreNav.claim(); root.toggleShowAll(section.modelData.id) }
+                        NavTarget {
+                            id: moreNav
+                            navId: "show-all:" + section.modelData.id
+                            label: "show all"
+                            group: section.modelData.id
+                            enabled: moreButton.visible
+                            onActivate: root.toggleShowAll(section.modelData.id)
+                        }
+                        Accessible.name: section.all ? "Show fewer looks" : "Show all looks of " + section.modelData.name
+                        contentItem: Text {
+                            text: section.all ? "show fewer ‹" : "show all " + section.modelData.styles.length + " ›"
+                            color: moreButton.hovered || moreNav.current ? root.theme.accent : root.theme.muted
+                            font: root.theme.textFont
+                        }
+                        background: Item {}
+                    }
+                    Loader {
+                        width: parent.width
+                        active: !!section.detailsStyle && section.open
+                        visible: active
+                        sourceComponent: StyleDetails {
+                            objectName: "style-details-" + section.detailsId
                             theme: root.theme
-                            style: modelData
-                            photoReady: root.photoReady
-                            busy: root.busy
-                            appliedStyle: root.appliedStyle
-                            applyingStyle: root.applyingStyle
-                            expanded: !!root.expandedStyleDetails[modelData.id]
-                            onExportRequested: root.exportRequested(modelData.id)
-                            onDeleteRequested: root.deleteRequested(modelData.id, modelData.name)
-                            onPreviewRequested: active => root.previewRequested(modelData.id, active)
-                            onApplyRequested: root.applyRequested(modelData.id)
-                            onDetailsToggleRequested: root.toggleStyleDetails(modelData.id)
-                            navTarget.group: groupSection.modelData.id
+                            style: section.detailsStyle
+                            onCloseRequested: root.details = ""
                         }
                     }
                 }
@@ -269,6 +407,7 @@ SidebarScrollView {
                     activeControl: root.activeControl
                     settingsKey: "styles"
                     caption: "LOOK MODULES"
+                    compact: true
                     onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
                     onEnableRequested: (operation, instance, enabled) => root.enableRequested(operation, instance, enabled)
                     onResetRequested: (operation, instance, module) => root.moduleResetRequested(operation, instance, module)

@@ -359,5 +359,76 @@
   "checkItem": "module-details-rgblevels",
   "property": "expanded",
   "value": true
+ },
+ {
+  "pointerClick": "sidebar-area-styles"
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "pointerClick": "style-group-film",
+  "expectTop": true
+ },
+ {
+  "checkItem": "style-apply-film/film-kodak/style.dtstyle",
+  "visible": false
+ },
+ {
+  "pointerClick": "style-group-film",
+  "expectTop": true
+ },
+ {
+  "checkItem": "style-apply-film/film-kodak/style.dtstyle",
+  "visible": true
+ },
+ {
+  "pointerHover": "style-apply-film/film-kodak/style.dtstyle"
+ },
+ {
+  "pointerClick": "style-favourite-film/film-kodak/style.dtstyle",
+  "expectTop": true
+ },
+ {
+  "checkItem": "favourite:style-apply-film/film-kodak/style.dtstyle",
+  "visible": true
+ },
+ {
+  "pointerClick": "favourite:style-favourite-film/film-kodak/style.dtstyle",
+  "expectTop": true
+ },
+ {
+  "checkItem": "favourite:style-apply-film/film-kodak/style.dtstyle",
+  "visible": false
+ },
+ {
+  "pointerClick": "style-group-experimental",
+  "expectTop": true
+ },
+ {
+  "checkItem": "style-apply-film/film-kodak/style.dtstyle",
+  "visible": false
+ },
+ {
+  "pointerClick": "style-show-all-experimental",
+  "expectTop": true
+ },
+ {
+  "checkItem": "style-apply-experimental/experimental-verbania/style.dtstyle",
+  "visible": true
+ },
+ {
+  "pointerClick": "style-apply-experimental/experimental-verbania/style.dtstyle",
+  "button": "right"
+ },
+ {
+  "pointerClick": "text:Show settings"
+ },
+ {
+  "checkItem": "style-details-experimental/experimental-verbania/style.dtstyle",
+  "visible": true
+ },
+ {
+  "key": "Escape"
  }
 ]

@@ -53,12 +53,15 @@ QtObject {
                                  : kind === "button" ? label.toUpperCase() : ""
     property bool resettable: kind === "slider" || kind === "choice" || kind === "switch" || kind === "graph"
     property bool groupActions: false        // module: E switches it, Shift+R resets it
+    // Further [keys, action] pairs of this item (a style tile: E marks a favourite).
+    property var extraHints: []
     readonly property var hints: {
         const h = []
         if (adjustLabel !== "") h.push(["←/→", adjustLabel])
         if (activateLabel !== "") h.push(["⏎", activateLabel])
         if (resettable) h.push(["R", "RESET VALUE"])
         if (groupActions) h.push(["E", "ON/OFF"], ["⇧R", "RESET MODULE"])
+        for (const x of extraHints) h.push(x)
         return h
     }
 
