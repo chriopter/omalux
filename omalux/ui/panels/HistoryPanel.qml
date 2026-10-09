@@ -22,7 +22,14 @@ ColumnLayout {
 
     RowLayout {
         Layout.fillWidth: true
-        Text { text: "HISTORY"; color: root.theme.ink; font.bold: true; font.letterSpacing: 2 }
+        Text {
+            text: "HISTORY"
+            color: root.theme.ink
+            font.family: root.theme.moduleHeadingFont.family
+            font.pixelSize: root.theme.moduleHeadingFont.pixelSize
+            font.weight: Font.Bold
+            font.letterSpacing: 2
+        }
         Item { Layout.fillWidth: true }
         Text { text: Math.max(0, root.entries.length - 1); color: root.theme.muted; font: root.theme.textFont }
     }
