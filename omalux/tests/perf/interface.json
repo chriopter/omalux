@@ -112,23 +112,12 @@
   "interval": 16
  },
  {
-  "reveal": "module-details-sigmoid"
- },
- {
-  "name": "expand sigmoid",
-  "click": "module-details-sigmoid"
- },
- {
   "name": "drag generated slider (sigmoid contrast)",
   "drag": "control-slider-sigmoid/0/middle_grey_contrast",
   "from": 0.3,
   "to": 0.7,
   "steps": 60,
   "interval": 16
- },
- {
-  "name": "collapse sigmoid",
-  "click": "module-details-sigmoid"
  },
  {
   "name": "keys down x20 (tone)",
@@ -227,5 +216,79 @@
  {
   "name": "escape search",
   "key": "Escape"
+ },
+ {
+  "name": "search key /",
+  "key": "/"
+ },
+ {
+  "name": "type search 'grain'",
+  "type": "grain",
+  "interval": 80
+ },
+ {
+  "name": "escape search (2)",
+  "key": "Escape"
+ },
+ {
+  "name": "zoom in",
+  "key": "+"
+ },
+ {
+  "name": "zoom in x5",
+  "key": "+",
+  "repeat": 5,
+  "interval": 40
+ },
+ {
+  "name": "zoom out (toolbar)",
+  "click": "toolbar-zoom-out"
+ },
+ {
+  "name": "fit",
+  "key": "0"
+ },
+ {
+  "name": "keyboard reference",
+  "key": "?"
+ },
+ {
+  "name": "keyboard reference closed",
+  "key": "Escape"
+ },
+ {
+  "name": "export options",
+  "key": "Ctrl+S"
+ },
+ {
+  "name": "export options closed",
+  "key": "Escape"
+ },
+ {
+  "name": "area details (history)",
+  "set": {
+   "property": "selectedPanel",
+   "value": 3
+  }
+ },
+ {
+  "name": "history keys down x4",
+  "key": "Down",
+  "repeat": 4,
+  "interval": 50
+ },
+ {
+  "name": "tab info",
+  "set": {
+   "property": "selectedPanel",
+   "value": 4
+  }
+ },
+ {
+  "name": "tab history again",
+  "set": {
+   "property": "selectedPanel",
+   "value": 3
+  }
  }
 ]
