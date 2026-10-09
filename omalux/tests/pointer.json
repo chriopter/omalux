@@ -364,6 +364,13 @@
   "pointerClick": "sidebar-area-styles"
  },
  {
+  "checkPanel": 9
+ },
+ {
+  "pointerClick": "sidebar-tab-1",
+  "expectTop": true
+ },
+ {
   "checkPanel": 1
  },
  {
@@ -430,5 +437,63 @@
  },
  {
   "key": "Escape"
+ },
+ {
+  "pointerClick": "sidebar-tab-9",
+  "expectTop": true
+ },
+ {
+  "checkPanel": 9
+ },
+ {
+  "checkItem": "style-group-film",
+  "visible": false
+ },
+ {
+  "pointerClick": "module-details-splittoning",
+  "expectTop": true
+ },
+ {
+  "checkItem": "module-details-splittoning",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "module-details-splittoning"
+ },
+ {
+  "pointerClick": "sidebar-tab-10",
+  "expectTop": true
+ },
+ {
+  "checkPanel": 10
+ },
+ {
+  "checkItem": "camera-presets",
+  "visible": true
+ },
+ {
+  "checkItem": "module-details-splittoning",
+  "visible": false
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "pointerClick": "sidebar-area-styles"
+ },
+ {
+  "checkPanel": 10
+ },
+ {
+  "pointerClick": "sidebar-tab-1",
+  "expectTop": true
+ },
+ {
+  "checkPanel": 1
+ },
+ {
+  "checkItem": "style-group-film",
+  "visible": true
  }
 ]

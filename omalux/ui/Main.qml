@@ -195,9 +195,9 @@ ApplicationWindow {
         onCanvasCancelRequested: viewport.cancelCanvasTool()
         picking: !!sidebar.tools.active
         onPickerCancelRequested: sidebar.tools.cancel()
-        panelCount: sidebar.paneOrder.length
+        panelCount: sidebar.keyOrder.length
         // Number keys and Tab both follow the tab strip as shown.
-        onPanelRequested: position => sidebar.selectedPanel = sidebar.paneOrder[position]
+        onPanelRequested: position => sidebar.selectedPanel = sidebar.keyOrder[position]
         onPanelStepRequested: direction => { const panels=sidebar.paneOrder; sidebar.selectedPanel=panels[(panels.indexOf(sidebar.selectedPanel)+direction+panels.length)%panels.length] }
         onControlRequested: id => window.revealControl(id)
         onGrainDetailsRequested: { sidebar.selectedPanel = 0; sidebar.filterView = 0; sidebar.toggleGrainDetails() }

@@ -30,8 +30,8 @@ The sidebar keeps one selection, marked in the accent colour; the bottom bar sho
 | `Shift` + `←` / `→`, `Ctrl` or `Alt` + `←` / `→` | Ten steps, a tenth of a step |
 | `Enter` / `Space` | Activate: open or close a module, apply a style, restore a history step, press a button, open a colour picker; on a curve or graph, its own arrow keys edit the points until `Esc` |
 | `R`, `Shift+R`, `E` | Reset the selected parameter, reset its whole module, switch the module on/off |
-| `1` … `9`, `Tab` / `Shift+Tab` (`]` / `[`) | Pane in reading order: Edit (Filters, Tone, Color, Detail, Effects, Crop & Rotate), Styles, Details (History, Info); next / previous pane |
-| `/` or `Ctrl+F` | Search modules and controls; `Esc` clears the search and leaves it, `Enter` or `↓` keep it and go to the first result. The style search is an item in the Styles list |
+| `1` … `9`, `Tab` / `Shift+Tab` (`]` / `[`) | Pane in reading order: Edit (Filters, Tone, Color, Detail, Effects, Crop & Rotate), Looks, Details (History, Info); next / previous pane (Tab also reaches the Modules and Camera panes of Styles) |
+| `/` or `Ctrl+F` | Search modules and controls; `Esc` clears the search and leaves it, `Enter` or `↓` keep it and go to the first result. The look filter is an item in the Looks pane |
 | `G` / `S` / `M`, `A` | Grain strength / coarseness / mid-tones bias (opening grain details), grain details |
 | `+` / `−`, `0`, `F` | Zoom, fit, photograph fullscreen (`F` or `Esc` to leave) |
 | `Enter` / `Esc` while cropping | Apply / cancel the crop |

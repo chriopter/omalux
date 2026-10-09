@@ -37,7 +37,18 @@ SidebarScrollView {
     // Omalux camera presets among it, read-only.
     property var cameraDefaults: []
     property string camera: ""
-    property bool cameraOpen: false
+    property bool cameraOpen: true
+    // The Styles area has three panes, all this component: "looks" (the library grid), "modules"
+    // (the darktable modules that shape a look) and "camera" (what was applied for this camera).
+    property string view: "looks"
+    readonly property bool looksView: view === "looks"
+    // The look modules as one flat list of cards.
+    readonly property var lookModules: {
+        if (!catalogModel) return []
+        const modules = []
+        for (const g of catalogModel.groupsForTab("styles")) for (const m of g.modules) modules.push(m)
+        return modules.length ? [{ id: "looks", label: "Look modules", fixed: true, quiet: false, modules: modules }] : []
+    }
     readonly property var cameraPresets: (cameraDefaults || []).filter(e => e.group === "Camera presets")
     // The looks as a thumbnail grid: favourites (and the basic looks) on top, then one
     // collapsible group per family of the catalogue (catalog/styles/<family>/…, series by their
@@ -68,7 +79,7 @@ SidebarScrollView {
     property var showAll: ({})
     function toggleShowAll(id) { const next = Object.assign({}, showAll); next[id] = !next[id]; showAll = next }
     property string styleQuery: ""
-    readonly property string query: (styleQuery.trim() || (visible ? term : "")).toLowerCase()
+    readonly property string query: (styleQuery.trim() || (visible && looksView ? term : "")).toLowerCase()
     // The look whose settings are shown, and the section it was opened in ("key|id").
     property string details: ""
     function toggleStyleDetails(section, id) { details = details === section + "|" + id ? "" : section + "|" + id }
@@ -145,7 +156,7 @@ SidebarScrollView {
                 height: cameraBlock.implicitHeight + 14
                 radius: 4
                 color: root.theme.surface
-                visible: root.photoReady
+                visible: root.photoReady && root.view === "camera"
                 Column {
                     id: cameraBlock
                     x: 10; y: 7
@@ -222,9 +233,16 @@ SidebarScrollView {
                     }
                 }
             }
+            Text {
+                visible: !root.photoReady && root.view === "camera"
+                width: parent.width
+                text: "Open a photograph to see what was set up for its camera."
+                color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
+            }
             RowLayout {
                 width: parent.width
                 spacing: 8
+                visible: root.looksView
                 TextField {
                     id: styleSearch
                     objectName: "styleSearch"
@@ -257,12 +275,12 @@ SidebarScrollView {
                 }
             }
             Text {
-                width: parent.width; visible: !root.stylesReady || root.visibleStyles.length === 0
+                width: parent.width; visible: root.looksView && (!root.stylesReady || root.visibleStyles.length === 0)
                 text: !root.stylesReady ? "Loading styles…" : root.styles.length === 0 ? "No styles in styles/." : "No look matches “" + root.query + "”."
                 color: root.theme.muted; font: root.theme.textFont; wrapMode: Text.WordWrap
             }
-            Repeater { model: root.topSections; delegate: sectionDelegate }
-            Repeater { model: root.families; delegate: sectionDelegate }
+            Repeater { model: root.looksView ? root.topSections : []; delegate: sectionDelegate }
+            Repeater { model: root.looksView ? root.families : []; delegate: sectionDelegate }
             Component {
                 id: sectionDelegate
                 Column {
@@ -392,12 +410,12 @@ SidebarScrollView {
                 }
             }
             Loader {
-                active: !!root.catalogModel
-                x: 8
-                width: parent.width - 8
+                active: !!root.catalogModel && root.view === "modules"
+                visible: active
+                width: parent.width
                 sourceComponent: ModuleList {
                     theme: root.theme
-                    groups: root.catalogModel.groupsForTab("styles")
+                    groups: root.lookModules
                     catalogModel: root.catalogModel
                     states: root.states
                     overrides: root.overrides
@@ -406,7 +424,6 @@ SidebarScrollView {
                     term: root.visible ? root.term : ""
                     activeControl: root.activeControl
                     settingsKey: "styles"
-                    caption: "LOOK MODULES"
                     compact: true
                     onChangesRequested: (operation, instance, changes) => root.changesRequested(operation, instance, changes)
                     onEnableRequested: (operation, instance, enabled) => root.enableRequested(operation, instance, enabled)
@@ -415,7 +432,7 @@ SidebarScrollView {
                     onControlSelected: id => root.controlSelected(id)
                 }
             }
-            Text { width: parent.width; visible: root.errorMessage !== ""; text: root.errorMessage; color: "#f9d58b"; font: root.theme.textFont; wrapMode: Text.WordWrap }
+            Text { width: parent.width; visible: root.looksView && root.errorMessage !== ""; text: root.errorMessage; color: "#f9d58b"; font: root.theme.textFont; wrapMode: Text.WordWrap }
         }
     }
 }

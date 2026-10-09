@@ -33,7 +33,9 @@ Rectangle {
         { index: 7, icon: "detail.svg", name: "Detail & correction · technical", label: "Detail", tab: "detail", group: "edit" },
         { index: 8, icon: "effects.svg", name: "Effects", label: "Effects", tab: "effects", group: "edit" },
         { index: 2, icon: "crop.svg", name: "Crop & Rotate", label: "Crop", group: "edit" },
-        { index: 1, icon: "styles.svg", name: "Styles", label: "Styles", group: "styles" },
+        { index: 1, icon: "styles.svg", name: "Looks · the style library", label: "Looks", group: "styles" },
+        { index: 9, icon: "look-modules.svg", name: "Look modules · the modules that shape a look", label: "Modules", group: "styles", keyed: false },
+        { index: 10, icon: "camera.svg", name: "Camera · what was set up for this camera", label: "Camera", group: "styles", keyed: false },
         { index: 3, icon: "history.svg", name: "History", label: "History", group: "details" },
         { index: 4, icon: "info.svg", name: "Info", label: "Info", group: "details" }
     ]
@@ -49,13 +51,17 @@ Rectangle {
     property var lastPaneInGroup: ({ edit: 0, styles: 1, details: 3 })
     function selectGroup(id) { selectedPanel = lastPaneInGroup[id] }
     readonly property var paneOrder: panes.map(p => p.index)
-    readonly property bool searchable: [3, 4].indexOf(selectedPanel) < 0
+    // The panes the keys 1–9 choose: 7 stays Looks, 8 History, 9 Info; the other Styles panes are
+    // reached with Tab or a click.
+    readonly property var keyOrder: panes.filter(p => p.keyed !== false).map(p => p.index)
+    readonly property bool searchable: [3, 4, 10].indexOf(selectedPanel) < 0
     readonly property string term: moduleSearch.text.trim().toLowerCase()
     function matchesIn(index) {
         if (!term) return 0
         switch (index) {
         case 0: return filtersPanel.matchCount
-        case 1: return moduleCatalog.matchCount("styles", term) + stylesPanel.matchCount(term)
+        case 1: return stylesPanel.matchCount(term)
+        case 9: return moduleCatalog.matchCount("styles", term)
         case 2: return moduleCatalog.matchCount("geometry", term)
         case 5: return moduleCatalog.matchCount("tone", term)
         case 6: return moduleCatalog.matchCount("color", term)
@@ -441,7 +447,8 @@ Rectangle {
             onDeleteRequested: (id, name) => root.styleDeleteRequested(id, name)
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.selectedPanel === 1
+            visible: [1, 9, 10].indexOf(root.selectedPanel) >= 0
+            view: root.selectedPanel === 9 ? "modules" : root.selectedPanel === 10 ? "camera" : "looks"
             theme: root.theme
             styles: root.backend.styles
             stylesReady: root.backend.stylesReady

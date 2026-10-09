@@ -91,8 +91,8 @@ Item {
         id: shortcuts
         navigator: keyboard
         cropping: sidebar.geometry.cropping
-        panelCount: sidebar.paneOrder.length
-        onPanelRequested: position => sidebar.selectedPanel = sidebar.paneOrder[position]
+        panelCount: sidebar.keyOrder.length
+        onPanelRequested: position => sidebar.selectedPanel = sidebar.keyOrder[position]
         onPanelStepRequested: direction => { const panels = sidebar.paneOrder; sidebar.selectedPanel = panels[(panels.indexOf(sidebar.selectedPanel) + direction + panels.length) % panels.length] }
         onControlRequested: id => { sidebar.revealControl(id); keyboard.selectId(id) }
         onGrainDetailsRequested: { sidebar.selectedPanel = 0; sidebar.toggleGrainDetails() }
@@ -280,9 +280,20 @@ Item {
             press(Qt.Key_7)
             compare(sidebar.selectedPanel, 1)
             press(Qt.Key_Tab)
-            compare(sidebar.selectedPanel, 3, "Tab follows the strip: History after Styles")
-            press(Qt.Key_Backtab, Qt.ShiftModifier)
-            compare(sidebar.selectedPanel, 1)
+            compare(sidebar.selectedPanel, 9, "Tab follows the strip: the look modules after the looks")
+            press(Qt.Key_Tab)
+            compare(sidebar.selectedPanel, 10, "then the camera pane")
+            verify(find(sidebar, "camera-presets").visible)
+            press(Qt.Key_Tab)
+            compare(sidebar.selectedPanel, 3, "then History")
+            press(Qt.Key_8)
+            compare(sidebar.selectedPanel, 3, "8 stays History")
+            press(Qt.Key_9)
+            compare(sidebar.selectedPanel, 4, "9 stays Info")
+            find(sidebar, "sidebar-area-styles").clicked()
+            compare(sidebar.selectedPanel, 10, "the Styles area returns to its last pane")
+            press(Qt.Key_7)
+            compare(sidebar.selectedPanel, 1, "7: Looks")
             press(Qt.Key_2)
             compare(sidebar.selectedPanel, 5, "numbers follow the strip as well")
             press(Qt.Key_6)
@@ -334,10 +345,6 @@ Item {
             panel.expandedStyleGroup = "film"
             wait(20)
             press(Qt.Key_Home)
-            compare(selected(), "camera", "the camera block leads the pane")
-            press(Qt.Key_Return)
-            verify(find(sidebar, "camera-presets").visible)
-            press(Qt.Key_Down)
             compare(selected(), "style-search", "the filter field, then Save beside it")
             press(Qt.Key_Down)
             compare(selected(), "save")
