@@ -6,6 +6,8 @@ ToolButton {
     id: root
     required property var theme
     property bool expanded: false
+    // The pointer is over the heading this chevron belongs to: it answers as if hovered.
+    property bool hot: false
     width: 24; height: 22; padding: 0
     hoverEnabled: true
     contentItem: Item {
@@ -14,7 +16,9 @@ ToolButton {
             anchors.centerIn: parent
             width: 10; height: 10
             rotation: root.expanded ? 90 : 0
+            Behavior on rotation { NumberAnimation { duration: 90 } }
             property color stroke: root.hovered || root.visualFocus ? root.theme.accent
+                                 : root.hot ? root.theme.ink
                                  : root.expanded ? root.theme.ink : root.theme.muted
             onStrokeChanged: requestPaint()
             onPaint: {
@@ -27,7 +31,7 @@ ToolButton {
     }
     background: Rectangle {
         radius: 4
-        color: root.pressed ? root.theme.active : root.hovered ? root.theme.hover : "transparent"
+        color: root.pressed ? root.theme.active : root.hovered || root.hot ? root.theme.hover : "transparent"
         border.width: root.visualFocus ? 1 : 0
         border.color: root.theme.accent
     }

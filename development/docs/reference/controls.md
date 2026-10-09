@@ -43,6 +43,7 @@ The halation button initializes a red-channel diffusion recipe (one iteration, r
 - Text sizes are set only in `omalux/ui/components/EditorTheme.qml`: control labels and values 13 px, module headings medium-weight 12 px, other interface text 12 px. Enabled module headings are bright, disabled ones muted. Modules with a visible heading share one subtly lighter, borderless background across the heading and all associated sliders; headings have extra space above and a smaller gap to their controls.
 - Each editing group corresponds to exactly one native darktable module. Controls in `shadows and highlights` and `color balance rgb` stay together. By explicit UI choice, brightness and saturation additionally have top-level shortcut rows sharing the colisa module state. The parent name toggles the module, and an accent dot marks its enabled state. Child labels select controls but never toggle a module. Editing a child enables its parent module, as in darktable; reset does not imply bypass.
 - A collapsed single-primary module uses its primary row as the parent. Grain, bloom and vignetting show only their module name there. When expanded, the parent heading owns enablement and the same slider appears once below it with its original darktable label (`strength` or `brightness`). Additional parameters stay inside the same module background. Values stay right-aligned and disclosure occupies a separate right column that every row reserves, so values line up whether or not a row has a chevron. Collapsed rows and expanded headings use the same chevron (› closed, rotated ⌄ open), which brightens on hover. Right-click resets a parameter; child context menus do not expose a second module toggle.
+- **The open module** looks the same wherever it opens — a Filters row, a summary row of Tone, Color, Detail or Effects, or an Advanced card (`ModuleHeader`, `ModuleBody`, `SectionRow`). An outlined block marks it as open. Its heading reads: state mark (filled while on, a ring while off), module icon and name, then reset, darktable's multi-instance button and the chevron, which stands in the disclosure column where the collapsed row had it. The mark, icon and name switch the module on and off; the rest of the heading and the chevron fold it again. The heading takes the place of the collapsed row's name, so the rows above do not move. Below the rows, `more`, `blending` and `multiple instances` are section rows of one kind: a hairline, the label, what the closed section holds (the mask mode in use, the number of instances) and a chevron — three dots for the instance menu. `blending` starts closed while the mask mode is off and open when the module blends through a mask. Rows that appear grow in over 120 ms; rows that go away give their height back at once, so nothing slides under the pointer. An opened module is scrolled into view with its heading kept on screen (`OpenScroll`), until the person scrolls.
 - Eleven standard sliders remain available without expanding: brightness, contrast, saturation, exposure, shadows, temperature, vibrance, sharpen amount, grain strength, bloom strength and vignetting brightness. Brightness, contrast and saturation are separate top-level rows without a common heading. Editing any of them enables the same colisa module. All three rows carry a chevron that opens the one colisa module block; while it is open the block shows all three controls under the module heading and replaces the three single rows, so no control appears twice. Collapsing it restores the three rows. At the user’s request, global vibrance is displayed as vibrance; its underlying parameter and units are unchanged. Shadows and highlights exposes only shadows while collapsed; highlights and white point adjustment appear on expansion. Local contrast is a separate native module and lives under Advanced alongside denoise, diffuse or sharpen and LUT 3D. Expansion is remembered per module and never changes processing values. Direct shortcuts reveal hidden secondary parameters. All parameter names and units come from darktable.
 - Sidebar panes scroll vertically and stop at their edges. Wheel and touchpad events move the content immediately, without a separate scroll animation: Touchpad pixel deltas use an explicit 4× speed multiplier; angle-only events move 120 logical pixels per notch, including when Wayland classifies the seat as a touchpad. Like Omawrite 0.5.0, event shape determines the path, not the device label. Display scaling is used only to align positions to physical pixels, not to multiply speed. Both paths clamp to the content edges. Sliders and mode selectors do not consume the wheel. Hovering a slider does not change the selected parameter; keyboard navigation follows the displayed order (see below). History refreshes no longer explicitly reset the scroll position.
 - Colored tracks indicate luminance, hue, saturation, temperature or tint. They are visual hints, not a simulation of the actual output.
@@ -60,7 +61,7 @@ One item, `KeyboardNavigator` (`omalux/ui/components/`), holds keyboard focus fo
 
 - **Order.** The selectable items are the `NavTarget`s of the visible sidebar pane, ordered by where they are shown (top to bottom, then left to right). ↑/↓ cross module and group boundaries, stop at the first and last item (no wrap), and skip disabled items. Collapsed parameters, hidden panes and the other filter view are never reached: a hidden pane never receives keys. Only a direct shortcut (`G`, `S`, `M`) opens a collapsed module to select its parameter. Panes without items (Info) scroll with ↑/↓.
 - **Selection.** Each pane remembers its selection; a new pane starts at the item it marks as active (the active control, the current history step, the last applied style). The selection is marked in the accent colour and is scrolled into view at once, by the smallest movement with a small margin, also when a key adjusts it after the wheel moved it away.
-- **Blending and instances.** The rows of the blend section are ordinary stops (sliders, choices, switches, channel chips; the parametric ranges are graphs). The multi-instance button in a heading is not an ↑/↓ stop; the last stop of an open module, **multiple instances**, opens its menu with Enter.
+- **Blending and instances.** The section rows `more`, `blending` and `multiple instances` are stops: Enter opens and closes a section (←/→ close and open), and on **multiple instances**, the last stop of an open module, it opens the instance menu. The rows of an open blend section are ordinary stops (sliders, choices, switches, channel chips; the parametric ranges are graphs). The multi-instance and reset buttons in a heading are not ↑/↓ stops (`Shift+R` resets the module).
 - **Generated modules** (Tone, Color, Detail, Effects, the look modules under Styles and the modules under Crop & Rotate) take part like the curated ones: the summary rows of a pane (←/→ adjust, Enter opens the whole module in their place, `E` switches it, `Shift+R` resets it), group headings, module headings (Enter or ←/→ open the details, `E` switches the module, `Shift+R` resets it), every slider (one step of darktable's displayed precision, written in raw units through the module's parameter queue), choice and switch rows (`R` restores the row's default), module page tabs and channel choosers (←/→), colour swatches (Enter opens the picker), list rows (Enter opens the list; typing searches, ↑/↓ and Enter choose, Esc closes), text fields such as the watermark text (Enter edits), the colour checker patches (←/→ select a patch, `R` resets it to its source), "more", and curves and graphs. Notices and section captions are not stops.
 - **Curves and graphs.** Enter lends the keys to the widget: its own arrows edit the points (as documented in `CurveEditor`/`GraphView`); `Esc` (a second one when a point is selected) or any key the widget does not use gives them back.
 - **Keys on the selection.** ←/→ change a slider by darktable's step (`Shift` ×10, `Ctrl`/`Alt` ×0.1, clamped to the hard range, whole steps for integer parameters), choose the previous/next option, toggle switches and close/open modules and style groups. `Enter`/`Space` activate (module, style, history step, button, switch, search field). `R` resets the parameter, `Shift+R` the whole module, `E` switches the module; both go through the module heading when one is shown. A style selected from the keyboard previews like hovering.
@@ -117,7 +118,7 @@ The curated controls edit the base module instance. The generic module API below
 
 Scrolling reference: [Omawrite 0.5.0, Main.qml](https://github.com/omacom/omawrite/blob/v0.5.0/src/Main.qml), event handling and `snapToPixel`. Omalux adopts its event classification and pixel alignment; its angle-only movement remains immediate rather than using Omawrite’s animated wheel curve.
 
-- Denoise is available only in the expandable Advanced section. The collapsed vignetting brightness slider focuses on darkening (−1 to 0); expanding its details restores the full darktable range. Existing positive brightness values remain visible and are never changed by collapsing. Names, units and the default −0.5 are unchanged.
+- Denoise is available only in the expandable Advanced section. Vignetting's brightness slider shows darktable's range (−1 to 1) collapsed and expanded alike, so the knob stands at the same place in both. Names, units and the default −0.5 are unchanged.
 
 ### The Styles area
 
@@ -393,18 +394,19 @@ decisions' `panes` block):
   `deprecated`, and only while the current image has them switched on. Curated modules are not
   listed again: their remaining rows (for example exposure's mode, color balance rgb's 4 ways
   and masks pages, the denoise all/R/G/B curve) appear inside the curated block when it is
-  expanded, behind a quiet `more`.
+  expanded, in its `more` section.
 - Opening a group, module, "more" or a mask mode scrolls the new rows into view while the clicked
   heading stays on screen; closing one keeps the pane where it is (a bottom margin takes up the lost
   height until the pane is scrolled up), so a second click at the same spot reopens it. A value set
   on a row stays shown until the engine reports it, even when updates for earlier edits arrive first.
 - Group headings (technical, deprecated, and the groups shown while searching) use darktable's
   group names, collapse with a click and show the number of modules. Each module uses the curated block's visual language: heading with darktable's
-  module name and an accent dot (click toggles the module and the dot follows at once, before the
-  engine has rendered; right-click offers enable/disable and reset, hovering shows darktable's
-  purpose until the next click), primary rows visible while collapsed (labelled
-  `section · label` where the section caption is hidden), the chevron for detail rows and a
-  quiet `more` for advanced rows. Modules with darktable notebook pages show `ModuleTabs`.
+  module name and a state mark (a click on mark, icon or name toggles the module and the mark
+  follows at once, before the engine has rendered; a click on the rest of the heading or the
+  chevron folds and unfolds it; right-click offers enable/disable, reset and new instances,
+  hovering the name shows darktable's purpose until the next click), primary rows visible while
+  collapsed (labelled `section · label` where the section caption is hidden), the chevron for
+  detail rows and a `more` section row for advanced rows. Modules with darktable notebook pages show `ModuleTabs`.
   Open groups, expanded modules and `more` are remembered per pane. Additional instances of a
   module are listed after the base instance with their number.
 - Rows: sliders show `raw × factor + offset` with darktable's unit and digits, the soft range on
@@ -636,7 +638,10 @@ properties and reports changes through signals; none of them edits a parameter i
   double-click resets the range; Enter lends the keys, ←/→ move the active marker by the
   channel's increment (Shift ×10, Ctrl ×0.1), ↑/↓ pick the marker.
 - `InstanceButton`, `InstanceFooter` — darktable's multi-instance button in a module heading
-  and the keyboard's way to its menu at the end of an open module.
+  and the section row at the end of an open module that opens the same menu (the keyboard's way
+  to it); it names the number of instances when there is more than one.
+- `ModuleHeader`, `ModuleBody`, `SectionRow`, `OpenScroll` — the open module shared by curated
+  blocks and generated modules: heading, animated rows, section rows and scrolling into view.
 
 ## Blending and module instances
 
@@ -644,7 +649,8 @@ properties and reports changes through signals; none of them edits a parameter i
 
 Every module darktable lets blend (`IOP_FLAGS_SUPPORTS_BLENDING`, with an enable button) shows
 its blend section at the end of the expanded module, in curated blocks and generated modules
-alike. Labels, units, digits and ranges come from `layout-blending.json`; the rows follow
+alike: the section row `blending`, closed while the mask mode is off (it then reads `off`) and
+open when a mask is in use; drawn-shape and reset actions are outlined chips that wrap. Labels, units, digits and ranges come from `layout-blending.json`; the rows follow
 darktable's `dt_iop_gui_init_blending` / `dt_iop_gui_update_blending` (`develop/blend_gui.c`
 3393, 3051):
 

@@ -112,6 +112,7 @@ SidebarScrollView {
                                     overrides: root.overrides
                                     editable: root.editable
                                     compact: true
+                                    fromRow: modelData === 0
                                     // The first instance is what the summary rows opened; further
                                     // instances open on their own chevron.
                                     expanded: modelData === 0 || !!root.expanded[entry.operation + "/" + modelData]

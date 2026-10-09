@@ -266,6 +266,19 @@
   "value": true
  },
  {
+  "checkItem": "blend-mask-mode-soften/0",
+  "visible": false
+ },
+ {
+  "checkItem": "blend-section-soften/0",
+  "property": "summary",
+  "value": "off"
+ },
+ {
+  "pointerClick": "blend-section-soften/0",
+  "expectTop": true
+ },
+ {
   "pointerClick": "blend-mask-mode-soften/0"
  },
  {
@@ -495,5 +508,218 @@
  {
   "checkItem": "style-group-film",
   "visible": true
+ },
+ {
+  "pointerClick": "sidebar-area-edit"
+ },
+ {
+  "pointerClick": "sidebar-tab-0"
+ },
+ {
+  "checkPanel": 0
+ },
+ {
+  "checkItem": "control-slider-vignette",
+  "property": "from",
+  "value": -1
+ },
+ {
+  "checkItem": "control-slider-vignette",
+  "property": "to",
+  "value": 1
+ },
+ {
+  "pointerClick": "control-details-vignette",
+  "expectTop": true
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "module-details-vignette",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItem": "control-details-vignette",
+  "visible": false
+ },
+ {
+  "checkItem": "control-slider-vignette",
+  "property": "from",
+  "value": -1
+ },
+ {
+  "checkItem": "control-slider-vignette",
+  "property": "to",
+  "value": 1
+ },
+ {
+  "checkItem": "module-fold-vignette",
+  "inWindow": true
+ },
+ {
+  "pointerClick": "module-toggle-vignette",
+  "expectTop": true
+ },
+ {
+  "check": {
+   "vignette_enabled": 1
+  }
+ },
+ {
+  "checkItem": "module-details-vignette",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "pointerClick": "module-toggle-vignette"
+ },
+ {
+  "check": {
+   "vignette_enabled": 0
+  }
+ },
+ {
+  "control": "vignette",
+  "value": -0.2
+ },
+ {
+  "pointerClick": "module-reset-vignette",
+  "expectTop": true
+ },
+ {
+  "check": {
+   "vignette": -0.5
+  }
+ },
+ {
+  "pointerClick": "module-more-vignette",
+  "expectTop": true
+ },
+ {
+  "checkItem": "module-more-vignette",
+  "property": "open",
+  "value": true
+ },
+ {
+  "key": "Left"
+ },
+ {
+  "checkItem": "module-more-vignette",
+  "property": "open",
+  "value": false
+ },
+ {
+  "key": "Return"
+ },
+ {
+  "checkItem": "module-more-vignette",
+  "property": "open",
+  "value": true
+ },
+ {
+  "pointerClick": "module-more-vignette"
+ },
+ {
+  "checkItem": "module-more-vignette",
+  "property": "open",
+  "value": false
+ },
+ {
+  "checkItem": "blend-mask-mode-vignette",
+  "visible": false
+ },
+ {
+  "pointerClick": "blend-section-vignette",
+  "expectTop": true
+ },
+ {
+  "checkItem": "blend-mask-mode-vignette",
+  "visible": true
+ },
+ {
+  "pointerClick": "blend-section-vignette"
+ },
+ {
+  "checkItem": "blend-mask-mode-vignette",
+  "visible": false
+ },
+ {
+  "pointerClick": "module-fold-vignette",
+  "at": [
+   0.6,
+   0.5
+  ],
+  "expectTop": true
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-vignette",
+  "visible": true
+ },
+ {
+  "checkItem": "module-fold-vignette",
+  "visible": false
+ },
+ {
+  "pointerClick": "control-details-vignette"
+ },
+ {
+  "pointerClick": "module-details-vignette",
+  "expectTop": true
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "control-details-vignette",
+  "visible": true
+ },
+ {
+  "pointerClick": "module-fold-bilat",
+  "at": [
+   0.6,
+   0.5
+  ],
+  "expectTop": true
+ },
+ {
+  "waitMs": 300
+ },
+ {
+  "checkItem": "module-details-bilat",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "checkItem": "module-fold-bilat",
+  "inWindow": true
+ },
+ {
+  "key": "Left"
+ },
+ {
+  "checkItem": "module-details-bilat",
+  "property": "expanded",
+  "value": false
+ },
+ {
+  "key": "Right"
+ },
+ {
+  "checkItem": "module-details-bilat",
+  "property": "expanded",
+  "value": true
+ },
+ {
+  "key": "Return"
+ },
+ {
+  "checkItem": "module-details-bilat",
+  "property": "expanded",
+  "value": false
  }
 ]

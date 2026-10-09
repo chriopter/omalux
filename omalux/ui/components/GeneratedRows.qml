@@ -472,26 +472,17 @@ Column {
         theme: root.theme
         text: "greyed-out values need a newer engine build to be read and edited"
     }
-    Item {
+    SectionRow {
+        objectName: "module-more-" + root.module.operation
         visible: !root.extraMode && root.expanded && root.hasAdvanced && root.term === ""
-        width: root.width - 28
-        implicitHeight: 22
-        ToolButton {
-            id: moreButton
-            objectName: "module-more-" + root.module.operation
-            anchors.left: parent.left
-            padding: 0
-            hoverEnabled: true
-            onClicked: { moreNav.claim(); root.moreRequested() }
-            Accessible.name: (root.moreOpen ? "Fewer settings for " : "More settings for ") + root.module.name
-            NavTarget { id: moreNav; navId: root.navGroup + "/@more"; label: root.moreOpen ? "less" : "more"; group: root.navGroup; onActivate: root.moreRequested() }
-            contentItem: Text {
-                text: root.moreOpen ? "less" : "more"
-                color: moreButton.hovered || moreButton.visualFocus || moreNav.current ? root.theme.accent : root.theme.muted
-                font: root.theme.textFont
-            }
-            background: Item {}
-        }
+        width: root.width
+        theme: root.theme
+        label: "more"
+        open: root.moreOpen
+        navTarget.navId: root.navGroup + "/@more"
+        navTarget.group: root.navGroup
+        onRequested: root.moreRequested()
+        Accessible.name: (root.moreOpen ? "Fewer settings for " : "More settings for ") + root.module.name
     }
 
     // ---- row components ----------------------------------------------------------------

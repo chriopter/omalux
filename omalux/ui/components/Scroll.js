@@ -41,3 +41,10 @@ function reveal(item, top, bottom) {
     flick.cancelFlick()
     flick.contentY = Math.max(flick.originY, Math.min(limit(flick) + flick.bottomMargin, Math.min(a, b - flick.height)))
 }
+
+// Where the pane of `item` stands; a caller that follows growing content compares it with the
+// position after its last reveal() and stops once the person has scrolled in between.
+function position(item) {
+    const flick = flickableOf(item)
+    return flick ? flick.contentY : 0
+}

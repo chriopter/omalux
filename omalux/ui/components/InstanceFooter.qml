@@ -1,39 +1,23 @@
 import QtQuick
 import QtQuick.Controls
 
-// The keyboard's way to darktable's multi-instance menu: a quiet "multiple instances" line at
-// the end of an open module. Enter (or a click) opens the menu of the heading's InstanceButton,
-// passed as `button`.
-Item {
+// The last section of an open module: "multiple instances", darktable's multi-instance menu
+// for the keyboard and for those who look for it among the sections. Enter (or a click) opens
+// the menu of the heading's InstanceButton, passed as `button`; `count` instances exist.
+SectionRow {
     id: root
-    required property var theme
     property Item button: null
     property string navGroup: ""
     property bool active: true
-    implicitHeight: 22
-    ToolButton {
-        id: link
-        objectName: "instance-footer-" + root.navGroup
-        anchors.left: parent.left
-        padding: 0
-        hoverEnabled: true
-        enabled: root.active && !!root.button
-        onClicked: { nav.claim(); root.button.openMenu() }
-        Accessible.name: "multiple instances actions"
-        NavTarget {
-            id: nav
-            navId: root.navGroup + "/@instances"
-            label: "multiple instances"
-            group: root.navGroup
-            enabled: link.enabled
-            activateLabel: "INSTANCE MENU"
-            onActivate: root.button.openMenu()
-        }
-        contentItem: Text {
-            text: "multiple instances"
-            color: link.hovered || link.visualFocus || nav.current ? root.theme.accent : root.theme.muted
-            font: root.theme.textFont
-        }
-        background: Item {}
-    }
+    property int count: 0
+    objectName: "instance-footer-" + root.navGroup
+    label: "multiple instances"
+    summary: root.count > 1 ? root.count + " instances" : ""
+    menu: true
+    enabled: root.active && !!root.button
+    navTarget.navId: root.navGroup + "/@instances"
+    navTarget.group: root.navGroup
+    navTarget.activateLabel: "INSTANCE MENU"
+    onRequested: root.button.openMenu()
+    Accessible.name: "multiple instances actions"
 }

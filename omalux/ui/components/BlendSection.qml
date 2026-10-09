@@ -205,12 +205,14 @@ Column {
         onResetRequested: root.set(member, c.rawDefault)
         navTarget.group: root.navGroup
     }
+    // A small action of the section ("add circle", "reset blend mask settings"): an outlined
+    // chip, so it reads as a button among the captions.
     component TextButton: ToolButton {
         id: textButton
         property string label
         property alias nav: buttonNav
         signal triggered()
-        padding: 0
+        leftPadding: 7; rightPadding: 7; topPadding: 3; bottomPadding: 3
         hoverEnabled: true
         enabled: root.editable
         onClicked: { buttonNav.claim(); triggered() }
@@ -219,266 +221,22 @@ Column {
                     enabled: textButton.enabled; onActivate: textButton.triggered() }
         contentItem: Text {
             text: textButton.label
-            color: textButton.hovered || textButton.visualFocus || buttonNav.current ? root.theme.accent : root.theme.muted
+            color: textButton.visualFocus || buttonNav.current ? root.theme.accent
+                 : textButton.hovered ? root.theme.ink : root.theme.muted
             font: root.theme.textFont
         }
-        background: Item {}
+        background: Rectangle {
+            radius: 4
+            color: textButton.pressed ? root.theme.active : textButton.hovered ? root.theme.hover : "transparent"
+            border.width: 1
+            border.color: textButton.visualFocus || buttonNav.current ? root.theme.accent : root.theme.line
+        }
     }
 
-    Caption { text: "blending" }
-    ChoiceRow {
-        id: maskModeRow
-        objectName: "blend-mask-mode-" + root.navGroup
-        field: "mask_mode"
-        // dt_iop_gui_init_blending: drawn and raster need mask support, parametric a Lab or RGB module.
-        options: (root.row("mask_mode").values || []).filter(o => o.value === 0 || o.value === 1
-                     || (o.value === 3 && root.blend && root.blend.masks)
-                     || (o.value === 5 && root.blend && root.blend.parametric)
-                     || (o.value === 7 && root.blend && root.blend.masks && root.blend.parametric)
-                     || (o.value === 9 && root.blend && root.blend.masks))
-        value: root.maskMode
-        onChosen: v => { root.set("mask_mode", v); revealRows.target = maskModeRow; revealRows.restart() }
-    }
-    // A new mask mode adds rows below the choice: scroll them into view, keeping the choice
-    // itself on screen, so the choice visibly did something.
-    // Rows are built over a few frames (later under load): follow the section's height for a
-    // moment instead of guessing when it is complete.
-    Timer {
-        id: revealRows
-        property Item target: null
-        property real until: 0
-        interval: 120
-        onTriggered: { until = Date.now() + 1500; if (target) Scroll.reveal(root, target.y, root.height) }
-    }
-    onHeightChanged: if (revealRows.target && Date.now() < revealRows.until) Scroll.reveal(root, revealRows.target.y, root.height)
     // area E: darktable's "display mask and/or color channel" and "temporarily switch off blend
     // mask" toggles beside the mask modes (blend_gui.c:3508-3528), shown for a real mask only
     // (3121); view state, not history (engine blend_display.c).
     readonly property var displayState: root.tools && root.moduleState ? root.tools.blendDisplayOf(root.moduleState.operation, root.moduleState.instance) : null
-    ModuleToolButtons {
-        objectName: "blend-display-" + root.navGroup
-        visible: (root.maskMode & ~1) !== 0 && !!root.tools && root.tools.supported["*/blend_display"] === true
-        width: root.width
-        theme: root.theme
-        editable: root.editable
-        navPrefix: root.navGroup + "/blend/display"
-        navGroup: root.navGroup
-        entries: [{ label: "display mask", kind: "button", active: !!root.displayState && root.displayState.mask,
-                    hint: "display mask and/or color channel.\nctrl+click to display mask,\nshift+click to display channel.\nhover over parametric mask slider to select channel for display" },
-                  { label: "switch off mask", kind: "button", active: !!root.displayState && root.displayState.suppress,
-                    hint: "temporarily switch off blend mask.\nonly for module in focus" }]
-        onTriggered: (index, choice) => {
-            const s = root.displayState || { mask: false, suppress: false }
-            root.tools.setBlendDisplay(root.moduleState.operation, root.moduleState.instance,
-                                       index === 0 ? !s.mask : s.mask, index === 1 ? !s.suppress : s.suppress)
-        }
-    }
-    // The blending options menu: colour space of the mask and blend (_blendif_options_callback).
-    ChoiceRow {
-        visible: root.maskEnabled && !!root.blend && root.blend.parametric && [2, 3, 4].indexOf(root.blend.default_cst) >= 0
-        field: "blend_cst"
-        label: "blend colorspace"
-        options: (root.blend && root.blend.default_cst === 2 ? [{ value: 2, label: "Lab" }] : [])
-                 .concat([{ value: 3, label: "RGB (display)" }, { value: 4, label: "RGB (scene)" }])
-        value: root.num("blend_cst", 0)
-        resetValue: 0
-        onChosen: v => root.set("blend_cst", v)
-    }
-
-    Caption { visible: root.maskEnabled; text: "blend mask" }
-    ChoiceRow {
-        visible: root.maskEnabled
-        field: "blend_mode"
-        options: ((root.blend && root.blend.blend_modes) || []).map(m => ({ value: m.value, label: m.label }))
-        value: root.blendMode
-        resetValue: 24
-        onChosen: v => root.set("blend_mode", v)
-    }
-    SwitchRow { visible: root.maskEnabled; field: "blend_reverse"; member: "reverse" }
-    SliderRow { visible: root.maskEnabled && root.fulcrum; field: "blend_parameter" }
-    SliderRow { objectName: "blend-opacity-" + root.navGroup; visible: root.maskEnabled; field: "opacity" }
-
-    Caption { visible: root.drawn; text: "drawn mask" }
-    RowLayout {
-        visible: root.drawn
-        width: root.width - 28
-        spacing: 8
-        Text { Layout.fillWidth: true; text: root.row("mask_id").label; color: root.theme.ink; font: root.theme.settingsFont }
-        Text {
-            readonly property int shapes: root.blend ? root.blend.drawn_shapes : 0
-            text: shapes > 0 ? shapes + (shapes === 1 ? " shape used" : " shapes used") : "no mask used"
-            color: root.theme.muted; font: root.theme.settingsFont
-        }
-    }
-    SwitchRow { visible: root.drawn; field: "drawn_polarity"; member: "drawn_polarity" }
-    Flow {
-        visible: root.drawn && !!root.blend && root.blend.drawn_available
-        width: root.width - 28
-        spacing: 12
-        Repeater {
-            // blend_gui.c dt_iop_gui_init_masks: the shape buttons (DT_MASKS_* types).
-            model: [{ type: 16, label: "add gradient" }, { type: 2, label: "add path" }, { type: 32, label: "add ellipse" },
-                    { type: 1, label: "add circle" }, { type: 64, label: "add brush" }]
-            TextButton {
-                required property var modelData
-                label: modelData.label
-                onTriggered: root.drawnShapeRequested(modelData.type)
-            }
-        }
-    }
-    // area E: darktable's mask manager for this module's shapes (MaskManagerView, mask_manager.c).
-    MaskManagerView {
-        id: maskManager
-        objectName: "mask-manager-" + root.navGroup
-        visible: root.drawn && !!root.tools && root.tools.supported["*/masks"] === true
-        width: root.width - 28
-        theme: root.theme
-        editable: root.editable
-        navGroup: root.navGroup
-        readonly property string key: root.moduleState ? root.tools.key(root.moduleState.operation, root.moduleState.instance, "masks") : ""
-        report: root.tools && key && root.tools.results[key] ? root.tools.results[key].masks || null : null
-        readonly property int shapes: root.blend ? root.blend.drawn_shapes : 0
-        function refresh() { if (visible && root.moduleState) root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null, { action: "list" }) }
-        onShapesChanged: refresh()
-        onVisibleChanged: refresh()
-        onRequested: (action, args) => root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null,
-                                                       Object.assign({ action: action }, args))
-    }
-    ModuleNotice {
-        visible: root.drawn && !!root.blend && !root.blend.drawn_available
-        width: root.width - 28
-        theme: root.theme
-        text: root.row("@notice").label
-    }
-
-    Caption { visible: root.raster; text: "raster mask" }
-    ChoiceRow {
-        visible: root.raster
-        field: "raster_mask"
-        options: [{ value: -1, label: "no mask used" }].concat(root.rasterSources.map((s, i) => ({ value: i, label: s.label })))
-        value: root.rasterIndex
-        resetValue: -1
-        onChosen: v => {
-            if (v < 0) { root.set("raster_mask", -1); return }
-            const s = root.rasterSources[v]
-            root.set("raster_mask@" + s.operation + "/" + s.instance, s.id)
-        }
-    }
-    SwitchRow { visible: root.raster; field: "raster_mask_invert"; member: "raster_mask_invert" }
-
-    Caption { visible: root.parametric; text: "parametric mask" }
-    ChannelChooser {
-        visible: root.parametric
-        width: root.width - 28
-        theme: root.theme
-        options: root.channels.map((c, i) => ({ label: c.label, value: i }))
-        current: Math.min(root.tab, Math.max(0, root.channels.length - 1))
-        editable: root.editable
-        onChosen: v => root.tab = v
-        navTarget.navId: root.navGroup + "/blend/channel"
-        navTarget.group: root.navGroup
-    }
-    BlendifRange {
-        visible: root.parametric && root.outputsShown && !!root.channel
-        width: root.width - 28
-        theme: root.theme
-        label: root.row("blendif_output").label
-        tooltip: "adjustment based on unblended output of this module"
-        readonly property int ch: root.channel ? root.channel.out : 4
-        pickerMarker: root.pickerMarkers ? root.pickerMarkers.output || null : null
-        values: root.range(ch)
-        negative: root.negative(ch)
-        stops: root.stopsOf(root.channel)
-        scale: root.channel ? root.channel.scale : "default"
-        altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
-        altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
-        onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
-        boost: Math.pow(2, root.boostOf(ch))
-        increment: root.channel ? root.channel.increment : .01
-        editable: root.editable
-        opacity: root.moduleEnabled ? 1 : .7
-        onValuesEdited: values => root.rangeEdited(ch, values)
-        onPolarityToggled: neg => root.set("polarity[" + ch + "]", neg ? 1 : 0)
-        onResetRequested: root.set("reset_channel[" + ch + "]", 1)
-        onInteractionChanged: active => root.interactionChanged(active)
-        navTarget.navId: root.navGroup + "/blend/output"
-        navTarget.group: root.navGroup
-    }
-    BlendifRange {
-        objectName: "blendif-input-" + root.navGroup
-        visible: root.parametric && !!root.channel
-        width: root.width - 28
-        theme: root.theme
-        label: root.row("blendif_input").label
-        tooltip: "adjustment based on input received by this module"
-        readonly property int ch: root.channel ? root.channel.in : 0
-        pickerMarker: root.pickerMarkers ? root.pickerMarkers.input || null : null
-        values: root.range(ch)
-        negative: root.negative(ch)
-        stops: root.stopsOf(root.channel)
-        scale: root.channel ? root.channel.scale : "default"
-        altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
-        altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
-        onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
-        boost: Math.pow(2, root.boostOf(ch))
-        increment: root.channel ? root.channel.increment : .01
-        editable: root.editable
-        opacity: root.moduleEnabled ? 1 : .7
-        onValuesEdited: values => root.rangeEdited(ch, values)
-        onPolarityToggled: neg => root.set("polarity[" + ch + "]", neg ? 1 : 0)
-        onResetRequested: root.set("reset_channel[" + ch + "]", 1)
-        onInteractionChanged: active => root.interactionChanged(active)
-        navTarget.navId: root.navGroup + "/blend/input"
-        navTarget.group: root.navGroup
-    }
-    // _blendop_blendif_boost_factor_callback: shown value = stored factor − the channel's offset.
-    SliderRow {
-        id: boostRow
-        visible: root.parametric && !!root.channel
-        field: "boost_factor"
-        member: "boost_factor[" + (root.channel ? root.channel.in : 0) + "]"
-        value: root.channel && root.channel.boost ? root.boostOf(root.channel.in) - root.channel.boost_offset : 0
-        editable: root.editable && !!root.channel && root.channel.boost
-    }
-    ChoiceRow {
-        visible: root.parametric
-        field: "mask_combine"
-        options: (root.row("mask_combine").values || [])
-        value: root.num("mask_combine", 0)
-        onChosen: v => root.changesRequested({ "blend.mask_combine": v, "blend.output_channels_shown": root.outputsShown ? 1 : 0 })
-    }
-    // "show output channels" / "reset and hide output channels" of the blending options menu.
-    RowWrapper {
-        visible: root.parametric
-        width: root.width
-        theme: root.theme
-        label: "show output channels"
-        resetEnabled: false
-        ControlSwitch {
-            width: parent.width
-            theme: root.theme
-            label: "show output channels"
-            labelFont: root.theme.settingsFont
-            labelColor: root.theme.ink
-            value: root.outputsShown ? 1 : 0
-            editable: root.editable
-            onEdited: v => {
-                if (v > 0.5) { root.outputsRequested = true; return }
-                root.outputsRequested = false
-                if (root.blend && root.blend.outputs_used) root.set("clean_output_channels", 1)
-            }
-            navTarget.navId: root.navGroup + "/blend/outputs"
-            navTarget.group: root.navGroup
-            navTarget.resettable: false
-        }
-    }
-    Flow {
-        visible: root.parametric
-        width: root.width - 28
-        spacing: 14
-        TextButton { label: "reset blend mask settings"; onTriggered: root.set("reset_parametric", 1) }
-        TextButton { label: "invert all channel's polarities"; onTriggered: root.set("invert_all", 1) }
-    }
     // The parametric mask's pickers (blend_gui.c:2578 "show color", :2588 "set range"),
     // run through ModuleTools (engine tools_blend.c) for the shown channel.
     readonly property var tools: root.catalogModel && root.catalogModel.tools ? root.catalogModel.tools : null
@@ -502,35 +260,311 @@ Column {
     // Another channel tab: an active picker samples that channel instead.
     onTabChanged: if (root.tools && root.moduleState && root.tools.active && root.tools.active.tool.indexOf("blend_") === 0)
                       root.tools.updateGui(root.moduleState.operation, root.moduleState.instance, root.pickerGui())
-    ModuleToolButtons {
-        visible: root.parametric && !!root.tools && root.tools.supported["*/blend_set_range"] === true
-        width: root.width
-        theme: root.theme
-        editable: root.editable
-        navPrefix: root.navGroup + "/blend/pickers"
-        navGroup: root.navGroup
-        entries: root.pickerSpecs.map(p => ({ label: p.label, kind: p.kind, hint: p.hint,
-                                              active: !!root.tools && !!root.moduleState
-                                                      && root.tools.isActive(root.moduleState.operation, root.moduleState.instance, p.tool) }))
-        onTriggered: (index, choice) => root.tools.toggle(root.moduleState.operation, root.moduleState.instance,
-                                                          root.pickerSpecs[index], root.pickerGui())
-    }
-
     // dt_iop_gui_update_blending: refinement for drawn or parametric masks, or a raster mask;
     // a module blending in raw data keeps only the blur.
     readonly property bool refine: (root.maskEnabled && (root.drawn || root.parametric)) || root.raster
-    Caption { visible: root.refine; text: "mask refinement" }
-    SliderRow { visible: root.refine && !root.rawSpace && !!root.blend && root.blend.raw; field: "details" }
-    ChoiceRow {
-        visible: root.refine && !root.rawSpace
-        field: "feathering_guide"
-        options: root.row("feathering_guide").values || []
-        value: root.num("feathering_guide", 5)
-        resetValue: 5
-        onChosen: v => root.set("feathering_guide", v)
+    // The section is one collapsible row of the module: closed it names the mask mode in use,
+    // so "off" costs one line. It starts open when the module blends through a mask, and opens
+    // when a mask is switched on from elsewhere.
+    property bool open: false
+    Component.onCompleted: open = maskEnabled
+    onMaskEnabledChanged: if (maskEnabled) open = true
+    readonly property string maskModeLabel: {
+        const o = (root.row("mask_mode").values || []).find(v => v.value === root.maskMode)
+        return o ? o.label : ""
     }
-    SliderRow { visible: root.refine && !root.rawSpace; field: "feathering_radius" }
-    SliderRow { visible: root.refine; field: "blur_radius" }
-    SliderRow { visible: root.refine && !root.rawSpace; field: "brightness" }
-    SliderRow { visible: root.refine && !root.rawSpace; field: "contrast" }
+    SectionRow {
+        objectName: "blend-section-" + root.navGroup
+        width: root.width
+        theme: root.theme
+        label: "blending"
+        summary: root.maskModeLabel
+        open: root.open
+        navTarget.navId: root.navGroup + "/@blending"
+        navTarget.group: root.navGroup
+        onRequested: root.open = !root.open
+    }
+    Column {
+        id: content
+        visible: root.open
+        width: root.width
+        spacing: 4
+        ChoiceRow {
+            id: maskModeRow
+            objectName: "blend-mask-mode-" + root.navGroup
+            field: "mask_mode"
+            // dt_iop_gui_init_blending: drawn and raster need mask support, parametric a Lab or RGB module.
+            options: (root.row("mask_mode").values || []).filter(o => o.value === 0 || o.value === 1
+                         || (o.value === 3 && root.blend && root.blend.masks)
+                         || (o.value === 5 && root.blend && root.blend.parametric)
+                         || (o.value === 7 && root.blend && root.blend.masks && root.blend.parametric)
+                         || (o.value === 9 && root.blend && root.blend.masks))
+            value: root.maskMode
+            onChosen: v => { root.set("mask_mode", v); revealRows.target = maskModeRow; revealRows.restart() }
+        }
+        // A new mask mode adds rows below the choice: scroll them into view, keeping the choice
+        // itself on screen, so the choice visibly did something.
+        // Rows are built over a few frames (later under load): follow the section's height for a
+        // moment instead of guessing when it is complete.
+        Timer {
+            id: revealRows
+            property Item target: null
+            property real until: 0
+            interval: 120
+            onTriggered: { until = Date.now() + 1500; if (target) Scroll.reveal(root, content.y + target.y, root.height) }
+        }
+        onHeightChanged: if (revealRows.target && Date.now() < revealRows.until) Scroll.reveal(root, content.y + revealRows.target.y, root.height)
+        ModuleToolButtons {
+            objectName: "blend-display-" + root.navGroup
+            visible: (root.maskMode & ~1) !== 0 && !!root.tools && root.tools.supported["*/blend_display"] === true
+            width: root.width
+            theme: root.theme
+            editable: root.editable
+            navPrefix: root.navGroup + "/blend/display"
+            navGroup: root.navGroup
+            entries: [{ label: "display mask", kind: "button", active: !!root.displayState && root.displayState.mask,
+                        hint: "display mask and/or color channel.\nctrl+click to display mask,\nshift+click to display channel.\nhover over parametric mask slider to select channel for display" },
+                      { label: "switch off mask", kind: "button", active: !!root.displayState && root.displayState.suppress,
+                        hint: "temporarily switch off blend mask.\nonly for module in focus" }]
+            onTriggered: (index, choice) => {
+                const s = root.displayState || { mask: false, suppress: false }
+                root.tools.setBlendDisplay(root.moduleState.operation, root.moduleState.instance,
+                                           index === 0 ? !s.mask : s.mask, index === 1 ? !s.suppress : s.suppress)
+            }
+        }
+        // The blending options menu: colour space of the mask and blend (_blendif_options_callback).
+        ChoiceRow {
+            visible: root.maskEnabled && !!root.blend && root.blend.parametric && [2, 3, 4].indexOf(root.blend.default_cst) >= 0
+            field: "blend_cst"
+            label: "blend colorspace"
+            options: (root.blend && root.blend.default_cst === 2 ? [{ value: 2, label: "Lab" }] : [])
+                     .concat([{ value: 3, label: "RGB (display)" }, { value: 4, label: "RGB (scene)" }])
+            value: root.num("blend_cst", 0)
+            resetValue: 0
+            onChosen: v => root.set("blend_cst", v)
+        }
+
+        Caption { visible: root.maskEnabled; text: "blend mask" }
+        ChoiceRow {
+            visible: root.maskEnabled
+            field: "blend_mode"
+            options: ((root.blend && root.blend.blend_modes) || []).map(m => ({ value: m.value, label: m.label }))
+            value: root.blendMode
+            resetValue: 24
+            onChosen: v => root.set("blend_mode", v)
+        }
+        SwitchRow { visible: root.maskEnabled; field: "blend_reverse"; member: "reverse" }
+        SliderRow { visible: root.maskEnabled && root.fulcrum; field: "blend_parameter" }
+        SliderRow { objectName: "blend-opacity-" + root.navGroup; visible: root.maskEnabled; field: "opacity" }
+
+        Caption { visible: root.drawn; text: "drawn mask" }
+        RowLayout {
+            visible: root.drawn
+            width: root.width - 28
+            spacing: 8
+            Text { Layout.fillWidth: true; text: root.row("mask_id").label; color: root.theme.ink; font: root.theme.settingsFont }
+            Text {
+                readonly property int shapes: root.blend ? root.blend.drawn_shapes : 0
+                text: shapes > 0 ? shapes + (shapes === 1 ? " shape used" : " shapes used") : "no mask used"
+                color: root.theme.muted; font: root.theme.settingsFont
+            }
+        }
+        SwitchRow { visible: root.drawn; field: "drawn_polarity"; member: "drawn_polarity" }
+        Flow {
+            visible: root.drawn && !!root.blend && root.blend.drawn_available
+            width: root.width - 28
+            spacing: 6
+            Repeater {
+                // blend_gui.c dt_iop_gui_init_masks: the shape buttons (DT_MASKS_* types).
+                model: [{ type: 16, label: "add gradient" }, { type: 2, label: "add path" }, { type: 32, label: "add ellipse" },
+                        { type: 1, label: "add circle" }, { type: 64, label: "add brush" }]
+                TextButton {
+                    required property var modelData
+                    label: modelData.label
+                    onTriggered: root.drawnShapeRequested(modelData.type)
+                }
+            }
+        }
+        // area E: darktable's mask manager for this module's shapes (MaskManagerView, mask_manager.c).
+        MaskManagerView {
+            id: maskManager
+            objectName: "mask-manager-" + root.navGroup
+            visible: root.drawn && !!root.tools && root.tools.supported["*/masks"] === true
+            width: root.width - 28
+            theme: root.theme
+            editable: root.editable
+            navGroup: root.navGroup
+            readonly property string key: root.moduleState ? root.tools.key(root.moduleState.operation, root.moduleState.instance, "masks") : ""
+            report: root.tools && key && root.tools.results[key] ? root.tools.results[key].masks || null : null
+            readonly property int shapes: root.blend ? root.blend.drawn_shapes : 0
+            function refresh() { if (visible && root.moduleState) root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null, { action: "list" }) }
+            onShapesChanged: refresh()
+            onVisibleChanged: refresh()
+            onRequested: (action, args) => root.tools.send(root.moduleState.operation, root.moduleState.instance, "masks", null,
+                                                           Object.assign({ action: action }, args))
+        }
+        ModuleNotice {
+            visible: root.drawn && !!root.blend && !root.blend.drawn_available
+            width: root.width - 28
+            theme: root.theme
+            text: root.row("@notice").label
+        }
+
+        Caption { visible: root.raster; text: "raster mask" }
+        ChoiceRow {
+            visible: root.raster
+            field: "raster_mask"
+            options: [{ value: -1, label: "no mask used" }].concat(root.rasterSources.map((s, i) => ({ value: i, label: s.label })))
+            value: root.rasterIndex
+            resetValue: -1
+            onChosen: v => {
+                if (v < 0) { root.set("raster_mask", -1); return }
+                const s = root.rasterSources[v]
+                root.set("raster_mask@" + s.operation + "/" + s.instance, s.id)
+            }
+        }
+        SwitchRow { visible: root.raster; field: "raster_mask_invert"; member: "raster_mask_invert" }
+
+        Caption { visible: root.parametric; text: "parametric mask" }
+        ChannelChooser {
+            visible: root.parametric
+            width: root.width - 28
+            theme: root.theme
+            options: root.channels.map((c, i) => ({ label: c.label, value: i }))
+            current: Math.min(root.tab, Math.max(0, root.channels.length - 1))
+            editable: root.editable
+            onChosen: v => root.tab = v
+            navTarget.navId: root.navGroup + "/blend/channel"
+            navTarget.group: root.navGroup
+        }
+        BlendifRange {
+            visible: root.parametric && root.outputsShown && !!root.channel
+            width: root.width - 28
+            theme: root.theme
+            label: root.row("blendif_output").label
+            tooltip: "adjustment based on unblended output of this module"
+            readonly property int ch: root.channel ? root.channel.out : 4
+            pickerMarker: root.pickerMarkers ? root.pickerMarkers.output || null : null
+            values: root.range(ch)
+            negative: root.negative(ch)
+            stops: root.stopsOf(root.channel)
+            scale: root.channel ? root.channel.scale : "default"
+            altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
+            altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
+            onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
+            boost: Math.pow(2, root.boostOf(ch))
+            increment: root.channel ? root.channel.increment : .01
+            editable: root.editable
+            opacity: root.moduleEnabled ? 1 : .7
+            onValuesEdited: values => root.rangeEdited(ch, values)
+            onPolarityToggled: neg => root.set("polarity[" + ch + "]", neg ? 1 : 0)
+            onResetRequested: root.set("reset_channel[" + ch + "]", 1)
+            onInteractionChanged: active => root.interactionChanged(active)
+            navTarget.navId: root.navGroup + "/blend/output"
+            navTarget.group: root.navGroup
+        }
+        BlendifRange {
+            objectName: "blendif-input-" + root.navGroup
+            visible: root.parametric && !!root.channel
+            width: root.width - 28
+            theme: root.theme
+            label: root.row("blendif_input").label
+            tooltip: "adjustment based on input received by this module"
+            readonly property int ch: root.channel ? root.channel.in : 0
+            pickerMarker: root.pickerMarkers ? root.pickerMarkers.input || null : null
+            values: root.range(ch)
+            negative: root.negative(ch)
+            stops: root.stopsOf(root.channel)
+            scale: root.channel ? root.channel.scale : "default"
+            altScale: ({ ab: "zoom", hue: "" })[scale] ?? "log"
+            altActive: !!root.altModes[root.tab + "/" + (label === root.row("blendif_output").label ? 1 : 0)]
+            onAlternativeRequested: active => root.setAltMode(label === root.row("blendif_output").label ? 1 : 0, active)
+            boost: Math.pow(2, root.boostOf(ch))
+            increment: root.channel ? root.channel.increment : .01
+            editable: root.editable
+            opacity: root.moduleEnabled ? 1 : .7
+            onValuesEdited: values => root.rangeEdited(ch, values)
+            onPolarityToggled: neg => root.set("polarity[" + ch + "]", neg ? 1 : 0)
+            onResetRequested: root.set("reset_channel[" + ch + "]", 1)
+            onInteractionChanged: active => root.interactionChanged(active)
+            navTarget.navId: root.navGroup + "/blend/input"
+            navTarget.group: root.navGroup
+        }
+        // _blendop_blendif_boost_factor_callback: shown value = stored factor − the channel's offset.
+        SliderRow {
+            id: boostRow
+            visible: root.parametric && !!root.channel
+            field: "boost_factor"
+            member: "boost_factor[" + (root.channel ? root.channel.in : 0) + "]"
+            value: root.channel && root.channel.boost ? root.boostOf(root.channel.in) - root.channel.boost_offset : 0
+            editable: root.editable && !!root.channel && root.channel.boost
+        }
+        ChoiceRow {
+            visible: root.parametric
+            field: "mask_combine"
+            options: (root.row("mask_combine").values || [])
+            value: root.num("mask_combine", 0)
+            onChosen: v => root.changesRequested({ "blend.mask_combine": v, "blend.output_channels_shown": root.outputsShown ? 1 : 0 })
+        }
+        // "show output channels" / "reset and hide output channels" of the blending options menu.
+        RowWrapper {
+            visible: root.parametric
+            width: root.width
+            theme: root.theme
+            label: "show output channels"
+            resetEnabled: false
+            ControlSwitch {
+                width: parent.width
+                theme: root.theme
+                label: "show output channels"
+                labelFont: root.theme.settingsFont
+                labelColor: root.theme.ink
+                value: root.outputsShown ? 1 : 0
+                editable: root.editable
+                onEdited: v => {
+                    if (v > 0.5) { root.outputsRequested = true; return }
+                    root.outputsRequested = false
+                    if (root.blend && root.blend.outputs_used) root.set("clean_output_channels", 1)
+                }
+                navTarget.navId: root.navGroup + "/blend/outputs"
+                navTarget.group: root.navGroup
+                navTarget.resettable: false
+            }
+        }
+        Flow {
+            visible: root.parametric
+            width: root.width - 28
+            spacing: 6
+            TextButton { label: "reset blend mask settings"; onTriggered: root.set("reset_parametric", 1) }
+            TextButton { label: "invert all channel's polarities"; onTriggered: root.set("invert_all", 1) }
+        }
+        ModuleToolButtons {
+            visible: root.parametric && !!root.tools && root.tools.supported["*/blend_set_range"] === true
+            width: root.width
+            theme: root.theme
+            editable: root.editable
+            navPrefix: root.navGroup + "/blend/pickers"
+            navGroup: root.navGroup
+            entries: root.pickerSpecs.map(p => ({ label: p.label, kind: p.kind, hint: p.hint,
+                                                  active: !!root.tools && !!root.moduleState
+                                                          && root.tools.isActive(root.moduleState.operation, root.moduleState.instance, p.tool) }))
+            onTriggered: (index, choice) => root.tools.toggle(root.moduleState.operation, root.moduleState.instance,
+                                                              root.pickerSpecs[index], root.pickerGui())
+        }
+
+        Caption { visible: root.refine; text: "mask refinement" }
+        SliderRow { visible: root.refine && !root.rawSpace && !!root.blend && root.blend.raw; field: "details" }
+        ChoiceRow {
+            visible: root.refine && !root.rawSpace
+            field: "feathering_guide"
+            options: root.row("feathering_guide").values || []
+            value: root.num("feathering_guide", 5)
+            resetValue: 5
+            onChosen: v => root.set("feathering_guide", v)
+        }
+        SliderRow { visible: root.refine && !root.rawSpace; field: "feathering_radius" }
+        SliderRow { visible: root.refine; field: "blur_radius" }
+        SliderRow { visible: root.refine && !root.rawSpace; field: "brightness" }
+        SliderRow { visible: root.refine && !root.rawSpace; field: "contrast" }
+    }
 }

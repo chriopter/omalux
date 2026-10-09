@@ -13,6 +13,37 @@ Item {
     property var lastNodes: null
     property int interactions: 0
     property int resets: 0
+    // ---- the open module: heading, section rows, body ----------------------------------------
+    property var headerGot: []
+    Item {
+        x: 360; y: 600; width: 300; height: 200
+        ModuleHeader {
+            id: header
+            x: 0; width: 300
+            theme: th
+            operation: "exposure"; name: "contrast brightness saturation"
+            moduleState: ({ canNew: true })
+            expanded: true
+            onToggleRequested: headerGot.push("toggle")
+            onExpansionRequested: headerGot.push("fold")
+            onResetRequested: headerGot.push("reset")
+        }
+        SectionRow {
+            id: sectionRow
+            objectName: "demo-section"
+            y: 40; width: 286
+            theme: th
+            label: "blending"; summary: "off"
+            property int got: 0
+            onRequested: { ++got; open = !open }
+        }
+        ModuleBody {
+            id: moduleBody
+            x: 0; y: 80; width: 300
+            Rectangle { id: bodyFirst; width: 50; height: 20 }
+            Rectangle { id: bodySecond; width: 50; height: 60; visible: false }
+        }
+    }
     CurveEditor {
         id: curve
         width: 300
@@ -158,6 +189,44 @@ Item {
             rows.term = "gai"
             compare(rows.visibility.filter(v => v).length, 1)
             rows.term = ""
+        }
+        function find(item, name) {
+            if (item.objectName === name) return item
+            for (const child of item.children) { const f = find(child, name); if (f) return f }
+            return null
+        }
+        function test_open_module() {
+            // The mark, icon and name switch the module; the rest of the heading and the chevron
+            // fold it; reset is offered while it is open.
+            const toggle = find(header, "module-toggle-exposure"), fold = find(header, "module-fold-exposure")
+            const chevron = find(header, "module-details-exposure"), reset = find(header, "module-reset-exposure")
+            verify(toggle && fold && chevron && reset)
+            headerGot = []
+            mouseClick(toggle); compare(headerGot, ["toggle"])
+            const gap = header.mapFromItem(toggle, toggle.width, 0).x + 12
+            verify(gap < header.mapFromItem(reset, 0, 0).x, "a long name leaves room to fold")
+            mouseClick(header, gap, header.height / 2); compare(headerGot, ["toggle", "fold"])
+            mouseClick(chevron); compare(headerGot, ["toggle", "fold", "fold"])
+            mouseClick(reset); compare(headerGot, ["toggle", "fold", "fold", "reset"])
+            // The chevron stands in the disclosure column, where a collapsed row has it.
+            compare(header.mapFromItem(chevron, chevron.width, 0).x, header.width)
+            header.expanded = false
+            verify(!reset.visible)
+            header.hasDetails = false
+            mouseClick(header, gap, header.height / 2); compare(headerGot.length, 4)
+            header.hasDetails = true; header.expanded = true
+            // A section row: one click target across the row, summary only while closed.
+            mouseClick(sectionRow, 5, 20); compare(sectionRow.got, 1); verify(sectionRow.open)
+            mouseClick(sectionRow, sectionRow.width - 8, 20); compare(sectionRow.got, 2); verify(!sectionRow.open)
+            // The body grows in a short movement and gives height back at once.
+            compare(moduleBody.height, 20)
+            bodySecond.visible = true
+            tryVerify(() => moduleBody.moving)
+            tryCompare(moduleBody, "height", 80, 1000)
+            verify(!moduleBody.clip)
+            bodySecond.visible = false
+            tryCompare(moduleBody, "height", 20, 1000)
+            verify(!moduleBody.moving)
         }
         function test_small() {
             mouseClick(tabs, 250, 13); compare(tabs.got, 2)

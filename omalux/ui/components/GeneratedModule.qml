@@ -22,6 +22,9 @@ Column {
     // A compact card (the Advanced list of a pane): the module icon and name only until it is
     // opened, like the Advanced cards of the Filters pane.
     property bool compact: false
+    // Opened from a summary row (ModuleGroupsPanel): the heading takes the place of the row's
+    // name, moving up into the gap between the rows, so nothing above it moves.
+    property bool fromRow: false
     readonly property bool cardOnly: compact && !expanded && term === ""
     signal expansionRequested()
     signal moreRequested()
@@ -54,201 +57,93 @@ Column {
     function requestInstance(action, name) { root.changesRequested({ "@instance": action, "@name": name }) }
     spacing: 4
     // The heading keeps its place when the card opens or closes (a second click hits it again).
-    topPadding: compact ? 0 : 12
-    bottomPadding: cardOnly ? 4 : 8
+    topPadding: fromRow && expanded ? -4 : compact ? 0 : 12
+    bottomPadding: cardOnly ? 4 : expanded ? 10 : 8
 
-    Item {
+    OpenScroll { target: root; open: root.expanded; active: root.term === "" }
+    ModuleHeader {
         id: moduleHeader
-        x: -14
-        width: parent.width + 14
-        implicitHeight: Math.max(30, headerContent.implicitHeight + 10)
-        // Keyboard stop: Enter or ←/→ open and close the details, E switches the module,
-        // Shift+R resets it.
-        NavTarget {
-            id: headerNav
-            navId: "module:" + root.module.operation + "/" + root.instance
-            label: root.title
-            kind: "module"
-            group: root.module.operation + "/" + root.instance
-            enabled: root.editable && !!root.moduleState
-            groupActions: true
-            adjustLabel: rows.hasDetails && root.term === "" ? "COLLAPSE/EXPAND" : ""
-            activateLabel: rows.hasDetails && root.term === "" ? (root.expanded ? "COLLAPSE" : "EXPAND") : ""
-            onActivate: if (rows.hasDetails) root.expansionRequested()
-            onAdjust: steps => { if (rows.hasDetails && (steps > 0) !== root.expanded) root.expansionRequested() }
-            onToggleGroup: root.requestEnabled(!root.moduleEnabled)
-            onResetGroup: root.resetRequested()
-        }
-        Rectangle {
-            z: -1
-            width: parent.width
-            height: root.height - moduleHeader.y
-            color: root.theme.surface
-        }
-        RowLayout {
-            id: headerContent
-            anchors.fill: parent
-            anchors.leftMargin: 8; anchors.rightMargin: 28
-            anchors.topMargin: 5; anchors.bottomMargin: 5
-            spacing: 6
-            ToolButton {
-                id: heading
-                objectName: "module-toggle-" + root.module.operation
-                Layout.fillWidth: true
-                padding: 0
-                enabled: root.editable && !!root.moduleState
-                hoverEnabled: true
-                onClicked: { headerNav.claim(); root.requestEnabled(!root.moduleEnabled) }
-                Accessible.name: "Enable " + root.title
-                Accessible.checkable: true; Accessible.checked: root.moduleEnabled
-                // The purpose is read before using the heading; a click puts it away until the
-                // pointer comes back, so it does not cover the rows.
-                property bool tipDismissed: false
-                onPressedChanged: if (pressed) tipDismissed = true
-                onHoveredChanged: if (!hovered) tipDismissed = false
-                ToolTip.visible: hovered && !tipDismissed && !!root.module.purpose
-                ToolTip.delay: 900
-                ToolTip.text: root.module.purpose || ""
-                contentItem: RowLayout {
-                    spacing: 7
-                    Rectangle { opacity: root.moduleEnabled ? 1 : 0; width: 7; height: 7; radius: 3.5; color: root.theme.ink }
-                    ModuleIcon {
-                        moduleKey: root.module.operation
-                        opacity: root.moduleEnabled ? 1 : .6
-                    }
-                    Text {
-                        text: root.module.name
-                        color: heading.hovered || heading.activeFocus || headerNav.current ? root.theme.accent : (root.moduleEnabled ? root.theme.ink : root.theme.muted)
-                        font: root.theme.moduleHeadingFont
-                    }
-                    // The instance name (often a preset name) in a quieter tone, cut where the
-                    // heading ends, so it never wraps the card.
-                    Text {
-                        Layout.fillWidth: true
-                        visible: root.instanceLabel !== ""
-                        text: "• " + root.instanceLabel
-                        color: root.theme.muted
-                        font: root.theme.textFont
-                        elide: Text.ElideRight
-                    }
-                    Item { Layout.fillWidth: true; visible: root.instanceLabel === "" }
-                    Text {
-                        visible: !!root.module.deprecated
-                        text: "deprecated"
-                        color: root.theme.muted; font: root.theme.textFont
-                    }
-                }
-                background: Rectangle { color: "transparent"; border.color: heading.activeFocus || headerNav.current ? root.theme.accent : "transparent" }
-            }
-            InstanceButton {
-                id: instanceButton
-                objectName: "module-instances-" + root.module.operation + (root.instance ? "-" + root.instance : "")
-                visible: !!root.moduleState && root.term === ""
-                theme: root.theme
-                moduleState: root.moduleState
-                title: root.title
-                editable: root.editable
-                navGroup: root.module.operation + "/" + root.instance
-                onInstanceRequested: (action, name) => root.requestInstance(action, name)
-            }
-        }
-        TapHandler {
-            acceptedButtons: Qt.RightButton
-            onTapped: (eventPoint, button) => menu.get().popup(eventPoint.position.x, eventPoint.position.y)
-        }
-        // Built on first use, not with every module.
-        OnDemand {
-            id: menu
-            parent: moduleHeader
-            Menu {
-                MenuItem {
-                    text: (root.moduleEnabled ? "Disable " : "Enable ") + root.title
-                    enabled: root.editable && !!root.moduleState
-                    onTriggered: root.requestEnabled(!root.moduleEnabled)
-                }
-                MenuItem {
-                    text: "Reset " + root.title
-                    enabled: root.editable && !!root.moduleState
-                    onTriggered: root.resetRequested()
-                }
-                MenuSeparator {}
-                MenuItem {
-                    text: "new instance"
-                    enabled: root.editable && !!root.moduleState && root.moduleState.canNew
-                    onTriggered: root.requestInstance("new", "")
-                }
-                MenuItem {
-                    text: "duplicate instance"
-                    enabled: root.editable && !!root.moduleState && root.moduleState.canNew
-                    onTriggered: root.requestInstance("duplicate", "")
-                }
-            }
-        }
-        DisclosureButton {
-            objectName: "module-details-" + root.module.operation
-            visible: rows.hasDetails && root.term === ""
-            anchors.right: parent.right
-            anchors.verticalCenter: headerContent.verticalCenter
-            theme: root.theme
-            expanded: root.expanded
-            onClicked: root.expansionRequested()
-            Accessible.name: (root.expanded ? "Hide details for " : "Details for ") + root.title
-        }
-    }
-    GeneratedRows {
-        id: rows
-        width: parent.width
         theme: root.theme
-        module: root.module
+        operation: root.module.operation
+        name: root.module.name
+        instanceLabel: root.instanceLabel
+        purpose: root.module.purpose || ""
+        deprecated: !!root.module.deprecated
         moduleState: root.moduleState
-        catalogModel: root.catalogModel
-        instance: root.instance
         moduleEnabled: root.moduleEnabled
-        overrides: root.overrides
-        overridePrefix: root.module.operation + "/" + root.instance + "/"
-        editable: root.editable && !!root.moduleState
-        expanded: root.expanded
-        collapsedRows: !root.compact
-        moreOpen: root.moreOpen
-        term: root.term
-        nameMatched: root.nameMatched
-        activeControl: root.activeControl
-        onChangesRequested: changes => root.changesRequested(changes)
-        onInteractionChanged: active => root.interactionChanged(active)
-        onControlSelected: id => root.controlSelected(id)
-        onMoreRequested: root.moreRequested()
+        ready: root.editable && !!root.moduleState
+        expanded: root.expanded && root.term === ""
+        hasDetails: rows.hasDetails && root.term === ""
+        showInstances: root.term === ""
+        blockHeight: root.height - moduleHeader.y
+        instancesSuffix: root.module.operation + (root.instance ? "-" + root.instance : "")
+        navId: "module:" + root.module.operation + "/" + root.instance
+        navGroup: root.module.operation + "/" + root.instance
+        onToggleRequested: root.requestEnabled(!root.moduleEnabled)
+        onExpansionRequested: root.expansionRequested()
+        onResetRequested: root.resetRequested()
+        onInstanceRequested: (action, name) => root.requestInstance(action, name)
     }
-    // The blend section of this instance, under the expanded module (blend_gui.c).
-    Loader {
-        id: blendLoader
-        width: parent.width
-        // Built once the expansion and the search term have both settled (see GeneratedRows).
-        readonly property bool wanted: root.expanded && root.term === "" && !!root.moduleState && !!root.moduleState.blend
-        active: false
-        visible: active
-        Component.onCompleted: active = wanted
-        onWantedChanged: if (wanted) Qt.callLater(blendLoader.settle); else active = false
-        function settle() { active = wanted }
-        sourceComponent: BlendSection {
+    ModuleBody {
+        id: body
+        spacing: 4
+        animate: root.term === ""
+        GeneratedRows {
+            id: rows
+            width: parent.width
             theme: root.theme
+            module: root.module
             moduleState: root.moduleState
             catalogModel: root.catalogModel
+            instance: root.instance
+            moduleEnabled: root.moduleEnabled
             overrides: root.overrides
             overridePrefix: root.module.operation + "/" + root.instance + "/"
             editable: root.editable && !!root.moduleState
-            moduleEnabled: root.moduleEnabled
-            navGroup: root.module.operation + "/" + root.instance
+            expanded: root.expanded
+            collapsedRows: !root.compact
+            moreOpen: root.moreOpen
+            term: root.term
+            nameMatched: root.nameMatched
+            activeControl: root.activeControl
             onChangesRequested: changes => root.changesRequested(changes)
             onInteractionChanged: active => root.interactionChanged(active)
-            onDrawnShapeRequested: shape => root.changesRequested({ "@drawn": shape })
+            onControlSelected: id => root.controlSelected(id)
+            onMoreRequested: root.moreRequested()
         }
-    }
-    InstanceFooter {
-        visible: root.expanded && root.term === "" && !!root.moduleState
-        width: parent.width - 28
-        theme: root.theme
-        button: instanceButton
-        navGroup: root.module.operation + "/" + root.instance
-        active: root.editable
+        // The blend section of this instance, under the expanded module (blend_gui.c).
+        Loader {
+            id: blendLoader
+            width: parent.width
+            // Built once the expansion and the search term have both settled (see GeneratedRows).
+            readonly property bool wanted: root.expanded && root.term === "" && !!root.moduleState && !!root.moduleState.blend
+            active: false
+            visible: active
+            Component.onCompleted: active = wanted
+            onWantedChanged: if (wanted) Qt.callLater(blendLoader.settle); else active = false
+            function settle() { active = wanted }
+            sourceComponent: BlendSection {
+                theme: root.theme
+                moduleState: root.moduleState
+                catalogModel: root.catalogModel
+                overrides: root.overrides
+                overridePrefix: root.module.operation + "/" + root.instance + "/"
+                editable: root.editable && !!root.moduleState
+                moduleEnabled: root.moduleEnabled
+                navGroup: root.module.operation + "/" + root.instance
+                onChangesRequested: changes => root.changesRequested(changes)
+                onInteractionChanged: active => root.interactionChanged(active)
+                onDrawnShapeRequested: shape => root.changesRequested({ "@drawn": shape })
+            }
+        }
+        InstanceFooter {
+            visible: root.expanded && root.term === "" && !!root.moduleState
+            width: parent.width
+            theme: root.theme
+            button: moduleHeader.instanceButton
+            count: (root.catalogModel.instances[root.module.operation] || []).length
+            navGroup: root.module.operation + "/" + root.instance
+            active: root.editable
+        }
     }
 }

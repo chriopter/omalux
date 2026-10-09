@@ -104,9 +104,20 @@ Column {
             }
         }
     }
-    RowLayout {
+    // Outlined chips like the shape buttons above (BlendSection); they wrap when both do not
+    // fit the module's width.
+    component Chip: Rectangle {
+        property Item button: parent
+        property bool marked: false
+        radius: 4
+        color: button.pressed ? root.theme.active : button.hovered && button.enabled ? root.theme.hover : "transparent"
+        border.width: 1
+        border.color: marked ? root.theme.accent : root.theme.line
+        opacity: button.enabled ? 1 : .6
+    }
+    Flow {
         width: root.width
-        spacing: 12
+        spacing: 6
         AbstractButton {
             id: addButton
             objectName: "mask-add-existing-" + root.navGroup
@@ -116,8 +127,9 @@ Column {
             NavTarget { id: addNav; navId: root.navGroup + "/blend/add-existing"; label: "add existing shape"; group: root.navGroup
                         kind: "button"; enabled: addButton.enabled; onActivate: addMenu.popup(addButton, 0, addButton.height) }
             contentItem: Text { text: "add existing shape ▾"; font: root.theme.textFont
-                                color: !addButton.enabled ? root.theme.muted : addButton.hovered || addNav.current ? root.theme.accent : root.theme.ink }
-            background: Item {}
+                                color: !addButton.enabled ? root.theme.muted : addNav.current ? root.theme.accent : addButton.hovered ? root.theme.ink : root.theme.muted }
+            leftPadding: 7; rightPadding: 7; topPadding: 3; bottomPadding: 3
+            background: Chip { marked: addNav.current }
             Menu {
                 id: addMenu
                 Repeater {
@@ -140,8 +152,9 @@ Column {
             NavTarget { id: cleanNav; navId: root.navGroup + "/blend/cleanup"; label: "delete unused shapes"; group: root.navGroup
                         kind: "button"; enabled: cleanButton.enabled; onActivate: root.requested("cleanup", {}) }
             contentItem: Text { text: "delete unused shapes"; font: root.theme.textFont
-                                color: !cleanButton.enabled ? root.theme.muted : cleanButton.hovered || cleanNav.current ? root.theme.accent : root.theme.ink }
-            background: Item {}
+                                color: !cleanButton.enabled ? root.theme.muted : cleanNav.current ? root.theme.accent : cleanButton.hovered ? root.theme.ink : root.theme.muted }
+            leftPadding: 7; rightPadding: 7; topPadding: 3; bottomPadding: 3
+            background: Chip { marked: cleanNav.current }
         }
     }
 }

@@ -72,17 +72,21 @@ Column {
             if (release) { release(); release = null; return }
             revealed = root.openedItem(key)
             until = Date.now() + 1500
-            if (revealed) Scroll.reveal(revealed, 0, revealed.height)
+            if (revealed) { Scroll.reveal(revealed, 0, revealed.height); at = Scroll.position(revealed) }
         }
-        // Rows are built over a few frames (later under load): follow the opened item's height
-        // for a moment.
+        // Rows are built over a few frames (later under load): follow the opened item's height for a
+        // moment, and give way as soon as the person scrolls (see OpenScroll).
         property Item revealed: null
         property real until: 0
+        property real at: 0
     }
     Connections {
         target: settle.revealed
         function onHeightChanged() {
-            if (Date.now() < settle.until) Scroll.reveal(settle.revealed, 0, settle.revealed.height)
+            if (Date.now() >= settle.until) return
+            if (Scroll.position(settle.revealed) !== settle.at) { settle.until = 0; return }
+            Scroll.reveal(settle.revealed, 0, settle.revealed.height)
+            settle.at = Scroll.position(settle.revealed)
         }
     }
     // The heading or module that `key` ("openGroups:id", "expandedModules:operation") opened.

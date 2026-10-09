@@ -12,7 +12,6 @@ Item {
     property bool moduleToggleAvailable: compact
     property string displayLabel: ""
     property bool qualifyLabel: true
-    property bool darkVignette: false
     property string moduleIconKey: ""
     property string moduleName: ""
     property bool moduleEnabled: true
@@ -179,7 +178,7 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 22
             enabled: root.editable
-            from: Math.min(root.control.softMinimum, root.value); to: Math.max(root.darkVignette ? 0 : root.control.softMaximum, root.value)
+            from: Math.min(root.control.softMinimum, root.value); to: Math.max(root.control.softMaximum, root.value)
             stepSize: root.control.step
             value: root.value
             onPressedChanged: { root.interactionChanged(pressed); if (pressed) { navTarget.claim(); root.selectedRequested() } }

@@ -161,11 +161,24 @@ Item {
         function test_section() {
             const visibleItem = name => { const i = top.find(section, name); return !!i && i.visible }
             verify(section.visible)
+            // Off: the section is one closed row naming the mask mode; a click opens it, a
+            // second one folds it again.
+            const heading = top.find(section, "blend-section-demo/0")
+            verify(!!heading && heading.visible)
+            compare(heading.summary, "off")
+            verify(!section.open)
+            verify(!visibleItem("blend-mask-mode-demo/0"), "closed: no rows")
+            mouseClick(heading)
+            verify(section.open)
             verify(visibleItem("blend-mask-mode-demo/0"), "the mask mode is always offered")
             verify(!visibleItem("blend-opacity-demo/0"), "off: no opacity")
+            mouseClick(heading)
+            verify(!section.open)
+            // A mask switched on from elsewhere opens the section.
             // The catalog reports a parametric mask: blend rows and the input range appear.
             cat.catalog = top.catalogJson(5)
             verify(section.parametric)
+            verify(section.open)
             verify(visibleItem("blend-opacity-demo/0"))
             verify(visibleItem("blendif-input-demo/0"))
             compare(section.channels.length, 3)
