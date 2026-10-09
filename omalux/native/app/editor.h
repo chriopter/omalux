@@ -12,6 +12,8 @@ class Editor : public QObject {
     Q_PROPERTY(QVector4D previewTextureTransform READ previewTextureTransform NOTIFY changed)
     Q_PROPERTY(QString status READ status NOTIFY changed)
     Q_PROPERTY(QString gpuWarning READ gpuWarning NOTIFY changed)
+    // The photograph given at start (or opened first) could not be read: nothing to edit yet.
+    Q_PROPERTY(bool photoMissing READ photoMissing NOTIFY changed)
     Q_PROPERTY(QString filename READ filename NOTIFY changed)
     Q_PROPERTY(QVariantList history READ history NOTIFY historyChanged)
     Q_PROPERTY(QVariantMap metadata READ metadata NOTIFY changed)
@@ -44,6 +46,7 @@ class Editor : public QObject {
     QVariantMap metadata() const;
     QVariantList cameraDefaults() const;
     bool styleBusy() const;
+    bool photoMissing() const;
     QString applyingStyle() const;
     QString activeStyle() const;
     QVariantList styles() const;
@@ -123,7 +126,7 @@ class Editor : public QObject {
     QVariantMap imageMetadata;
     QVariantList imageCameraDefaults;
     QString modules;
-    bool catalogReady = false, applying = false;
+    bool catalogReady = false, applying = false, startFailed = false;
     WorkTicket requestedTicket;
     quint64 presentedRevision = 0, hoverRevision = 0;
     void connectCanvas();

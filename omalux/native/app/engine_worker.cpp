@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "engine_worker.h"
+#include <QFileInfo>
 #include "frames.h"
 #include "image_export.h"
 #include "engine/module_instances.h"
@@ -151,6 +152,19 @@ bool EngineWorker::take(Request &request) {
     }
     return true;
 }
+// Opens the file or says why not. 2: the file is there but holds no readable image; the
+// photograph shown before is kept (engine.c).
+void EngineWorker::openImage(OmEngine *engine, const QString &path) {
+    switch (om_engine_open(engine, path.toUtf8().constData())) {
+    case 0:
+        return;
+    case 2:
+        throw std::runtime_error(
+            ("Could not read " + QFileInfo(path).fileName() + ": damaged or not a photograph").toStdString());
+    default:
+        throw std::runtime_error(("Could not open " + QFileInfo(path).fileName()).toStdString());
+    }
+}
 void EngineWorker::run() {
     std::vector<char *> argv;
     for (auto &arg : arguments)
@@ -162,30 +176,53 @@ void EngineWorker::run() {
         emit failed({}, "darktable initialization failed");
         return;
     }
-    if (om_engine_open(engine.get(), source.toUtf8().constData())) {
-        emit failed({}, "Could not open image with darktable");
-        return;
+    // Without a readable photograph the editor stays open and empty: the worker keeps running
+    // and waits for an Open that succeeds; everything else needs an image and is dropped.
+    bool opened = false;
+    const auto announce = [&] {
+        ControlValues initial, resets;
+        om_engine_read_controls(engine.get(), initial.data());
+        om_engine_default_controls(engine.get(), resets.data());
+        {
+            std::lock_guard lock(mutex);
+            requested = initial;
+            defaults = resets;
+        }
+        emit initialized(
+            initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
+            catalog.reload(engine.get()),
+            takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
+            (moduleCatalog.reload(engine.get()), moduleCatalog.json()));
+        moduleCatalog.takeChanged();
+        opened = true;
+        return initial;
+    };
+    try {
+        openImage(engine.get(), source);
+        announce();
+    } catch (const std::exception &error) {
+        emit failed({}, QString::fromUtf8(error.what()));
     }
-    ControlValues initial, resets;
-    om_engine_read_controls(engine.get(), initial.data());
-    om_engine_default_controls(engine.get(), resets.data());
-    {
-        std::lock_guard lock(mutex);
-        requested = initial;
-        defaults = resets;
-    }
-    emit initialized(
-        initial, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
-        catalog.reload(engine.get()),
-        takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList(),
-        (moduleCatalog.reload(engine.get()), moduleCatalog.json()));
-    moduleCatalog.takeChanged();
     ControlRevisions processed{};
     for (;;) {
         Request request;
         if (!take(request))
             break;
         try {
+            if (!opened) {
+                if (request.action.kind != ActionKind::Open || !request.hoverId.isEmpty() ||
+                    !request.choices.empty())
+                    continue;
+                openImage(engine.get(), request.action.value);
+                source = request.action.value;
+                request.values = announce();
+                request.revisions.fill(0);
+                emit metadataReady(
+                    source, takeJson(om_engine_metadata(engine.get())).object().toVariantMap(),
+                    takeJson(om_engine_camera_defaults(engine.get())).object().toVariantMap()["entries"].toList());
+                // The image is open; what remains of the request is its first preview.
+                request.action.kind = ActionKind::None;
+            }
             if (!request.choices.empty()) {
                 for (const auto &query : request.choices) {
                     char *raw = om_engine_module_choices(engine.get(), query.operation.toUtf8().constData(),
@@ -398,7 +435,7 @@ void EngineWorker::process(OmEngine *engine, Request &request, ControlRevisions 
     QString savedDirectory;
     switch (action.kind) {
     case ActionKind::Open:
-        requireEngine(om_engine_open(engine, action.value.toUtf8().constData()), "Could not open image");
+        openImage(engine, action.value);
         source = action.value;
         bridge.reset();
         replaceControls(engine, request, processed);

@@ -19,6 +19,9 @@ QVector4D Editor::previewTextureTransform() const {
 QString Editor::status() const {
     return hoverUrl.isEmpty() ? message : "Style preview · click to apply";
 }
+bool Editor::photoMissing() const {
+    return startFailed && url.isEmpty();
+}
 QString Editor::gpuWarning() const {
     return gpuMessage;
 }
@@ -290,6 +293,9 @@ Editor::Editor(Frames *normal, Frames *hover, QString image, std::vector<QByteAr
     connect(worker.get(), &EngineWorker::failed, this, [this](WorkTicket ticket, QString error) {
         if (ticket.epoch != requestedTicket.epoch)
             return;
+        // No photograph yet: the editor is empty and offers Open.
+        if (url.isEmpty())
+            startFailed = true;
         message = error;
         if (applying)
             errorText = error;
@@ -334,7 +340,8 @@ void Editor::hoverStyle(const QString &id, bool active) {
     emit changed();
 }
 void Editor::queueAction(EditorAction action) {
-    if (applying || url.isEmpty())
+    // Everything but opening a photograph needs one.
+    if (applying || (url.isEmpty() && (action.kind != ActionKind::Open || !startFailed)))
         return;
     hoverStyle("", false);
     applying = true;
@@ -376,7 +383,7 @@ void Editor::applyHalation() {
 void Editor::openPhoto(const QUrl &url) {
     const QString path = url.toLocalFile();
     if (!QFileInfo(path).isFile()) {
-        message = "Image does not exist";
+        message = errorText = "Could not open " + QFileInfo(path).fileName() + ": the file does not exist";
         emit changed();
         return;
     }

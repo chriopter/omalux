@@ -145,7 +145,9 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 app.exit(2);
                 return;
             }
-            if (!editor.stylesReady() || editor.preview().isEmpty() || editor.styleBusy())
+            // Without a readable photograph (Editor.photoMissing) the steps run on the empty editor.
+            if (editor.styleBusy() ||
+                (!editor.photoMissing() && (!editor.stylesReady() || editor.preview().isEmpty())))
                 return;
             if (*waiting && editor.preview() == *previous)
                 return;
@@ -283,6 +285,10 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
                 editor.applyStyle(step["style"].toString());
                 *waiting = true;
             } else if (step.contains("open")) {
+                // "fails": text of the expected error; the file cannot be opened and the
+                // photograph shown stays, so no new preview is waited for.
+                if (step.contains("fails"))
+                    *expectedError = step["fails"].toString();
                 editor.openPhoto(QUrl::fromLocalFile(step["open"].toString()));
                 *waiting = true;
             } else if (step.contains("saveStyle")) {
@@ -388,6 +394,13 @@ void install_smoke(QGuiApplication &app, Editor &editor, Frames *frames, QQmlApp
             } else if (step.contains("checkPreview")) {
                 if ((*historyMarks)[step["checkPreview"].toString()].toString() != editor.preview()) {
                     qCritical() << "Original preview not restored";
+                    app.exit(2);
+                    return;
+                }
+            } else if (step.contains("emptyState")) {
+                // The editor is (not) empty: no photograph could be read.
+                if (editor.photoMissing() != step["emptyState"].toBool()) {
+                    qCritical() << "Unexpected empty state" << editor.photoMissing() << editor.status();
                     app.exit(2);
                     return;
                 }

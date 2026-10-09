@@ -68,6 +68,7 @@ class EngineWorker : public QObject {
     };
     bool take(Request &);
     void run();
+    static void openImage(OmEngine *, const QString &path);
     void process(OmEngine *, Request &, ControlRevisions &processed);
     void renderHover(OmEngine *, const Request &);
     void replaceControls(OmEngine *, Request &, ControlRevisions &);

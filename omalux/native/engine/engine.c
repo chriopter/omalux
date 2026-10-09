@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "engine_internal.h"
+#include "common/mipmap_cache.h"
 #include "common/darktable.h"
 #include "common/film.h"
 #include "common/image.h"
@@ -48,6 +49,16 @@ int om_engine_open(OmEngine *engine, const char *path) {
     dt_imgid_t image = dt_image_import(film, path, TRUE, FALSE);
     if (!dt_is_valid_imgid(image))
         return 1;
+    // Decode before letting go of the photograph shown: darktable imports any file with a known
+    // extension, and a corrupt or truncated one fails only when the pipe asks for its pixels,
+    // which would leave the editor without an image. The decoded buffer stays in the mipmap
+    // cache, so dt_dev_load_image below does not decode a second time.
+    dt_mipmap_buffer_t decoded;
+    dt_mipmap_cache_get(&decoded, image, DT_MIPMAP_FULL, DT_MIPMAP_BLOCKING, 'r');
+    const gboolean readable = decoded.buf && decoded.width > 0 && decoded.height > 0;
+    dt_mipmap_cache_release(&decoded);
+    if (!readable)
+        return 2;
     if (engine->loaded) {
         om_blend_display_reset(engine);
         om_module_display_reset(engine);
